@@ -255,7 +255,8 @@ getFIA <- function(states,
                    common = TRUE,
                    tables = NULL,
                    load = TRUE,
-                   nCores = 1){
+                   nCores = 1,
+                   timeout = 3600){
 
   if (!is.null(dir)){
     # Add a slash to end of directory name if missing
@@ -365,6 +366,7 @@ Did you accidentally include the state abbreviation in front of the table name? 
 
       ## Download the zip to a temporary file
       temp <- tempfile()
+      options(timeout = max(timeout, getOption("timeout")))
       download.file(urls[n], temp)
 
       # Write the data out the directory they've chosen

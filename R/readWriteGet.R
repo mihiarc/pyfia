@@ -445,6 +445,7 @@ Did you accidentally include the state abbreviation in front of the table name? 
       if (states[i] == 'REF') {url <- paste0('https://apps.fs.usda.gov/fia/datamart/CSV/FIADB_REFERENCE.zip')}
       #newName <- paste0(str_sub(url, 1, -4), 'csv')
       ## Download as temporary file
+      options(timeout = max(timeout, getOption("timeout")))
       download.file(url, temp)
       ## Extract
       if (is.null(dir)){

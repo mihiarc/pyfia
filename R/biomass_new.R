@@ -63,8 +63,8 @@ bioStarter <- function(x,
     warning(paste('Method', method,
                   'unknown. Defaulting to Temporally Indifferent (TI).'))
   }
-  if (any(stringr::str_to_upper(component) %in% c('AG', 'ROOTS', 'BOLE', "BRANCH", "FOLIAGE", "STUMP", "SAPLING", "TOTAL")) == FALSE) {
-    stop('Unknown component. Must be a combination of: "AG", "ROOTS", "BOLE", "BRANCH", "FOLIAGE", "STUMP", "SAPLING". Alternatively, use "TOTAL" for a sum of all components, and set "byComponent=TRUE" to estimate all components simultaneously.')
+  if (any(stringr::str_to_upper(component) %in% c('AG', 'ROOTS', 'STEM', "BRANCH", "FOLIAGE", "STUMP", "TOTAL")) == FALSE) {
+    stop('Unknown component. Must be a combination of: "AG", "ROOTS", "STEM", "BRANCH", "FOLIAGE", "STUMP". Alternatively, use "TOTAL" for a sum of all components, and set "byComponent=TRUE" to estimate all components simultaneously.')
   }
 
   ## Biomass method warnings
@@ -195,6 +195,9 @@ bioStarter <- function(x,
                   leafRatio = exp(JENKINS_FOLIAGE_RATIO_B1 + JENKINS_FOLIAGE_RATIO_B2 / (DIA*2.54)),
                   jBoleBio = (jTotal * stemRatio) + (jTotal * barkRatio),
                   jLeafBio = jTotal * leafRatio,
+                  adj = dplyr::case_when(is.na(DIA) ~ NA_real_,
+                                         DIA >= 5 ~ DRYBIO_STEM / jBoleBio,
+                                         TRUE ~ JENKINS_SAPLING_ADJUSTMENT),
                   DRYBIO_FOLIAGE = dplyr::case_when(STATUSCD == 1 ~ jLeafBio,
                                                     STATUSCD == 2 ~ 0,
                                                     TRUE ~ NA_real_)) %>%
@@ -205,15 +208,15 @@ bioStarter <- function(x,
   if (bioMethod == 'JENKINS') {
     db$TREE <- db$TREE %>%
       ## Replacing component ratio biomass estimates w/ Jenkins
-      dplyr::mutate(DRYBIO_BOLE = jBoleBio,
+      dplyr::mutate(DRYBIO_STEM = jBoleBio,
                     ## adj defined above - ratio of volume-based biomass estimates and
                     ## diameter-based estimates for bole volume
-                    DRYBIO_TOP = DRYBIO_TOP / adj,
+                    DRYBIO_BRANCH = DRYBIO_BRANCH / adj,
                     DRYBIO_STUMP = DRYBIO_STUMP / adj,
                     DRYBIO_BG = DRYBIO_BG / adj,
-                    DRYBIO_SAPLING = DRYBIO_SAPLING / adj,
-                    DRYBIO_WDLD_SPP = DRYBIO_WDLD_SPP / adj,
-                    DRYBIO_FOLIAGE = DRYBIO_WDLD_SPP / adj)
+                    # DRYBIO_SAPLING = DRYBIO_SAPLING / adj,
+                    # DRYBIO_WDLD_SPP = DRYBIO_WDLD_SPP / adj,
+                    DRYBIO_FOLIAGE = DRYBIO_FOLIAGE / adj)
   }
 
 

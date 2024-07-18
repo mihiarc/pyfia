@@ -198,7 +198,7 @@ bioStarter <- function(x,
                   adj = dplyr::case_when(is.na(DIA) ~ NA_real_,
                                          DIA >= 5 ~ DRYBIO_STEM / jBoleBio,
                                          TRUE ~ JENKINS_SAPLING_ADJUSTMENT),
-                  DRYBIO_FOLIAGE = dplyr::case_when(STATUSCD == 1 ~ jLeafBio,
+                  DRYBIO_FOLIAGE = dplyr::case_when(STATUSCD == 1 ~ DRYBIO_FOLIAGE,
                                                     STATUSCD == 2 ~ 0,
                                                     TRUE ~ NA_real_)) %>%
     as.data.frame()
@@ -216,7 +216,7 @@ bioStarter <- function(x,
                     DRYBIO_BG = DRYBIO_BG / adj,
                     # DRYBIO_SAPLING = DRYBIO_SAPLING / adj,
                     # DRYBIO_WDLD_SPP = DRYBIO_WDLD_SPP / adj,
-                    DRYBIO_FOLIAGE = DRYBIO_FOLIAGE / adj)
+                    DRYBIO_FOLIAGE = jLeafBio)
   }
 
 

@@ -63,8 +63,8 @@ bioStarter <- function(x,
     warning(paste('Method', method,
                   'unknown. Defaulting to Temporally Indifferent (TI).'))
   }
-  if (any(stringr::str_to_upper(component) %in% c('AG', 'ROOTS', 'BOLE', "TOP", "FOLIAGE", "STUMP", "SAPLING", "WDLD_SPP", "TOTAL")) == FALSE) {
-    stop('Unknown component. Must be a combination of: "AG", "ROOTS", "BOLE", "TOP", "FOLIAGE", "STUMP", "SAPLING", and "WDLD_SPP". Alternatively, use "TOTAL" for a sum of all components, and set "byComponent=TRUE" to estimate all components simultaneously.')
+  if (any(stringr::str_to_upper(component) %in% c('AG', 'ROOTS', 'STEM', "BRANCH", "FOLIAGE", "STUMP", "TOTAL")) == FALSE) {
+    stop('Unknown component. Must be a combination of: "AG", "ROOTS", "STEM", "BRANCH", "FOLIAGE", "STUMP". Alternatively, use "TOTAL" for a sum of all components, and set "byComponent=TRUE" to estimate all components simultaneously.')
   }
 
   ## Biomass method warnings
@@ -91,8 +91,8 @@ bioStarter <- function(x,
 
   ## When component = AG or total, replace with component names
   component = stringr::str_to_upper(unique(component))
-  if ('TOTAL' %in% component | byComponent) {component <- c('ROOTS', 'BOLE', "TOP", "FOLIAGE", "STUMP", "SAPLING", "WDLD_SPP")}
-  if ('AG' %in% component & byComponent == FALSE) {component <- unique(c(component[component != 'AG'], 'BOLE', "TOP", "STUMP", "SAPLING", "WDLD_SPP"))}
+  if ('TOTAL' %in% component | byComponent) {component <- c("ROOTS", "STEM", "BRANCH", "FOLIAGE", "STUMP")}
+  if ('AG' %in% component & byComponent == FALSE) {component <- unique(c(component[component != "AG"], "STEM", "BRANCH", "FOLIAGE", "STUMP"))}
 
 
 
@@ -196,10 +196,9 @@ bioStarter <- function(x,
                   jBoleBio = (jTotal * stemRatio) + (jTotal * barkRatio),
                   jLeafBio = jTotal * leafRatio,
                   adj = dplyr::case_when(is.na(DIA) ~ NA_real_,
-                                         !is.na(DRYBIO_WDLD_SPP) ~ DRYBIO_WDLD_SPP / (jTotal - jLeafBio),
-                                         DIA >= 5 ~ DRYBIO_BOLE / jBoleBio,
+                                         DIA >= 5 ~ DRYBIO_STEM / jBoleBio,
                                          TRUE ~ JENKINS_SAPLING_ADJUSTMENT),
-                  DRYBIO_FOLIAGE = dplyr::case_when(STATUSCD == 1 ~ jLeafBio * adj,
+                  DRYBIO_FOLIAGE = dplyr::case_when(STATUSCD == 1 ~ DRYBIO_FOLIAGE,
                                                     STATUSCD == 2 ~ 0,
                                                     TRUE ~ NA_real_)) %>%
     as.data.frame()
@@ -209,15 +208,15 @@ bioStarter <- function(x,
   if (bioMethod == 'JENKINS') {
     db$TREE <- db$TREE %>%
       ## Replacing component ratio biomass estimates w/ Jenkins
-      dplyr::mutate(DRYBIO_BOLE = jBoleBio,
+      dplyr::mutate(DRYBIO_STEM = jBoleBio,
                     ## adj defined above - ratio of volume-based biomass estimates and
                     ## diameter-based estimates for bole volume
-                    DRYBIO_TOP = DRYBIO_TOP / adj,
+                    DRYBIO_BRANCH = DRYBIO_BRANCH / adj,
                     DRYBIO_STUMP = DRYBIO_STUMP / adj,
                     DRYBIO_BG = DRYBIO_BG / adj,
-                    DRYBIO_SAPLING = DRYBIO_SAPLING / adj,
-                    DRYBIO_WDLD_SPP = DRYBIO_WDLD_SPP / adj,
-                    DRYBIO_FOLIAGE = DRYBIO_WDLD_SPP / adj)
+                    # DRYBIO_SAPLING = DRYBIO_SAPLING / adj,
+                    # DRYBIO_WDLD_SPP = DRYBIO_WDLD_SPP / adj,
+                    DRYBIO_FOLIAGE = jLeafBio)
   }
 
 
@@ -263,8 +262,8 @@ bioStarter <- function(x,
   db$TREE <- db$TREE %>%
     dplyr::select(c(PLT_CN, CONDID, DIA, SPCD, TPA_UNADJ,
                     SUBP, TREE, dplyr::all_of(grpT), tD, typeD,
-                    DRYBIO_TOP, DRYBIO_BOLE, DRYBIO_STUMP, DRYBIO_ROOTS = DRYBIO_BG,
-                    DRYBIO_SAPLING, DRYBIO_WDLD_SPP, DRYBIO_FOLIAGE)) %>%
+                    DRYBIO_BRANCH, DRYBIO_STEM, DRYBIO_STUMP, DRYBIO_ROOTS = DRYBIO_BG,
+                    DRYBIO_FOLIAGE)) %>%
     ## Drop plots outside our domain of interest
     dplyr::filter(!is.na(DIA) & TPA_UNADJ > 0 & tD == 1 & typeD == 1) %>%
     ## Drop visits not used in our eval of interest
@@ -291,7 +290,7 @@ bioStarter <- function(x,
 
   ## Convert to long format, where biomass component is the observation (multiple per tree)
   data <- data %>%
-    tidyr::pivot_longer(cols = DRYBIO_TOP:DRYBIO_FOLIAGE,
+    tidyr::pivot_longer(cols = DRYBIO_BRANCH:DRYBIO_FOLIAGE,
                         names_to = c(".value", 'COMPONENT'),
                         names_sep = 7) %>%
     dplyr::rename(DRYBIO = DRYBIO_) %>%

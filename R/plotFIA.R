@@ -1,4 +1,3 @@
-#' @export
 plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet = FALSE,
                     se = FALSE, n.max = NULL, plot.title = NULL, y.lab = NULL, x.lab = NULL,
                     legend.title = NULL, legend.labs = waiver(), limits = c(NA, NA),
@@ -8,7 +7,7 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
                     legend.width = 1, device = 'png', savePath = NULL, fileName = NULL) {
 
 
-  ## Requires gganimate when animate = TRUE
+  # Requires gganimate when animate = TRUE
   if (animate == TRUE & !c('gganimate' %in% row.names(installed.packages()))) {
     stop('plotFIA requires package "gganimate" to produce animations. Please install with "install.packages(gganimate)" and try again.')
   }
@@ -19,33 +18,28 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
   x_quo = enquo(x)
   grp_quo = enquo(grp)
 
-  ## Some dummy checks
+  # Some dummy checks
   if (!is.null(savePath) & is.null(fileName)){
     warning('Must specify both fileName & savePath to save a plot.')
   }
   if (is.null(savePath) & !is.null(fileName)){
     warning('Must specify both fileName & savePath to save a plot.')
   }
-  # if (class(y) != 'character'){
-  #   stop(cat('y must be of class character. Specify name of variable in data you would like to visualize. \n'))
-  # }
   if (animate & !is.null(savePath) & !is.null(fileName)){
     message('Saving as .gif file. \n')
   }
-  ## IF data is not an FIA.Database, y is required
+  # If data is not an FIA.Database, y is required
   if (any(class(data) %in% c('FIA.Database') == FALSE) & quo_name(y_quo) == "NULL"){
-    ## If it's remote, just read in the plot table
-    if (class(data) == 'Remote.FIA.Database'){
+    # If it's remote, just read in the plot table
+    if (is(data, 'Remote.FIA.Database')) {
       data <- readFIA(data$dir, tables = 'PLOT')
     } else {
       stop('Argument "y" required unless plotting an FIA.Database object.')
     }
-  } #else if (quo_name(y_quo) != "NULL") {
-    #stop(cat('Argument "y" required unless plotting an FIA.Database object.'))
-  #}
+  } 
 
-  ## Plot plot locations in a database
-  if (any(class(data) == 'FIA.Database')){
+  # Plot plot locations in a database
+  if (any(class(data) == 'FIA.Database')) {
     pltSF <- data$PLOT %>%
       drop_na(LON, LAT) %>%
       st_as_sf(coords = c('LON', 'LAT'))
@@ -53,39 +47,31 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
     # Make the spatial map
     map <- pltSF %>%
       ggplot() +
-      #geom_point(colour = line.color, size = line.width) +
       geom_sf(aes(geometry = geometry), colour = line.color, size = line.width) +
-      #labs(color = ifelse(is.null(legend.title), str_wrap(quo_name(y_quo), width = 10 * lab.width), str_wrap(legend.title, width = 10 * lab.width))) +
-      #scale_colour_viridis_c(alpha = alpha, option = color.option, direction = direction, trans = transform) +
-      #scale_fill_viridis_c(alpha = alpha, option = color.option, direction = direction, trans = transform) +
       theme_minimal() +
       ggtitle(plot.title)+
-      theme(#axis.text = element_blank(),
-        legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
-        legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
-        plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
-        legend.key.height = unit(2.2 * legend.height, "cm"),
-        legend.key.width  = unit(1 * legend.width, "cm"))
+      theme(legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
+            legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
+            plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
+            legend.key.height = unit(2.2 * legend.height, "cm"),
+            legend.key.width  = unit(1 * legend.width, "cm"))
     return(map)
   }
 
-
-
-
-  ## If a modifier was given to a variable, handle it (ex. y = TPA_PERC / 100)
+  # If a modifier was given to a variable, handle it (ex. y = TPA_PERC / 100)
   data <- data %>%
     mutate(xVar = !!x_quo,
            grpVar = !!grp_quo,
            yVar = !!y_quo)
 
 
-  ## If they want a subset of the groups
+  # If they want a subset of the groups
   if (!is.null(n.max) & quo_name(grp_quo) != 'NULL'){
     d <- data %>%
       group_by(grpVar) %>%
       summarize(m = mean(yVar, na.rm = TRUE)) %>%
       top_n(n.max, m)
-    grpStr <- d[,1, drop = TRUE]
+    grpStr <- d[, 1, drop = TRUE]
 
     data <- data %>%
       filter(grpVar %in% grpStr)
@@ -93,7 +79,7 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
 
   ###### SPATIAL & SPATIOTEMPORAL PLOTS ######
   if ('sf' %in% class(data)){
-    ## Plotting spatial points
+    # Plotting spatial points
     if (any(str_detect(st_geometry_type(data), 'POINT'))){
       if (quo_name(grp_quo) == 'NULL'){
         # Make the spatial map
@@ -102,17 +88,15 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
           geom_sf(aes(colour = yVar)) +
           labs(colour = ifelse(is.null(legend.title), str_wrap(quo_name(y_quo), width = 10 * lab.width), str_wrap(legend.title, width = 10 * lab.width))) +
           scale_colour_viridis_c(alpha = alpha, option = color.option, direction = direction, trans = transform, limits = limits) +
-          #scale_fill_viridis_c(alpha = alpha, option = color.option, direction = direction, trans = transform) +
           theme_minimal() +
           ggtitle(plot.title)+
-          theme(#axis.text = element_blank(),
-            legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
-            legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
-            plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
-            legend.key.height = unit(2.2 * legend.height, "cm"),
-            legend.key.width  = unit(1 * legend.width, "cm"))
+          theme(legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
+                legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
+                plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
+                legend.key.height = unit(2.2 * legend.height, "cm"),
+                legend.key.width  = unit(1 * legend.width, "cm"))
 
-        ## Grouped spatial points
+        # Grouped spatial points
       } else {
         map <- data %>%
           ggplot() +
@@ -120,18 +104,16 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
           labs(size = ifelse(is.null(legend.title[1]), str_wrap(quo_name(y_quo), width = 10 * lab.width), str_wrap(legend.title[1], width = 10 * lab.width)),
                colour = ifelse(is.null(legend.title[2]), str_wrap(quo_name(grp_quo), width = 10 * lab.width), str_wrap(legend.title[2], width = 10 * lab.width))) +
           scale_colour_viridis_d(alpha = alpha, option = color.option, direction = direction) +
-          #scale_fill_viridis_c(alpha = alpha, option = color.option, direction = direction, trans = transform) +
           theme_minimal() +
           ggtitle(plot.title)+
-          theme(#axis.text = element_blank(),
-            legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
-            legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
-            plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
-            legend.key.height = unit(2.2 * legend.height, "cm"),
-            legend.key.width  = unit(1 * legend.width, "cm"))
+          theme(legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
+                legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
+                plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
+                legend.key.height = unit(2.2 * legend.height, "cm"),
+                legend.key.width  = unit(1 * legend.width, "cm"))
       }
 
-      ## Plotting spatial polygons
+      # Plotting spatial polygons
     } else {
       # Make the spatial map
       map <- data %>%
@@ -141,14 +123,13 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
         scale_fill_viridis_c(alpha = alpha, option = color.option, direction = direction, trans = transform, limits = limits) +
         theme_minimal() +
         ggtitle(plot.title)+
-        theme(#axis.text = element_blank(),
-          legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
-          legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
-          plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
-          legend.key.height = unit(2.2 * legend.height, "cm"),
-          legend.key.width  = unit(1 * legend.width, "cm"))
+        theme(legend.title = element_text(size = 14 * text.size, face = 'bold.italic', family = text.font),
+              legend.text = element_text(size = 11 * text.size, face = 'italic', family = text.font),
+              plot.title = element_text(size = 17 * text.size, face = 'bold', family = text.font),
+              legend.key.height = unit(2.2 * legend.height, "cm"),
+              legend.key.width  = unit(1 * legend.width, "cm"))
     }
-    ## Animate if they want to
+    # Animate if they want to
     if (animate){
       map <- map +
         transition_manual(YEAR) +
@@ -163,7 +144,7 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
     ###### TIME SERIES PLOTS  (or UD x) ######
   } else {
 
-    ## Identify the associated sampling error field
+    # Identify the associated sampling error field
     if (se){
       #yv = data$yVar
       SE <- data
@@ -172,8 +153,6 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
       }
 
       SE <- SE %>%
-        #mutate_all(.funs = ~if_elSE(yVar == ., 1, 0)) %>%
-        #mutate_all(.funs = if_elSE, condition = yv == ., true =1, falSE = 0, missing = NULL) %>%
         select(-c(yVar)) %>%
         summarise_all(sum, na.rm = TRUE)
 
@@ -184,9 +163,7 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
       data$ymax <- data$yVar + data$seVar
     }
 
-    #print(data$seVar)
-
-    ## Default to time series if x not specified
+    # Default to time series if x not specified
     if (quo_name(x_quo) == 'NULL'){
       data$xVar <- data$YEAR
       # Convert year to date format
@@ -209,7 +186,6 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
 
     if (se){
       ylim = if_else(any(data$ymin < 0), min(data$ymin,na.rm = TRUE) * 1.4, 0)
-      #ylimMax = max(data$ymax,na.rm = TRUE) * 1.4
     } else {
       ylim = if_else(any(data$yVar < 0), min(data$yVar,na.rm = TRUE) * 1.4, 0)
     }
@@ -222,14 +198,11 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
           ungroup() %>%
           ggplot(aes(x = xVar, y = yVar, group = 1), group = 1) +
           geom_errorbar(aes(ymin=ymin, ymax=ymax), size = .67, alpha= .67, width = .5) +
-          #geom_ribbon(aes(x = xVar, ymin = (yVar * ))) +
           geom_line(aes(group = 1), color = line.color, lwd = line.width) +
-          #geom_line(color = line.color, lwd = line.width) +
           theme_bw() +
           ggtitle(plot.title) +
           xlab(ifelse(is.null(x.lab), quo_name(x_quo), x.lab)) +
           ylab(ifelse(is.null(y.lab), quo_name(y_quo), y.lab)) +
-          #scale_y_continuous(limits = c(0, NA), expand = c(0,0))
           ylim(ylim, max(data$ymax) * 1.4) +
           theme(axis.text = element_text(size = 11 * text.size, family = text.font),
                 axis.title = element_text(size = 15 * text.size, family = text.font),
@@ -240,14 +213,11 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
           select(yVar, xVar) %>%
           ungroup() %>%
           ggplot(aes(x = xVar, y = yVar, group = 1), group = 1) +
-          #geom_ribbon(aes(x = xVar, ymin = (yVar * ))) +
           geom_line(aes(group = 1), color = line.color, lwd = line.width) +
-          #geom_line(color = line.color, lwd = line.width) +
           theme_bw() +
           ggtitle(plot.title) +
           xlab(ifelse(is.null(x.lab), quo_name(x_quo), x.lab)) +
           ylab(ifelse(is.null(y.lab), quo_name(y_quo), y.lab)) +
-          #scale_y_continuous(limits = c(0, NA), expand = c(0,0))
           ylim(ylim, max(data$yVar) * 1.4) +
           theme(axis.text = element_text(size = 11 * text.size, family = text.font),
                 axis.title = element_text(size = 15 * text.size, family = text.font),
@@ -258,14 +228,12 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
       # grouped time series
     } else {
       # Handle legend labels
-      #if (is.null(legend.labs)) legend.labs = waiver()
       if (se){
         # Omit any NAs in grp
         data <- filter(data, !is.na(grpVar))
         map <- data %>%
           ggplot(aes(x = as.factor(xVar), y = yVar, colour = as.factor(grpVar), group = as.factor(grpVar))) +
           geom_line(lwd = line.width) +
-          #labs(colour = ifelse(is.null(legend.title), str_wrap(y, width = 10 * lab.width), str_wrap(legend.title, width = 10 * lab.width))) +
           scale_colour_viridis_d(alpha = alpha, option = color.option, direction = direction, labels = legend.labs) +
           labs(colour = ifelse(is.null(legend.title), '', str_wrap(legend.title, width = 10 * lab.width))) +
           theme_bw() +
@@ -285,7 +253,6 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
         map <- data %>%
           ggplot(aes(x = as.factor(xVar), y = yVar, colour = as.factor(grpVar), group = as.factor(grpVar))) +
           geom_line(lwd = line.width) +
-          #labs(colour = ifelse(is.null(legend.title), str_wrap(y, width = 10 * lab.width), str_wrap(legend.title, width = 10 * lab.width))) +
           scale_colour_viridis_d(alpha = alpha, option = color.option, direction = direction, labels = legend.labs) +
           labs(colour = ifelse(is.null(legend.title), '', str_wrap(legend.title, width = 10 * lab.width))) +
           theme_bw() +
@@ -304,17 +271,15 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
     }
 
 
-    ## IF you want to animate
+    # If you want to animate
     if (animate){
-      # map <- map +
-      #   transition_reveal(along = as.numeric(xVar))
       map <- map +
         transition_manual(YEAR) +
         labs(title = 'Year: {current_frame}')
     }
   }
 
-  ## Save the plots if they want to
+  # Save the plots if they want to
   if(!is.null(savePath) & !is.null(fileName)){
     if (animate){
       anim_save(filename = fileName, animation = map, path = savePath)

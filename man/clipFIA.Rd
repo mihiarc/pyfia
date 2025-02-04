@@ -44,7 +44,7 @@ Hunter Stanke and Andrew Finley
 }
 
 \references{
-FIA Database User Guide: \url{https://www.fia.fs.fed.us/library/database-documentation/}
+FIA Database User Guide: \url{https://research.fs.usda.gov/understory/forest-inventory-and-analysis-database-user-guide-nfi}
 }
 
 \seealso{
@@ -65,3 +65,4 @@ clipFIA(fiaRI, mask = countiesRI[1,], mostRecent = FALSE)
 }
 
 }
+

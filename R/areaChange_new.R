@@ -451,8 +451,8 @@ areaChange <- function (db,
     ## different reporting schedules, i.e., if 2016 is most recent in MI and 2017 is
     ## most recent in WI, combine them and label as 2017
     if (mr) {
-      tEst <- combineMR(tEst, grpBy)
-      aEst <- combineMR(aEst, grpBy)
+      tEst <- combineMR(tEst)
+      aEst <- combineMR(aEst)
     }
 
 

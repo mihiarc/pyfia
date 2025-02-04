@@ -298,6 +298,8 @@ utils::globalVariables(c('ADJ_FACTOR_MACR', 'ADJ_FACTOR_MICR', 'ADJ_FACTOR_SUBP'
                          'CHNG_TOTAL_VAR', 'CURR_TOTAL', 'CURR_TOTAL_SE', 'CURR_TOTAL_VAR', 'GROW_PERC',
                          'GROW_PERC_VAR', 'GROW_TOTAL', 'GROW_TOTAL_VAR', 'GROW_TPA', 'GROW_TPA_VAR',
                          'PREV_TOTAL', 'PREV_TOTAL_SE', 'PREV_TOTAL_VAR', 'cPlot_cv_t', 'pPlot', 'pPlot_mean',
-                         'pPlot_var', 'state.prev'
+                         'pPlot_var', 'state.prev', "CARBON_RATIO_LIVE", "DRYBIO_STEM", "DRYBIO_STEM_BARK", 
+                         "DRYBIO_BRANCH", "DRYBIO_STUMP_BARK", "DRYBIO_BOLE_BARK", "DRYBIO_SAWLOG", 
+                         "DRYBIO_SAWLOG_BARK", "CARBON", "nPlots_AREA_DEN", "nPlots_AREA_NUM", "x.vars"
 
 ))

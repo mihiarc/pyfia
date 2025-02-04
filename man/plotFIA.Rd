@@ -16,7 +16,7 @@ plotFIA(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet = FALSE,
            }
 
 \arguments{
-  \item{data}{dataframe, \code{sf} object, or \code{FIA.Database} object; FIA summary produced from other \code{rFIA} functions (e.g. \code{\link{tpa}}, \code{\link{biomass}}, etc.). Also accepts \code{FIA.Database}, will return map of plot locations.}
+  \item{data}{dataframe, \code{sf} object, or \code{FIA.Database} object; FIA summary produced from other \code{rFIA} functions (e.g. \code{tpa}, \code{biomass}, etc.). Also accepts \code{FIA.Database}, will return map of plot locations.}
 
   \item{y}{variable contained in \code{data} which will be used as y-axis or to fill polygons (spatial). NOT quoted.}
 
@@ -28,7 +28,7 @@ plotFIA(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet = FALSE,
 
   \item{facet}{logical; if TRUE, produces temporally grouped plots (stationary).}
 
-    \item{se}{logical; if TRUE, plots error bars along with estimates. All error bars represent 68\% confidence.}
+    \item{se}{logical; if TRUE, plots error bars along with estimates. All error bars represent 95\% confidence.}
 
   \item{n.max}{numeric; maximum number of groups to plot. If positive, will plot the top \code{n} groups with respect to \code{y}, and if negative, will plot the bottom \code{n}. Not meaningful for spatial summaries.}
 
@@ -136,4 +136,5 @@ plotFIA(tpaRI_sc, y = BAA, grp = COMMON_NAME, x = sizeClass, n.max = 4)# Only th
 }
 }
 }
+
 

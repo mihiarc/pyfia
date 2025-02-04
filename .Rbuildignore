@@ -3,3 +3,8 @@
 ^rFIA\.Rproj$
 ^README\.Rmd$
 ^\.travis\.yml$
+^compile$
+^README\.html$
+^\.github$
+^tests$
+^codecov\.yml$

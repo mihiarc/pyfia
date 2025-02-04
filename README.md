@@ -81,8 +81,8 @@ errors produced by EVALIDator.
 For more information and example usage of `rFIA`, check out our
 [website](https://rfia.netlify.app/). To report a bug or suggest
 additions to `rFIA`, please use our [active
-issues](https://github.com/doserjef/rFIA_tmp/issues) page here on
-GitHub, or contact [Jeff Doser](https://doserlab.com/) (maintainer).
+issues](https://github.com/doserjef/rFIA/issues) page here on GitHub, or
+contact [Jeff Doser](https://doserlab.com/) (maintainer).
 
 ***To cite*** `rFIA`, please refer to the publication in [Environmental
 Modeling and Software](https://doi.org/10.1016/j.envsoft.2020.104664)
@@ -104,7 +104,7 @@ soon.**
 Currently, you can install the development version from GitHub:
 
 ``` r
-devtools::install_github('doserjef/rFIA_tmp')
+devtools::install_github('doserjef/rFIA')
 ```
 
 ## Example Usage

@@ -153,7 +153,7 @@ carbonStarter <- function(x,
                     COND_STATUS_CD, CONDID,
                     dplyr::all_of(grpC), aD, landD,
                     CARBON_DOWN_DEAD, CARBON_LITTER,
-                    CARBON_SOIL_ORG, CARBON_STANDING_DEAD,
+                    CARBON_SOIL_ORG, #CARBON_STANDING_DEAD,
                     CARBON_UNDERSTORY_AG, CARBON_UNDERSTORY_BG)) %>%
     ## Drop non-forested plots, and those otherwise outside our domain of interest
     dplyr::filter(aD == 1 & landD == 1) %>%
@@ -202,7 +202,7 @@ carbonStarter <- function(x,
       dplyr::summarize(AG_UNDER_LIVE = sum(CONDPROP_UNADJ * CARBON_UNDERSTORY_AG * aDI, na.rm = TRUE),
                        BG_UNDER_LIVE = sum(CONDPROP_UNADJ * CARBON_UNDERSTORY_BG * aDI, na.rm = TRUE),
                        DOWN_DEAD = sum(CONDPROP_UNADJ * CARBON_DOWN_DEAD * aDI, na.rm = TRUE),
-                       STAND_DEAD_MOD = sum(CONDPROP_UNADJ * CARBON_STANDING_DEAD * aDI, na.rm = TRUE),
+                      #  STAND_DEAD_MOD = sum(CONDPROP_UNADJ * CARBON_STANDING_DEAD * aDI, na.rm = TRUE),
                        LITTER = sum(CONDPROP_UNADJ * CARBON_LITTER * aDI, na.rm = TRUE),
                        SOIL_ORG = sum(CONDPROP_UNADJ * CARBON_SOIL_ORG * aDI, na.rm = TRUE),
                        PROP_FOREST = sum(CONDPROP_UNADJ * aDI, na.rm = TRUE)) %>%
@@ -224,16 +224,16 @@ carbonStarter <- function(x,
       dplyr::left_join(t, by = c('PLT_CN', grpBy))
 
     ## Decide which estimate to use for snags
-    if (modelSnag){
-      t <- t %>%
-        dplyr::mutate(STAND_DEAD = STAND_DEAD_MOD) %>%
-        dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
+    # if (modelSnag){
+    #   t <- t %>%
+    #     dplyr::mutate(STAND_DEAD = STAND_DEAD_MOD) %>%
+    #     dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
 
-    } else {
-      t <- t %>%
-        dplyr::mutate(STAND_DEAD = AG_OVER_DEAD + BG_OVER_DEAD) %>%
-        dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
-    }
+    # } else {
+      # t <- t %>%
+      #   dplyr::mutate(STAND_DEAD = AG_OVER_DEAD + BG_OVER_DEAD) %>%
+      #   dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
+    # }
 
 
     ## Convert to long format, where rows are ecosystem components
@@ -301,7 +301,7 @@ carbonStarter <- function(x,
       dplyr::mutate(AG_UNDER_LIVE = CONDPROP_UNADJ * CARBON_UNDERSTORY_AG * aDI,
                        BG_UNDER_LIVE = CONDPROP_UNADJ * CARBON_UNDERSTORY_BG * aDI,
                        DOWN_DEAD = CONDPROP_UNADJ * CARBON_DOWN_DEAD * aDI,
-                       STAND_DEAD_MOD = CONDPROP_UNADJ * CARBON_STANDING_DEAD * aDI,
+                      #  STAND_DEAD_MOD = CONDPROP_UNADJ * CARBON_STANDING_DEAD * aDI,
                        LITTER = CONDPROP_UNADJ * CARBON_LITTER * aDI,
                     SOIL_ORG = CONDPROP_UNADJ * CARBON_SOIL_ORG * aDI,
                     PROP_FOREST = CONDPROP_UNADJ * aDI) %>%
@@ -351,16 +351,16 @@ carbonStarter <- function(x,
 
 
       ## Decide which estimate to use for snags
-      if (modelSnag){
-        t <- t %>%
-          dplyr::mutate(STAND_DEAD = STAND_DEAD_MOD) %>%
-          dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
+      # if (modelSnag){
+      #   t <- t %>%
+      #     dplyr::mutate(STAND_DEAD = STAND_DEAD_MOD) %>%
+      #     dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
 
-      } else {
-        t <- t %>%
-          dplyr::mutate(STAND_DEAD = AG_OVER_DEAD + BG_OVER_DEAD) %>%
-          dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
-      }
+      # } else {
+      #   t <- t %>%
+      #     dplyr::mutate(STAND_DEAD = AG_OVER_DEAD + BG_OVER_DEAD) %>%
+      #     dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
+      # }
 
       ## Convert to long format, where rows are ecosystem components
       t <- t %>%
@@ -415,16 +415,16 @@ carbonStarter <- function(x,
 
 
       ## Decide which estimate to use for snags
-      if (modelSnag){
-        tPlt <- tPlt %>%
-          dplyr::mutate(STAND_DEAD = STAND_DEAD_MOD) %>%
-          dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
+      # if (modelSnag){
+      #   tPlt <- tPlt %>%
+      #     dplyr::mutate(STAND_DEAD = STAND_DEAD_MOD) %>%
+      #     dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
 
-      } else {
-        tPlt <- tPlt %>%
-          dplyr::mutate(STAND_DEAD = AG_OVER_DEAD + BG_OVER_DEAD) %>%
-          dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
-      }
+      # } else {
+      #   tPlt <- tPlt %>%
+      #     dplyr::mutate(STAND_DEAD = AG_OVER_DEAD + BG_OVER_DEAD) %>%
+      #     dplyr::select(-c(AG_OVER_DEAD, BG_OVER_DEAD, STAND_DEAD_MOD))
+      # }
 
       ## Convert to long format, where rows are ecosystem components
       tPlt <- tPlt %>%

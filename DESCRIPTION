@@ -31,5 +31,5 @@ Suggests:
     coda,
     testthat
 RoxygenNote: 7.1.2
-URL: https://github.com/doserjef/rFIA
+URL: https://github.com/doserjef/rFIA, https://doserjef.github.io/rFIA/
 BugReports: https://github.com/doserjef/rFIA/issues

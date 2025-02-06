@@ -13,3 +13,5 @@
 + Added more details to `vegStruct()` on reporting of estimates by canopy layer and growth habit.
 + Updated internal data to now contain the Dec 2024 `REF_SPECIES` table from FIADB, which provides access to the `CARBON_RATIO_LIVE` attribute for using the NSVB species-specific carbon fractions. 
 + Updated all estimation functions to fix a bug that resulted in an error when setting `method = 'EMA'`. 
++ Removed all references to "ECOSUBCD" in the help pages since this column was removed from the PLOT table in FIADB v9.3. 
++ Updated `writeFIA()` to allow users to write database tables by state when only a subset of the table is originally read into R. This currently requires either the PLOT or COND tables to be read in.  

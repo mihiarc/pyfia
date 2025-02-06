@@ -1,0 +1,16 @@
+url: ~
+template:
+  bootstrap: 5
+authors: 
+  Jeffrey Doser:
+          href: "https://doserlab.com/"
+  Andrew Finley:
+          href: "https://www.finley-lab.com/"
+
+articles: 
+  - title: Basic tutorials
+    contents: 
+    - downloading
+    - basicEstimation
+    - spatial
+    - alternativeEstimators

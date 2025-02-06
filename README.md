@@ -1,13 +1,11 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# rFIA: Unlocking the FIA Database in R <a href='https://rfia.netlify.app'><img src='man/figures/logo.PNG' align="right" height="139" /></a>
+# rFIA: Unlocking the FIA Database in R <a href='https://rfia.netlify.app'><img src='man/figures/logo.PNG' align="right" height="139" width="180"/></a>
 
 [![CRAN](https://www.r-pkg.org/badges/version/rFIA)](https://CRAN.R-project.org/package=rFIA)
 [![Codecov test
 coverage](https://codecov.io/gh/doserjef/rFIA/branch/main/graph/badge.svg)](https://app.codecov.io/gh/doserjef/rFIA?branch=main)
-
-![](man/figures/usBiomass.jpg)
 
 **`rFIA` is coming back online!** After a couple years of limited
 support and functioning of `rFIA`, `rFIA` is now being maintained and
@@ -173,20 +171,21 @@ tpaRI_MR <- tpa(fiaRI_MR)
 head(tpaRI_MR)
 #> # A tibble: 1 × 8
 #>    YEAR   TPA   BAA TPA_SE BAA_SE nPlots_TREE nPlots_AREA     N
-#>   <int> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
+#>   <dbl> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
 #> 1  2018  427.  122.   6.63   3.06         126         127   199
 
 # All Inventory Years Available (i.e., returns a time series)
 tpaRI <- tpa(fiaRI)
 head(tpaRI)
-#> # A tibble: 5 × 8
+#> # A tibble: 6 × 8
 #>    YEAR   TPA   BAA TPA_SE BAA_SE nPlots_TREE nPlots_AREA     N
-#>   <int> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
-#> 1  2014  466.  120.   6.73   3.09         121         123   196
-#> 2  2015  444.  121.   6.40   3.06         122         124   194
-#> 3  2016  450.  123.   6.46   2.94         124         125   197
-#> 4  2017  441.  123.   6.66   3.01         124         125   196
-#> 5  2018  427.  122.   6.63   3.06         126         127   199
+#>   <dbl> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
+#> 1  2013  467.  119.   6.64   3.09         120         123   197
+#> 2  2014  466.  120.   6.73   3.09         121         123   196
+#> 3  2015  444.  121.   6.40   3.06         122         124   194
+#> 4  2016  450.  123.   6.46   2.94         124         125   197
+#> 5  2017  441.  123.   6.66   3.01         124         125   196
+#> 6  2018  427.  122.   6.63   3.06         126         127   199
 ```
 
 **What if I want to group estimates by species? How about by size
@@ -198,7 +197,7 @@ tpaRI_species <- tpa(fiaRI_MR, bySpecies = TRUE)
 head(tpaRI_species, n = 3)
 #> # A tibble: 3 × 11
 #>    YEAR  SPCD COMMON_NAME          SCIENTIFIC_NAME      TPA    BAA TPA_SE BAA_SE
-#>   <int> <int> <chr>                <chr>              <dbl>  <dbl>  <dbl>  <dbl>
+#>   <dbl> <dbl> <chr>                <chr>              <dbl>  <dbl>  <dbl>  <dbl>
 #> 1  2018    12 balsam fir           Abies balsamea    0.0873 0.0295  114.   114. 
 #> 2  2018    43 Atlantic white-cedar Chamaecyparis th… 0.247  0.180    59.1   56.0
 #> 3  2018    68 eastern redcedar     Juniperus virgin… 1.14   0.138    64.8   67.5
@@ -210,7 +209,7 @@ tpaRI_sizeClass <- tpa(fiaRI_MR, bySizeClass = TRUE)
 head(tpaRI_sizeClass, n = 3)
 #> # A tibble: 3 × 9
 #>    YEAR sizeClass   TPA   BAA TPA_SE BAA_SE nPlots_TREE nPlots_AREA     N
-#>   <int>     <dbl> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
+#>   <dbl>     <dbl> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
 #> 1  2018         1 188.   3.57  13.0   12.8           76         127   199
 #> 2  2018         3  68.6  5.76  15.1   15.8           46         127   199
 #> 3  2018         5  46.5  9.06   6.51   6.57         115         127   199
@@ -247,9 +246,9 @@ tpaRI_own <- tpa(fiaRI_MR,
 head(tpaRI_own)
 #> # A tibble: 2 × 9
 #>    YEAR OWNGRPCD   TPA   BAA TPA_SE BAA_SE nPlots_TREE nPlots_AREA     N
-#>   <int>    <int> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
-#> 1  2018       30 0.848  3.57   59.0   59.1           3          38   199
-#> 2  2018       40 1.49   3.99   25.7   27.7          12          82   199
+#>   <dbl>    <int> <dbl> <dbl>  <dbl>  <dbl>       <int>       <int> <int>
+#> 1  2018       30 0.857  3.61   58.9   59.1           3          37   199
+#> 2  2018       40 1.48   3.97   25.7   27.7          12          83   199
 ```
 
 **What if I want to produce estimates within my own population

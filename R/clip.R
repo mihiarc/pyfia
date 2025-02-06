@@ -1,5 +1,4 @@
 # Spatiotemporal clip of FIADB
-# TODO: need to go through
 clipFIA <- function(db,
                     mostRecent = TRUE,
                     mask = NULL,

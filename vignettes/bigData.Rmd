@@ -1,0 +1,129 @@
+---
+title: "Tips for working with big data"
+author: "Hunter Stanke"
+date: "2020"
+description: Learn about how to work with big data using `rFIA`  
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{bigData}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Larger-than-RAM methods
+
+The sheer size of the FIA Database can present a serious challenge for many users interested in performing regional studies (requiring a large subset of the database). Recent updates to `rFIA` are intended to reduce these barriers. 
+
+Namely, we've implemented "larger-than-RAM" methods for all `rFIA` estimator functions. In short, behind the scenes we read the necessary tables for individual states into RAM one at a time and summarize to the estimation unit level (always sub-state and mutually exclusive populations, hence additive properties apply). We save the estimation unit level results for each state in RAM, and combine them into the final output once we've iterated over all states. This may sound complicated, but *fortunately these "larger-than-RAM" methods use the exact same syntax as normal "in-memory" operations.*
+
+To get started, we simply have to set up a `Remote.FIA.Database` in place of our regular in-memory `FIA.Database` by setting `inMemory=FALSE` in our call to `readFIA()`:
+
+``` {r eval = FALSE}
+library(rFIA)
+# Download data for two small states
+getFIA(c('RI', 'CT'), dir = 'path/to/save/', load = FALSE)
+
+# Now set up a Remote.FIA.Database with readFIA by setting inMemory = FALSE
+# Instead of reading in the data now, readFIA will simply save a pointer
+# and allow the estimator functions to read/process the data state-by-state
+fia <- readFIA('path/to/save/', inMemory = FALSE)
+class(fia)
+```
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+library(rFIA)
+fia <- readFIA(states = c('RI', 'CT'), dir = '~/Dropbox/data/fia/', 
+               inMemory = FALSE)
+class(fia)
+```
+
+Once set up, our `Remote.FIA.Database` will work exactly the same as we are used to. That is, we can use the same syntax we have been using for normal, in-memory operations. For example, to estimate biomass using our `Remote.FIA.Database`:
+
+``` {r}
+# Estimate biomass with Remote.FIA.Database
+biomass(db = fia)
+
+# All the extra goodies work the same:
+# By species
+biomass(fia, bySpecies = TRUE)
+
+# Alternative estimators (linear moving average)
+biomass(fia, method = 'LMA')
+
+# Grouping variables
+biomass(fia, grpBy = c(STDORGCD, SITECLCD))
+```
+
+
+In addition, you can still specify spatial-temporal subsets on `Remote.FIA.Database` objects using `clipFIA()`:
+
+``` {r}
+# A most recent subset with the Remote.FIA.Database
+fiaMR <- clipFIA(fia)
+
+# Biomass in most recent inventory
+biomass(fiaMR)
+```
+
+In practice, `rFIA's` new larger-than-RAM methods make it possible for nearly anyone to work with very large subsets of FIA Database. In our testing, we have run `tpa()`, `biomass()`, `dwm()`, and `carbon()` for the entire continental US on a machine with just 16 GB of RAM (where the FIA data total ~ 50GB). 
+
+The only challenge that the `Remote.FIA.Database` presents is that it becomes difficult for users to modify variables in FIA tables (e.g., make tree size classes). However, it is possible to read in, modify, and save tables of interest prior to setting up a `Remote.FIA.Database`. For example, we can extend our example above to produce estimates of live tree biomass grouped by stand age classes, where stand age classes can be computed with `makeClasses()`. 
+
+```{r, eval = FALSE}
+# Rather than read all tables into memory, just read those of interest
+# In this case, we just need the COND table
+modTables <- readFIA(dir = 'path/to/save/', tables = 'COND', 
+                     states = c('RI', 'CT'), inMemory = TRUE)
+
+# Now we can modify the COND table in any way we like
+# Here we just add a variable that we will want to group by later
+modTables$COND$STANDAGEGROUP <- makeClasses(modTables$COND$STDAGE, interval = 50)
+
+# Now we can save our changes to the modified tables on disk with writeFIA
+# This will overwrite the COND tables previously stored in our target directory
+# And allow us to use our new variables in a subsequent 'Remote.FIA.Database'
+writeFIA(modTables, dir = 'path/to/save/', byState = TRUE)
+
+
+# Now set up the Remote database again
+fia <- readFIA('path/to/save/', inMemory = FALSE)
+
+# And produce estimates grouped by our new variable
+biomass(fia, grpBy = STANDAGEGROUP)
+```
+
+```{r, echo = FALSE, message = FALSE, warning = FALSE}
+# Rather than read all tables into memory, just read those of interest
+# In this case, we just need the COND table
+modTables <- readFIA(dir = '~/Dropbox/data/fia/', tables = 'INVASIVE_SUBPLOT_SPP', 
+                     states = c('RI', 'CT'), inMemory = TRUE)
+
+modTables$COND$STANDAGEGROUP <- makeClasses(modTables$COND$STDAGE, interval = 50)
+
+writeFIA(modTables, dir = '~/Dropbox/data/fia/', byState = TRUE)
+
+fia <- readFIA(dir = '~/Dropbox/data/fia/', inMemory = FALSE, 
+               states = c('RI', 'CT'))
+
+biomass(fia, grpBy = STANDAGEGROUP)
+```
+
+# Simple, easy parallelization
+
+All `rFIA` estimator functions (as well as `readFIA()` and `getFIA()`) can be implemented in parallel, using the `nCores` argument. By default, processing is implemented serially with `nCores = 1`, although users may find substantial increases in efficiency by increasing `nCores`. 
+
+Parallelization is implemented with the parallel package. Parallel implementation is achieved using a snow type cluster on any Windows OS, and with multicore forking on any Unix OS (Linux, Mac). Implementing parallel processing may substantially decrease free memory during processing, particularly on Windows OS. Thus, users should be cautious when running in parallel, and consider implementing serial processing for this task if computational resources are limited (`nCores = 1`).
+
+``` {r}
+# Check the number of cores available on your machine 
+# Requires the parallel package
+parallel::detectCores()
+
+# On our machine, we have a fun 16 cores to play with. 
+# To speed processing, we will split the workload 
+# across 3 of these cores using nCores = 3
+tpaRI_par <- tpa(fiaRI, nCores = 3)
+```

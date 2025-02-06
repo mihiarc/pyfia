@@ -1,0 +1,96 @@
+---
+title: "Downloading FIA data"
+author: "Hunter Stanke"
+date: "2019"
+description: Learn how to download FIA data and get it into R 
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{downloading}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+# Download data
+
+The first step to using `rFIA` is to download subsets of the FIA Database. The easiest way to accomplish this is using `getFIA()`.  Using one line of code, you can download state subsets of the FIA Database, load data into your R environment, and optionally save those data to a local directory for future use. Alternatively, you may also choose to download subsets as .csv files from the [FIA DataMart](https://apps.fs.usda.gov/fia/datamart/datamart.html) and load into R using `readFIA()`.
+
+
+```{r eval=FALSE}
+library(rFIA)
+# Download the state subset or Connecticut (requires an internet connection)
+# Save as an object to automatically load the data into your current R session!
+ct <- getFIA(states = 'CT', dir = '/path/to/save/data')
+
+# Get multiple states worth of data (not saved since 'dir' is not specified)
+northEast <- getFIA(states = c('ME', 'NH', 'VT', 'NY', 'CT', 'MA', 'RI'))
+```
+
+You can also download REFERENCE tables listed on the [FIA DataMart](https://research.fs.usda.gov/products/dataandtools/tools/fia-datamart) by specifying `states = 'REF'`:
+
+```{r eval=FALSE}
+# Get the forest type and forest type group reference tables
+ref <- getFIA(states = 'ref', tables = c('FOREST_TYPE', 'FOREST_TYPE_GROUP'))
+```
+
+If you are downloading a large amount of data (e.g., the entire eastern US), you may not want to load it all into R immediately. In this case, specify `load=FALSE` in the call to `getFIA()`. This will ensure all data is download and saved to disk without maxing out your RAM. For more on 'big data' management, check out our [larger than RAM methods](https://github.com/doserjef/rFIA).
+
+# Load data into R
+
+If you used `getFIA` to download data in your current R session, then the database is likely automatically loaded into your current R session (unless `load=FALSE`). Theoretically, we could use `getFIA` to re-download FIA data every time you want to use, but that would be _very_ inefficient. Instead, we recommend you save downloaded FIA data using the `dir` argument in `getFIA` (automatically saves on download) or using `writeFIA` (saves any in-memory `FIA.Database`). Once data are saved on disk, you can quickly re-load them into R using `readFIA`:
+
+```{r eval=FALSE}
+## Load FIA Data from a local directory
+db <- readFIA('/path/to/your/directory/')
+```
+
+# Loading multiple states
+
+Need to load multiple state subsets of FIA data for regional analyses? No problem! Using `getFIA()`, specify mutiple state abbreviations in the `states` argument (e.g. `states = c('MI', 'IN', 'WI', 'IL')`). Alternatively, download individual states seperately and save them to the same directory. When multiple state subsets of data are loaded into R using `getFIA()` or `readFIA()`, subsets will be merged into a single `FIA.Database` object. This will allow you to use other `rFIA` functions to produce estimates for areas which straddle state boundaries!
+
+Conveniently, you can selectively read state subsets from a directory containing multiple states worth of data using `readFIA()`. For example, lets say we previously used `getFIA()` to download FIA data for Washington, Oregon, and Idaho. We saved all this data to same directory, and hence pointing `readFIA()` to this directory will automatically load and merge all states. But what if we just want to load the data for Washington? Easy, use the `states` argument in readFIA:
+
+```{r eval=FALSE}
+# Download data for PNW states, but don't load the data yet
+getFIA(states = c('WA', 'OR', 'ID'),
+       dir = 'path/to/my/directory/',
+       load = FALSE)
+
+# A simple call to readFIA will load and merge all states
+allStates <- readFIA(dir = 'path/to/my/directory/')
+
+# But using the 'states' argument we can select individual states (or groups)
+wa <- readFIA(dir = 'path/to/my/directory/', states = 'WA')
+
+# Read WA and OR, but not ID
+wa_or <- readFIA(dir = 'path/to/my/directory/', states = c('WA', 'OR'))
+```
+
+Given the massive size of the full FIA Database (~50 GB), users are cautioned to only download the subsets containing their region of interest.
+
+# Loading specific tables
+
+If you are only interested in loading/downloading a specific table from the FIA database, simply specify the names of those tables in the `tables` argument of `readFIA()` or `getFIA()` (e.g. specify `tables = c('TREE', 'PLOT')` for the TREE and PLOT tables). See the [FIA User Guide](https://research.fs.usda.gov/understory/forest-inventory-and-analysis-database-user-guide-nfi) for a complete description of the database.
+
+By default, `getFIA()` and `readFIA()` only loads/downloads the portions of the database required to produce summaries with other `rFIA` functions (`common = TRUE`). This conserves memory on your machine and speeds download time. If you would like to load/download all available tables for a state, simple specify `common = FALSE` in the call to  `readFIA()` or `getFIA()`.
+
+<br>
+
+# The FIA.Database object
+
+When FIA data is loaded into R with `readFIA()` or `getFIA()`, those data are stored in an `FIA.Database` object. An `FIA.Database` object is essentially just a list with each list element corresponding to an individual FIA table. Accordingly, users can access individual tables with `$`, `['']`, and `[['']]` operators:
+
+```{r eval=FALSE}
+# Access the TREE, PLOT, and COND tables
+# Tree
+db$TREE
+
+# Plot
+db['PLOT']
+
+# Check spatial coverage of plots held in the database
+plotFIA(db)
+```
+

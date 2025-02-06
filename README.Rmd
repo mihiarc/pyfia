@@ -11,13 +11,11 @@ knitr::opts_chunk$set(
   fig.path = "man/figures/README-",
   out.width = "100%")
 ```
-# rFIA: Unlocking the FIA Database in R <a href='https://rfia.netlify.app'><img src='man/figures/logo.PNG' align="right" height="139" /></a>
+# rFIA: Unlocking the FIA Database in R <a href='https://rfia.netlify.app'><img src='man/figures/logo.PNG' align="right" height="139" width="180"/></a>
 
 [![CRAN](https://www.r-pkg.org/badges/version/rFIA)](https://CRAN.R-project.org/package=rFIA)
 [![Codecov test coverage](https://codecov.io/gh/doserjef/rFIA/branch/main/graph/badge.svg)](https://app.codecov.io/gh/doserjef/rFIA?branch=main)
 
-
-![](man/figures/usBiomass.jpg)
 
 **`rFIA` is coming back online!** After a couple years of limited support and functioning of `rFIA`, `rFIA` is now being maintained and further developed by Jeff Doser and the [Statistical Ecology and Forest Science Lab](https://doserlab.com/) at North Carolina State University. We are in the process of actively updating the package, ensuring its compatibility with recent updates in FIADB, and making other minor changes before the package is uploaded back onto CRAN. 
 
@@ -56,6 +54,8 @@ Functionality is currently being updated and extensively tested. Some previous `
 
 <br>
 
+
+## Overview
 
 The goal of `rFIA` is to increase the accessibility and use of the USFS Forest Inventory and Analysis (FIA) Database by providing a user-friendly, open source platform to easily query and analyze FIA Data. Designed to accommodate a wide range of potential user objectives, `rFIA` simplifies the estimation of forest variables from the FIA Database and allows all R users (experts and newcomers alike) to unlock the flexibility and potential inherent to the Enhanced FIA design.
 

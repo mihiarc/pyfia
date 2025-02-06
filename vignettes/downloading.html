@@ -1,0 +1,493 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Hunter Stanke" />
+
+<meta name="date" content="2022-01-01" />
+
+<title>Downloading FIA data</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Downloading FIA data</h1>
+<h4 class="author">Hunter Stanke</h4>
+<h4 class="date">2022</h4>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#download-data" id="toc-download-data">Download
+data</a></li>
+<li><a href="#load-data-into-r" id="toc-load-data-into-r">Load data into
+R</a></li>
+<li><a href="#loading-multiple-states" id="toc-loading-multiple-states">Loading multiple states</a></li>
+<li><a href="#loading-specific-tables" id="toc-loading-specific-tables">Loading specific tables</a></li>
+<li><a href="#the-fia.database-object" id="toc-the-fia.database-object"><strong>The FIA.Database
+object</strong></a></li>
+</ul>
+</div>
+
+<div id="download-data" class="section level1">
+<h1>Download data</h1>
+<p>The first step to using <code>rFIA</code> is to download subsets of
+the FIA Database. The easiest way to accomplish this is using
+<code>getFIA()</code>. Using one line of code, you can download state
+subsets of the FIA Database, load data into your R environment, and
+optionally save those data to a local directory for future use.
+Alternatively, you may also choose to download subsets as .csv files
+from the <a href="https://apps.fs.usda.gov/fia/datamart/datamart.html">FIA
+DataMart</a> and load into R using <code>readFIA()</code>.</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Download the state subset or Connecticut (requires an internet connection)</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="co"># Save as an object to automatically load the data into your current R session!</span></span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a>ct <span class="ot">&lt;-</span> <span class="fu">getFIA</span>(<span class="at">states =</span> <span class="st">&#39;CT&#39;</span>, <span class="at">dir =</span> <span class="st">&#39;/path/to/save/data&#39;</span>)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="co"># Get multiple states worth of data (not saved since &#39;dir&#39; is not specified)</span></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>northEast <span class="ot">&lt;-</span> <span class="fu">getFIA</span>(<span class="at">states =</span> <span class="fu">c</span>(<span class="st">&#39;ME&#39;</span>, <span class="st">&#39;NH&#39;</span>, <span class="st">&#39;VT&#39;</span>, <span class="st">&#39;NY&#39;</span>, <span class="st">&#39;CT&#39;</span>, <span class="st">&#39;MA&#39;</span>, <span class="st">&#39;RI&#39;</span>))</span></code></pre></div>
+<p>You can also download REFERENCE tables listed on the <a href="https://research.fs.usda.gov/products/dataandtools/tools/fia-datamart">FIA
+DataMart</a> by specifying <code>states = &#39;REF&#39;</code>:</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a><span class="co"># Get the forest type and forest type group reference tables</span></span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>ref <span class="ot">&lt;-</span> <span class="fu">getFIA</span>(<span class="at">states =</span> <span class="st">&#39;ref&#39;</span>, <span class="at">tables =</span> <span class="fu">c</span>(<span class="st">&#39;FOREST_TYPE&#39;</span>, <span class="st">&#39;FOREST_TYPE_GROUP&#39;</span>))</span></code></pre></div>
+<p>If you are downloading a large amount of data (e.g., the entire
+eastern US), you may not want to load it all into R immediately. In this
+case, specify <code>load=FALSE</code> in the call to
+<code>getFIA()</code>. This will ensure all data is download and saved
+to disk without maxing out your RAM. For more on ‘big data’ management,
+check out our <a href="https://github.com/doserjef/rFIA">larger than RAM
+methods</a>.</p>
+</div>
+<div id="load-data-into-r" class="section level1">
+<h1>Load data into R</h1>
+<p>If you used <code>getFIA</code> to download data in your current R
+session, then the database is likely automatically loaded into your
+current R session (unless <code>load=FALSE</code>). Theoretically, we
+could use <code>getFIA</code> to re-download FIA data every time you
+want to use, but that would be <em>very</em> inefficient. Instead, we
+recommend you save downloaded FIA data using the <code>dir</code>
+argument in <code>getFIA</code> (automatically saves on download) or
+using <code>writeFIA</code> (saves any in-memory
+<code>FIA.Database</code>). Once data are saved on disk, you can quickly
+re-load them into R using <code>readFIA</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="do">## Load FIA Data from a local directory</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>db <span class="ot">&lt;-</span> <span class="fu">readFIA</span>(<span class="st">&#39;/path/to/your/directory/&#39;</span>)</span></code></pre></div>
+</div>
+<div id="loading-multiple-states" class="section level1">
+<h1>Loading multiple states</h1>
+<p>Need to load multiple state subsets of FIA data for regional
+analyses? No problem! Using <code>getFIA()</code>, specify mutiple state
+abbreviations in the <code>states</code> argument
+(e.g. <code>states = c(&#39;MI&#39;, &#39;IN&#39;, &#39;WI&#39;, &#39;IL&#39;)</code>). Alternatively,
+download individual states seperately and save them to the same
+directory. When multiple state subsets of data are loaded into R using
+<code>getFIA()</code> or <code>readFIA()</code>, subsets will be merged
+into a single <code>FIA.Database</code> object. This will allow you to
+use other <code>rFIA</code> functions to produce estimates for areas
+which straddle state boundaries!</p>
+<p>Conveniently, you can selectively read state subsets from a directory
+containing multiple states worth of data using <code>readFIA()</code>.
+For example, lets say we previously used <code>getFIA()</code> to
+download FIA data for Washington, Oregon, and Idaho. We saved all this
+data to same directory, and hence pointing <code>readFIA()</code> to
+this directory will automatically load and merge all states. But what if
+we just want to load the data for Washington? Easy, use the
+<code>states</code> argument in readFIA:</p>
+<div class="sourceCode" id="cb4"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb4-1"><a href="#cb4-1" tabindex="-1"></a><span class="co"># Download data for PNW states, but don&#39;t load the data yet</span></span>
+<span id="cb4-2"><a href="#cb4-2" tabindex="-1"></a><span class="fu">getFIA</span>(<span class="at">states =</span> <span class="fu">c</span>(<span class="st">&#39;WA&#39;</span>, <span class="st">&#39;OR&#39;</span>, <span class="st">&#39;ID&#39;</span>),</span>
+<span id="cb4-3"><a href="#cb4-3" tabindex="-1"></a>       <span class="at">dir =</span> <span class="st">&#39;path/to/my/directory/&#39;</span>,</span>
+<span id="cb4-4"><a href="#cb4-4" tabindex="-1"></a>       <span class="at">load =</span> <span class="cn">FALSE</span>)</span>
+<span id="cb4-5"><a href="#cb4-5" tabindex="-1"></a></span>
+<span id="cb4-6"><a href="#cb4-6" tabindex="-1"></a><span class="co"># A simple call to readFIA will load and merge all states</span></span>
+<span id="cb4-7"><a href="#cb4-7" tabindex="-1"></a>allStates <span class="ot">&lt;-</span> <span class="fu">readFIA</span>(<span class="at">dir =</span> <span class="st">&#39;path/to/my/directory/&#39;</span>)</span>
+<span id="cb4-8"><a href="#cb4-8" tabindex="-1"></a></span>
+<span id="cb4-9"><a href="#cb4-9" tabindex="-1"></a><span class="co"># But using the &#39;states&#39; argument we can select individual states (or groups)</span></span>
+<span id="cb4-10"><a href="#cb4-10" tabindex="-1"></a>wa <span class="ot">&lt;-</span> <span class="fu">readFIA</span>(<span class="at">dir =</span> <span class="st">&#39;path/to/my/directory/&#39;</span>, <span class="at">states =</span> <span class="st">&#39;WA&#39;</span>)</span>
+<span id="cb4-11"><a href="#cb4-11" tabindex="-1"></a></span>
+<span id="cb4-12"><a href="#cb4-12" tabindex="-1"></a><span class="co"># Read WA and OR, but not ID</span></span>
+<span id="cb4-13"><a href="#cb4-13" tabindex="-1"></a>wa_or <span class="ot">&lt;-</span> <span class="fu">readFIA</span>(<span class="at">dir =</span> <span class="st">&#39;path/to/my/directory/&#39;</span>, <span class="at">states =</span> <span class="fu">c</span>(<span class="st">&#39;WA&#39;</span>, <span class="st">&#39;OR&#39;</span>))</span></code></pre></div>
+<p>Given the massive size of the full FIA Database (~50 GB), users are
+cautioned to only download the subsets containing their region of
+interest.</p>
+</div>
+<div id="loading-specific-tables" class="section level1">
+<h1>Loading specific tables</h1>
+<p>If you are only interested in loading/downloading a specific table
+from the FIA database, simply specify the names of those tables in the
+<code>tables</code> argument of <code>readFIA()</code> or
+<code>getFIA()</code> (e.g. specify
+<code>tables = c(&#39;TREE&#39;, &#39;PLOT&#39;)</code> for the TREE and PLOT tables).
+See the <a href="https://research.fs.usda.gov/understory/forest-inventory-and-analysis-database-user-guide-nfi">FIA
+User Guide</a> for a complete description of the database.</p>
+<p>By default, <code>getFIA()</code> and <code>readFIA()</code> only
+loads/downloads the portions of the database required to produce
+summaries with other <code>rFIA</code> functions
+(<code>common = TRUE</code>). This conserves memory on your machine and
+speeds download time. If you would like to load/download all available
+tables for a state, simple specify <code>common = FALSE</code> in the
+call to <code>readFIA()</code> or <code>getFIA()</code>.</p>
+<p><br></p>
+</div>
+<div id="the-fia.database-object" class="section level1">
+<h1><strong>The FIA.Database object</strong></h1>
+<p>When FIA data is loaded into R with <code>readFIA()</code> or
+<code>getFIA()</code>, those data are stored in an
+<code>FIA.Database</code> object. An <code>FIA.Database</code> object is
+essentially just a list with each list element corresponding to an
+individual FIA table. Accordingly, users can access individual tables
+with <code>$</code>, <code>[&#39;&#39;]</code>, and <code>[[&#39;&#39;]]</code>
+operators:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Access the TREE, PLOT, and COND tables</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a><span class="co"># Tree</span></span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>db<span class="sc">$</span>TREE</span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a><span class="co"># Plot</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>db[<span class="st">&#39;PLOT&#39;</span>]</span>
+<span id="cb5-7"><a href="#cb5-7" tabindex="-1"></a></span>
+<span id="cb5-8"><a href="#cb5-8" tabindex="-1"></a><span class="co"># Check spatial coverage of plots held in the database</span></span>
+<span id="cb5-9"><a href="#cb5-9" tabindex="-1"></a><span class="fu">plotFIA</span>(db)</span></code></pre></div>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

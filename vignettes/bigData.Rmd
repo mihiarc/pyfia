@@ -1,7 +1,7 @@
 ---
 title: "Tips for working with big data"
-author: "Hunter Stanke"
-date: "2020"
+author: "Hunter Stanke, Jeffrey W. Doser"
+date: "2020 (last updated February 6, 2025)"
 description: Learn about how to work with big data using `rFIA`  
 output: 
   rmarkdown::html_vignette:
@@ -98,7 +98,7 @@ biomass(fia, grpBy = STANDAGEGROUP)
 ```{r, echo = FALSE, message = FALSE, warning = FALSE}
 # Rather than read all tables into memory, just read those of interest
 # In this case, we just need the COND table
-modTables <- readFIA(dir = '~/Dropbox/data/fia/', tables = 'INVASIVE_SUBPLOT_SPP', 
+modTables <- readFIA(dir = '~/Dropbox/data/fia/', tables = 'COND', 
                      states = c('RI', 'CT'), inMemory = TRUE)
 
 modTables$COND$STANDAGEGROUP <- makeClasses(modTables$COND$STDAGE, interval = 50)

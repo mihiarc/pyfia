@@ -1,0 +1,227 @@
+---
+title: "Estimating Custom Variables"
+author: "Hunter Stanke, Jeffrey W. Doser"
+date: "2019 (last updated February 6, 2025)"
+description: Learn how to estimate custom variables using the `customPSE()` function
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{customVariables}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The `customPSE()` function is designed to produce estimates of population totals, ratios, and associated variances for custom variables using FIA's post-stratified estimation procedures. It is intended to be used in combination with standard rFIA estimator functions, like `tpa()`, `area()`, and `volume()`, among others. 
+
+In short, standard `rFIA` estimator functions can generate tree- and or condition-lists for standard variables of interest (see `treeList` and `condList` arguments in estimator functions). Users may then make modifications to these standard variables, for example a variable representing tree crown area may be added to a tree-list produced by `tpa()` (via some suite of allometrics). Users may then hand their modified tree-list to `customPSE()` to estimate the total and proportion of forested land area in their domain of interest that is covered by tree crowns.
+
+Three general forms of ratio estimates may be produced: tree-tree, tree-area, and area-area ratios. Tree-area ratios are likely the most familiar, such as trees per acre, tree biomass per acre, etc, where a tree variable is specified as the numerator, and proportion of plot area occupied by forestland is the denominator. Hence we'll start with a tree-area example below, and circle back to examples of tree-tree and area-area ratios later on.
+
+# Getting started
+
+Users can generate tree/ condition lists using most rFIA estimator functions by setting the argument `treeList = TRUE` or `condList = TRUE`, where the `treeList` argument is available in functions that handle tree-level variables (e.g., `biomass()`, `growMort()`) and `condList` is available in functions that handle condition-level variables (all estimator functions not listed previously).  
+
+```{r, eval = TRUE, echo=TRUE, message = FALSE, warning = FALSE}
+library(rFIA)
+library(dplyr)
+
+# Use volume to generate a tree list associated with the most recent volume
+# inventory in Rhode Island
+tree.list <- fiaRI %>%
+  clipFIA() %>%
+  volume(grpBy = c(DIA, SPCD),
+         treeList = TRUE)
+
+head(tree.list)
+```
+
+Note that the output above is similar to what you might expect from an `rFIA` function when `byPlot = TRUE`, with the key differences being (1) we've returned a tree/condition list as opposed to a plot list, and (2) the inclusion of `EVAL_TYP`, `TREE_BASIS` and `AREA_BASIS` variables. Here, `TREE_BASIS` and `AREA_BASIS` indicate the primary sampling unit for each tree and condition, respectively (e.g., microplot, subplot, or macroplot). This information is required to "adjust" for non-response using FIA's existing estimation approach. Note also the inclusion of `PROP_FOREST` - indicating the areal extent of the condition upon which each tree is growing, expressed as a proportion of the plot area. As multiple trees generally grow on the same condition, `PROP_FOREST` will be repeated in the tree list.  
+
+Our tree/condition lists can then be modified to include custom, derivative variables. For example, if we have stumpage data we can join these data to our tree list, and compute the per-acre value of the merchantable volume in each stem. We'll generate some bogus pricing data here for demonstration purposes:
+
+``` {r, echo=TRUE}
+# Compute per-acre value of each tree (fake stumpage data)
+tree.list <- tree.list %>%
+  # SAW_MBF_ACRE is the sawlog volume (thousand board feet) represented
+  # by each tree in the tree list, on a per acre basis. Here we generate
+  # random pricing data for each tree, and multiply it by volume/acre to 
+  # generate an index of value/acre for each tree
+  mutate(VALUE_ACRE = case_when(DIA < 16 ~ SAW_MBF_ACRE * 250,
+                                TRUE ~ SAW_MBF_ACRE * 1000))
+```
+
+We can now hand our tree/ condition list to `customPSE()` to produce population estimates for our variables of interest. In this case, let's estimate mean sawlog volume and associated value per forested acre (ratio estimates, where forested land area is denominator).
+
+We'll need to split our merged tree/condition list produced with `volume()` above into separate tree and condition lists, where our tree list contains only tree-level variables (e.g., `SAW_MBF_ACRE`, `VALUE_ACRE`), and our condition-list contains only condition-level variables (`PROP_FOREST`). Inclusion of `TREE_BASIS` or `AREA_BASIS` in each list will indicate whether variables are measured at the tree- or condition-level. In addition, tree-lists must retain `PLT_CN`, `SUBP`, and `TREE` to ensure trees can be uniquely identified. Similarly, condition-lists must retain `PLT_CN` and `CONDID` to ensure conditions can be uniquely identified.
+
+```{r echo=TRUE}
+# Produce ratio estimates of sawtimber volume / forested area
+pop.est <- fiaRI %>% 
+  clipFIA() %>%
+  customPSE(
+    # Tree list containing numerator variable(s), 
+    # plus TREE_BASIS, PLT_CN, SUBP, and TREE
+    x = select(tree.list, -c(AREA_BASIS, PROP_FOREST)),
+    
+    # Variables in tree-list to be treated as numerator variables.
+    # Names will propagate through to output, so renaming may be 
+    # desired (as done here)
+    xVars = c(SAW_MBF = SAW_MBF_ACRE,
+              VALUE = VALUE_ACRE),
+    
+    # Grouping variables associated with numerator variable(s)
+    # None here, but examples include species, size class, etc.
+    xGrpBy = NULL,
+    
+    # Condition list containing denominator variable
+    y = select(tree.list, c(PLT_CN, CONDID, AREA_BASIS, PROP_FOREST)),
+    
+    # Variable in condition-list to be treated as denominator
+    # Again renaming using named vector
+    yVars = c(FOREST_AREA = PROP_FOREST),
+
+    # Grouping variables associated with denominator variable
+    # Again, none here but retaining for transparency    
+    yGrpBy = NULL
+  )
+head(pop.est)
+```
+
+In the above, variables ending in `_RATIO` are our ratio estimates --- sawlog volume and associate value per forested acre. Similarly, the suffixes `_TOTAL` and `_VAR` indicate population totals and variances. 
+
+Only one of `TREE_BASIS` or `AREA_BASIS` may be present `x` or `y`, as the presence of these columns are used to determine if variables to be estimated are tree variables or area variables. Some standard `rFIA` estimator functions will produce tree-lists with both `TREE_BASIS` and `AREA_BASIS` listed in output, as the tree-list will contain tree variables (e.g., `TPA`, `BAA`) as well as area variables (e.g., `PROP_FOREST`, proportion of plot represented by the forested condition where each tree is growing). To produce a tree-area ratio with such an output, `AREA_BASIS` must be removed from the data.frame specified in `x`, and `TREE_BASIS` must be removed from that specified in `y`.
+
+# Grouping variables
+
+In addition to handling custom state variables, `customPSE()` also offers distinct flexibility in defining populations of interest for numerator and denominator variables, relative to standard rFIA estimator functions. 
+
+For example, `tpa()` estimates tree abundance (number and basal area) on a per forested acre basis. If we specify a tree-level variable in `grpBy` (e.g., species, size class), we'll get abundance estimates for each unique population defined by the variable. However, area estimates (the denominator of our ratios) will ignore tree-level grouping variables (only `areaDomain` and condition/plot-level grouping variables are respected). So for example, if species is listed as a grouping variable, `tpa` will estimate the abundance of red oak relative to the full forested landbase in our region of interest, as opposed to the abundance of red oak on the portion of the forestland where red oak is present.
+
+`customPSE()` allows explicit specification of grouping variables used to define populations of interest, and allows these population definitions to vary between numerator and denominator variables (via the `xGrpBy` and `yGrpBy` arguments). The only requirement is that grouping variables specified for the denominator MUST also be specified for the numerator. For example, the following specifications are valid:
+
+  - *Group numerator estimates by species, and denominator estimates by species*
+  - *Group numerator estimates by species, and do not group denominator estimates*
+
+But the following is invalid:
+
+  - *Do not group numerator estimates, and group denominator estimates by species*
+
+### Examples
+
+```{r echo=TRUE}
+# Generate our tree list, grouping by species
+tree.list <- tpa(fiaRI,
+                 bySpecies = TRUE,
+                 treeList = TRUE)
+
+# Estimate abundance by species, relative to the full forested landbase
+# This is consistent with the behavior of `tpa()`
+standard <- fiaRI %>%
+  customPSE(
+    # Drop AREA_BASIS so function knows numerator is composed of 
+    # tree-level variables
+    x = select(tree.list, -c(AREA_BASIS)),
+    xVars = c(TPA, BAA),
+    # Group numerator by species
+    xGrpBy = c(COMMON_NAME, SPCD),
+    # Drop TREE_BASIS so function knows denominator is a
+    # condition-level variable
+    y = select(tree.list, -c(TREE_BASIS)),
+    yVars = c(PROP_FOREST),
+    # Don't group denominator (full forested landbase)
+    yGrpBy = NULL
+  )
+
+# Estimate abundance by species, relative to the proportion of forested 
+# landbase where each species is currently growing
+# This is inconsistent with the behavior of `tpa()`
+non.standard <- fiaRI %>%
+  customPSE(
+    # Drop AREA_BASIS so function knows numerator is composed of 
+    # tree-level variables
+    x = select(tree.list, -c(AREA_BASIS)),
+    xVars = c(TPA, BAA),
+    # Group numerator by species
+    xGrpBy = c(COMMON_NAME, SPCD),
+    
+    # Drop TREE_BASIS so function knows denominator is a
+    # condition-level variable
+    y = select(tree.list, -c(TREE_BASIS)),
+    yVars = c(PROP_FOREST),
+    # Also group numerator by species
+    yGrpBy =  c(COMMON_NAME, SPCD),
+  )
+```
+
+# Tree-tree ratios
+
+Tree-tree ratios are useful for estimating "average tree" attributes, e.g., mean tree height, biomass, wood density. Here we'll estimate the average height of canopy trees by species. 
+
+Our numerator will be the product of tree height and TPA, and our denominator will be TPA alone. Multiplying height by TPA will account for differences in sampling area for trees of various sizes, or weight trees according to their implied relative abundance (implied by which of micro-, sub-, or macro-plot they were sampled on). Note also how we select canopy trees using `treeDomain` below: 
+
+```{r echo=TRUE}
+# Generate our tree list, grouping by species
+tree.list <- tpa(fiaRI,
+                 grpBy = c(HT), # Height from the tree table (ft)
+                 treeDomain = CCLCD %in% 2:3, # Dominant, co-dominant stems
+                 bySpecies = TRUE,
+                 treeList = TRUE)
+
+# Now we'll adjust tree height (HT) by TPA
+tree.list$HT <- tree.list$HT * tree.list$TPA
+
+# Estimate mean tree height by species
+mean.ht <-  fiaRI %>%
+  clipFIA() %>%
+  customPSE(
+    # Drop AREA_BASIS so function knows numerator is composed of 
+    # tree-level variables
+    x = select(tree.list, -c(AREA_BASIS)),
+    xVars = c(HT),
+    # Group numerator by species
+    xGrpBy = c(COMMON_NAME, SPCD),
+    
+    # Drop TREE_BASIS so function knows denominator is also a
+    # tree-level variable
+    y =  select(tree.list, -c(AREA_BASIS)),
+    yVars = c(TPA),
+    # Aslo group numerator by species
+    yGrpBy =  c(COMMON_NAME, SPCD),
+  )
+head(mean.ht)
+```
+
+# Area-area ratios
+
+Area-area ratios are useful for estimating "average stand" attributes, e.g., mean stand age, mean slope, or disturbance rates (% of forested landbase recently disturbed). Here we'll estimate the average stand age by ownership group. 
+
+Our numerator will be the product of stand age and `PROP_FOREST` (proportion of plot area represented by each forested condition), and our denominator will be `PROP_FOREST` alone (summed by `customPSE()` to yield proportionate plot area within our domain of interest). Multiplying stand age by `PROP_FOREST` will account for differences in the observed relative abundance of each condition, i.e., conditions occupying "slivers" of plots will be weighted less than conditions occupying an entire plot.
+
+```{r echo=TRUE}
+# Generate our condition list
+cond.list <- area(fiaRI,
+                  grpBy = c(STDAGE, OWNGRPCD), # Stand age from the cond table
+                  condList = TRUE)
+
+# Now we'll adjust stand age (STDAGE) by condition size
+cond.list$STDAGE <- cond.list$STDAGE * cond.list$PROP_FOREST
+
+# Estimate average stand age by ownership group
+mean.age <- fiaRI %>%
+  clipFIA() %>%
+  customPSE(
+    # Our condition list
+    x = cond.list,
+    xVars = c(STDAGE),
+    xGrpBy = c(OWNGRPCD),
+    
+    # Same condition list as above
+    y = cond.list,
+    yVars = c(PROP_FOREST),
+    # Aslo group numerator by species
+    yGrpBy =  c(OWNGRPCD)
+  )
+head(mean.age)
+```

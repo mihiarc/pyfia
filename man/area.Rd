@@ -94,7 +94,7 @@ Stanke, H., Finley, A. O., Weed, A. S., Walters, B. F., & Domke, G. M. (2020). r
 }
 
 \author{
-Hunter Stanke and Andrew Finley
+Hunter Stanke, Andrew Finley, Jeffrey W. Doser
 }
 
 \note{All sampling error estimates (SE) are returned as the "percent coefficient of variation" (standard deviation / mean * 100) for consistency with EVALIDator. IMPORTANT: sampling error cannot be used to construct confidence intervals. Please use \code{variance = TRUE} for that (i.e., return variance and sample size instead of sampling error).}

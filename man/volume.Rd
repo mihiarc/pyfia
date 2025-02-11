@@ -8,7 +8,7 @@ Produces estimates of merchantable tree volume (i.e., merchantable bole volume a
 \usage{
 volume(db, grpBy = NULL, polys = NULL, returnSpatial = FALSE,
        bySpecies = FALSE, bySizeClass = FALSE, landType = "forest",
-       treeType = "live", volType = "net", method = "TI",
+       treeType = "live", volType = "NET", method = "TI",
        lambda = 0.5, treeDomain = NULL, areaDomain = NULL,
        totals = FALSE, variance = FALSE, byPlot = FALSE,
        treeList = FALSE, nCores = 1)

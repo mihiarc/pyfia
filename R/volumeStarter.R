@@ -1,7 +1,7 @@
 volumeStarter <- function(x, db, grpBy_quo = NULL, polys = NULL, 
                           returnSpatial = FALSE, bySpecies = FALSE, 
                           bySizeClass = FALSE, landType = 'forest', 
-                          treeType = 'live', volType = 'net', 
+                          treeType = 'live', volType = 'NET', 
                           method = 'TI', lambda = 0.5, treeDomain = NULL, 
                           areaDomain = NULL, totals = FALSE, byPlot = FALSE,
                           treeList = FALSE, nCores = 1, remote, mr) {

@@ -599,6 +599,101 @@ handlePops <- function(db, evalType, method, mr, pltList = NULL, ga = FALSE) {
 
 }
 
+handlePops_old <- function(db, evalType, method, mr, pltList = NULL, ga = FALSE){
+
+  if (ga){
+    ## What years are growth accounting years --> not all filled in
+    ga <- db$POP_EVAL %>%
+      group_by(END_INVYR) %>%
+      summarize(ga = if_else(any(GROWTH_ACCT == 'Y'), 1, 0))
+
+    ### Snag the EVALIDs that are needed
+    db$POP_EVAL  <- db$POP_EVAL %>%
+      left_join(ga, by = 'END_INVYR') %>%
+      select('CN', 'END_INVYR', 'EVALID', 'ESTN_METHOD', 'GROWTH_ACCT', 'ga', STATECD) %>%
+      left_join(select(db$POP_EVAL_TYP, c('EVAL_CN', 'EVAL_TYP')), by = c('CN' = 'EVAL_CN')) %>%
+      filter(EVAL_TYP %in% c('EXPGROW', 'EXPMORT', 'EXPREMV')) %>%
+      filter(!is.na(END_INVYR) & !is.na(EVALID) & END_INVYR >= 2003) %>%
+      distinct(END_INVYR, EVALID, .keep_all = TRUE)
+    gaVars <- c('GROWTH_ACCT')
+  } else {
+    ### Snag the EVALIDs that are needed
+    db$POP_EVAL<- db$POP_EVAL %>%
+      select('CN', 'END_INVYR', 'EVALID', 'ESTN_METHOD', STATECD) %>%
+      inner_join(select(db$POP_EVAL_TYP, c('EVAL_CN', 'EVAL_TYP')), by = c('CN' = 'EVAL_CN')) %>%
+      filter(EVAL_TYP %in% evalType) %>%
+      filter(!is.na(END_INVYR) & !is.na(EVALID) & END_INVYR >= 2003) %>%
+      distinct(END_INVYR, EVALID, .keep_all = TRUE)
+    gaVars <- NULL
+  }
+
+
+  ## If a most-recent subset, make sure that we don't get two reporting years in
+  ## western states
+  if (mr) {
+    db$POP_EVAL <- db$POP_EVAL %>%
+      group_by(EVAL_TYP, STATECD) %>%
+      filter(END_INVYR == max(END_INVYR, na.rm = TRUE)) %>%
+      ungroup()
+  }
+
+
+  ## Cut STATECD
+  db$POP_EVAL <- select(db$POP_EVAL, -c(STATECD))
+
+  ### The population tables
+  pops <- select(db$POP_EVAL, c('EVALID', 'ESTN_METHOD', 'CN', 'END_INVYR', 'EVAL_TYP', any_of(gaVars))) %>%
+    rename(EVAL_CN = CN) %>%
+    left_join(select(db$POP_ESTN_UNIT, c('CN', 'EVAL_CN', 'AREA_USED', 'P1PNTCNT_EU', any_of(c('p2eu', 'nStrata')))), by = c('EVAL_CN')) %>%
+    rename(ESTN_UNIT_CN = CN) %>%
+    left_join(select(db$POP_STRATUM, c('ESTN_UNIT_CN', 'EXPNS', 'P2POINTCNT', 'CN', 'P1POINTCNT', 'ADJ_FACTOR_SUBP', 'ADJ_FACTOR_MICR', "ADJ_FACTOR_MACR")), by = c('ESTN_UNIT_CN')) %>%
+    rename(STRATUM_CN = CN) %>%
+    distinct(EVALID, ESTN_UNIT_CN, STRATUM_CN, .keep_all = TRUE) %>%
+    left_join(select(db$POP_PLOT_STRATUM_ASSGN, c('STRATUM_CN', 'PLT_CN', 'INVYR', 'STATECD',
+                                                  any_of(c('p2eu_INVYR', 'nStrata_INVYR', 'P2POINTCNT_INVYR')))), by = 'STRATUM_CN') %>%
+    distinct(EVALID, ESTN_UNIT_CN, STRATUM_CN, PLT_CN, .keep_all = TRUE) %>%
+    ungroup() %>%
+    mutate_if(is.factor,
+              as.character) %>%
+    rename(YEAR = END_INVYR)
+
+  ## Dropping non-sampled plots for P3 variables
+  if (!is.null(pltList)) {
+    pops <- pops %>%
+      filter(pops$PLT_CN %in% pltList)
+  }
+
+  ## P2POINTCNT column is NOT consistent for annual estimates, plots
+  ## within individual strata and est units are related to different INVYRs
+
+  ## Only run if this wasn't already done in clipFIA
+  if (!any(c('p2eu', 'p2eu_INVYR', 'P2POINTCNT_INVYR') %in% names(pops))) {
+    pops <- pops %>%
+      ## Count of plots by Stratum/INVYR
+      group_by(EVALID, ESTN_UNIT_CN, STRATUM_CN, INVYR) %>%
+      mutate(P2POINTCNT_INVYR = n()) %>%
+      ## By unit / INVYR
+      group_by(EVALID, ESTN_UNIT_CN, INVYR) %>%
+      mutate(p2eu_INVYR = n()) %>%
+      ## By unit for entire cycle
+      group_by(EVALID, ESTN_UNIT_CN) %>%
+      mutate(p2eu = n()) %>%
+      ungroup()
+
+  }
+
+
+  ## Recode a few of the estimation methods to make things easier below
+  pops$ESTN_METHOD = recode(.x = pops$ESTN_METHOD,
+                            `Post-Stratification` = 'strat',
+                            `Stratified random sampling` = 'strat',
+                            `Double sampling for stratification` = 'double',
+                            `Simple random sampling` = 'simple',
+                            `Subsampling units of unequal size` = 'simple')
+
+  return(pops)
+
+}
 
 # TODO: need to go through these, and also determine if fsi() should be using 
 #       mergeSmallstrata_old or the new version.

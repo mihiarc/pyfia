@@ -18,6 +18,8 @@ articles:
     - alternativeEstimators
     - bigData
     - customVariables
+    - biomassVolume
+    - growth
   - title: rFIA under the hood
     contents:
     - fiaDemystified

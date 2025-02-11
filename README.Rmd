@@ -30,7 +30,7 @@ Functionality is currently being updated and extensively tested. Some previous `
 |`rFIA` Function  | Description                                                          | Updated |
 |---------------- |----------------------------------------------------------------------| --------|
 |`area()`         | Estimate land area in various classes                                | &#x2611;|
-|`areaChange()`   | Estimate annual change in land area in various classes               |         |
+|`areaChange()`   | Estimate annual change in land area in various classes               | &#x2611;|
 |`biomass()`      | Estimate biomass and carbon stocks of standing trees                 | &#x2611;|
 |`carbon()`       | Estimate carbon stocks by IPCC forest carbon pools                   | &#x2611;|
 |`customPSE()`    | Estimate custom variables                                            | &#x2611;|

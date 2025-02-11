@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Hunter Stanke, Jeffrey W. Doser" />
+
+
+<title>Estimating individual-tree and population growth rates</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Estimating individual-tree and population
+growth rates</h1>
+<h4 class="author">Hunter Stanke, Jeffrey W. Doser</h4>
+<h4 class="date">2021 (last updated February 7, 2025)</h4>
+
+
+
+<p>We can use FIA data to estimate how forest structure has changed over
+time (i.e., has density increased or declined) or to estimate the
+average rate at which individual trees grow. Here we show how we can use
+the <code>vitalRates()</code> function in <code>rFIA</code> to do just
+that.</p>
+<p>For this specific example, we’ll focus on estimating average annual
+change in individual tree basal area and cumulative tree basal area per
+acre, by site productivity class (SITECLCD) and species across the
+states of Washington and Oregon.</p>
+<p>So first, we’ll need to download some data (you can skip this step if
+you already have FIA data for WA and OR). Here we use
+<code>getFIA()</code> to download and save the state subsets to our
+computer:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="fu">library</span>(rFIA)</span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(dplyr)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a><span class="co"># Download some FIA data from the DataMart ------------------------------------</span></span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="fu">getFIA</span>(<span class="at">states =</span> <span class="fu">c</span>(<span class="st">&#39;OR&#39;</span>, <span class="st">&#39;WA&#39;</span>),</span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a>       <span class="at">dir =</span> <span class="st">&#39;path/to/save/FIA/data&#39;</span>,</span>
+<span id="cb1-7"><a href="#cb1-7" tabindex="-1"></a>       <span class="at">load =</span> <span class="cn">FALSE</span>) <span class="co"># Download, but don&#39;t load yet</span></span></code></pre></div>
+<p>Next we’ll read our data into R with <code>readFIA()</code> and take
+a most recent subset across the two states with <code>clipFIA()</code>.
+Note that we are setting <code>inMemory = FALSE</code> to set up the
+database in a remote fashion as opposed to reading the entire data set
+into RAM. You would need to set <code>inMemory = TRUE</code> if you
+desire to modify columns in the database or do any other sort of
+manipualation to the underlying data.</p>
+<div class="sourceCode" id="cb2"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb2-1"><a href="#cb2-1" tabindex="-1"></a>db <span class="ot">&lt;-</span> <span class="fu">readFIA</span>(<span class="at">dir =</span> fiaPath,</span>
+<span id="cb2-2"><a href="#cb2-2" tabindex="-1"></a>              <span class="at">states =</span> <span class="fu">c</span>(<span class="st">&#39;OR&#39;</span>, <span class="st">&#39;WA&#39;</span>), <span class="co"># If you keep all your data together</span></span>
+<span id="cb2-3"><a href="#cb2-3" tabindex="-1"></a>              <span class="at">nCores =</span> <span class="dv">1</span>, <span class="co"># Can set to &gt;1 if you have multiple cores.</span></span>
+<span id="cb2-4"><a href="#cb2-4" tabindex="-1"></a>              <span class="at">inMemory =</span> <span class="cn">FALSE</span>) <span class="co"># Set to TRUE if your computer has enough RAM</span></span>
+<span id="cb2-5"><a href="#cb2-5" tabindex="-1"></a></span>
+<span id="cb2-6"><a href="#cb2-6" tabindex="-1"></a><span class="co"># Take the most recent subset -------------------------------------------------</span></span>
+<span id="cb2-7"><a href="#cb2-7" tabindex="-1"></a>db <span class="ot">&lt;-</span> <span class="fu">clipFIA</span>(db, <span class="at">mostRecent =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<p>Now that we have our data loaded, we can start estimating tree growth
+rates! First, we’ll estimate <em>net</em> growth rates, i.e., we will
+include trees that have recruited or died in our estimates of tree
+growth. Note that net growth can be negative if mortality exceeds
+recruitment and growth on live trees. This type of growth estimate is
+most useful if we’re interested in characterizing population-level
+change. For example, if we’d like to know how the average rate at which
+cumulative basal area per acre has changed in our population of
+interest, we’d shoot for net growth. Here’s how we do it with
+<code>rFIA</code>, where net growth is indicated by the argument
+<code>treeType = &#39;all&#39;</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="co"># Net annual change</span></span>
+<span id="cb3-2"><a href="#cb3-2" tabindex="-1"></a>net <span class="ot">&lt;-</span> <span class="fu">vitalRates</span>(db,</span>
+<span id="cb3-3"><a href="#cb3-3" tabindex="-1"></a>                  <span class="at">treeType =</span> <span class="st">&#39;all&#39;</span>, <span class="co"># &quot;all&quot; indicates net growth</span></span>
+<span id="cb3-4"><a href="#cb3-4" tabindex="-1"></a>                  <span class="at">grpBy =</span> SITECLCD, <span class="co"># Grouping by site productivity class</span></span>
+<span id="cb3-5"><a href="#cb3-5" tabindex="-1"></a>                  <span class="at">bySpecies =</span> <span class="cn">TRUE</span>, <span class="co"># also grouping by species</span></span>
+<span id="cb3-6"><a href="#cb3-6" tabindex="-1"></a>                  <span class="at">variance =</span> <span class="cn">TRUE</span>)</span>
+<span id="cb3-7"><a href="#cb3-7" tabindex="-1"></a>net</span></code></pre></div>
+<pre><code>## # A tibble: 304 × 26
+##     YEAR SITECLCD  SPCD COMMON_NAME SCIENTIFIC_NAME DIA_GROW BA_GROW NETVOL_GROW
+##    &lt;dbl&gt;    &lt;int&gt; &lt;dbl&gt; &lt;chr&gt;       &lt;chr&gt;              &lt;dbl&gt;   &lt;dbl&gt;       &lt;dbl&gt;
+##  1  2021        1    11 Pacific si… Abies amabilis    0.0594 0.00833      0.457 
+##  2  2021        1    17 grand fir   Abies grandis    -0.142  0.00197      0.673 
+##  3  2021        1    22 noble fir   Abies procera     0.187  0.0225       0.994 
+##  4  2021        1    73 western la… Larix occident…   0.511  0.0222       0.377 
+##  5  2021        1    93 Engelmann … Picea engelman…   0.551  0.0164       0.0867
+##  6  2021        1    98 Sitka spru… Picea sitchens…   0.156  0.0203       1.01  
+##  7  2021        1   108 lodgepole … Pinus contorta    0.316  0.0124       0.200 
+##  8  2021        1   119 western wh… Pinus monticola   0.581  0.0182       0.167 
+##  9  2021        1   122 ponderosa … Pinus ponderosa   0.09   0.0237       1.40  
+## 10  2021        1   202 Douglas-fir Pseudotsuga me…   0.397  0.0232       0.595 
+## # ℹ 294 more rows
+## # ℹ 18 more variables: SAWVOL_GROW &lt;dbl&gt;, BIO_GROW &lt;dbl&gt;, BA_GROW_AC &lt;dbl&gt;,
+## #   NETVOL_GROW_AC &lt;dbl&gt;, SAWVOL_GROW_AC &lt;dbl&gt;, BIO_GROW_AC &lt;dbl&gt;,
+## #   DIA_GROW_VAR &lt;dbl&gt;, BA_GROW_VAR &lt;dbl&gt;, NETVOL_GROW_VAR &lt;dbl&gt;,
+## #   SAWVOL_GROW_VAR &lt;dbl&gt;, BIO_GROW_VAR &lt;dbl&gt;, BA_GROW_AC_VAR &lt;dbl&gt;,
+## #   NETVOL_GROW_AC_VAR &lt;dbl&gt;, SAWVOL_GROW_AC_VAR &lt;dbl&gt;, BIO_GROW_AC_VAR &lt;dbl&gt;,
+## #   nPlots_TREE &lt;int&gt;, nPlots_AREA &lt;int&gt;, N &lt;int&gt;</code></pre>
+<p>If we are instead interested in characterizing the average annual
+growth rate of individual trees, we’d most likely want to exclude stems
+that died or recruited into the population between plot measurements. To
+do this with rFIA, simply set <code>treeType = &#39;live&#39;</code>:</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="co"># Annual growth on live trees that remained live</span></span>
+<span id="cb5-2"><a href="#cb5-2" tabindex="-1"></a>live <span class="ot">&lt;-</span> <span class="fu">vitalRates</span>(db,</span>
+<span id="cb5-3"><a href="#cb5-3" tabindex="-1"></a>                   <span class="at">treeType =</span> <span class="st">&#39;live&#39;</span>, <span class="co"># &quot;live&quot; excludes mortality and recruitment</span></span>
+<span id="cb5-4"><a href="#cb5-4" tabindex="-1"></a>                   <span class="at">grpBy =</span> SITECLCD, <span class="co"># Grouping by site productivity class</span></span>
+<span id="cb5-5"><a href="#cb5-5" tabindex="-1"></a>                   <span class="at">bySpecies =</span> <span class="cn">TRUE</span>, <span class="co"># also grouping by species</span></span>
+<span id="cb5-6"><a href="#cb5-6" tabindex="-1"></a>                   <span class="at">variance =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<p>By default, <code>vitalRates()</code> will estimate average annual
+DBH, basal area, biomass, and net volume growth rates for <em>individual
+stems</em>, along with average annual basal area, biomass, and net
+volume growth <em>per acre</em>. Here we’ll focus in on basal area, so
+let’s simplify and pretty up our tables a bit:</p>
+<div class="sourceCode" id="cb6"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb6-1"><a href="#cb6-1" tabindex="-1"></a><span class="co"># Net annual change</span></span>
+<span id="cb6-2"><a href="#cb6-2" tabindex="-1"></a>net <span class="ot">&lt;-</span> net <span class="sc">%&gt;%</span></span>
+<span id="cb6-3"><a href="#cb6-3" tabindex="-1"></a>  <span class="co"># Dropping unnecessary columns</span></span>
+<span id="cb6-4"><a href="#cb6-4" tabindex="-1"></a>  <span class="fu">select</span>(SITECLCD, COMMON_NAME, SCIENTIFIC_NAME, SPCD,</span>
+<span id="cb6-5"><a href="#cb6-5" tabindex="-1"></a>         BA_GROW, BA_GROW_AC, BA_GROW_VAR, BA_GROW_AC_VAR, nPlots_TREE, N) <span class="sc">%&gt;%</span></span>
+<span id="cb6-6"><a href="#cb6-6" tabindex="-1"></a>  <span class="co"># Dropping rows with no live trees (growth was NA)</span></span>
+<span id="cb6-7"><a href="#cb6-7" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(BA_GROW)) <span class="sc">%&gt;%</span></span>
+<span id="cb6-8"><a href="#cb6-8" tabindex="-1"></a>  <span class="co"># Making SITECLCD more informative</span></span>
+<span id="cb6-9"><a href="#cb6-9" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">site =</span> <span class="fu">case_when</span>(SITECLCD <span class="sc">==</span> <span class="dv">1</span> <span class="sc">~</span> <span class="st">&quot;225+ cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-10"><a href="#cb6-10" tabindex="-1"></a>                          SITECLCD <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="st">&quot;165-224 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-11"><a href="#cb6-11" tabindex="-1"></a>                          SITECLCD <span class="sc">==</span> <span class="dv">3</span> <span class="sc">~</span> <span class="st">&quot;120-164 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-12"><a href="#cb6-12" tabindex="-1"></a>                          SITECLCD <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="st">&quot;85-119 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-13"><a href="#cb6-13" tabindex="-1"></a>                          SITECLCD <span class="sc">==</span> <span class="dv">5</span> <span class="sc">~</span> <span class="st">&quot;50-84 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-14"><a href="#cb6-14" tabindex="-1"></a>                          SITECLCD <span class="sc">==</span> <span class="dv">6</span> <span class="sc">~</span> <span class="st">&quot;20-49 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-15"><a href="#cb6-15" tabindex="-1"></a>                          SITECLCD <span class="sc">==</span> <span class="dv">7</span> <span class="sc">~</span> <span class="st">&quot;0-19 cubic feet/acre/year&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb6-16"><a href="#cb6-16" tabindex="-1"></a>  <span class="co"># Arrange it nicely</span></span>
+<span id="cb6-17"><a href="#cb6-17" tabindex="-1"></a>  <span class="fu">select</span>(COMMON_NAME, SCIENTIFIC_NAME, SITECLCD, site, <span class="fu">everything</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb6-18"><a href="#cb6-18" tabindex="-1"></a>  <span class="fu">arrange</span>(COMMON_NAME, SCIENTIFIC_NAME, SITECLCD, site)</span>
+<span id="cb6-19"><a href="#cb6-19" tabindex="-1"></a></span>
+<span id="cb6-20"><a href="#cb6-20" tabindex="-1"></a><span class="co"># Annual growth on live trees that remained live</span></span>
+<span id="cb6-21"><a href="#cb6-21" tabindex="-1"></a>live <span class="ot">&lt;-</span> live <span class="sc">%&gt;%</span></span>
+<span id="cb6-22"><a href="#cb6-22" tabindex="-1"></a>  <span class="co"># Dropping unnecessary columns</span></span>
+<span id="cb6-23"><a href="#cb6-23" tabindex="-1"></a>  <span class="fu">select</span>(SITECLCD, COMMON_NAME, SCIENTIFIC_NAME, SPCD,</span>
+<span id="cb6-24"><a href="#cb6-24" tabindex="-1"></a>         BA_GROW, BA_GROW_AC, BA_GROW_VAR, BA_GROW_AC_VAR, nPlots_TREE, N) <span class="sc">%&gt;%</span></span>
+<span id="cb6-25"><a href="#cb6-25" tabindex="-1"></a>  <span class="co"># Dropping rows with no live trees (growth was NA)</span></span>
+<span id="cb6-26"><a href="#cb6-26" tabindex="-1"></a>  <span class="fu">filter</span>(<span class="sc">!</span><span class="fu">is.na</span>(BA_GROW)) <span class="sc">%&gt;%</span></span>
+<span id="cb6-27"><a href="#cb6-27" tabindex="-1"></a>  <span class="co"># Making SITECLCD more informative</span></span>
+<span id="cb6-28"><a href="#cb6-28" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">siteProd =</span> <span class="fu">case_when</span>(SITECLCD <span class="sc">==</span> <span class="dv">1</span> <span class="sc">~</span> <span class="st">&quot;225+ cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-29"><a href="#cb6-29" tabindex="-1"></a>                              SITECLCD <span class="sc">==</span> <span class="dv">2</span> <span class="sc">~</span> <span class="st">&quot;165-224 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-30"><a href="#cb6-30" tabindex="-1"></a>                              SITECLCD <span class="sc">==</span> <span class="dv">3</span> <span class="sc">~</span> <span class="st">&quot;120-164 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-31"><a href="#cb6-31" tabindex="-1"></a>                              SITECLCD <span class="sc">==</span> <span class="dv">4</span> <span class="sc">~</span> <span class="st">&quot;85-119 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-32"><a href="#cb6-32" tabindex="-1"></a>                              SITECLCD <span class="sc">==</span> <span class="dv">5</span> <span class="sc">~</span> <span class="st">&quot;50-84 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-33"><a href="#cb6-33" tabindex="-1"></a>                              SITECLCD <span class="sc">==</span> <span class="dv">6</span> <span class="sc">~</span> <span class="st">&quot;20-49 cubic feet/acre/year&quot;</span>,</span>
+<span id="cb6-34"><a href="#cb6-34" tabindex="-1"></a>                              SITECLCD <span class="sc">==</span> <span class="dv">7</span> <span class="sc">~</span> <span class="st">&quot;0-19 cubic feet/acre/year&quot;</span>)) <span class="sc">%&gt;%</span></span>
+<span id="cb6-35"><a href="#cb6-35" tabindex="-1"></a>  <span class="co"># Arrange it nicely</span></span>
+<span id="cb6-36"><a href="#cb6-36" tabindex="-1"></a>  <span class="fu">select</span>(COMMON_NAME, SCIENTIFIC_NAME, SITECLCD, siteProd, <span class="fu">everything</span>()) <span class="sc">%&gt;%</span></span>
+<span id="cb6-37"><a href="#cb6-37" tabindex="-1"></a>  <span class="fu">arrange</span>(COMMON_NAME, SCIENTIFIC_NAME, SITECLCD, siteProd)</span></code></pre></div>
+<p>Here <code>BA_GROW</code> gives us annual basal area growth per tree
+in square feet/year, and <code>BA_GROW_AC</code> gives us average basal
+area growth per acre in square feet/acre/year. But maybe we’d prefer
+units to be square centimeters instead - just remember to multiply the
+variance by the square of the conversion factor!</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="co"># Net annual change</span></span>
+<span id="cb7-2"><a href="#cb7-2" tabindex="-1"></a>net <span class="ot">&lt;-</span> net <span class="sc">%&gt;%</span></span>
+<span id="cb7-3"><a href="#cb7-3" tabindex="-1"></a>  <span class="co"># Convert to square centimeters instead of square feet</span></span>
+<span id="cb7-4"><a href="#cb7-4" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">BA_GROW =</span> BA_GROW <span class="sc">*</span> <span class="fl">929.03</span>,</span>
+<span id="cb7-5"><a href="#cb7-5" tabindex="-1"></a>         <span class="at">BA_GROW_AC =</span> BA_GROW_AC <span class="sc">*</span> <span class="fl">929.03</span>,</span>
+<span id="cb7-6"><a href="#cb7-6" tabindex="-1"></a>         <span class="at">BA_GROW_VAR =</span> BA_GROW_VAR <span class="sc">*</span> (<span class="fl">929.03</span><span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb7-7"><a href="#cb7-7" tabindex="-1"></a>         <span class="at">BA_GROW_AC_VAR =</span> BA_GROW_AC_VAR <span class="sc">*</span> (<span class="fl">929.03</span><span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb7-8"><a href="#cb7-8" tabindex="-1"></a>net</span></code></pre></div>
+<pre><code>## # A tibble: 304 × 11
+##    COMMON_NAME          SCIENTIFIC_NAME  SITECLCD site   SPCD BA_GROW BA_GROW_AC
+##    &lt;chr&gt;                &lt;chr&gt;               &lt;int&gt; &lt;chr&gt; &lt;dbl&gt;   &lt;dbl&gt;      &lt;dbl&gt;
+##  1 Alaska yellow-cedar  Chamaecyparis n…        2 165-…    42  11.2       0.659 
+##  2 Alaska yellow-cedar  Chamaecyparis n…        3 120-…    42   3.30      0.700 
+##  3 Alaska yellow-cedar  Chamaecyparis n…        4 85-1…    42   4.57      3.18  
+##  4 Alaska yellow-cedar  Chamaecyparis n…        5 50-8…    42   3.24      3.13  
+##  5 Alaska yellow-cedar  Chamaecyparis n…        6 20-4…    42   1.45      1.35  
+##  6 Alaska yellow-cedar  Chamaecyparis n…        7 0-19…    42   0.236     0.203 
+##  7 Brewer spruce        Picea breweriana        6 20-4…    92   3.75      0.0309
+##  8 California black oak Quercus kellogg…        2 165-…   818   0.797     0.0241
+##  9 California black oak Quercus kellogg…        3 120-…   818  -1.14     -0.122 
+## 10 California black oak Quercus kellogg…        4 85-1…   818  -5.38     -3.39  
+## # ℹ 294 more rows
+## # ℹ 4 more variables: BA_GROW_VAR &lt;dbl&gt;, BA_GROW_AC_VAR &lt;dbl&gt;,
+## #   nPlots_TREE &lt;int&gt;, N &lt;int&gt;</code></pre>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="co"># Annual growth on live trees that remained live</span></span>
+<span id="cb9-2"><a href="#cb9-2" tabindex="-1"></a>live <span class="ot">&lt;-</span> live <span class="sc">%&gt;%</span></span>
+<span id="cb9-3"><a href="#cb9-3" tabindex="-1"></a>  <span class="co"># Convert to square centimeters instead of square feet</span></span>
+<span id="cb9-4"><a href="#cb9-4" tabindex="-1"></a>  <span class="fu">mutate</span>(<span class="at">BA_GROW =</span> BA_GROW <span class="sc">*</span> <span class="fl">929.03</span>,</span>
+<span id="cb9-5"><a href="#cb9-5" tabindex="-1"></a>         <span class="at">BA_GROW_AC =</span> BA_GROW_AC <span class="sc">*</span> <span class="fl">929.03</span>,</span>
+<span id="cb9-6"><a href="#cb9-6" tabindex="-1"></a>         <span class="at">BA_GROW_VAR =</span> BA_GROW_VAR <span class="sc">*</span> (<span class="fl">929.03</span><span class="sc">^</span><span class="dv">2</span>),</span>
+<span id="cb9-7"><a href="#cb9-7" tabindex="-1"></a>         <span class="at">BA_GROW_AC_VAR =</span> BA_GROW_AC_VAR <span class="sc">*</span> (<span class="fl">929.03</span><span class="sc">^</span><span class="dv">2</span>))</span>
+<span id="cb9-8"><a href="#cb9-8" tabindex="-1"></a>live</span></code></pre></div>
+<pre><code>## # A tibble: 288 × 11
+##    COMMON_NAME        SCIENTIFIC_NAME SITECLCD siteProd  SPCD BA_GROW BA_GROW_AC
+##    &lt;chr&gt;              &lt;chr&gt;              &lt;int&gt; &lt;chr&gt;    &lt;dbl&gt;   &lt;dbl&gt;      &lt;dbl&gt;
+##  1 Alaska yellow-ced… Chamaecyparis …        2 165-224…    42   12.8      0.504 
+##  2 Alaska yellow-ced… Chamaecyparis …        3 120-164…    42   11.0      1.62  
+##  3 Alaska yellow-ced… Chamaecyparis …        4 85-119 …    42    6.95     4.05  
+##  4 Alaska yellow-ced… Chamaecyparis …        5 50-84 c…    42    4.68     3.76  
+##  5 Alaska yellow-ced… Chamaecyparis …        6 20-49 c…    42    4.20     3.44  
+##  6 Alaska yellow-ced… Chamaecyparis …        7 0-19 cu…    42    6.36     4.61  
+##  7 Brewer spruce      Picea breweria…        6 20-49 c…    92    3.75     0.0309
+##  8 California black … Quercus kellog…        2 165-224…   818   11.1      0.137 
+##  9 California black … Quercus kellog…        3 120-164…   818    4.09     0.215 
+## 10 California black … Quercus kellog…        4 85-119 …   818    4.77     2.22  
+## # ℹ 278 more rows
+## # ℹ 4 more variables: BA_GROW_VAR &lt;dbl&gt;, BA_GROW_AC_VAR &lt;dbl&gt;,
+## #   nPlots_TREE &lt;int&gt;, N &lt;int&gt;</code></pre>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

@@ -34,7 +34,7 @@ the GitHub version of this package.
 | `rFIA` Function   | Description                                                        | Updated |
 |-------------------|--------------------------------------------------------------------|---------|
 | `area()`          | Estimate land area in various classes                              | ☑       |
-| `areaChange()`    | Estimate annual change in land area in various classes             |         |
+| `areaChange()`    | Estimate annual change in land area in various classes             | ☑       |
 | `biomass()`       | Estimate biomass and carbon stocks of standing trees               | ☑       |
 | `carbon()`        | Estimate carbon stocks by IPCC forest carbon pools                 | ☑       |
 | `customPSE()`     | Estimate custom variables                                          | ☑       |
@@ -57,6 +57,8 @@ the GitHub version of this package.
 | `writeFIA()`      | Write in-memory FIA Database to disk                               | ☑       |
 
 <br>
+
+## Overview
 
 The goal of `rFIA` is to increase the accessibility and use of the USFS
 Forest Inventory and Analysis (FIA) Database by providing a

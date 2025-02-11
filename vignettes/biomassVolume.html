@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+
+<meta charset="utf-8" />
+<meta name="generator" content="pandoc" />
+<meta http-equiv="X-UA-Compatible" content="IE=EDGE" />
+
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<meta name="author" content="Hunter Stanke, Jeffrey W. Doser" />
+
+
+<title>Estimating tree biomass and merchantable volume</title>
+
+<script>// Pandoc 2.9 adds attributes on both header and div. We remove the former (to
+// be compatible with the behavior of Pandoc < 2.8).
+document.addEventListener('DOMContentLoaded', function(e) {
+  var hs = document.querySelectorAll("div.section[class*='level'] > :first-child");
+  var i, h, a;
+  for (i = 0; i < hs.length; i++) {
+    h = hs[i];
+    if (!/^h[1-6]$/i.test(h.tagName)) continue;  // it should be a header h1-h6
+    a = h.attributes;
+    while (a.length > 0) h.removeAttribute(a[0].name);
+  }
+});
+</script>
+
+<style type="text/css">
+code{white-space: pre-wrap;}
+span.smallcaps{font-variant: small-caps;}
+span.underline{text-decoration: underline;}
+div.column{display: inline-block; vertical-align: top; width: 50%;}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+</style>
+
+
+
+<style type="text/css">
+code {
+white-space: pre;
+}
+.sourceCode {
+overflow: visible;
+}
+</style>
+<style type="text/css" data-origin="pandoc">
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { display: inline-block; text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+{ counter-reset: source-line 0; }
+pre.numberSource code > span
+{ position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+{ content: counter(source-line);
+position: relative; left: -1em; text-align: right; vertical-align: baseline;
+border: none; display: inline-block;
+-webkit-touch-callout: none; -webkit-user-select: none;
+-khtml-user-select: none; -moz-user-select: none;
+-ms-user-select: none; user-select: none;
+padding: 0 4px; width: 4em;
+color: #aaaaaa;
+}
+pre.numberSource { margin-left: 3em; border-left: 1px solid #aaaaaa; padding-left: 4px; }
+div.sourceCode
+{ }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+code span.al { color: #ff0000; font-weight: bold; } 
+code span.an { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.at { color: #7d9029; } 
+code span.bn { color: #40a070; } 
+code span.bu { color: #008000; } 
+code span.cf { color: #007020; font-weight: bold; } 
+code span.ch { color: #4070a0; } 
+code span.cn { color: #880000; } 
+code span.co { color: #60a0b0; font-style: italic; } 
+code span.cv { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.do { color: #ba2121; font-style: italic; } 
+code span.dt { color: #902000; } 
+code span.dv { color: #40a070; } 
+code span.er { color: #ff0000; font-weight: bold; } 
+code span.ex { } 
+code span.fl { color: #40a070; } 
+code span.fu { color: #06287e; } 
+code span.im { color: #008000; font-weight: bold; } 
+code span.in { color: #60a0b0; font-weight: bold; font-style: italic; } 
+code span.kw { color: #007020; font-weight: bold; } 
+code span.op { color: #666666; } 
+code span.ot { color: #007020; } 
+code span.pp { color: #bc7a00; } 
+code span.sc { color: #4070a0; } 
+code span.ss { color: #bb6688; } 
+code span.st { color: #4070a0; } 
+code span.va { color: #19177c; } 
+code span.vs { color: #4070a0; } 
+code span.wa { color: #60a0b0; font-weight: bold; font-style: italic; } 
+</style>
+<script>
+// apply pandoc div.sourceCode style to pre.sourceCode instead
+(function() {
+  var sheets = document.styleSheets;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].ownerNode.dataset["origin"] !== "pandoc") continue;
+    try { var rules = sheets[i].cssRules; } catch (e) { continue; }
+    var j = 0;
+    while (j < rules.length) {
+      var rule = rules[j];
+      // check if there is a div.sourceCode rule
+      if (rule.type !== rule.STYLE_RULE || rule.selectorText !== "div.sourceCode") {
+        j++;
+        continue;
+      }
+      var style = rule.style.cssText;
+      // check if color or background-color is set
+      if (rule.style.color === '' && rule.style.backgroundColor === '') {
+        j++;
+        continue;
+      }
+      // replace div.sourceCode by a pre.sourceCode rule
+      sheets[i].deleteRule(j);
+      sheets[i].insertRule('pre.sourceCode{' + style + '}', j);
+    }
+  }
+})();
+</script>
+
+
+
+
+<style type="text/css">body {
+background-color: #fff;
+margin: 1em auto;
+max-width: 700px;
+overflow: visible;
+padding-left: 2em;
+padding-right: 2em;
+font-family: "Open Sans", "Helvetica Neue", Helvetica, Arial, sans-serif;
+font-size: 14px;
+line-height: 1.35;
+}
+#TOC {
+clear: both;
+margin: 0 0 10px 10px;
+padding: 4px;
+width: 400px;
+border: 1px solid #CCCCCC;
+border-radius: 5px;
+background-color: #f6f6f6;
+font-size: 13px;
+line-height: 1.3;
+}
+#TOC .toctitle {
+font-weight: bold;
+font-size: 15px;
+margin-left: 5px;
+}
+#TOC ul {
+padding-left: 40px;
+margin-left: -1.5em;
+margin-top: 5px;
+margin-bottom: 5px;
+}
+#TOC ul ul {
+margin-left: -2em;
+}
+#TOC li {
+line-height: 16px;
+}
+table {
+margin: 1em auto;
+border-width: 1px;
+border-color: #DDDDDD;
+border-style: outset;
+border-collapse: collapse;
+}
+table th {
+border-width: 2px;
+padding: 5px;
+border-style: inset;
+}
+table td {
+border-width: 1px;
+border-style: inset;
+line-height: 18px;
+padding: 5px 5px;
+}
+table, table th, table td {
+border-left-style: none;
+border-right-style: none;
+}
+table thead, table tr.even {
+background-color: #f7f7f7;
+}
+p {
+margin: 0.5em 0;
+}
+blockquote {
+background-color: #f6f6f6;
+padding: 0.25em 0.75em;
+}
+hr {
+border-style: solid;
+border: none;
+border-top: 1px solid #777;
+margin: 28px 0;
+}
+dl {
+margin-left: 0;
+}
+dl dd {
+margin-bottom: 13px;
+margin-left: 13px;
+}
+dl dt {
+font-weight: bold;
+}
+ul {
+margin-top: 0;
+}
+ul li {
+list-style: circle outside;
+}
+ul ul {
+margin-bottom: 0;
+}
+pre, code {
+background-color: #f7f7f7;
+border-radius: 3px;
+color: #333;
+white-space: pre-wrap; 
+}
+pre {
+border-radius: 3px;
+margin: 5px 0px 10px 0px;
+padding: 10px;
+}
+pre:not([class]) {
+background-color: #f7f7f7;
+}
+code {
+font-family: Consolas, Monaco, 'Courier New', monospace;
+font-size: 85%;
+}
+p > code, li > code {
+padding: 2px 0px;
+}
+div.figure {
+text-align: center;
+}
+img {
+background-color: #FFFFFF;
+padding: 2px;
+border: 1px solid #DDDDDD;
+border-radius: 3px;
+border: 1px solid #CCCCCC;
+margin: 0 5px;
+}
+h1 {
+margin-top: 0;
+font-size: 35px;
+line-height: 40px;
+}
+h2 {
+border-bottom: 4px solid #f7f7f7;
+padding-top: 10px;
+padding-bottom: 2px;
+font-size: 145%;
+}
+h3 {
+border-bottom: 2px solid #f7f7f7;
+padding-top: 10px;
+font-size: 120%;
+}
+h4 {
+border-bottom: 1px solid #f7f7f7;
+margin-left: 8px;
+font-size: 105%;
+}
+h5, h6 {
+border-bottom: 1px solid #ccc;
+font-size: 105%;
+}
+a {
+color: #0033dd;
+text-decoration: none;
+}
+a:hover {
+color: #6666ff; }
+a:visited {
+color: #800080; }
+a:visited:hover {
+color: #BB00BB; }
+a[href^="http:"] {
+text-decoration: underline; }
+a[href^="https:"] {
+text-decoration: underline; }
+
+code > span.kw { color: #555; font-weight: bold; } 
+code > span.dt { color: #902000; } 
+code > span.dv { color: #40a070; } 
+code > span.bn { color: #d14; } 
+code > span.fl { color: #d14; } 
+code > span.ch { color: #d14; } 
+code > span.st { color: #d14; } 
+code > span.co { color: #888888; font-style: italic; } 
+code > span.ot { color: #007020; } 
+code > span.al { color: #ff0000; font-weight: bold; } 
+code > span.fu { color: #900; font-weight: bold; } 
+code > span.er { color: #a61717; background-color: #e3d2d2; } 
+</style>
+
+
+
+
+</head>
+
+<body>
+
+
+
+
+<h1 class="title toc-ignore">Estimating tree biomass and merchantable
+volume</h1>
+<h4 class="author">Hunter Stanke, Jeffrey W. Doser</h4>
+<h4 class="date">2020 (last updated February 7, 2025)</h4>
+
+
+<div id="TOC">
+<ul>
+<li><a href="#introduction" id="toc-introduction">Introduction</a></li>
+<li><a href="#estimating-tree-biomass-components" id="toc-estimating-tree-biomass-components">Estimating tree biomass
+components</a></li>
+<li><a href="#estimating-merchantable-tree-volume" id="toc-estimating-merchantable-tree-volume">Estimating merchantable
+tree volume</a></li>
+</ul>
+</div>
+
+<div id="introduction" class="section level1">
+<h1>Introduction</h1>
+<p>Prior to <code>rFIA</code> v0.3.1, the <code>biomass()</code>
+function provided estimates of volume, biomass, and carbon stocks of
+standing trees. This is what is described in the introductory
+<code>rFIA</code> manuscript (<a href="https://research.fs.usda.gov/treesearch/59521">Stanke et
+al. 2020</a>.</p>
+<p><code>rFIA</code> v0.3.1 introduced breaking changes to the
+<code>biomass()</code> function and how <code>rFIA</code> handles
+volume, carbon, and biomass estimation. Specifically, the
+<code>biomass()</code> function was overhauled to focus solely on
+estimation of tree biomass and carbon, providing enhanced flexibility in
+the estimation of <em>biomass components</em> (e.g., bole, limbs, coarse
+roots, etc.). In addition, v0.3.1 gave rise to the <code>volume()</code>
+function, which supersedes and expands upon the previous merchantable
+volume estimators implemented in <code>biomass()</code>.</p>
+<p>As of <code>rFIA</code> v1.1.0, the <code>biomass()</code>,
+<code>volume()</code>, and <code>carbon()</code> functions now all
+leverage FIA’s new National Scale Volume and Biomass Estimators (NSVB),
+which provides a more consistent and accurate accounting of structural
+components of trees. As with previous versions of
+<code>biomass()</code>, estimates can be returned by tree component
+using the <code>byComponent</code> method, although we note the specific
+components available have changged given underlying changes in FIADB and
+the NSVB approach. The NSVB represents a substantial advancement in
+national scale volume and biomass equations, and importantly estimates
+of carbon now leverage species-specific carbon fractions instead of the
+previous generic assumption that tree carbon was equal to 50% of tree
+biomass. Below we provide some basic examples of <code>biomass()</code>
+and <code>volume()</code>.</p>
+</div>
+<div id="estimating-tree-biomass-components" class="section level1">
+<h1>Estimating tree biomass components</h1>
+<p>Let’s see how the <code>biomass()</code> function can be used to
+estimate tree biomass components! As always, you can check out our
+documentation with <code>?biomass</code>:</p>
+<div class="sourceCode" id="cb1"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb1-1"><a href="#cb1-1" tabindex="-1"></a><span class="co"># Load data from the rFIA package</span></span>
+<span id="cb1-2"><a href="#cb1-2" tabindex="-1"></a><span class="fu">library</span>(rFIA)</span>
+<span id="cb1-3"><a href="#cb1-3" tabindex="-1"></a><span class="fu">data</span>(fiaRI)</span>
+<span id="cb1-4"><a href="#cb1-4" tabindex="-1"></a></span>
+<span id="cb1-5"><a href="#cb1-5" tabindex="-1"></a><span class="co"># Total live tree aboveground biomass, excluding foliage (default)</span></span>
+<span id="cb1-6"><a href="#cb1-6" tabindex="-1"></a><span class="fu">biomass</span>(fiaRI)</span></code></pre></div>
+<pre><code>## # A tibble: 6 × 8
+##    YEAR BIO_ACRE CARB_ACRE BIO_ACRE_SE CARB_ACRE_SE nPlots_TREE nPlots_AREA
+##   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;int&gt;       &lt;int&gt;
+## 1  2013     71.5      34.6        3.97         4.00         120         123
+## 2  2014     72.6      35.1        3.99         4.01         121         123
+## 3  2015     74.0      35.8        3.96         3.98         122         124
+## 4  2016     75.8      36.6        3.80         3.82         124         125
+## 5  2017     76.2      36.8        3.86         3.89         124         125
+## 6  2018     75.7      36.6        3.87         3.90         126         127
+## # ℹ 1 more variable: N &lt;int&gt;</code></pre>
+<p>By default, <code>biomass</code> estimates total aboveground live
+tree biomass for all reporting years available in the
+<code>FIA.Database</code> (<code>treeType = &quot;live&quot;</code>,
+<code>component = &quot;AG&quot;</code>). Here aboveground tree biomass is a
+simple summation of wood biomass in the total stem from ground line to
+the tree tip, stem bark biomass, and branch wood and bark. Carbon is
+estimated using species carbon fractions.</p>
+<p>But what if we’re interested in estimating biomass within different
+tree components separately, e.g., we want an individual estimate for
+bole, foliage, stump, and others? Simply set the new
+<code>byComponent</code> argument to <code>TRUE</code>:</p>
+<div class="sourceCode" id="cb3"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb3-1"><a href="#cb3-1" tabindex="-1"></a><span class="fu">biomass</span>(<span class="at">db =</span> <span class="fu">clipFIA</span>(fiaRI), <span class="at">byComponent =</span> <span class="cn">TRUE</span>)</span></code></pre></div>
+<pre><code>## # A tibble: 11 × 9
+##     YEAR COMPONENT   BIO_ACRE CARB_ACRE BIO_ACRE_SE CARB_ACRE_SE nPlots_TREE
+##    &lt;dbl&gt; &lt;chr&gt;          &lt;dbl&gt;     &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;int&gt;
+##  1  2018 BOLE          43.1      20.9          4.27         4.31         126
+##  2  2018 BOLE_BARK      6.79      3.28         3.86         3.89         126
+##  3  2018 BRANCH        19.0       9.19         4.42         4.43         126
+##  4  2018 FOLIAGE        2.09      0            3.05       NaN            126
+##  5  2018 ROOT          14.0       6.78         4.10         4.15         126
+##  6  2018 SAWLOG        24.5      11.9          7.46         7.53         126
+##  7  2018 SAWLOG_BARK    3.75      1.82         7.17         7.23         126
+##  8  2018 STEM          48.9      23.6          3.90         3.94         126
+##  9  2018 STEM_BARK      7.78      3.76         3.49         3.51         126
+## 10  2018 STUMP          2.33      1.13         3.13         3.13         126
+## 11  2018 STUMP_BARK     0.375     0.181        2.92         2.90         126
+## # ℹ 2 more variables: nPlots_AREA &lt;int&gt;, N &lt;int&gt;</code></pre>
+<p>Note that the sum of the provided components is NOT equal to total
+tree biomass. In other words, the components are not mutually exclusive
+(e.g., <code>BOLE</code> biomass is part of <code>STEM</code> biomass).
+Aboveground tree biomass is equal to the sum of <code>STEM</code>,
+<code>STEM_BARK</code>, and <code>BRANCH</code>. The <em>Estimation
+Details</em> section of the help page for <code>biomass()</code>
+provides all this information and more.</p>
+<p>Awesome, but what if we want to estimate biomass for some combination
+of these components, e.g., bole plus stump? The new
+<code>component</code> argument has our backs. Users can specify any
+combination of components seen in the output above. For example, say we
+want to estimate abovegound biomass (<code>&quot;AG&quot;</code>) plus foliage
+(<code>&quot;FOLIAGE&quot;</code>):</p>
+<div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" tabindex="-1"></a><span class="fu">biomass</span>(<span class="at">db =</span> <span class="fu">clipFIA</span>(fiaRI), <span class="at">component =</span> <span class="fu">c</span>(<span class="st">&quot;AG&quot;</span>, <span class="st">&quot;FOLIAGE&quot;</span>))</span></code></pre></div>
+<pre><code>## # A tibble: 1 × 8
+##    YEAR BIO_ACRE CARB_ACRE BIO_ACRE_SE CARB_ACRE_SE nPlots_TREE nPlots_AREA
+##   &lt;dbl&gt;    &lt;dbl&gt;     &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;       &lt;int&gt;       &lt;int&gt;
+## 1  2018     77.7      36.6        3.82         3.90         126         127
+## # ℹ 1 more variable: N &lt;int&gt;</code></pre>
+</div>
+<div id="estimating-merchantable-tree-volume" class="section level1">
+<h1>Estimating merchantable tree volume</h1>
+<p>Previously, <code>biomass()</code> included support for estimation of
+net merchantable volume and net sawlog volume in units of cubic feet.
+Since <code>rFIA</code> v0.3.1, the <code>volume()</code> function
+expands on this previous capacity in two key ways: (1) allowing use of
+alternative volume definitions used by the FIA program (i.e., net,
+sound, and gross volume), and (2) offering estimates of sawlog volume in
+units of cubic feet (CF) and thousand board feet (MBF; International 1/4
+inch rule).</p>
+<p>By default, <code>volume()</code> will estimate net volume of live
+trees (<code>volType = &quot;NET&quot;</code> and
+<code>treeType = &quot;live&quot;</code>):</p>
+<div class="sourceCode" id="cb7"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb7-1"><a href="#cb7-1" tabindex="-1"></a><span class="fu">volume</span>(<span class="at">db =</span> fiaRI)</span></code></pre></div>
+<pre><code>## # A tibble: 6 × 10
+##    YEAR BOLE_CF_ACRE SAW_CF_ACRE SAW_MBF_ACRE BOLE_CF_ACRE_SE SAW_CF_ACRE_SE
+##   &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;           &lt;dbl&gt;          &lt;dbl&gt;
+## 1  2013        2305.       1366.         7.02            5.11           8.49
+## 2  2014        2356.       1402.         7.17            5.10           8.41
+## 3  2015        2409.       1445.         7.38            5.00           8.32
+## 4  2016        2475.       1493.         7.58            4.91           8.16
+## 5  2017        2480.       1497.         7.63            4.97           8.26
+## 6  2018        2470.       1493.         7.63            4.99           8.26
+## # ℹ 4 more variables: SAW_MBF_ACRE_SE &lt;dbl&gt;, nPlots_TREE &lt;int&gt;,
+## #   nPlots_AREA &lt;int&gt;, N &lt;int&gt;</code></pre>
+<p>Here, <code>BOLE_CF_ACRE</code> gives us merchantable bole volume per
+acre, <code>SAW_CF_ACRE</code> gives us sawlog volume in cubic feet per
+acre, and <code>SAW_MBF_ACRE</code> gives us sawlog volume in thousand
+board feet per acre (International 1/4 inch rule).</p>
+<p>We can change our volume definition using the <code>volType</code>
+argument. Let’s try gross volume instead:</p>
+<div class="sourceCode" id="cb9"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb9-1"><a href="#cb9-1" tabindex="-1"></a><span class="fu">volume</span>(<span class="at">db =</span> fiaRI, <span class="at">volType =</span> <span class="st">&#39;gross&#39;</span>)</span></code></pre></div>
+<pre><code>## # A tibble: 6 × 10
+##    YEAR BOLE_CF_ACRE SAW_CF_ACRE SAW_MBF_ACRE BOLE_CF_ACRE_SE SAW_CF_ACRE_SE
+##   &lt;dbl&gt;        &lt;dbl&gt;       &lt;dbl&gt;        &lt;dbl&gt;           &lt;dbl&gt;          &lt;dbl&gt;
+## 1  2013        2680.       1551.         7.95            4.97           8.41
+## 2  2014        2741.       1592.         8.13            4.94           8.33
+## 3  2015        2804.       1642.         8.38            4.84           8.26
+## 4  2016        2885.       1695.         8.60            4.72           8.10
+## 5  2017        2902.       1703.         8.67            4.76           8.19
+## 6  2018        2888.       1700.         8.69            4.77           8.19
+## # ℹ 4 more variables: SAW_MBF_ACRE_SE &lt;dbl&gt;, nPlots_TREE &lt;int&gt;,
+## #   nPlots_AREA &lt;int&gt;, N &lt;int&gt;</code></pre>
+<p>So what do these different definitions mean? FIA defines net volume
+(<code>volType=&quot;NET&quot;</code>) as: “The net volume of wood in the central
+stem of timber species (trees where diameter is measured at breast
+height <span class="math inline">\(\geq\)</span> 5.0 inches d.b.h., from
+a 1-foot stump to a minimum 4-inch top diameter, or to where the central
+stem breaks into limbs all of which are &lt;4.0 inches in diameter….
+Does not include rotten, missing, and form cull (volume loss due to
+rotten, missing, and form cull defect has been deducted).” In
+<code>volum()</code>, we could also choose from two alternative
+definitions: sound volume (<code>volType = &#39;SOUND&#39;</code>) or gross
+volume (<code>volType = &#39;GROSS&#39;</code>). Sound volume is identical to
+net volume except that sound includes volume from portions of the stem
+that are be considered “form cull” under the net volume definition
+(e.g., sweep). In contrast, gross volume is identical to the net volume
+definition except that gross includes volume from portions of the stem
+that are rotten, missing, and considered form cull.</p>
+</div>
+
+
+
+<!-- code folding -->
+
+
+<!-- dynamically load mathjax for compatibility with self-contained -->
+<script>
+  (function () {
+    var script = document.createElement("script");
+    script.type = "text/javascript";
+    script.src  = "https://mathjax.rstudio.com/latest/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+    document.getElementsByTagName("head")[0].appendChild(script);
+  })();
+</script>
+
+</body>
+</html>

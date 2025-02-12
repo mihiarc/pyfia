@@ -5,7 +5,7 @@
 
 [![CRAN](https://www.r-pkg.org/badges/version/rFIA)](https://CRAN.R-project.org/package=rFIA)
 [![Codecov test
-coverage](https://codecov.io/gh/doserjef/rFIA/branch/main/graph/badge.svg)](https://app.codecov.io/gh/doserjef/rFIA?branch=main)
+coverage](https://codecov.io/gh/doserjef/rFIA-deleted/branch/master/graph/badge.svg)](https://app.codecov.io/gh/doserjef/rFIA-deleted?branch=master)
 
 **`rFIA` is coming back online!** After a couple years of limited
 support and functioning of `rFIA`, `rFIA` is now being maintained and

@@ -145,7 +145,7 @@ In the code above, DIA describes the DBH of stems, CCLCD their canopy position, 
 
 # Visualization
 
-Now that we have produced some estimates, we should translate them into plots so we can easily see the status and trends in our selected forest attributes. Using `plotFIA()`, we can easily produce (1) simple or grouped time series plots, (2) simple or grouped plots with a user defined x-axis (e.g., size class), and (3) spatial chloropleth maps (see [Incorporating Spatial Data](https://rfia.netlify.app/)).
+Now that we have produced some estimates, we should translate them into plots so we can easily see the status and trends in our selected forest attributes. Using `plotFIA()`, we can easily produce (1) simple or grouped time series plots, (2) simple or grouped plots with a user defined x-axis (e.g., size class), and (3) spatial chloropleth maps (see [Incorporating Spatial Data](https://doserlab.com/files/rfia/articles/spatial)).
 
 #### Time Series Plots
 

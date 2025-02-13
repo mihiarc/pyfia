@@ -1,62 +1,11 @@
 
 <!-- README.md is generated from README.Rmd. Please edit that file -->
 
-# rFIA: Unlocking the FIA Database in R <a href='https://rfia.netlify.app'><img src='man/figures/logo.PNG' align="right" height="139" width="180"/></a>
+# rFIA: Unlocking the FIA Database in R <a href='https://doserlab.com/files/rfia/'><img src='man/figures/logo.PNG' align="right" height="139" width="180"/></a>
 
 [![CRAN](https://www.r-pkg.org/badges/version/rFIA)](https://CRAN.R-project.org/package=rFIA)
 [![Codecov test
 coverage](https://codecov.io/gh/doserjef/rFIA-deleted/branch/master/graph/badge.svg)](https://app.codecov.io/gh/doserjef/rFIA-deleted?branch=master)
-
-**`rFIA` is coming back online!** After a couple years of limited
-support and functioning of `rFIA`, `rFIA` is now being maintained and
-further developed by Jeff Doser and the [Statistical Ecology and Forest
-Science Lab](https://doserlab.com/) at North Carolina State University.
-We are in the process of actively updating the package, ensuring its
-compatibility with recent updates in FIADB, and making other minor
-changes before the package is uploaded back onto CRAN.
-
-The package remains in active development, as we are extensively testing
-and updating all previous FIA functions. Below is a list of our progress
-in updating the existing functionality of rFIA. Once completed, we will
-get `rFIA` back onto CRAN and continue with numerous exciting avenues of
-future development… Stay tuned!
-
-<br>
-
-## Functionality and update progress
-
-Functionality is currently being updated and extensively tested. Some
-previous `rFIA` functionality is not yet available again, but we intend
-to have all previous functionality restored shortly. Below lists the
-functionality currently implemented and available for use if installing
-the GitHub version of this package.
-
-| `rFIA` Function   | Description                                                        | Updated |
-|-------------------|--------------------------------------------------------------------|---------|
-| `area()`          | Estimate land area in various classes                              | ☑       |
-| `areaChange()`    | Estimate annual change in land area in various classes             | ☑       |
-| `biomass()`       | Estimate biomass and carbon stocks of standing trees               | ☑       |
-| `carbon()`        | Estimate carbon stocks by IPCC forest carbon pools                 | ☑       |
-| `customPSE()`     | Estimate custom variables                                          | ☑       |
-| `clipFIA()`       | Spatial & temporal queries for FIA data                            | ☑       |
-| `diversity()`     | Estimate diversity indices (e.g. species diversity)                | ☑       |
-| `dwm()`           | Estimate volume, biomass, and carbon stocks of down woody material | ☑       |
-| `fsi()`           | Estimate forest stability index for live tree populations          |         |
-| `getDesignInfo()` | Summarize attributes of FIA’s post-stratified inventories          | ☑       |
-| `getFIA()`        | Download FIA data, load into R, and optionally save to disk        | ☑       |
-| `growMort()`      | Estimate recruitment, mortality, and harvest rates                 | ☑       |
-| `intersectFIA()`  | Join attributes of a spatial polygon(s) to FIA’s PLOT table        | ☑       |
-| `invasive()`      | Estimate areal coverage of invasive species                        | ☑       |
-| `plotFIA()`       | Produce static & animated plots of FIA summaries                   | ☑       |
-| `readFIA()`       | Load FIA database into R environment from disk                     | ☑       |
-| `seedling()`      | Estimate seedling abundance (TPA)                                  | ☑       |
-| `standStruct()`   | Estimate forest structural stage distributions                     | ☑       |
-| `tpa()`           | Estimate abundance of standing trees (TPA & BAA)                   | ☑       |
-| `vitalRates()`    | Estimate live tree growth rates                                    | ☑       |
-| `volume()`        | Estimate merchantable volume of standing trees                     | ☑       |
-| `writeFIA()`      | Write in-memory FIA Database to disk                               | ☑       |
-
-<br>
 
 ## Overview
 
@@ -78,28 +27,52 @@ implements design-based estimation procedures outlined by Bechtold &
 Patterson (2005), and has been validated against estimates and sampling
 errors produced by EVALIDator.
 
-For more information and example usage of `rFIA`, check out our
-[website](https://rfia.netlify.app/). To report a bug or suggest
-additions to `rFIA`, please use our [active
-issues](https://github.com/doserjef/rFIA/issues) page here on GitHub, or
-contact [Jeff Doser](https://doserlab.com/) (maintainer).
+For more information and example usage of `rFIA`, check out the numerous
+vignettes and example use cases in the
+[Articles](https://doserlab.com/files/rFIA/articles/) page on our
+website. To report a bug or suggest additions to `rFIA`, please use our
+[active issues](https://github.com/doserjef/rFIA/issues) page on GitHub,
+or contact [Jeff Doser](https://doserlab.com/) (maintainer).
 
 ***To cite*** `rFIA`, please refer to the publication in [Environmental
 Modeling and Software](https://doi.org/10.1016/j.envsoft.2020.104664)
 (doi: <https://doi.org/10.1016/j.envsoft.2020.104664>).
 
-<br>
+## Functionality
+
+| `rFIA` Function   | Description                                                        |
+|-------------------|--------------------------------------------------------------------|
+| `area()`          | Estimate land area in various classes                              |
+| `areaChange()`    | Estimate annual change in land area in various classes             |
+| `biomass()`       | Estimate biomass and carbon stocks of standing trees               |
+| `carbon()`        | Estimate carbon stocks by IPCC forest carbon pools                 |
+| `customPSE()`     | Estimate custom variables                                          |
+| `clipFIA()`       | Spatial & temporal queries for FIA data                            |
+| `diversity()`     | Estimate diversity indices (e.g. species diversity)                |
+| `dwm()`           | Estimate volume, biomass, and carbon stocks of down woody material |
+| `fsi()`           | Estimate forest stability index for live tree populations          |
+| `getDesignInfo()` | Summarize attributes of FIA’s post-stratified inventories          |
+| `getFIA()`        | Download FIA data, load into R, and optionally save to disk        |
+| `growMort()`      | Estimate recruitment, mortality, and harvest rates                 |
+| `intersectFIA()`  | Join attributes of a spatial polygon(s) to FIA’s PLOT table        |
+| `invasive()`      | Estimate areal coverage of invasive species                        |
+| `plotFIA()`       | Produce static & animated plots of FIA summaries                   |
+| `readFIA()`       | Load FIA database into R environment from disk                     |
+| `seedling()`      | Estimate seedling abundance (TPA)                                  |
+| `standStruct()`   | Estimate forest structural stage distributions                     |
+| `tpa()`           | Estimate abundance of standing trees (TPA & BAA)                   |
+| `vitalRates()`    | Estimate live tree growth rates                                    |
+| `volume()`        | Estimate merchantable volume of standing trees                     |
+| `writeFIA()`      | Write in-memory FIA Database to disk                               |
 
 ## Installation
 
-**`rFIA` has been off of CRAN since March 2023. Maintenance has started
-back up in September 2024 and we hope to have the package up on CRAN
-soon.**
+You can install the released version of `rFIA` from
+[CRAN](https://CRAN.R-project.org) with:
 
-<!-- You can install the released version of `rFIA` from [CRAN](https://CRAN.R-project.org) with: -->
-<!-- ``` r -->
-<!-- install.packages("rFIA") -->
-<!-- ``` -->
+``` r
+install.packages("rFIA")
+```
 
 Currently, you can install the development version from GitHub:
 
@@ -225,7 +198,7 @@ plotFIA(tpaRI_spsc, BAA, grp = COMMON_NAME, x = sizeClass,
         n.max = 5) # Only want the top 5 species, try n.max = -5 for bottom 5
 ```
 
-<img src="man/figures/README-unnamed-chunk-5-1.png" width="100%" />
+<img src="man/figures/README-unnamed-chunk-7-1.png" width="100%" />
 
 **What if I want estimates for a specific type of tree (ex. greater than
 12-inches DBH and in a canopy dominant or subdominant position) in a
@@ -271,7 +244,7 @@ tpaRI_counties <- tpa(fiaRI_MR, polys = countiesRI, returnSpatial = TRUE)
 plotFIA(tpaRI_counties, BAA) # Plotting method for spatial FIA summaries, also try 'TPA' or 'TPA_PERC'
 ```
 
-<img src="man/figures/README-unnamed-chunk-7-1.png" width="100%" />
+<img src="man/figures/README-unnamed-chunk-9-1.png" width="100%" />
 
 **We produced a really cool time series earlier, how would I marry the
 spatial and temporal capacity of `rFIA` to produce estimates across

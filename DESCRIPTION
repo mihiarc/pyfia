@@ -1,7 +1,7 @@
 Package: rFIA
 Type: Package
 Title: Estimation of Forest Variables using the FIA Database
-Version: 1.1.0.9000
+Version: 1.1.0
 Authors@R: c(person("Hunter", "Stanke", role=c("aut")), person("Andrew", "Finley", role = c("aut")), person("Jeffrey", "Doser", role=c("aut", "cre"), email="jwdoser@ncsu.edu"))
 Author: Hunter Stanke [aut], Andrew Finley [aut], Jeffrey Doser [aut, cre] 
 Maintainer: Jeffrey Doser <jwdoser@ncsu.edu> 
@@ -9,7 +9,7 @@ Description: The goal of 'rFIA' is to increase the accessibility and use of the 
 License: GPL-3
 Encoding: UTF-8
 LazyData: true
-Depends: R (>= 3.5.0)
+Depends: R (>= 4.1.0)
 Imports: 
     dplyr (>= 1.0.0),
     dtplyr (>= 1.0.0),
@@ -31,5 +31,5 @@ Suggests:
     coda,
     testthat
 RoxygenNote: 7.1.2
-URL: https://github.com/doserjef/rFIA, https://doserjef.github.io/rFIA/
+URL: https://github.com/doserjef/rFIA
 BugReports: https://github.com/doserjef/rFIA/issues

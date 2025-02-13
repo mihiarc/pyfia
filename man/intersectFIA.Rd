@@ -36,7 +36,7 @@ FIA.Database or Remote.FIA.Database, depending on specification of \code{db}.
 
 
 \references{
-rFIA website: \url{https://rfia.netlify.app/}
+rFIA website: \url{https://doserlab.com/files/rfia/}
 
 FIA Database User Guide: \url{https://research.fs.usda.gov/understory/forest-inventory-and-analysis-database-user-guide-nfi}
 

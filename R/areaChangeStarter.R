@@ -390,4 +390,5 @@ areaChangeStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
       out <- list(tEst = tEst, aEst = aEst, grpBy = grpBy)
     }
   }
+  return(out)
 }

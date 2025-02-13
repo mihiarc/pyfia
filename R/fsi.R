@@ -222,10 +222,10 @@ fsiStarter <- function(x,
 
   ### Only joining tables necessary to produce plot level estimates, adjusted for non-response
   db$PLOT <- select(db$PLOT, c('PLT_CN', pltID, 'REMPER', 'DESIGNCD', 'STATECD', 'MACRO_BREAKPOINT_DIA', 'INVYR',
-                               'MEASYEAR', 'MEASMON', 'MEASDAY', 'PLOT_STATUS_CD', PREV_PLT_CN, grpP, 'sp'))
-  db$COND <- select(db$COND, c('PLT_CN', 'CONDPROP_UNADJ', 'PROP_BASIS', 'COND_STATUS_CD', 'CONDID', grpC, 'aD', 'landD',
+                               'MEASYEAR', 'MEASMON', 'MEASDAY', 'PLOT_STATUS_CD', PREV_PLT_CN, all_of(grpP), 'sp'))
+  db$COND <- select(db$COND, c('PLT_CN', 'CONDPROP_UNADJ', 'PROP_BASIS', 'COND_STATUS_CD', 'CONDID', all_of(grpC), 'aD', 'landD',
                                DSTRBCD1, DSTRBCD2, DSTRBCD3, TRTCD1, TRTCD2, TRTCD3))
-  db$TREE <- select(db$TREE, c('PLT_CN', 'TRE_CN', 'CONDID', 'DIA', 'TPA_UNADJ', 'BAA', 'SUBP', 'TREE', grpT, 'tD', 'typeD',
+  db$TREE <- select(db$TREE, c('PLT_CN', 'TRE_CN', 'CONDID', 'DIA', 'TPA_UNADJ', 'BAA', 'SUBP', 'TREE', all_of(grpT), 'tD', 'typeD',
                                PREVCOND, PREV_TRE_CN, STATUSCD, SPCD))
 
 

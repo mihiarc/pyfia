@@ -52,7 +52,7 @@ areaChange <- function(db, grpBy = NULL, polys = NULL, returnSpatial = FALSE,
 
     # Totals and ratios -------------------------------------------------------
     aEst <- aEst %>%
-      dplyr::group_by( !!!grpSyms) %>%
+      dplyr::group_by(!!!grpSyms) %>%
       dplyr::summarize(dplyr::across(dplyr::everything(), \(x) sum(x, na.rm = TRUE))) %>% 
       dplyr::select(!!!grpSyms, prev_mean, prev_var, nPlots.y)
 
@@ -102,11 +102,13 @@ areaChange <- function(db, grpBy = NULL, polys = NULL, returnSpatial = FALSE,
     dplyr::mutate_if(is.factor, as.character) %>%
     as_tibble()
 
-  # We don't include YEAR in treeList output, and NA groups will be important
+  # We don't include YEAR in condList output, and NA groups will be important
   # for retaining non-treed forestland
   if (!condList) {
     tEst <- tEst %>%
-      tidyr::drop_na(grpBy[!c(grpBy %in% names(polys))]) %>%
+      # NOTE: the drop_na call is being dropped because this leads to a drop
+      #       in certain rows of interest under certain grpBy specifications.
+      # tidyr::drop_na(grpBy[!c(grpBy %in% names(polys))]) %>%
       dplyr::arrange(YEAR)
   }
 

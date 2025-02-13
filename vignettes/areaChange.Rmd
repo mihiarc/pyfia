@@ -1,0 +1,63 @@
+---
+title: "Estimating temporal changes in land area"
+author: "Hunter Stanke, Jeffrey W. Doser"
+date: "2021 (last updated February 12, 2025)"
+description: Simple examples on using the `areaChange()` function
+output: 
+  rmarkdown::html_vignette:
+    toc: true
+    toc_depth: 3
+vignette: >
+  %\VignetteIndexEntry{areaChange}
+  %\VignetteEngine{knitr::rmarkdown}
+  %\VignetteEncoding{UTF-8}
+---
+
+The increasing availability of remeasured FIA plots offers the unique opportunity to move from asking questions about the *status* of forest resources, to questions of how resources have *changed* over time. For example, we could use the `area()` function in rFIA to determine the relative land area occupied by various forest types in a landscape or region of interest, i.e., it's current composition. But how has the composition of that landscape changed in recent decades? What are the primary drivers of such change? And how does this shape our thinking of what the landscape will look like in the future? 
+
+rFIA v0.3.1 gave rise to the `areaChange()` function, which allows us to address such questions using FIA data alone. 
+
+By default, `areaChange()` will estimate *net* annual change in forest land area within a region over time. As always, you can check out our complete documentation with by clicking on `areaChange()` (or opening up the same information in R via `?areaChange`):
+
+```{r, eval=TRUE, echo=TRUE, message = FALSE, warning = FALSE}
+library(rFIA)
+
+# Download the FIA data for Rhode Island 
+ri <- getFIA('RI')
+
+# Estimate change in forestland area
+areaChange(ri)
+```
+
+Here `AREA_CHNG` is the estimated annual change in forest land area in acres, and `PERC_CHNG` is the estimated annual change as a percentage of previous total forestland. Importantly, the values estimated above are *net* changes (`chngType="NET"`). In other words, these changes epresent the combined effects of reversion (non-forest becoming forest) and diversion (forest becoming non-forest). 
+
+Often, however, examining the *components of change* can yield valuable insight into the drivers of net changes in forest resources. As such, `areaChange()` allows us to explicitly estimate change components when `chngType = "component"`. In our simple example, this means estimating the annual rates of reversion and diversion in our region:
+
+```{r, eval=TRUE, echo=TRUE}
+# Estimate change in forestland area by component
+areaChange(ri, chngType = 'component')
+```
+Here `STATUS1` and `STATUS2` represent the land classification at first and second measurements, respectively. For the 2010 inventory, we estimate that 3,313 acres of forestland were diverted to a non-forest land use annually, and 1,205 acres of non-forest were reverted back to the forest land base. Here our losses (3,313 acres) exceed our gains (1,205 acres), and their difference is equal to the net change (`AREA_CHNG`) we estimated previously when `chngType = 'NET'` (-2,108 acres). 
+
+We can extend this example by examining patterns of change across some variable of interest, let's say ownership classes:
+
+```{r, eval=TRUE, echo=TRUE}
+# Grab only the most recent survey
+ri_mr <- clipFIA(ri)
+# Estimate NET change in forestland area by ownership group
+areaChange(ri_mr, grpBy = OWNGRPCD, chngType = 'net')
+
+# Estimate component change in forestland area by ownership group
+areaChange(ri_mr, grpBy = OWNGRPCD, chngType = 'component')
+```
+
+Note that when, `grpBy` is specified, change components are estimated for all shifts in forest land area across the classified attributes represented by the variables (first and second measurements again denoted by the suffix 1 and 2). In our case this means `OWNGRPCD1` indicates ownership at initial measurement and `OWNGRPCD2` is ownership at final measurement. Unfortunately, ownership group is unavailable for non-forest conditions and hence initial ownership is listed as `NA` for all non-forest to forest conversions (and forest to non-forest conversions). 
+
+Finally, what if we were interested in understanding change in forest land that meets some specific criteria? We can easily accomplish this using the `treeDomain` argument. For example, below we calculate net change for forest land that contains live (`STATUSCD == 1`) eastern hemlock (`SPCD == 261`).  
+
+```{r}
+areaChange(ri, treeDomain = STATUSCD == 1 & SPCD == 261) 
+```
+
+In this case, the `AREA_CHNG` column corresponds to the net change (in acres) of forest land that contains at least one live eastern hemlock tree, while the `PREV_AREA` column indicates the previous area (in acres) of forest land with at least one hemlock tree. Notice that the `PERC_CHNG` columns is simply calculated as `AREA_CHNG / PREV_AREA * 100`.  
+

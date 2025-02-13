@@ -20,9 +20,17 @@ articles:
     - customVariables
     - biomassVolume
     - growth
+    - areaChange
   - title: rFIA under the hood
     contents:
     - fiaDemystified
+  - title: Examples in action 
+    contents: 
+    - FHM2020Report
+    - fsi
+    - fgcCS1
+    - fgcCS2
+    - at
 
 reference: 
   - title: "Estimation functions"

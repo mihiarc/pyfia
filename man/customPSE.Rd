@@ -108,18 +108,18 @@ customPSE(db = fiaRI,
           yVars = PROP_FOREST)
 
 # Same as above, but rename variables for a clean output
-customPSE(db = fiaRI,
-          x = dplyr::select(tree.list, -c(AREA_BASIS)),
-          # Variables can be renamed using c()
-          xVars = c(NUM = TPA,
-                    BA = BAA),
-          y = dplyr::select(tree.list, -c(TREE_BASIS)),
-          # Variables can be renamed using c()
-          yVars = c(FOREST_AREA = PROP_FOREST))
-
-# Ensure the above matches expected output
-tpa(fiaRI,
-    totals = TRUE,
-    variance = TRUE)
+# customPSE(db = fiaRI,
+#           x = dplyr::select(tree.list, -c(AREA_BASIS)),
+#           # Variables can be renamed using c()
+#           xVars = c(NUM = TPA,
+#                     BA = BAA),
+#           y = dplyr::select(tree.list, -c(TREE_BASIS)),
+#           # Variables can be renamed using c()
+#           yVars = c(FOREST_AREA = PROP_FOREST))
+# 
+# # Ensure the above matches expected output
+# tpa(fiaRI,
+#     totals = TRUE,
+#     variance = TRUE)
 }
 

@@ -75,7 +75,7 @@ IMPORTANT: Only one of TREE_BASIS or AREA_BASIS may be present \code{x} or \code
 }
 
 \references{
-rFIA website: \url{https://rfia.netlify.app/}
+rFIA website: \url{https://doserlab.com/files/rfia/}
 
 FIA Database User Guide: \url{https://research.fs.usda.gov/understory/forest-inventory-and-analysis-database-user-guide-nfi}
 

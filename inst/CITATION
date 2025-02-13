@@ -1,6 +1,6 @@
 if (!exists("meta") || is.null(meta)) meta <- packageDescription("rFIA")
 
-citHeader("To cite package", sQuote(meta$Package), "in publications use:")
+citHeader("To cite package", sQuote(meta$Package), "in publications please cite the Stanke et al. (2020) paper. If using version 1.1.0 or greater, please also include the direct citation to the CRAN package.:")
 
 year <- sub(".*(2[[:digit:]]{3})-.*", "\\1", meta$Date, perl = TRUE)
 vers <- paste("R package version", meta$Version)
@@ -13,7 +13,7 @@ bibentry(bibtype = "Article",
   volume       = "127",
   number       = "",
   pages        = "104664",
-  url          = "https://www.sciencedirect.com/science/article/abs/pii/S1364815219311089?via%3Dihub",
+  url          = "https://doi.org/10.1016/j.envsoft.2020.104664",
 
   textVersion  =
   paste("Stanke, H., Finley, A. O., Weed, A. S., Walters, B. F., & Domke, G. M. (2020).",
@@ -21,5 +21,15 @@ bibentry(bibtype = "Article",
         "Environmental Modelling & Software, 127, 104664.")
 )
 
+bibentry(bibtype = "Manual", 
+  title        = "{rFIA}: Estimation of Forest Variables using the FIA Database",
+  author       = c(as.person("Jeffrey W Doser"), as.person("Hunter Stanke"), as.person("Andrew O Finley")),
+  year         = "2025",
+  note         = "R package version 1.1.0",
+  url          = "https://CRAN.R-project.org/package=rFIA",
 
-
+  textVersion  =
+  paste("Doser, J.W., Stanke, H., Finley, A. O.,  (2025).",
+        "rFIA: Estimation of Forest Variables using the FIA Database",
+        "R package version 1.1.0. https://CRAN.R-project.org/package=rFIA")
+)

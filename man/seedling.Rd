@@ -144,11 +144,11 @@ seedling(db = fiaRI_mr,
     bySpecies = TRUE)
 
 ## Same as above, but implemented in parallel (much quicker)
-parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
-seedling(db = fiaRI_mr,
-    landType = 'forest',
-    bySpecies = TRUE,
-    nCores = 2)
+# parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
+# seedling(db = fiaRI_mr,
+#     landType = 'forest',
+#     bySpecies = TRUE,
+#     nCores = 2)
 
 
 ## Most recent estimates for all stems on forest land grouped by user-defined areal units

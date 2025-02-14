@@ -145,10 +145,10 @@ carbon(db = fiaRI_mr,
 
 
 # Same as above, but implemented in parallel (much quicker)
-parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
-carbon(db = fiaRI_mr,
-       grpBy = STAND_AGE,
-       nCores = 2)
+# parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
+# carbon(db = fiaRI_mr,
+#        grpBy = STAND_AGE,
+#        nCores = 2)
 
 
 # Most recent estimates for all stems on forest land grouped by user-defined areal units

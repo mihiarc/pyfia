@@ -122,10 +122,10 @@ area(db = fiaRI,
 
 # Same as above, but implemented in parallel (much quicker)
 parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
-area(db = fiaRI,
-     landType = 'forest',
-     treeDomain = DIA > 20,
-     nCores =2)
+# area(db = fiaRI,
+#      landType = 'forest',
+#      treeDomain = DIA > 20,
+#      nCores =2)
 
 # Return estimates at the plot-level
 area(db = fiaRI,

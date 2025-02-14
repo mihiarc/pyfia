@@ -155,12 +155,12 @@ diversity(db = fiaRI_mr,
           bySizeClass = TRUE)
 
 # Same as above, implemented in parallel
-parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
-diversity(db = fiaRI_mr,
-          landType = 'timber',
-          treeType = 'gs',
-          bySizeClass = TRUE,
-          nCores = 2)
+# parallel::detectCores(logical = FALSE) # 4 cores available, we will take 2
+# diversity(db = fiaRI_mr,
+#           landType = 'timber',
+#           treeType = 'gs',
+#           bySizeClass = TRUE,
+#           nCores = 2)
 
 # Most recent estimates for live stems on forest land grouped by user-defined areal units
 ctSF <- diversity(clipFIA(fiaRI, mostRecent = TRUE),

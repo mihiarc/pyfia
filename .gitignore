@@ -6,3 +6,4 @@
 docs
 compile
 vignettes/*.html
+vignettes/img/*

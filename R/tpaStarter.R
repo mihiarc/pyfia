@@ -280,7 +280,7 @@ tpaStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
           # When DIA is greater than 5", use subplot value, as long 
           # as diameter is less than the minimum dia on macroplots
           DIA >= 5 & is.na(MACRO_BREAKPOINT_DIA) ~ 'SUBP',
-          DIA >= 5 & DIA < MACRO_BREAKPOINT_DATA ~ 'SUBP',
+          DIA >= 5 & DIA < MACRO_BREAKPOINT_DIA ~ 'SUBP',
           # Use macroplot if DIA >= the min dbh measured on macroplots
           DIA >= MACRO_BREAKPOINT_DIA ~ 'MACR'
         )

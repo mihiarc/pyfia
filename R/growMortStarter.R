@@ -179,7 +179,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
   # Filtering out all inventories that are not relevant to the current
   # estimation type. If using estimator other than TI, handle the differences in
   # P2POINTCNT and in assigning YEAR column (YEAR = END_INVYR if method = 'TI')
-  pops <- handlePops(db, evalType = c('GROW', 'MORT', 'REMV'), method, mr, ga = TRUE)
+  pops <- handlePops(db, evalType = c('GROW', 'MORT', 'REMV'), method, mr)
 
   # Generate a list that tells us if a plot is ever associated with a growth 
   # accounting inventory. If so, we will be more strict with domain definitions.
@@ -228,7 +228,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
   grpT <- names(db$TREE)[names(db$TREE) %in% grpBy & 
                          !c(names(db$TREE) %in% c(grpP, grpC))]
 
-  # Dropping irrelevant rows and columns
+  # PLOT ------------------------------
   db$PLOT <- db$PLOT %>%
     dplyr::select(c(PLT_CN, STATECD, MACRO_BREAKPOINT_DIA,
                     INVYR, MEASYEAR, PLOT_STATUS_CD,
@@ -239,6 +239,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     # Drop visits not used in our eval of interest
     dplyr::filter(PLT_CN %in% pops$PLT_CN)
 
+  # COND ------------------------------
   db$COND <- db$COND %>%
     dplyr::select(c(PLT_CN, CONDPROP_UNADJ, PROP_BASIS,
                     COND_STATUS_CD, CONDID,
@@ -246,6 +247,8 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     # Drop visits not used in our eval of interest
     dplyr::filter(PLT_CN %in% c(db$PLOT$PLT_CN, db$PLOT$PREV_PLT_CN))
 
+  # TREE_GRM_COMPONENT ----------------
+  # TODO: clean up when done testing
   db$TREE_GRM_COMPONENT <- db$TREE_GRM_COMPONENT %>%
     dplyr::select(c(PLT_CN, TRE_CN, SUBPTYP_GRM, TPAGROW_UNADJ, TPARECR_UNADJ,
                     TPAREMV_UNADJ, TPAMORT_UNADJ, COMPONENT)) %>%
@@ -253,6 +256,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     dplyr::filter(TPAGROW_UNADJ > 0 | TPARECR_UNADJ > 0 | TPAREMV_UNADJ > 0 | TPAMORT_UNADJ > 0) %>%
     # Drop visits not used in our eval of interest
     dplyr::filter(PLT_CN %in% db$PLOT$PLT_CN) %>%
+    # dplyr::filter(PLT_CN %in% c(db$PLOT$PLT_CN, db$PLOT$PREV_PLT_CN)) %>%
     # Convert NAs in TPAMORT_UNADJ and TPAREMV_UNADJ to 0s. This corresponds to 
     # situations where the given tree is not MORT or REMV, but there is some sort of 
     # GRM record for it (i.e., GROW or RECR). This is needed for calculations later on.
@@ -260,6 +264,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
                   TPAMORT_UNADJ = ifelse(is.na(TPAMORT_UNADJ), 0, TPAMORT_UNADJ)) %>%
     dplyr::select(-c(PLT_CN))
 
+  # TREE ------------------------------
   db$TREE <- db$TREE %>%
     dplyr::select(c(PLT_CN, CONDID, PREVCOND, TRE_CN,
                     PREV_TRE_CN, SUBP, TREE, dplyr::all_of(grpT), tD,
@@ -268,10 +273,12 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     # Drop plots outside our domain of interest
     dplyr::filter(PLT_CN %in% c(db$PLOT$PLT_CN, db$PLOT$PREV_PLT_CN))
 
+  # TREE_GRM_MIDPT --------------------
   db$TREE_GRM_MIDPT <- db$TREE_GRM_MIDPT %>%
     select(c(TRE_CN, DIA, state)) %>%
     filter(TRE_CN %in% db$TREE_GRM_COMPONENT$TRE_CN)
 
+  # SUBP_COND_CHNG_MTRX ---------------
   if ('SUBP_COND_CHNG_MTRX' %in% names(db)) {
     db$SUBP_COND_CHNG_MTRX <- dplyr::select(db$SUBP_COND_CHNG_MTRX, PLT_CN, PREV_PLT_CN,
                                      SUBPTYP, SUBPTYP_PROP_CHNG, PREVCOND, CONDID) %>%

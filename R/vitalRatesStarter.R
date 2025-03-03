@@ -375,7 +375,7 @@ vitalRatesStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
                        ba = sum(BA * TPAGROW_UNADJ * tDI, na.rm = TRUE), 
                        vol = sum(VOLCFNET * TPAGROW_UNADJ * tDI, na.rm = TRUE),
                        svol = sum(VOLBFNET * TPAGROW_UNADJ * tDI, na.rm = TRUE) / 1000,
-                       bio = sum(DRYBIO_AG * TPAGROW_UNADJ * tDI, na.rm = TRUE)) %>%
+                       bio = sum(DRYBIO_AG * TPAGROW_UNADJ * tDI, na.rm = TRUE) / 2000) %>%
       dplyr::mutate(DIA_GROW = d / t,
                     BA_GROW = ba / t,
                     NETVOL_GROW = vol / t,

@@ -398,7 +398,9 @@ typeDomain_grow <- function(db, treeType, landType, type, stateVar = NULL) {
                                                COMPONENT = SUBP_COMPONENT_SL_FOREST) %>%
           dplyr::mutate(TPARECR_UNADJ = dplyr::case_when(
             is.na(COMPONENT) ~ NA_real_,
-            COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            # Note that currently defining removals to NOT include CUT2 and MORTALITY2.
+            # COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            COMPONENT %in% c('INGROWTH') ~ TPAGROW_UNADJ,
             TRUE ~ 0))
 
       } else if (tolower(treeType) == 'all'){
@@ -412,7 +414,9 @@ typeDomain_grow <- function(db, treeType, landType, type, stateVar = NULL) {
                                                COMPONENT = SUBP_COMPONENT_AL_FOREST) %>%
           dplyr::mutate(TPARECR_UNADJ = dplyr::case_when(
             is.na(COMPONENT) ~ NA_real_,
-            COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            # Note that currently defining removals to NOT include CUT2 and MORTALITY2.
+            # COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            COMPONENT %in% c('INGROWTH') ~ TPAGROW_UNADJ,
             TRUE ~ 0))
 
       } else if (tolower(treeType) == 'gs') {
@@ -425,7 +429,9 @@ typeDomain_grow <- function(db, treeType, landType, type, stateVar = NULL) {
                                                COMPONENT = SUBP_COMPONENT_GS_FOREST)%>%
           dplyr::mutate(TPARECR_UNADJ = dplyr::case_when(
             is.na(COMPONENT) ~ NA_real_,
-            COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            # Note that currently defining removals to NOT include CUT2 and MORTALITY2.
+            # COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            COMPONENT %in% c('INGROWTH') ~ TPAGROW_UNADJ,
             TRUE ~ 0))
       }
 
@@ -449,7 +455,9 @@ typeDomain_grow <- function(db, treeType, landType, type, stateVar = NULL) {
                                                COMPONENT = SUBP_COMPONENT_SL_TIMBER) %>%
           dplyr::mutate(TPARECR_UNADJ = dplyr::case_when(
             is.na(COMPONENT) ~ NA_real_,
-            COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            # Note that currently defining removals to NOT include CUT2 and MORTALITY2.
+            # COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            COMPONENT %in% c('INGROWTH') ~ TPAGROW_UNADJ,
             TRUE ~ 0))
 
 
@@ -463,7 +471,9 @@ typeDomain_grow <- function(db, treeType, landType, type, stateVar = NULL) {
                                                COMPONENT = SUBP_COMPONENT_AL_TIMBER)%>%
           dplyr::mutate(TPARECR_UNADJ = dplyr::case_when(
             is.na(COMPONENT) ~ NA_real_,
-            COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            # Note that currently defining removals to NOT include CUT2 and MORTALITY2.
+            # COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            COMPONENT %in% c('INGROWTH') ~ TPAGROW_UNADJ,
             TRUE ~ 0))
 
       } else if (tolower(treeType) == 'gs'){
@@ -475,7 +485,9 @@ typeDomain_grow <- function(db, treeType, landType, type, stateVar = NULL) {
                                                COMPONENT = SUBP_COMPONENT_GS_TIMBER )%>%
           dplyr::mutate(TPARECR_UNADJ = dplyr::case_when(
             is.na(COMPONENT) ~ NA_real_,
-            COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            # Note that currently defining removals to NOT include CUT2 and MORTALITY2.
+            # COMPONENT %in% c('INGROWTH', 'CUT2', 'MORTALITY2') ~ TPAGROW_UNADJ,
+            COMPONENT %in% c('INGROWTH') ~ TPAGROW_UNADJ,
             TRUE ~ 0))
 
       }
@@ -1729,7 +1741,7 @@ unitMean <- function(ESTN_METHOD, a, nh, w, stratMean){
 }
 
 # Replace current attributes with midpoint attributes depending on component
-vrAttHelper <- function(attribute, attribute.prev, attribute.mid, attribute.beg, component, remper, oneortwo){
+vrAttHelper <- function(attribute, attribute.prev, attribute.mid, attribute.beg, component, remper, oneortwo) {
 
   # ONLY WORKS FOR ATTRIBUTES DEFINED IN TRE_MIDPNT and TRE_BEGIN
   at <- dplyr::case_when(

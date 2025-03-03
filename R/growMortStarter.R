@@ -11,12 +11,12 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
   # accounting method. If it is, growth accounting method is used.
   if ('SUBP_COND_CHNG_MTRX' %in% names(db)) {
     reqTables <- c('PLOT', 'COND', 'TREE', 'TREE_GRM_COMPONENT', 'TREE_GRM_MIDPT',
-                   'SUBP_COND_CHNG_MTRX',
+                   'TREE_GRM_BEGIN', 'SUBP_COND_CHNG_MTRX',
                    'POP_PLOT_STRATUM_ASSGN', 'POP_ESTN_UNIT', 'POP_EVAL',
                    'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP')
   } else {
     reqTables <- c('PLOT', 'COND', 'TREE', 'TREE_GRM_COMPONENT', 'TREE_GRM_MIDPT',
-                   'POP_PLOT_STRATUM_ASSGN', 'POP_ESTN_UNIT', 'POP_EVAL',
+                   'TREE_GRM_BEGIN', 'POP_PLOT_STRATUM_ASSGN', 'POP_ESTN_UNIT', 'POP_EVAL',
                    'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP')
   }
 
@@ -111,47 +111,67 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
                      by = 'SPCD') %>%
     dplyr::mutate(SCIENTIFIC_NAME = paste(GENUS, SPECIES, sep = ' ')) %>% 
     dplyr::mutate_if(is.factor, character)
+  db$TREE_GRM_BEGIN <- db$TREE_GRM_BEGIN %>%
+    dplyr::left_join(dplyr::select(intData$REF_SPECIES_DEC_2024, 
+                                   c('SPCD', 'COMMON_NAME', 'GENUS', 'SPECIES', 
+                                     'CARBON_RATIO_LIVE')), 
+                     by = 'SPCD') %>%
+    dplyr::mutate(SCIENTIFIC_NAME = paste(GENUS, SPECIES, sep = ' ')) %>% 
+    dplyr::mutate_if(is.factor, character)
 
 
   # Handle the state variable, only applying to the midpoint table for consistency
   if (stringr::str_to_upper(stateVar) == 'TPA'){
     db$TREE_GRM_MIDPT$state <- 1
+    db$TREE_GRM_BEGIN$state <- 1
     db$TREE$state_recr <- 1
   } else if (stringr::str_to_upper(stateVar) == 'BAA'){
     db$TREE_GRM_MIDPT$state <- basalArea(db$TREE_GRM_MIDPT$DIA)
+    db$TREE_GRM_BEGIN$state <- basalArea(db$TREE_GRM_BEGIN$DIA)
     db$TREE$state_recr <- basalArea(db$TREE$DIA)
   } else if (stringr::str_to_upper(stateVar) == 'SAWVOL'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$VOLCSNET
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$VOLCSNET
     db$TREE$state_recr <- db$TREE$VOLCSNET
   } else if (stringr::str_to_upper(stateVar) == 'SAWVOL_BF'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$VOLBFNET
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$VOLBFNET
     db$TREE$state_recr <- db$TREE$VOLBFNET
   } else if (stringr::str_to_upper(stateVar) == 'NETVOL'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$VOLCFNET
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$VOLCFNET
     db$TREE$state_recr <- db$TREE$VOLCFNET
   } else if (stringr::str_to_upper(stateVar) == 'SNDVOL'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$VOLCFSND
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$VOLCFSND
     db$TREE$state_recr <- db$TREE$VOLCFSND
   } else if (stringr::str_to_upper(stateVar) == 'BIO_AG'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$DRYBIO_AG
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$DRYBIO_AG
     db$TREE$state_recr <- db$TREE$DRYBIO_AG
   } else if (stringr::str_to_upper(stateVar) == 'BIO_BG'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$DRYBIO_BG
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$DRYBIO_BG
     db$TREE$state_recr <- db$TREE$DRYBIO_BG
   } else if (stringr::str_to_upper(stateVar) == 'BIO'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$DRYBIO_BG + db$TREE_GRM_MIDPT$DRYBIO_AG
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$DRYBIO_BG + db$TREE_GRM_BEGIN$DRYBIO_AG
     db$TREE$state_recr <- db$TREE$DRYBIO_BG + db$TREE$DRYBIO_AG
   } else if (stringr::str_to_upper(stateVar) == 'CARB_AG'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$DRYBIO_AG * db$TREE_GRM_MIDPT$CARBON_RATIO_LIVE
-    db$TREE$state_recr <- db$TREE$DRYBIO_AG * db$TREE_GRM_MIDPT$CARBON_RATIO_LIVE
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$DRYBIO_AG * db$TREE_GRM_BEGIN$CARBON_RATIO_LIVE
+    db$TREE$state_recr <- db$TREE$DRYBIO_AG * db$TREE$CARBON_RATIO_LIVE
   } else if (stringr::str_to_upper(stateVar) == 'CARB_BG'){
     db$TREE_GRM_MIDPT$state <- db$TREE_GRM_MIDPT$DRYBIO_BG * db$TREE_GRM_MIDPT$CARBON_RATIO_LIVE
-    db$TREE$state_recr <- db$TREE$DRYBIO_BG * db$TREE_GRM_MIDPT$CARBON_RATIO_LIVE
+    db$TREE_GRM_BEGIN$state <- db$TREE_GRM_BEGIN$DRYBIO_BG * db$TREE_GRM_BEGIN$CARBON_RATIO_LIVE
+    db$TREE$state_recr <- db$TREE$DRYBIO_BG * db$TREE$CARBON_RATIO_LIVE
   } else if (stringr::str_to_upper(stateVar) == 'CARB'){
     db$TREE_GRM_MIDPT$state <- (db$TREE_GRM_MIDPT$DRYBIO_AG + db$TREE_GRM_MIDPT$DRYBIO_BG) * 
                                db$TREE_GRM_MIDPT$CARBON_RATIO_LIVE
+    db$TREE_GRM_BEGIN$state <- (db$TREE_GRM_BEGIN$DRYBIO_AG + db$TREE_GRM_BEGIN$DRYBIO_BG) * 
+                               db$TREE_GRM_BEGIN$CARBON_RATIO_LIVE
     db$TREE$state_recr <- (db$TREE$DRYBIO_AG + db$TREE$DRYBIO_BG) * 
-                          db$TREE_GRM_MIDPT$CARBON_RATIO_LIVE
+                          db$TREE$CARBON_RATIO_LIVE
   } else {
     stop(paste0('Method not known for stateVar: ', stateVar, '. Please choose one of: TPA, BAA, SAWVOL, SAWVOL_BF, NETVOL, BIO_AG, BIO_BG, BIO, CARB_AG, CARB_BG, or CARB.' ))
   }
@@ -234,7 +254,9 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
                     INVYR, MEASYEAR, PLOT_STATUS_CD,
                     dplyr::all_of(grpP), sp, COUNTYCD,
                     PREV_PLT_CN, REMPER)) %>%
-    # Drop non-forested plots, and those otherwise outside our domain of interest
+    # Drop non-forested plots, and those otherwise outside our domain of interest. 
+    # Note that this will result in keeping all plots that were forested during 
+    # at least one time point.
     dplyr::filter(PLOT_STATUS_CD == 1 & sp == 1) %>%
     # Drop visits not used in our eval of interest
     dplyr::filter(PLT_CN %in% pops$PLT_CN)
@@ -246,24 +268,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
                     dplyr::all_of(grpC), aD, landD)) %>%
     # Drop visits not used in our eval of interest
     dplyr::filter(PLT_CN %in% c(db$PLOT$PLT_CN, db$PLOT$PREV_PLT_CN))
-
-  # TREE_GRM_COMPONENT ----------------
-  # TODO: clean up when done testing
-  db$TREE_GRM_COMPONENT <- db$TREE_GRM_COMPONENT %>%
-    dplyr::select(c(PLT_CN, TRE_CN, SUBPTYP_GRM, TPAGROW_UNADJ, TPARECR_UNADJ,
-                    TPAREMV_UNADJ, TPAMORT_UNADJ, COMPONENT)) %>%
-    # Alternative would be to do COMPONENT != 'NOT USED'
-    dplyr::filter(TPAGROW_UNADJ > 0 | TPARECR_UNADJ > 0 | TPAREMV_UNADJ > 0 | TPAMORT_UNADJ > 0) %>%
-    # Drop visits not used in our eval of interest
-    dplyr::filter(PLT_CN %in% db$PLOT$PLT_CN) %>%
-    # dplyr::filter(PLT_CN %in% c(db$PLOT$PLT_CN, db$PLOT$PREV_PLT_CN)) %>%
-    # Convert NAs in TPAMORT_UNADJ and TPAREMV_UNADJ to 0s. This corresponds to 
-    # situations where the given tree is not MORT or REMV, but there is some sort of 
-    # GRM record for it (i.e., GROW or RECR). This is needed for calculations later on.
-    dplyr::mutate(TPAREMV_UNADJ = ifelse(is.na(TPAREMV_UNADJ), 0, TPAREMV_UNADJ), 
-                  TPAMORT_UNADJ = ifelse(is.na(TPAMORT_UNADJ), 0, TPAMORT_UNADJ)) %>%
-    dplyr::select(-c(PLT_CN))
-
+  
   # TREE ------------------------------
   db$TREE <- db$TREE %>%
     dplyr::select(c(PLT_CN, CONDID, PREVCOND, TRE_CN,
@@ -273,10 +278,31 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     # Drop plots outside our domain of interest
     dplyr::filter(PLT_CN %in% c(db$PLOT$PLT_CN, db$PLOT$PREV_PLT_CN))
 
+  # TREE_GRM_COMPONENT ----------------
+  db$TREE_GRM_COMPONENT <- db$TREE_GRM_COMPONENT %>%
+    dplyr::select(c(PLT_CN, TRE_CN, SUBPTYP_GRM, TPAGROW_UNADJ, TPARECR_UNADJ,
+                    TPAREMV_UNADJ, TPAMORT_UNADJ, COMPONENT)) %>%
+    # Alternative would be to do COMPONENT != 'NOT USED'
+    dplyr::filter(TPAGROW_UNADJ > 0 | TPARECR_UNADJ > 0 | TPAREMV_UNADJ > 0 | TPAMORT_UNADJ > 0) %>%
+    # Drop visits not used in our eval of interest. This used to be the plt filter
+    # dplyr::filter(PLT_CN %in% db$PLOT$PLT_CN) %>%
+    dplyr::filter(TRE_CN %in% db$TREE$TRE_CN) %>%
+    # Convert NAs in TPAMORT_UNADJ and TPAREMV_UNADJ to 0s. This corresponds to 
+    # situations where the given tree is not MORT or REMV, but there is some sort of 
+    # GRM record for it (i.e., GROW or RECR). This is needed for calculations later on.
+    dplyr::mutate(TPAREMV_UNADJ = ifelse(is.na(TPAREMV_UNADJ), 0, TPAREMV_UNADJ), 
+                  TPAMORT_UNADJ = ifelse(is.na(TPAMORT_UNADJ), 0, TPAMORT_UNADJ)) %>%
+    dplyr::select(-c(PLT_CN))
+
   # TREE_GRM_MIDPT --------------------
   db$TREE_GRM_MIDPT <- db$TREE_GRM_MIDPT %>%
     select(c(TRE_CN, DIA, state)) %>%
-    filter(TRE_CN %in% db$TREE_GRM_COMPONENT$TRE_CN)
+    filter(TRE_CN %in% db$TREE$TRE_CN)
+
+  # TREE_GRM_BEGIN --------------------
+  db$TREE_GRM_BEGIN <- db$TREE_GRM_BEGIN %>%
+    dplyr::select(c(TRE_CN, DIA, state)) %>%
+    dplyr::filter(TRE_CN %in% db$TREE$TRE_CN)
 
   # SUBP_COND_CHNG_MTRX ---------------
   if ('SUBP_COND_CHNG_MTRX' %in% names(db)) {
@@ -319,6 +345,9 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     # Link to TREE_GRM_MIDPT
     dplyr::left_join(dplyr::select(db$TREE_GRM_MIDPT, c(TRE_CN, DIA, state)),
                      by = c('TRE_CN'), suffix = c('', '.mid')) %>%
+    # Join with TREE_GRM_BEGIN
+    dplyr::left_join(dplyr::select(db$TREE_GRM_BEGIN, c(TRE_CN, DIA, state)), 
+                     by = c('TRE_CN'), suffix = c('', '.beg')) %>%
     # Link previous plot measurement to PLOT
     dplyr::left_join(dplyr::select(db$PLOT, c(PLT_CN, dplyr::all_of(grpP), sp)),
                      by = c('PREV_PLT_CN' = 'PLT_CN'), suffix = c('', '.prev')) %>%
@@ -334,6 +363,11 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
                      by = c('PREV_TRE_CN' = 'TRE_CN'), suffix = c('', '.prev')) %>%
     # Reset the TPA*_UNADJ to the specific state of interest. Fixing the column names
     # is dealt with later.
+    # Replace state.prev with state.beg if state.beg is not NA.
+    # state.beg comes from the TREE_GRM_BEGIN. The reason they differ is 
+    # because of changes made to an original measurement upon remeasurement of 
+    # the tree (e.g., fix an obvious error, change species identification).
+    dplyr::mutate(state.prev = ifelse(!is.na(state.beg), state.beg, state.prev)) %>% 
     dplyr::mutate(TPAREMV_UNADJ = TPAREMV_UNADJ * state,
                   TPAMORT_UNADJ = TPAMORT_UNADJ * state,
                   TPARECR_UNADJ = TPARECR_UNADJ * state_recr / REMPER,
@@ -520,7 +554,7 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     # Tree list
     t <- data %>%
       dplyr::distinct(PLT_CN, TRE_CN, .keep_all = TRUE) %>%
-      dtplyr::lazy_dt() %>%
+      # dtplyr::lazy_dt() %>%
       dplyr::filter(!is.na(SUBPTYP_GRM)) %>%
       dplyr::filter(tDI > 0 | tDI_r > 0) %>%
       dplyr::mutate(TPA_UNADJ.prev = ifelse(is.na(TPA_UNADJ.prev) & 

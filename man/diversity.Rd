@@ -117,6 +117,11 @@ Hunter Stanke and Andrew Finley
 }
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 # Load data from rFIA package
 data(fiaRI)
 data(countiesRI)
@@ -168,6 +173,10 @@ ctSF <- diversity(clipFIA(fiaRI, mostRecent = TRUE),
                   returnSpatial = TRUE)
 plot(ctSF) # Plot multiple variables simultaneously
 plotFIA(ctSF, H_a) # Plot of mean Shannons Index of stands
+}
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
 }
 }
 

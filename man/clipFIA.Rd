@@ -52,7 +52,11 @@ FIA Database User Guide: \url{https://research.fs.usda.gov/understory/forest-inv
 }
 
 \examples{
-
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 ## Load data from rFIA package
 data(fiaRI)
 
@@ -63,6 +67,9 @@ clipFIA(fiaRI, mostRecent = TRUE)
 ## Only plots w/in estimation units w/in a user defined polygon
 clipFIA(fiaRI, mask = countiesRI[1,], mostRecent = FALSE)
 }
-
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
+}
 }
 

@@ -91,6 +91,11 @@ Hunter Stanke and Andrew Finley
 \note{All sampling error estimates (SE) are returned as the "percent coefficient of variation" (standard deviation / mean * 100) for consistency with EVALIDator. IMPORTANT: sampling error cannot be used to construct confidence intervals. Please use \code{variance = TRUE} for that (i.e., return variance and sample size instead of sampling error).}
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 # See our website for a more thorough suite of examples
 data(fiaRI)
 
@@ -121,5 +126,9 @@ customPSE(db = fiaRI,
 # tpa(fiaRI,
 #     totals = TRUE,
 #     variance = TRUE)
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
+}
 }
 

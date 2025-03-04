@@ -135,6 +135,11 @@ Hunter Stanke, Andrew Finley, Jeffrey W. Doser
 
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 # Load data from the rFIA package
 data(fiaRI)
 data(countiesRI)
@@ -211,6 +216,10 @@ ctSF <- biomass(fiaRI_mr,
                 returnSpatial = TRUE)
 plot(ctSF) # Plot multiple variables simultaneously
 plotFIA(ctSF, BIO_ACRE) # Plot of aboveground biomass per acre
+}
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
 }
 }
 

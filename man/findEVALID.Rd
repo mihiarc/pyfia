@@ -42,12 +42,20 @@ Hunter Stanke and Andrew Finley
 }
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 ## Lookup all EVALIDs in an FIA.Database object
 findEVALID(fiaRI)
 
 ## Find the most recent EVALIDs
 findEVALID(fiaRI, mostRecent = FALSE)
-
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
+}
 }
 
 

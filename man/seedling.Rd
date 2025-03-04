@@ -109,6 +109,11 @@ Hunter Stanke and Andrew Finley
 
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 ## Load data from the rFIA package
 data(fiaRI)
 data(countiesRI)
@@ -157,6 +162,10 @@ ctSF <- seedling(fiaRI_mr,
             returnSpatial = TRUE)
 plot(ctSF) # Plot multiple variables simultaneously
 plotFIA(ctSF, TPA) # Plot of TPA with color scale
+}
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
 }
 }
 

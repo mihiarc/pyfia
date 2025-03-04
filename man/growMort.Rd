@@ -125,6 +125,11 @@ Hunter Stanke and Andrew Finley
 \note{All sampling error estimates (SE) are returned as the "percent coefficient of variation" (standard deviation / mean * 100) for consistency with EVALIDator. IMPORTANT: sampling error cannot be used to construct confidence intervals. Please use \code{variance = TRUE} for that (i.e., return variance and sample size instead of sampling error).}
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 # Load data from the rFIA package
 data(fiaRI)
 data(countiesRI)
@@ -174,5 +179,9 @@ ctSF <- growMort(fiaRI_mr,
                  returnSpatial = TRUE)
 plot(ctSF) # Plot multiple variables simultaneously
 plotFIA(ctSF, MORT_TPA) # Plot of Mortality TPA with color scale
+}
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
 }
 }

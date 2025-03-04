@@ -61,12 +61,20 @@ Hunter Stanke and Andrew Finley
 \seealso{\code{findEVALID}}
 
 \examples{
-
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 # Load the Rhode Island subset included w/ rFIA
 data(fiaRI)
 
 # Extract the design information associated with the most recent current
 # volume inventory in the state (2018 for this subset)
 wgts <- getDesignInfo(db = fiaRI, mostRecent = TRUE, type = 'VOL')
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
+}
 }
 

@@ -114,6 +114,11 @@ Hunter Stanke and Andrew Finley
 
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 ## Load data from rFIA package
 data(fiaRI)
 data(countiesRI)
@@ -140,5 +145,9 @@ standStruct(fiaRI_mr,
 ## Calculate structural stage distribution of all forestland, over time
 standStruct(fiaRI)
 
+}
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
 }
 }

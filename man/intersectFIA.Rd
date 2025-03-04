@@ -53,7 +53,11 @@ Hunter Stanke and Andrew Finley
 \seealso{\code{\link{clipFIA}}}
 
 \examples{
-
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 data(fiaRI)
 data(countiesRI)
 
@@ -65,5 +69,9 @@ db <- intersectFIA(fiaRI,
 # in `countiesRI`
 tpa(db,
     grpBy = COUNTY)
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
+}
 }
 

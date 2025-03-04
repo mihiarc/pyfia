@@ -37,6 +37,11 @@ Hunter Stanke and Andrew Finley
 }
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 ## Load data from the rFIA package
 data(fiaRI)
 
@@ -59,7 +64,10 @@ makeClasses(fiaRI$COND$GSSTK, interval = 10) # Growing Stock
 
 ## Compute \% Slope Classes (20\%) for each condition in COND table ----
 makeClasses(fiaRI$COND$SLOPE, interval = 20)
-
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
+}
 }
 
 

@@ -106,6 +106,11 @@ Woodall, C.; Monleon, V.J., eds. 2007. Sampling Protocol, Estimation, and Analys
 
 
 \examples{
+\dontshow{
+  # Restrict threads for CRAN compliance
+  dt_threads <- data.table::getDTthreads()
+  data.table::setDTthreads(1)
+}
 # Load data from rFIA package
 data(fiaRI)
 data(countiesRI)
@@ -139,5 +144,9 @@ dwmSF <- dwm(fiaRI_mr,
              returnSpatial = TRUE)
 plot(dwmSF)
 plotFIA(dwmSF, BIO_ACRE) # TOTAL BIOMASS / ACRE (tons)
+}
+\dontshow{
+  # Restore thread setting
+  data.table::setDTthreads(dt_threads)
 }
 }

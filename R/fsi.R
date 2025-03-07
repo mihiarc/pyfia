@@ -296,22 +296,21 @@ fsi <- function(db,
                    nCores = 1) {
 
   ## Need rjags and coda installed if we're going to model size-density relationships
-  pkgs <- row.names(installed.packages())
-  if (!is.null(betas) & !c('R2jags' %in% pkgs) & !c('coda' %in% pkgs)) {
+  if (!is.null(betas) & is.null(find.package('R2jags')) & is.null(find.package('coda'))) {
     stop('Packages "R2jags" and "coda" required to model maximum size-density curves. Please install with install.packages(c("R2jags", "coda")) and try again.
 
 If not already installed, you can install JAGS from SourceForge:
          Windows: https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/
          Mac: https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Mac%20OS%20X/
          Linux: http://mcmc-jags.sourceforge.net/')
-  } else if (!is.null(betas) & !c('R2jags' %in% pkgs)) {
+  } else if (!is.null(betas) & is.null(find.package('R2jags'))) {
     stop('Package "R2jags" required to model maximum size-density curves. Please install with install.packages("R2jags") and try again.
 
 If not already installed, you can install JAGS from SourceForge:
          Windows: https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Windows/
          Mac: https://sourceforge.net/projects/mcmc-jags/files/JAGS/4.x/Mac%20OS%20X/
          Linux: http://mcmc-jags.sourceforge.net/')
-  } else if (!is.null(betas) &  !c('coda' %in% pkgs)) {
+  } else if (!is.null(betas) &  is.null(find.package('coda'))) {
     stop('Package "coda" required to model maximum size-density curves. Please install with install.packages("coda") and try again.')
   }
 
@@ -431,7 +430,7 @@ If not already installed, you can install JAGS from SourceForge:
     ni <- 1000
     nc <- 3
 
-    cat('Modeling maximum size-density curve(s)...\n')
+    message('Modeling maximum size-density curve(s)...')
 
     # Start Gibbs sampling
     jags_mod_start <- R2jags::jags(data,

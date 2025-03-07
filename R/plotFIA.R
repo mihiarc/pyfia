@@ -8,7 +8,7 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
 
 
   # Requires gganimate when animate = TRUE
-  if (animate == TRUE & !c('gganimate' %in% row.names(installed.packages()))) {
+  if (animate == TRUE & is.null(find.package('gganimate'))) {
     stop('plotFIA requires package "gganimate" to produce animations. Please install with "install.packages(gganimate)" and try again.')
   }
 
@@ -132,7 +132,7 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
     # Animate if they want to
     if (animate){
       map <- map +
-        transition_manual(YEAR) +
+        gganimate::transition_manual(YEAR) +
         labs(title = 'Year: {current_frame}')
     } else if(facet){
       map <- map + facet_wrap(~YEAR) +
@@ -292,7 +292,3 @@ plotFIA <- function(data, y = NULL, grp = NULL, x = NULL, animate = FALSE, facet
 
   return(map)
 }
-
-
-
-

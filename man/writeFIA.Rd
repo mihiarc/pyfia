@@ -31,6 +31,10 @@ Hunter Stanke and Andrew Finley
 \code{\link{readFIA}}, \code{\link{getFIA}}
 }
 
+\value{
+  No return value, called to export \code{FIA.Database} object to a local directory.
+}
+
 \examples{
 \dontshow{
   # Restrict threads for CRAN compliance

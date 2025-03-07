@@ -1,4 +1,4 @@
-# rFIA v1.1.0
+# rFIA v1.1.1
 
 + Jeff Doser is the new package maintainer. Please send all inquiries via email to Jeff (jwdoser@ncsu.edu) or post potential bugs on the GitHub development page.  
 + Updated the `fiaRI` object to reflect recent changes in the FIA Database. These changes resulted in the package functions successfully working with the previous version of `fiaRI` but not working for actual user data when pulling data from recent versions of the FIA Database.
@@ -16,3 +16,4 @@
 + Updated all estimation functions to fix a bug that resulted in an error when setting `method = 'EMA'`. 
 + Removed all references to "ECOSUBCD" in the help pages since this column was removed from the PLOT table in FIADB v9.3. 
 + Updated `writeFIA()` to allow users to write database tables by state when only a subset of the table is originally read into R. This currently requires either the PLOT or COND tables to be read in.  
++ Fixed a bug in `plotFIA()` that led to an error in animated plots when `gganimate` was not loaded (note that `gganimate` still needs to be installed).

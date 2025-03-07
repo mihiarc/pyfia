@@ -52,7 +52,7 @@ Hunter Stanke and Andrew Finley
 }
 
 \examples{
-\dontrun{
+\donttest{
 # Allow downloads that take up to 1 hour (defaults to 60 seconds)
 options(timeout=3600)
 

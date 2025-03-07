@@ -69,7 +69,7 @@ Alternatively, use \code{getFIA()} to automate the download, reading, and saving
 }
 
 \examples{
-\dontrun{\donttest{
+\donttest{
 # The following examples shows how you
 # can take an existing in-memory FIA.Database,
 # save it, and read it back in!
@@ -85,11 +85,6 @@ db <- getFIA(states = 'RI')
 # Replace tempdir() with the path to your
 # directory (where data will be saved)
 writeFIA(db, dir = tempdir())
-
-
-# Then read it back in with readFIA
-db <- readFIA(dir = tempdir())
-
-}}
+}
 
 }

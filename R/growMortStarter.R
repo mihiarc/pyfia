@@ -13,11 +13,11 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
     reqTables <- c('PLOT', 'COND', 'TREE', 'TREE_GRM_COMPONENT', 'TREE_GRM_MIDPT',
                    'TREE_GRM_BEGIN', 'SUBP_COND_CHNG_MTRX',
                    'POP_PLOT_STRATUM_ASSGN', 'POP_ESTN_UNIT', 'POP_EVAL',
-                   'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP')
+                   'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP', 'PLOTGEOM')
   } else {
     reqTables <- c('PLOT', 'COND', 'TREE', 'TREE_GRM_COMPONENT', 'TREE_GRM_MIDPT',
                    'TREE_GRM_BEGIN', 'POP_PLOT_STRATUM_ASSGN', 'POP_ESTN_UNIT', 'POP_EVAL',
-                   'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP')
+                   'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP', 'PLOTGEOM')
   }
 
   # If remote, read in state by state. Otherwise, drop all unnecessary tables.
@@ -55,6 +55,15 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
   }
 
   # Other basic variable prep ---------------------------------------------
+  # Join PLOT with PLOTGEOM to allow plot-level geographic attributes to be used
+  # in grpBy statements
+  # First need to get rid of other columns in PLOT in PLOTGEOM. 
+  db$PLOTGEOM <- db$PLOTGEOM %>%
+    dplyr::select(-STATECD, -INVYR, -UNITCD, -COUNTYCD, -PLOT, -LAT, -LON, 
+                  -dplyr::starts_with('CREATED'), -dplyr::starts_with('MODIFIED'))
+  db$PLOT <- db$PLOT %>%
+    dplyr::left_join(db$PLOTGEOM, by = 'CN')
+
   # Get a plot CN and a new pltID that gives a unique ID to each plot
   # PLT_CN is UNITCD, STATECD, COUNTYCD, PLOT, and INVYR
   db$PLOT <- db$PLOT %>% 
@@ -539,6 +548,16 @@ growMortStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
         dplyr::ungroup() %>%
         as.data.frame()
 
+      # TODO: testing
+      # test <- a %>%
+      #   dplyr::left_join(dplyr::select(a_ga, PLT_CN, AREA_BASIS = PROP_BASIS, 
+      #                                  CONDID, !!!aGrpSyms, fa_ga),
+      #                    by = c('PLT_CN', 'AREA_BASIS', 'CONDID', aGrpBy)) %>%
+      #   dplyr::left_join(plt.ga, by = 'PLT_CN') %>%
+      #   dplyr::mutate(fa = case_when(ga == 1 ~ fa_ga,
+      #                                TRUE ~ fa)) %>%
+      #   dplyr::select(PLT_CN, AREA_BASIS, CONDID, !!!aGrpSyms, fa) %>%
+      #   dplyr::filter(fa > 0)
       a <- a %>%
         dplyr::left_join(dplyr::select(a_ga, PLT_CN, AREA_BASIS = PROP_BASIS, 
                                        CONDID, !!!aGrpSyms, fa_ga),

@@ -2188,7 +2188,7 @@ readFIA.db <- function(con,
                       'POP_PLOT_STRATUM_ASSGN', 'POP_STRATUM', 'SUBPLOT', 'TREE',
                       'TREE_GRM_COMPONENT', 'TREE_GRM_MIDPT', 'TREE_GRM_BEGIN',
                       'SUBP_COND_CHNG_MTRX', 'SEEDLING', 'SURVEY', 'SUBP_COND',
-                      'P2VEG_SUBP_STRUCTURE')
+                      'P2VEG_SUBP_STRUCTURE', 'PLOTGEOM')
     allTables <- sort(c(commonTables,
                         'COUNTY', 'SUBP_COND', 'BOUNDARY', 'TREE_WOODLAND_STEMS',
                         'TREE_REGIONAL_BIOMASS', 'TREE_GRM_ESTN', 'SITETREE',

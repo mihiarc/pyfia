@@ -10,7 +10,7 @@ vitalRatesStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
   reqTables <- c('PLOT', 'TREE', 'COND', 'TREE_GRM_COMPONENT', 'TREE_GRM_MIDPT', 
                  'TREE_GRM_BEGIN', 'SUBP_COND_CHNG_MTRX', 'POP_PLOT_STRATUM_ASSGN', 
                  'POP_ESTN_UNIT', 'POP_EVAL', 'POP_STRATUM', 'POP_EVAL_TYP', 
-                 'POP_EVAL_GRP')
+                 'POP_EVAL_GRP', 'PLOTGEOM')
 
   # If remote, read in state by state. Otherwise, drop all unnecessary tables.
   db <- readRemoteHelper(x, db, remote, reqTables, nCores)
@@ -47,6 +47,15 @@ vitalRatesStarter <- function(x, db, grpBy_quo = NULL, polys = NULL,
   }
 
   # Other basic variable prep ---------------------------------------------
+  # Join PLOT with PLOTGEOM to allow plot-level geographic attributes to be used
+  # in grpBy statements
+  # First need to get rid of other columns in PLOT in PLOTGEOM. 
+  db$PLOTGEOM <- db$PLOTGEOM %>%
+    dplyr::select(-STATECD, -INVYR, -UNITCD, -COUNTYCD, -PLOT, -LAT, -LON, 
+                  -dplyr::starts_with('CREATED'), -dplyr::starts_with('MODIFIED'))
+  db$PLOT <- db$PLOT %>%
+    dplyr::left_join(db$PLOTGEOM, by = 'CN')
+
   db$TREE <- db[['TREE']] %>% 
     dplyr::mutate(TRE_CN = CN)
 

@@ -26,7 +26,7 @@ fsiStarter <- function(x,
   ## Read required data, prep the database -------------------------------------
   reqTables <- c('PLOT', 'TREE', 'COND', 'POP_PLOT_STRATUM_ASSGN',
                  'POP_ESTN_UNIT', 'POP_EVAL',
-                 'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP')
+                 'POP_STRATUM', 'POP_EVAL_TYP', 'POP_EVAL_GRP', 'PLOTGEOM')
 
   ## If remote, read in state by state. Otherwise, drop all unnecessary tables
   db <- readRemoteHelper(x, db, remote, reqTables, nCores)
@@ -63,6 +63,14 @@ fsiStarter <- function(x,
 
 
   ## Prep other variables ------------------------------------------------------
+  # Join PLOT with PLOTGEOM to allow plot-level geographic attributes to be used
+  # in grpBy statements
+  db$PLOTGEOM <- db$PLOTGEOM %>%
+    dplyr::select(-STATECD, -INVYR, -UNITCD, -COUNTYCD, -PLOT, -LAT, -LON, 
+                  -dplyr::starts_with('CREATED'), -dplyr::starts_with('MODIFIED'))
+  db$PLOT <- db$PLOT %>%
+    dplyr::left_join(db$PLOTGEOM, by = 'CN')
+
   ## Need a plotCN, and a new ID
   db$PLOT <- db$PLOT %>%
     mutate(PLT_CN = CN,

@@ -1,9 +1,55 @@
-.Rproj.user
-.Rhistory
-.RData
-.Ruserdata
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+dist/
+*.egg-info/
+*.egg
+MANIFEST
+
+# Unit test / coverage
+.coverage
+.pytest_cache/
+htmlcov/
+
+# Environments
+.env
+.venv
+venv/
+
+# IDEs
+.vscode/
+.idea/
 *.swp
-docs
-compile
-vignettes/*.html
-vignettes/img/*
+
+# OS
+.DS_Store
+
+# Project specific
+*.db
+*.sqlite
+data/
+temp/
+*.log
+
+# R/rFIA files (for local development)
+*.Rproj
+*.Rhistory
+*.RData
+*.rda
+R/
+man/
+vignettes/
+inst/
+tests/testthat/
+
+# Temporary files
+temp_validation_archive/
+NC_CSV/
+SQLITE_CSV_FOR_RFIA/
+rFIA/
+*.tar.gz

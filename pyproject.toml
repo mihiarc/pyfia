@@ -17,27 +17,26 @@ classifiers = [
     "Topic :: Scientific/Engineering :: GIS",
     "License :: OSI Approved :: MIT License",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
-requires-python = ">=3.8"
+requires-python = ">=3.11"
 dependencies = [
-    "polars>=0.20.0",
-    "numpy>=1.20.0",
+    "polars>=1.31.0",
+    "numpy>=2.3.0",
+    "connectorx>=0.3.1",
+    "rich>=13.7.0",
 ]
 
 [project.optional-dependencies]
-spatial = ["geopandas>=0.10.0", "shapely>=1.8.0"]
-pandas = ["pandas>=1.3.0"]
+spatial = ["geopandas>=1.1.0", "shapely>=2.1.1"]
+pandas = ["pandas>=2.3.0"]
 dev = [
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "black>=23.0.0",
-    "ruff>=0.1.0",
-    "mypy>=1.0.0",
+    "pytest>=8.4.1",
+    "pytest-cov>=6.2.1",
+    "ruff>=0.12.0",
+    "mypy>=1.16.1",
 ]
 all = ["pyfia[spatial,pandas,dev]"]
 
@@ -47,20 +46,28 @@ Documentation = "https://github.com/mihiarc/pyfia"
 Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 
+[project.scripts]
+fia-cli = "pyfia.cli:main"
+
 [tool.setuptools]
 packages = ["pyfia"]
 
-[tool.black]
-line-length = 88
-target-version = ['py38']
-
 [tool.ruff]
 line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
 select = ["E", "F", "I", "N", "W"]
 ignore = ["E501"]  # line too long
 
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+
 [tool.mypy]
-python_version = "3.8"
+python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true

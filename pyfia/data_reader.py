@@ -2,38 +2,55 @@
 Optimized data reading utilities for pyFIA.
 
 This module provides high-performance functions for reading FIA data
-from SQLite databases using Polars lazy evaluation.
+from SQLite or DuckDB databases using Polars lazy evaluation.
 """
 
 import polars as pl
 from pathlib import Path
 from typing import Union, List, Optional, Dict, Tuple, overload, Literal
 import sqlite3
+import duckdb
 
 
 class FIADataReader:
     """
-    Optimized reader for FIA SQLite databases.
+    Optimized reader for FIA databases (SQLite and DuckDB).
     
     This class provides efficient methods for reading FIA data with:
+    - Support for both SQLite and DuckDB backends
     - Lazy evaluation for memory efficiency
     - Column selection to minimize data transfer
     - Type-aware schema handling for FIA's VARCHAR CN fields
     """
     
-    def __init__(self, db_path: Union[str, Path]):
+    def __init__(self, db_path: Union[str, Path], engine: str = "sqlite"):
         """
         Initialize data reader.
         
         Args:
-            db_path: Path to SQLite FIA database
+            db_path: Path to FIA database
+            engine: Database engine ("sqlite" or "duckdb")
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {db_path}")
         
+        self.engine = engine.lower()
+        if self.engine not in ["sqlite", "duckdb"]:
+            raise ValueError(f"Unsupported engine: {engine}. Use 'sqlite' or 'duckdb'")
+        
         # Cache for table schemas
         self._schemas: Dict[str, Dict[str, str]] = {}
+        
+        # DuckDB connection (kept open for performance)
+        self._duckdb_conn = None
+        if self.engine == "duckdb":
+            self._duckdb_conn = duckdb.connect(str(self.db_path), read_only=True)
+    
+    def __del__(self):
+        """Close DuckDB connection if open."""
+        if self._duckdb_conn:
+            self._duckdb_conn.close()
     
     def get_table_schema(self, table_name: str) -> Dict[str, str]:
         """
@@ -48,10 +65,15 @@ class FIADataReader:
         if table_name in self._schemas:
             return self._schemas[table_name]
         
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(f"PRAGMA table_info({table_name})")
-            schema = {row[1]: row[2] for row in cursor.fetchall()}
+        if self.engine == "sqlite":
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(f"PRAGMA table_info({table_name})")
+                schema = {row[1]: row[2] for row in cursor.fetchall()}
+                self._schemas[table_name] = schema
+        else:  # duckdb
+            result = self._duckdb_conn.execute(f"DESCRIBE {table_name}").fetchall()
+            schema = {row[0]: row[1] for row in result}
             self._schemas[table_name] = schema
             
         return schema
@@ -97,35 +119,42 @@ class FIADataReader:
         if where:
             query += f" WHERE {where}"
         
-        # Use cursor to fetch data and handle types manually
-        with sqlite3.connect(self.db_path) as conn:
-            cursor = conn.cursor()
-            cursor.execute(query)
-            
-            # Get column names and types
-            col_names = [desc[0] for desc in cursor.description]
-            
-            # Fetch all rows
-            rows = cursor.fetchall()
-            
-            if rows:
-                # Convert to dictionary format for better type handling
-                data_dict: Dict[str, List] = {col: [] for col in col_names}
-                for row in rows:
-                    for i, val in enumerate(row):
-                        data_dict[col_names[i]].append(val)
+        # Execute query based on engine
+        if self.engine == "sqlite":
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute(query)
                 
-                # Create DataFrame with explicit null handling
-                df = pl.DataFrame(data_dict)
-            else:
-                # Empty dataframe
-                df = pl.DataFrame(schema={col: pl.Object for col in col_names})
+                # Get column names and types
+                col_names = [desc[0] for desc in cursor.description]
+                
+                # Fetch all rows
+                rows = cursor.fetchall()
+                
+                if rows:
+                    # Convert to dictionary format for better type handling
+                    data_dict: Dict[str, List] = {col: [] for col in col_names}
+                    for row in rows:
+                        for i, val in enumerate(row):
+                            data_dict[col_names[i]].append(val)
+                    
+                    # Create DataFrame with explicit null handling
+                    df = pl.DataFrame(data_dict)
+                else:
+                    # Empty dataframe
+                    df = pl.DataFrame(schema={col: pl.Object for col in col_names})
+        else:  # duckdb
+            # DuckDB can directly read into Polars DataFrame
+            df = self._duckdb_conn.execute(query).pl()
         
-        # Handle CN fields as strings
+        # Handle CN fields consistently
         schema = self.get_table_schema(table_name)
         for col in df.columns:
             if col.endswith('_CN') or col == 'CN':
-                if schema.get(col, '').startswith('VARCHAR'):
+                # In DuckDB, CN fields might be BIGINT - convert to string for consistency
+                if self.engine == "duckdb":
+                    df = df.with_columns(pl.col(col).cast(pl.Utf8))
+                elif schema.get(col, '').startswith('VARCHAR'):
                     df = df.with_columns(pl.col(col).cast(pl.Utf8))
         
         return df.lazy() if lazy else df

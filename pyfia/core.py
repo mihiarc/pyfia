@@ -9,6 +9,7 @@ import polars as pl
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Any
 import sqlite3
+import duckdb
 import warnings
 from .data_reader import FIADataReader
 
@@ -27,26 +28,34 @@ class FIA:
         most_recent (bool): Whether to use most recent evaluations
     """
     
-    def __init__(self, db_path: Union[str, Path]):
+    def __init__(self, db_path: Union[str, Path], engine: str = "sqlite"):
         """
         Initialize FIA database connection.
         
         Args:
-            db_path: Path to SQLite FIA database
+            db_path: Path to FIA database
+            engine: Database engine ("sqlite" or "duckdb")
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {db_path}")
         
+        self.engine = engine.lower()
+        if self.engine not in ["sqlite", "duckdb"]:
+            raise ValueError(f"Unsupported engine: {engine}. Use 'sqlite' or 'duckdb'")
+        
         self.tables: Dict[str, pl.LazyFrame] = {}
         self.evalid: Optional[List[int]] = None
         self.most_recent: bool = False
-        self._conn: Optional[sqlite3.Connection] = None
-        self._reader = FIADataReader(db_path)
+        self._conn: Optional[Union[sqlite3.Connection, duckdb.DuckDBPyConnection]] = None
+        self._reader = FIADataReader(db_path, engine=engine)
     
     def __enter__(self):
         """Context manager entry."""
-        self._conn = sqlite3.connect(self.db_path)
+        if self.engine == "sqlite":
+            self._conn = sqlite3.connect(self.db_path)
+        else:  # duckdb
+            self._conn = duckdb.connect(str(self.db_path), read_only=True)
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -55,10 +64,13 @@ class FIA:
             self._conn.close()
             self._conn = None
     
-    def _get_connection(self) -> sqlite3.Connection:
+    def _get_connection(self) -> Union[sqlite3.Connection, duckdb.DuckDBPyConnection]:
         """Get database connection, creating if needed."""
         if self._conn is None:
-            self._conn = sqlite3.connect(self.db_path)
+            if self.engine == "sqlite":
+                self._conn = sqlite3.connect(self.db_path)
+            else:  # duckdb
+                self._conn = duckdb.connect(str(self.db_path), read_only=True)
         return self._conn
     
     def load_table(self, table_name: str, columns: Optional[List[str]] = None) -> pl.LazyFrame:

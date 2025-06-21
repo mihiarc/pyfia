@@ -180,16 +180,16 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
 - ✅ Volume relationships correct (net < gross, sawlog ~65% of total)
 - ✅ **Production Ready**: All volume estimates validated against rFIA ground truth
 
-### ✅ Mortality Estimation - NC EVALID 372303 
-- **Status**: Complete & Validated ✅ (Unit-Corrected & Reasonable)
+### ⚠️ Mortality Estimation - NC EVALID 372303 
+- **Status**: Complete Implementation ⚠️ (Awaiting rFIA Validation)
 - **File**: `pyfia/mortality.py` (376 lines)
-- **Validation**: 
+- **Current Results**: 
   - EVALID 372303 (NC 2023 EXPMORT evaluation, 2009-2019 growth period)
   - Annual Mortality: **0.080 trees/acre/year** (3.37% CV)
   - Volume Mortality: **0.091 cu ft/acre/year** (5.87% CV)  
-  - Biomass Mortality: **0.0029 tons/acre/year** (5.73% CV) ✅ **Corrected**
+  - Biomass Mortality: **0.0029 tons/acre/year** (5.73% CV) ✅ **Unit-Corrected**
   - Forest Area: 18,560,000 acres, 5,673 plots
-  - Per Dead Tree: 72.5 lbs biomass, 1.1 cu ft volume ✅ **Reasonable**
+  - Per Dead Tree: 72.5 lbs biomass, 1.1 cu ft volume
 - **Implementation Achievements**:
   - ✅ Fixed for real FIA database structure (no COMPONENT filtering needed)
   - ✅ Uses MICR_TPAMORT_UNADJ_AL_FOREST and SUBP_TPAMORT_UNADJ_AL_FOREST columns
@@ -202,8 +202,10 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
   - TPAMORT_UNADJ values already annualized - confirmed
   - **CRITICAL**: DRYBIO_AG stored in pounds, not tons (fixed unit conversion)
   - Direct expansion methodology working correctly
-- **Validation Status**: All estimates reasonable and within literature ranges ✅
-- **Ready for**: Production use (pending optional rFIA cross-validation)
+- **Validation Status**: ⚠️ **Awaiting rFIA ground truth comparison**
+- **Next Step**: Run rFIA `growMort()` to get authoritative mortality estimates
+- **Requirements**: Download NC CSV data, run `growMort(evalid=372303, method="TI")`
+- **Success Criteria**: <1% difference from rFIA results for production ready status
 
 ## Lessons Learned from EVALID Implementation
 

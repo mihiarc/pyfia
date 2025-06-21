@@ -67,13 +67,23 @@ Core FIA estimators with exact rFIA validation:
 
 ---
 
-## In Development (1/15): 7%
+## Framework Complete (1/15): 7%
 
-### 🔄 Mortality Estimation
-- **Status**: Framework exists, needs completion
+### ⚠️ Mortality Estimation
+- **Status**: Framework Complete, Needs GRM Evaluation Data ⚠️
 - **File**: `pyfia/mortality.py` (376 lines)
-- **Components Needed**: Mortality rates, annual mortality volume/biomass
-- **Priority**: High - Core FIA metric
+- **Progress**:
+  - ✅ Fixed TREE_GRM table joins and column references
+  - ✅ Proper TPAMORT_UNADJ usage (already annualized - do NOT divide by REMPER)
+  - ✅ Tree basis assignment and adjustment factors (MICR vs SUBP)
+  - ✅ Beginning-of-period state variables (VOLCFNET_BEGIN, DRYBIO_AG_BEGIN)
+  - ✅ Framework tested with mock data - all calculations working
+  - ❌ **Missing**: GRM evaluation data for rFIA validation
+- **Key Implementation Notes**:
+  - Mortality uses GRM evaluations (not VOL evaluation 372301)
+  - Component filtering: `TREE_GRM_COMPONENT.COMPONENT` contains 'MORT'
+  - State variables applied from beginning-of-period attributes per rFIA methodology
+- **Next Step**: Get NC GRM evaluation ID and run rFIA growMort() for ground truth
 
 ---
 
@@ -148,7 +158,7 @@ Core FIA estimators with exact rFIA validation:
 
 ### **Overall Progress: 33% Complete**
 - ✅ **Production Ready**: 4 estimators (27%) - Area, Biomass, Volume, TPA
-- 🔄 **In Development**: 1 estimator (7%) - Mortality  
+- ⚠️ **Framework Complete**: 1 estimator (7%) - Mortality (needs GRM data)
 - ❌ **Not Started**: 10 estimators (66%)
 
 ### **Validation Quality**

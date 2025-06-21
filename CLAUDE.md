@@ -180,6 +180,23 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
 - ✅ Volume relationships correct (net < gross, sawlog ~65% of total)
 - ✅ **Production Ready**: All volume estimates validated against rFIA ground truth
 
+### 🔄 Mortality Estimation - NC EVALID GRM 
+- **Status**: Framework Complete, Needs GRM Evaluation Data
+- **File**: `pyfia/mortality.py` (376 lines)
+- **Implementation Progress**:
+  - ✅ Fixed TREE_GRM table joins and column references
+  - ✅ Proper TPAMORT_UNADJ usage (already annualized)
+  - ✅ Tree basis assignment and adjustment factors
+  - ✅ Beginning-of-period state variables (VOLCFNET_BEGIN, DRYBIO_AG_BEGIN)
+  - ✅ Framework tested with mock data
+  - ❌ **Missing**: Actual GRM evaluation data for validation
+- **Key Findings**:
+  - Mortality uses GRM evaluations (not VOL evaluation 372301)
+  - TPAMORT_UNADJ is already annual rate - do NOT divide by REMPER  
+  - State variables applied from beginning-of-period attributes
+  - Component filtering: TREE_GRM_COMPONENT.COMPONENT contains 'MORT'
+- **Next Steps**: Get NC GRM evaluation ID and run rFIA growMort() for ground truth
+
 ## Lessons Learned from EVALID Implementation
 
 ### 1. FIA Database Complexity

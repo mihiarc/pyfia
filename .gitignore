@@ -50,3 +50,4 @@ NC_CSV/
 *_temp.py
 *_old.py
 *_backup.py.env
+uv.lock

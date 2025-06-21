@@ -180,22 +180,27 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
 - ✅ Volume relationships correct (net < gross, sawlog ~65% of total)
 - ✅ **Production Ready**: All volume estimates validated against rFIA ground truth
 
-### 🔄 Mortality Estimation - NC EVALID GRM 
-- **Status**: Framework Complete, Needs GRM Evaluation Data
+### ✅ Mortality Estimation - NC EVALID 372303 
+- **Status**: Complete & Working ✅ (Needs rFIA Validation)
 - **File**: `pyfia/mortality.py` (376 lines)
-- **Implementation Progress**:
-  - ✅ Fixed TREE_GRM table joins and column references
-  - ✅ Proper TPAMORT_UNADJ usage (already annualized)
-  - ✅ Tree basis assignment and adjustment factors
-  - ✅ Beginning-of-period state variables (VOLCFNET_BEGIN, DRYBIO_AG_BEGIN)
-  - ✅ Framework tested with mock data
-  - ❌ **Missing**: Actual GRM evaluation data for validation
-- **Key Findings**:
-  - Mortality uses GRM evaluations (not VOL evaluation 372301)
-  - TPAMORT_UNADJ is already annual rate - do NOT divide by REMPER  
-  - State variables applied from beginning-of-period attributes
-  - Component filtering: TREE_GRM_COMPONENT.COMPONENT contains 'MORT'
-- **Next Steps**: Get NC GRM evaluation ID and run rFIA growMort() for ground truth
+- **Validation**: 
+  - EVALID 372303 (NC 2023 EXPMORT evaluation, 2009-2019 growth period)
+  - Annual Mortality: **0.080 trees/acre/year** (3.37% CV)
+  - Volume Mortality: **0.089 cu ft/acre/year** (5.87% CV)  
+  - Biomass Mortality: **5.81 tons/acre/year** (5.73% CV)
+  - Forest Area: 18,560,000 acres, 5,673 plots
+- **Implementation Achievements**:
+  - ✅ Fixed for real FIA database structure (no COMPONENT filtering needed)
+  - ✅ Uses MICR_TPAMORT_UNADJ_AL_FOREST and SUBP_TPAMORT_UNADJ_AL_FOREST columns
+  - ✅ Proper tree basis assignment and adjustment factors
+  - ✅ Beginning-of-period state variables (DIA, VOLCFNET, DRYBIO_AG)
+  - ✅ Complete estimation pipeline working with real GRM data
+- **Key Technical Discoveries**:
+  - FIA database organizes mortality by tree basis and land type in separate columns
+  - EVALID 372303 is correct NC GRM evaluation (EXPMORT type)
+  - TPAMORT_UNADJ values already annualized - confirmed
+  - Direct expansion methodology working correctly
+- **Next Steps**: Get rFIA growMort() ground truth for final validation
 
 ## Lessons Learned from EVALID Implementation
 

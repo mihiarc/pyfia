@@ -189,9 +189,10 @@ def mortality(db: Union[FIA, str],
         .alias('MORT_VOL_YR'),
         
         # Biomass mortality (mortality rate * beginning biomass)
+        # Note: DRYBIO_AG is in pounds, convert to tons by dividing by 2000
         pl.when(pl.col('TREE_BASIS') == 'MICR')
-        .then(pl.col(micr_mort_col) * pl.col('DRYBIO_AG').fill_null(0) * pl.col('ADJ_FACTOR_MICR'))
-        .otherwise(pl.col(subp_mort_col) * pl.col('DRYBIO_AG').fill_null(0) * pl.col('ADJ_FACTOR_SUBP'))
+        .then(pl.col(micr_mort_col) * (pl.col('DRYBIO_AG').fill_null(0) / 2000.0) * pl.col('ADJ_FACTOR_MICR'))
+        .otherwise(pl.col(subp_mort_col) * (pl.col('DRYBIO_AG').fill_null(0) / 2000.0) * pl.col('ADJ_FACTOR_SUBP'))
         .alias('MORT_BIO_YR')
     ])
     

@@ -36,26 +36,17 @@ data/
 temp/
 *.log
 
-# R/rFIA files (for local development)
-*.Rproj
-*.Rhistory
-*.RData
-*.rda
-R/
-man/
-vignettes/
-inst/
-tests/testthat/
+# DuckDB files
+*.duckdb
+*.duckdb.wal
 
 # Temporary files
 temp_validation_archive/
 NC_CSV/
-SQLITE_CSV_FOR_RFIA/
-rFIA/
 *.tar.gz
 
 # Development artifacts
 *_fixed.py
 *_temp.py
 *_old.py
-*_backup.py
+*_backup.py.env

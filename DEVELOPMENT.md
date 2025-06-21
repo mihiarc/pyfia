@@ -20,10 +20,6 @@ For each major development task, create focused commits that represent logical p
 - Key changes
 - Validation results
 - Impact on codebase
-
-🤖 Generated with [Claude Code](https://claude.ai/code)
-
-Co-Authored-By: Claude <noreply@anthropic.com>
 ```
 
 ### Commit Types

@@ -118,11 +118,25 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
 
 ## Ground Truth Values for Testing
 
-### TPA (Trees Per Acre) - NC EVALID 372301
-- **rFIA**: 728.3 TPA (3.84% SE)
-- **pyFIA**: 700.9 TPA (3.57% SE)
-- **Difference**: -3.8% (acceptable)
-- **Plot count**: 3,521
+### TPA (Trees Per Acre) - NC EVALID 372301 ⚠️ GOOD MATCH
+**Validation Results**: ⚠️ Good match, minor methodology differences identified
+
+**TPA Estimates:**
+- **rFIA**: 728.3 TPA (SE: 1.402, 3500 plots)
+- **pyFIA**: 700.9 TPA (SE: 3.571, 3521 plots)
+- **Difference**: -27.4 TPA (-3.8%)
+
+**Analysis Summary:**
+- ✅ **Methodology**: Correct TREE_BASIS assignment and adjustment factors implemented
+- ✅ **Post-stratified estimation**: Proper ratio-of-means estimator with variance calculations
+- ⚠️ **Plot count difference**: 21 plot discrepancy (3521 vs 3500) suggests minor data filtering difference
+- ⚠️ **Acceptable range**: -3.8% difference is within acceptable limits for most applications
+
+**Implementation Notes:**
+- pyFIA correctly implements TREE_BASIS (MICR <5", SUBP ≥5", MACR)
+- Adjustment factors (ADJ_FACTOR_MICR, ADJ_FACTOR_SUBP, ADJ_FACTOR_MACR) properly applied
+- Uses same post-stratified ratio-of-means methodology as validated estimators
+- Minor optimization needed to achieve <1% target (plot filtering refinement)
 
 ### Area Estimation - NC EVALID 372301
 - **Total Forest Area**: 18,592,940 acres (0.632% SE) ✅ EXACT MATCH

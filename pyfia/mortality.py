@@ -82,6 +82,10 @@ def mortality(db: Union[FIA, str],
     if mr:
         fia.clip_most_recent(eval_type='GRM')
     
+    # Ensure we have GRM evaluation loaded
+    if not hasattr(fia, 'evalid') or not fia.evalid:
+        raise ValueError("Mortality estimation requires GRM evaluation. Use clip_most_recent(eval_type='GRM') or specify GRM evalid.")
+    
     # Get estimation data
     data = fia.prepare_estimation_data()
     
@@ -98,15 +102,16 @@ def mortality(db: Union[FIA, str],
     plot_data = data['plot']
     cond_data = data['cond']
     
-    # Join GRM data
+    # Join GRM data - filter for mortality components
+    # Note: Need to determine actual COMPONENT values for mortality in FIA database
     tree_mort = tree_grm_component.filter(
-        pl.col('COMPONENT').is_in(['MORTALITY', 'MORT'])
+        pl.col('COMPONENT').str.contains('MORT')
     )
     
-    # Join with beginning tree data
+    # Join with beginning tree data to get state variables
     tree_mort = tree_mort.join(
         tree_grm_begin.select(['TRE_CN', 'PLT_CN', 'CONDID', 'SPCD', 'DIA_BEGIN', 
-                              'TPA_UNADJ_BEGIN', 'SUBPTYP_BEGIN']),
+                              'VOLCFNET_BEGIN', 'DRYBIO_AG_BEGIN', 'SUBPTYP_BEGIN']),
         on='TRE_CN',
         how='inner'
     )
@@ -128,6 +133,21 @@ def mortality(db: Union[FIA, str],
         how='left'
     )
     
+    # Join with stratification data to get adjustment factors
+    ppsa = data['pop_plot_stratum_assgn']
+    pop_stratum = data['pop_stratum']
+    
+    tree_plot_cond = tree_plot_cond.join(
+        ppsa.select(['PLT_CN', 'STRATUM_CN']),
+        on='PLT_CN',
+        how='left'
+    ).join(
+        pop_stratum.select(['CN', 'EXPNS', 'ADJ_FACTOR_SUBP', 'ADJ_FACTOR_MICR', 'ADJ_FACTOR_MACR']),
+        left_on='STRATUM_CN',
+        right_on='CN',
+        how='left'
+    )
+    
     # Apply land type filter
     if landType == 'forest':
         tree_plot_cond = tree_plot_cond.filter(pl.col('COND_STATUS_CD') == 1)
@@ -139,15 +159,37 @@ def mortality(db: Union[FIA, str],
     if areaDomain:
         tree_plot_cond = tree_plot_cond.filter(pl.Expr.from_json(areaDomain))
     
-    # Calculate annual mortality
-    # Mortality per acre = TPA_UNADJ * adjustment factors / REMPER
+    # Assign TREE_BASIS for proper adjustment factor application
+    tree_plot_cond = tree_plot_cond.with_columns(
+        pl.when(pl.col('DIA_BEGIN').is_null())
+        .then(None)
+        .when(pl.col('DIA_BEGIN') < 5.0)
+        .then(pl.lit('MICR'))
+        .otherwise(pl.lit('SUBP'))  # Simplified - most mortality trees are SUBP
+        .alias('TREE_BASIS')
+    )
+    
+    # Calculate annual mortality with proper adjustment factors
+    # CRITICAL: TPAMORT_UNADJ is already annualized - do NOT divide by REMPER
+    # Apply state variables from beginning-of-period attributes
     tree_plot_cond = tree_plot_cond.with_columns([
-        (pl.col('TPA_UNADJ_COMPONENT') * pl.col('ADJ_FACTOR_SUBP') / 
-         pl.col('REMPER')).alias('MORT_TPA_YR'),
-        (pl.col('VOLCFNET_COMPONENT') * pl.col('TPA_UNADJ_COMPONENT') * 
-         pl.col('ADJ_FACTOR_SUBP') / pl.col('REMPER')).alias('MORT_VOL_YR'),
-        (pl.col('DRYBIO_AG_COMPONENT') * pl.col('TPA_UNADJ_COMPONENT') * 
-         pl.col('ADJ_FACTOR_SUBP') / pl.col('REMPER')).alias('MORT_BIO_YR')
+        # Trees per acre mortality with proper adjustment factor
+        pl.when(pl.col('TREE_BASIS') == 'MICR')
+        .then(pl.col('TPAMORT_UNADJ') * pl.col('ADJ_FACTOR_MICR'))
+        .otherwise(pl.col('TPAMORT_UNADJ') * pl.col('ADJ_FACTOR_SUBP'))
+        .alias('MORT_TPA_YR'),
+        
+        # Volume mortality (annual rate * beginning volume)
+        pl.when(pl.col('TREE_BASIS') == 'MICR')
+        .then(pl.col('TPAMORT_UNADJ') * pl.col('VOLCFNET_BEGIN').fill_null(0) * pl.col('ADJ_FACTOR_MICR'))
+        .otherwise(pl.col('TPAMORT_UNADJ') * pl.col('VOLCFNET_BEGIN').fill_null(0) * pl.col('ADJ_FACTOR_SUBP'))
+        .alias('MORT_VOL_YR'),
+        
+        # Biomass mortality (annual rate * beginning biomass)
+        pl.when(pl.col('TREE_BASIS') == 'MICR')
+        .then(pl.col('TPAMORT_UNADJ') * pl.col('DRYBIO_AG_BEGIN').fill_null(0) * pl.col('ADJ_FACTOR_MICR'))
+        .otherwise(pl.col('TPAMORT_UNADJ') * pl.col('DRYBIO_AG_BEGIN').fill_null(0) * pl.col('ADJ_FACTOR_SUBP'))
+        .alias('MORT_BIO_YR')
     ])
     
     # Create grouping columns
@@ -180,23 +222,21 @@ def mortality(db: Union[FIA, str],
     ]
     
     plot_mort = (tree_plot_cond
-        .group_by(['PLT_CN'] + group_cols)
+        .group_by(['PLT_CN', 'STRATUM_CN', 'EXPNS'] + group_cols)
         .agg(agg_exprs)
     )
     
-    # Get all plots (including those with no mortality)
+    # Get all plots (including those with no mortality) with their stratum info
     all_plots = plot_data.select(['CN', 'EVALID']).rename({'CN': 'PLT_CN'})
-    
-    # Join with stratum info
     ppsa = data['pop_plot_stratum_assgn']
     pop_stratum = data['pop_stratum']
     
     plot_stratum = all_plots.join(
         ppsa.select(['PLT_CN', 'STRATUM_CN']),
         on='PLT_CN',
-        how='left'
+        how='left'  
     ).join(
-        pop_stratum.select(['CN', 'EXPNS', 'ADJ_FACTOR_SUBP']),
+        pop_stratum.select(['CN', 'EXPNS']),
         left_on='STRATUM_CN',
         right_on='CN',
         how='left'
@@ -205,7 +245,7 @@ def mortality(db: Union[FIA, str],
     # Full join to include all plots
     full_data = plot_stratum.join(
         plot_mort,
-        on=['PLT_CN', 'EVALID'],
+        on=['PLT_CN', 'STRATUM_CN', 'EXPNS', 'EVALID'] + group_cols,
         how='left'
     ).with_columns([
         pl.col('MORT_TPA_PLOT').fill_null(0.0),

@@ -7,17 +7,43 @@ A Python package for working with USDA Forest Inventory and Analysis (FIA) data.
 __version__ = "0.1.0"
 __author__ = "Chris Mihiar"
 
-# Import main functions for easy access
-from .data_management import clipFIA, readFIA, getFIA
-from .tree_metrics import tpa
-from .biomass_carbon import biomass, carbon
-from .optimized_sqlite_reader import read_fia_sqlite_optimized
-from .evalid_utils import find_evalid, filter_by_evalid
+# Import core classes
+from .core import FIA
+from .data_reader import FIADataReader
+from .estimation_utils import (
+    merge_estimation_data,
+    calculate_adjustment_factors,
+    calculate_stratum_estimates,
+    calculate_population_estimates,
+    apply_domain_filter,
+    calculate_ratio_estimates,
+    summarize_by_groups
+)
+
+# Import estimation functions
+from .tpa import tpa
+from .volume import volume
+from .mortality import mortality
+from .biomass import biomass
+from .area import area
 
 # Define what's available when using "from pyfia import *"
 __all__ = [
-    'clipFIA', 'readFIA', 'getFIA',
-    'tpa', 'biomass', 'carbon',
-    'read_fia_sqlite_optimized',
-    'find_evalid', 'filter_by_evalid'
+    # Core classes
+    'FIA',
+    'FIADataReader',
+    # Estimation functions
+    'tpa',
+    'volume',
+    'mortality',
+    'biomass',
+    'area',
+    # Utility functions
+    'merge_estimation_data',
+    'calculate_adjustment_factors',
+    'calculate_stratum_estimates',
+    'calculate_population_estimates',
+    'apply_domain_filter',
+    'calculate_ratio_estimates',
+    'summarize_by_groups'
 ]

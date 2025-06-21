@@ -53,3 +53,9 @@ NC_CSV/
 SQLITE_CSV_FOR_RFIA/
 rFIA/
 *.tar.gz
+
+# Development artifacts
+*_fixed.py
+*_temp.py
+*_old.py
+*_backup.py

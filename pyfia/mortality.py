@@ -21,6 +21,7 @@ def mortality(
     bySizeClass: bool = False,
     landType: str = "forest",
     treeType: str = "all",
+    treeClass: str = "all",
     method: str = "TI",
     lambda_: float = 0.5,
     treeDomain: Optional[str] = None,
@@ -50,6 +51,7 @@ def mortality(
         bySizeClass: Report estimates by size class
         landType: Land type filter ('forest' or 'all')
         treeType: Tree type filter (typically 'all' for mortality)
+        treeClass: Tree classification ('all' or 'growing_stock'). Use 'growing_stock' for merchantable volume mortality
         method: Estimation method ('TI', 'SMA', 'LMA', 'EMA', 'ANNUAL')
         lambda_: Lambda parameter for moving average
         treeDomain: Logical expression for tree subset
@@ -98,17 +100,24 @@ def mortality(
     plot_data = data["plot"]
     cond_data = data["cond"]
 
-    # Filter trees with mortality data based on land type
-    # FIA database structure: mortality data is in separate columns by tree basis and land type
-    land_suffix = "_AL_FOREST" if landType == "forest" else "_AL_TIMBER"
+    # Filter trees with mortality data based on land type and tree class
+    # FIA database structure: mortality data is in separate columns by tree basis, land type, and tree class
+    if treeClass == "growing_stock":
+        # Use growing stock columns for merchantable volume mortality
+        land_suffix = "_GS_FOREST" if landType == "forest" else "_GS_TIMBER"
+    else:
+        # Use all live columns for total mortality
+        land_suffix = "_AL_FOREST" if landType == "forest" else "_AL_TIMBER"
 
     # Select appropriate mortality columns
     micr_mort_col = f"MICR_TPAMORT_UNADJ{land_suffix}"
     subp_mort_col = f"SUBP_TPAMORT_UNADJ{land_suffix}"
 
-    # Filter to trees with mortality (either microplot or subplot)
+    # Filter to mortality components and trees with mortality (either microplot or subplot)
+    # Following EVALIDator methodology: COMPONENT LIKE 'MORTALITY%'
     tree_mort = tree_grm_component.filter(
-        (pl.col(micr_mort_col) > 0) | (pl.col(subp_mort_col) > 0)
+        (pl.col("COMPONENT").str.starts_with("MORTALITY")) &
+        ((pl.col(micr_mort_col) > 0) | (pl.col(subp_mort_col) > 0))
     )
 
     # Join with beginning tree data for state variables

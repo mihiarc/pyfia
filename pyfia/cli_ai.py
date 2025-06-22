@@ -12,9 +12,15 @@ This module provides an AI-powered command-line interface for:
 import atexit
 import cmd
 import os
-import readline
 import sys
 from pathlib import Path
+
+# Optional readline import for Windows compatibility
+try:
+    import readline
+    HAS_READLINE = True
+except ImportError:
+    HAS_READLINE = False
 from typing import Optional
 
 # Load environment variables
@@ -79,6 +85,9 @@ class FIAAICli(cmd.Cmd):
 
     def _setup_history(self):
         """Setup command history with readline."""
+        if not HAS_READLINE:
+            return
+            
         if self.history_file.exists():
             try:
                 readline.read_history_file(self.history_file)
@@ -90,6 +99,9 @@ class FIAAICli(cmd.Cmd):
 
     def _save_history(self):
         """Save command history."""
+        if not HAS_READLINE:
+            return
+            
         try:
             readline.write_history_file(self.history_file)
         except:

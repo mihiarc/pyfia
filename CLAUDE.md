@@ -364,14 +364,18 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
 - **Post-stratified estimation**: Proper ratio-of-means estimator with variance calculations
 
 #### Mortality Estimation - NC EVALID 372303 
-- **Status**: Complete Implementation
-- **File**: `pyfia/mortality.py` (376 lines)
+- **Status**: Complete Implementation with Growing Stock Support
+- **File**: `pyfia/mortality.py` (updated with treeClass parameter)
 - **Current Results**: 
   - EVALID 372303 (NC 2023 EXPMORT evaluation, 2009-2019 growth period)
   - Annual Mortality: **0.080 trees/acre/year** (3.37% CV)
   - Volume Mortality: **0.091 cu ft/acre/year** (5.87% CV)  
   - Biomass Mortality: **0.0029 tons/acre/year** (5.73% CV)
   - Forest Area: 18,560,000 acres, 5,673 plots
+- **New Features**:
+  - Added `treeClass` parameter: 'all' (default) or 'growing_stock'
+  - Growing stock mode uses _GS_FOREST/_GS_TIMBER columns for merchantable volume mortality
+  - Proper COMPONENT filtering (LIKE 'MORTALITY%') following EVALIDator methodology
 
 ## Lessons Learned from EVALID Implementation
 

@@ -1,171 +1,159 @@
-.claude/settings.local.json
-.cognee_data/cognee_system/databases/cognee_db
-.cognee_data/cognee_system/databases/cognee_db__main_staging
-.cognee_data/cognee_system/databases/cognee_db-shm
-.cognee_data/cognee_system/databases/cognee_db-wal
-.cognee_data/cognee_system/databases/cognee.graph
-.cognee_data/data_storage/data/text_7e22a6d11519743deee3886ece9bc1ec.txt
-.cognee_data/data_storage/data/text_78db6d51cf3324294ba203be6e189822.txt
-.cognee_data/data_storage/data/text_abc005f3f570d91e2c242bf50c9e42d7.txt
-.cognee_data/data_storage/data/text_be43601e4c6990cf24a1d2729a440140.txt
-.cognee_data/data_storage/data/text_c5a1e474953f788c756b7ec074358e97.txt
-.cognee_data/data_storage/data/text_c7edb6cfc04deced9470780fea424a80.txt
-pyfia.egg-info/dependency_links.txt
-pyfia.egg-info/entry_points.txt
-pyfia.egg-info/PKG-INFO
-pyfia.egg-info/requires.txt
-pyfia.egg-info/SOURCES.txt
-pyfia.egg-info/top_level.txt
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.hypothesis/
+.pytest_cache/
+
+# Translations
+*.mo
+*.pot
+
+# Django stuff:
+*.log
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+
+# Flask stuff:
+instance/
+.webassets-cache
+
+# Scrapy stuff:
+.scrapy
+
+# Sphinx documentation
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IPython
+profile_default/
+ipython_config.py
+
+# pyenv
+.python-version
+
+# pipenv
+Pipfile.lock
+
+# PEP 582
+__pypackages__/
+
+# Celery stuff
+celerybeat-schedule
+celerybeat.pid
+
+# SageMath parsed files
+*.sage.py
+
+# Environments
 .env
-pyfia/__pycache__/__init__.cpython-312.pyc
-pyfia/__pycache__/__init__.cpython-313.pyc
-pyfia/__pycache__/ai_agent_cognee_simple.cpython-312.pyc
-pyfia/__pycache__/ai_agent_cognee.cpython-312.pyc
-pyfia/__pycache__/ai_agent.cpython-312.pyc
-pyfia/__pycache__/area.cpython-312.pyc
-pyfia/__pycache__/biomass.cpython-312.pyc
-pyfia/__pycache__/cli_ai_agent_cognee.cpython-312.pyc
-pyfia/__pycache__/cli_ai_agent.cpython-312.pyc
-pyfia/__pycache__/cli_config.cpython-312.pyc
-pyfia/__pycache__/cli.cpython-312.pyc
-pyfia/__pycache__/cognee_fia_agent.cpython-312.pyc
-pyfia/__pycache__/cognee_setup.cpython-312.pyc
-pyfia/__pycache__/config.cpython-312.pyc
-pyfia/__pycache__/core.cpython-312.pyc
-pyfia/__pycache__/core.cpython-313.pyc
-pyfia/__pycache__/data_reader.cpython-312.pyc
-pyfia/__pycache__/duckdb_query_interface.cpython-312.pyc
-pyfia/__pycache__/estimation_utils.cpython-312.pyc
-pyfia/__pycache__/mortality.cpython-312.pyc
-pyfia/__pycache__/tpa.cpython-312.pyc
-pyfia/__pycache__/volume.cpython-312.pyc
-queries/pyfia.egg-info/dependency_links.txt
-queries/pyfia.egg-info/entry_points.txt
-queries/pyfia.egg-info/PKG-INFO
-queries/pyfia.egg-info/requires.txt
-queries/pyfia.egg-info/SOURCES.txt
-queries/pyfia.egg-info/top_level.txt
-site/404.html
-site/index.html
-site/sitemap.xml
-site/sitemap.xml.gz
-site/AI_AGENT/index.html
-site/CLAUDE/index.html
-site/DEVELOPMENT/index.html
-site/FIA_WORKING_QUERY_BANK/index.html
-site/architecture_diagram/index.html
-site/assets/images/favicon.png
-site/assets/javascripts/bundle.13a4f30d.min.js
-site/assets/javascripts/bundle.13a4f30d.min.js.map
-site/assets/javascripts/lunr/tinyseg.js
-site/assets/javascripts/lunr/wordcut.js
-site/assets/javascripts/lunr/min/lunr.ar.min.js
-site/assets/javascripts/lunr/min/lunr.da.min.js
-site/assets/javascripts/lunr/min/lunr.de.min.js
-site/assets/javascripts/lunr/min/lunr.du.min.js
-site/assets/javascripts/lunr/min/lunr.el.min.js
-site/assets/javascripts/lunr/min/lunr.es.min.js
-site/assets/javascripts/lunr/min/lunr.fi.min.js
-site/assets/javascripts/lunr/min/lunr.fr.min.js
-site/assets/javascripts/lunr/min/lunr.he.min.js
-site/assets/javascripts/lunr/min/lunr.hi.min.js
-site/assets/javascripts/lunr/min/lunr.hu.min.js
-site/assets/javascripts/lunr/min/lunr.hy.min.js
-site/assets/javascripts/lunr/min/lunr.it.min.js
-site/assets/javascripts/lunr/min/lunr.ja.min.js
-site/assets/javascripts/lunr/min/lunr.jp.min.js
-site/assets/javascripts/lunr/min/lunr.kn.min.js
-site/assets/javascripts/lunr/min/lunr.ko.min.js
-site/assets/javascripts/lunr/min/lunr.multi.min.js
-site/assets/javascripts/lunr/min/lunr.nl.min.js
-site/assets/javascripts/lunr/min/lunr.no.min.js
-site/assets/javascripts/lunr/min/lunr.pt.min.js
-site/assets/javascripts/lunr/min/lunr.ro.min.js
-site/assets/javascripts/lunr/min/lunr.ru.min.js
-site/assets/javascripts/lunr/min/lunr.sa.min.js
-site/assets/javascripts/lunr/min/lunr.stemmer.support.min.js
-site/assets/javascripts/lunr/min/lunr.sv.min.js
-site/assets/javascripts/lunr/min/lunr.ta.min.js
-site/assets/javascripts/lunr/min/lunr.te.min.js
-site/assets/javascripts/lunr/min/lunr.th.min.js
-site/assets/javascripts/lunr/min/lunr.tr.min.js
-site/assets/javascripts/lunr/min/lunr.vi.min.js
-site/assets/javascripts/lunr/min/lunr.zh.min.js
-site/assets/javascripts/workers/search.d50fe291.min.js
-site/assets/javascripts/workers/search.d50fe291.min.js.map
-site/assets/stylesheets/main.342714a4.min.css
-site/assets/stylesheets/main.342714a4.min.css.map
-site/assets/stylesheets/palette.06af60db.min.css
-site/assets/stylesheets/palette.06af60db.min.css.map
-site/memory_docs/FIA_DATABASE_TABLES/index.html
-site/memory_docs/fia_chapter1_complete/index.html
-site/memory_docs/fia_expansion_factors/index.html
-site/memory_docs/fia_section_2_1_survey/index.html
-site/memory_docs/fia_section_2_2_project/index.html
-site/memory_docs/fia_section_2_3_county/index.html
-site/memory_docs/fia_section_2_4_plot/index.html
-site/memory_docs/fia_section_2_5_cond/index.html
-site/memory_docs/fia_section_2_6_subplot/index.html
-site/memory_docs/fia_section_2_7_subp_cond/index.html
-site/memory_docs/fia_section_2_8_boundary/index.html
-site/memory_docs/fia_section_2_9_subp_cond_chng_mtrx/index.html
-site/memory_docs/fia_section_3_10_sitetree/index.html
-site/memory_docs/fia_section_3_1_tree/index.html
-site/memory_docs/fia_section_3_2_tree_woodland_stems/index.html
-site/memory_docs/fia_section_3_3_tree_grm_component/index.html
-site/memory_docs/fia_section_3_4_tree_grm_threshold/index.html
-site/memory_docs/fia_section_3_5_tree_grm_midpt/index.html
-site/memory_docs/fia_section_3_6_tree_grm_begin/index.html
-site/memory_docs/fia_section_3_7_tree_grm_estn/index.html
-site/memory_docs/fia_section_3_8_beginend/index.html
-site/memory_docs/fia_section_3_9_seedling/index.html
-site/memory_docs/fia_section_4_1_invasive_subplot_spp/index.html
-site/memory_docs/fia_section_4_2_p2veg_subplot_spp/index.html
-site/memory_docs/fia_section_4_3_p2veg_subp_structure/index.html
-site/memory_docs/fia_section_5_1_dwm_visit/index.html
-site/memory_docs/fia_section_5_2_dwm_coarse_woody_debris/index.html
-site/memory_docs/fia_section_5_3_dwm_duff_litter_fuel/index.html
-site/memory_docs/fia_section_5_4_dwm_fine_woody_debris/index.html
-site/memory_docs/fia_section_5_5_dwm_microplot_fuel/index.html
-site/memory_docs/fia_section_5_6_dwm_residual_pile/index.html
-site/memory_docs/fia_section_5_7_dwm_transect_segment/index.html
-site/memory_docs/fia_section_5_8_cond_dwm_calc/index.html
-site/memory_docs/fia_section_6_1_plot_regen/index.html
-site/memory_docs/fia_section_6_2_subplot_regen/index.html
-site/memory_docs/fia_section_6_3_seedling_regen/index.html
-site/memory_docs/fia_section_7_1_grnd_cvr/index.html
-site/memory_docs/fia_section_7_2_grnd_lyr_fnctl_grp/index.html
-site/memory_docs/fia_section_7_3_grnd_lyr_microquad/index.html
-site/memory_docs/fia_section_8_1_subp_soil_sample_loc/index.html
-site/memory_docs/fia_section_8_2_subp_soil_sample_layer/index.html
-site/memory_docs/fia_section_9_1_pop_estn_unit/index.html
-site/memory_docs/fia_section_9_2_pop_eval/index.html
-site/memory_docs/fia_section_9_3_pop_eval_attribute/index.html
-site/memory_docs/fia_section_9_4_pop_eval_grp/index.html
-site/memory_docs/fia_section_9_5_pop_eval_typ/index.html
-site/memory_docs/fia_section_9_6_pop_plot_stratum_assgn/index.html
-site/memory_docs/fia_section_9_7_pop_stratum/index.html
-site/queries/index.html
-site/queries/basic_tree/index.html
-site/queries/basic_tree/north_carolina_trees_by_species.sql
-site/queries/basic_tree/oregon_total_live_trees.sql
-site/queries/basic_tree/north_carolina_trees_by_species/index.html
-site/queries/basic_tree/oregon_total_live_trees/index.html
-site/queries/biomass_carbon/colorado_biomass_by_species_group.sql
-site/queries/biomass_carbon/index.html
-site/queries/biomass_carbon/colorado_biomass_by_species_group/index.html
-site/queries/evaluator_methodology/index.html
-site/queries/evaluator_quick_reference/index.html
-site/queries/forest_area/index.html
-site/queries/forest_area/minnesota_forest_type_groups.sql
-site/queries/forest_area/minnesota_forest_type_groups/index.html
-site/queries/growth_mortality/index.html
-site/queries/ratio_estimation/index.html
-site/queries/tree_density/index.html
-site/queries/volume/california_volume_by_diameter.sql
-site/queries/volume/index.html
-site/queries/volume/california_volume_by_diameter/index.html
-site/search/search_index.json
-tests/__pycache__/test_area_integration.cpython-312-pytest-8.4.1.pyc
-tests/__pycache__/test_area.cpython-312-pytest-8.4.1.pyc
-fia.duckdb
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Spyder project settings
+.spyderproject
+.spyproject
+
+# Rope project settings
+.ropeproject
+
+# mkdocs documentation
+/site/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Pyre type checker
+.pyre/
+
+# pytype static type analyzer
+.pytype/
+
+# Cython debug symbols
+cython_debug/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Project specific
+*.duckdb
+*.duckdb.wal
+*.duckdb-shm
+*.db
+
+# AI/ML specific
+.cognee_data/
+.claude/settings.local.json
+
+# Build tools
+uv.lock
+
+# Documentation build
+site/

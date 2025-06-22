@@ -16,14 +16,30 @@ uv venv
 source .venv/bin/activate     # Unix/Mac
 uv pip install -e .[dev]
 
+# Install with different feature sets
+uv pip install -e .                # Basic installation
+uv pip install -e .[langchain]     # With AI agent support
+uv pip install -e .[spatial]       # With spatial features (geopandas)
+uv pip install -e .[all]          # All features
+
 # Run tests
-uv run pytest
-uv run pytest --cov=pyfia    # With coverage
+uv run pytest                      # Run all tests
+uv run pytest --cov=pyfia         # With coverage reporting
+uv run pytest tests/test_area.py  # Run specific test file
+uv run pytest -k "test_tpa"       # Run tests matching pattern
 
 # Code quality
 uv run ruff format pyfia/ tests/   # Format code
 uv run ruff check pyfia/ tests/    # Lint
 uv run mypy pyfia/                 # Type check
+
+# Documentation
+mkdocs serve                       # Local documentation server
+mkdocs build                       # Build static docs
+
+# CLI Tools
+pyfia                             # Direct API CLI
+pyfia-ai path/to/database.duckdb  # AI-enhanced query CLI
 ```
 
 ### Benchmarking
@@ -35,12 +51,183 @@ cd pyFIA && uv run python benchmark_pyfia_optimized_v2.py
 
 ## Architecture Overview
 
+### System Architecture Diagram
+
+```mermaid
+graph TB
+    %% Define color scheme for dark mode
+    classDef userInterface fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+    classDef coreComponent fill:#2ecc71,stroke:#fff,stroke-width:2px,color:#fff
+    classDef dataLayer fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
+    classDef aiComponent fill:#9b59b6,stroke:#fff,stroke-width:2px,color:#fff
+    classDef estimator fill:#f39c12,stroke:#fff,stroke-width:2px,color:#fff
+    classDef utility fill:#34495e,stroke:#fff,stroke-width:2px,color:#fff
+    classDef external fill:#95a5a6,stroke:#fff,stroke-width:2px,color:#fff
+
+    %% User Interfaces
+    CLI[CLI<br/>Direct API Access]:::userInterface
+    CLIAI[CLI-AI<br/>Natural Language]:::userInterface
+    API[Python API<br/>Direct Import]:::userInterface
+
+    %% Core Components
+    FIA[FIA Core Class<br/>Orchestration & EVALID]:::coreComponent
+    
+    %% AI Components
+    AIAgent[AI Agent<br/>LangGraph]:::aiComponent
+    AIEnhanced[AI Agent Enhanced<br/>Tool-based]:::aiComponent
+    AICognee[AI Agent Cognee<br/>Cognee Framework]:::aiComponent
+    DuckDBInterface[DuckDB Query<br/>Interface]:::aiComponent
+
+    %% Data Layer
+    DataReader[FIA Data Reader<br/>DB Abstraction]:::dataLayer
+    DuckDB[(DuckDB<br/>Production)]:::external
+    SQLite[(SQLite<br/>Testing)]:::external
+
+    %% Estimation Modules
+    Area[Area<br/>Estimator]:::estimator
+    Biomass[Biomass<br/>Estimator]:::estimator
+    Volume[Volume<br/>Estimator]:::estimator
+    TPA[TPA<br/>Estimator]:::estimator
+    Mortality[Mortality<br/>Estimator]:::estimator
+    Growth[Growth<br/>Estimator]:::estimator
+
+    %% Utilities
+    EstUtils[Estimation<br/>Utils]:::utility
+    Config[Config<br/>Management]:::utility
+    Models[Data<br/>Models]:::utility
+
+    %% External Dependencies
+    Polars[Polars<br/>DataFrames]:::external
+    LangChain[LangChain<br/>LLM Framework]:::external
+    GeoPandas[GeoPandas<br/>Spatial]:::external
+
+    %% Connections - User Layer
+    CLI --> FIA
+    CLIAI --> AIAgent
+    CLIAI --> AIEnhanced
+    CLIAI --> AICognee
+    API --> FIA
+
+    %% Connections - AI Layer
+    AIAgent --> DuckDBInterface
+    AIEnhanced --> DuckDBInterface
+    AICognee --> DuckDBInterface
+    AIAgent --> LangChain
+    AIEnhanced --> LangChain
+    DuckDBInterface --> DuckDB
+
+    %% Connections - Core Layer
+    FIA --> DataReader
+    FIA --> Area
+    FIA --> Biomass
+    FIA --> Volume
+    FIA --> TPA
+    FIA --> Mortality
+    FIA --> Growth
+
+    %% Connections - Data Layer
+    DataReader --> DuckDB
+    DataReader --> SQLite
+    DataReader --> Polars
+
+    %% Connections - Estimators
+    Area --> EstUtils
+    Biomass --> EstUtils
+    Volume --> EstUtils
+    TPA --> EstUtils
+    Mortality --> EstUtils
+    Growth --> EstUtils
+
+    %% Connections - Utilities
+    FIA --> Config
+    EstUtils --> Models
+    EstUtils --> Polars
+    FIA --> GeoPandas
+
+    %% Add labels for clarity
+    subgraph "User Interfaces"
+        CLI
+        CLIAI
+        API
+    end
+
+    subgraph "AI Components"
+        AIAgent
+        AIEnhanced
+        AICognee
+        DuckDBInterface
+    end
+
+    subgraph "Core System"
+        FIA
+    end
+
+    subgraph "Estimation Modules"
+        Area
+        Biomass
+        Volume
+        TPA
+        Mortality
+        Growth
+    end
+
+    subgraph "Data Access"
+        DataReader
+        DuckDB
+        SQLite
+    end
+
+    subgraph "Utilities"
+        EstUtils
+        Config
+        Models
+    end
+```
+
+### Data Flow Diagram
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant CLI
+    participant FIA as FIA Core
+    participant DR as Data Reader
+    participant DB as DuckDB
+    participant Est as Estimator
+    participant Utils as Est Utils
+
+    User->>CLI: pyfia command
+    CLI->>FIA: Initialize with DB path
+    FIA->>FIA: find_evalid()
+    FIA->>DR: Load tables
+    DR->>DB: Query with EVALID
+    DB-->>DR: Raw data
+    DR-->>FIA: Polars DataFrames
+    
+    User->>CLI: area(db, method='TI')
+    CLI->>Est: Call area estimator
+    Est->>FIA: get_plots(), get_conditions()
+    FIA-->>Est: Filtered data
+    Est->>Utils: stratified_estimation()
+    Utils-->>Est: Population estimates
+    Est-->>User: Results DataFrame
+```
+
+### Dual-Interface Design
+pyFIA provides two distinct interfaces:
+1. **Direct CLI (`cli.py`)**: Pure pyFIA API access for statistical analysis
+2. **AI CLI (`cli_ai.py`)**: Natural language queries with SQL generation via LangChain/GPT-4
+
 ### Python Package Structure  
 - `pyfia/core.py`: Main FIA class and common functionality
 - `pyfia/data_reader.py`: Database interface for SQLite/DuckDB
 - `pyfia/estimation_common.py`: Shared estimation procedures
 - `pyfia/*_equations.py`: Biomass and volume equation implementations
 - Individual estimation modules for different metrics (area, biomass, volume, etc.)
+- `pyfia/ai_agent/`: AI components for natural language processing
+  - `agent.py`: Basic LangGraph agent
+  - `agent_enhanced.py`: Enhanced agent with tool-based analysis
+  - `agent_cognee.py`: Cognee-based agent implementation
 
 ### Key Design Patterns
 
@@ -48,11 +235,14 @@ cd pyFIA && uv run python benchmark_pyfia_optimized_v2.py
 2. **Lazy evaluation**: Uses Polars lazy frames for memory efficiency
 3. **Spatial support**: Integration with geopandas
 4. **Database flexibility**: Support for both SQLite (testing) and DuckDB (production)
+5. **EVALID-centric**: All data access filtered through evaluation system
+6. **Stratified estimation**: Proper FIA statistical methodology
 
 ## Development Guidelines
 
 - Use polars for all data manipulation
 - Support DuckDB for large-scale national data processing
+- Commit to git regularly throughout development (after each significant change or feature)
 - All estimation functions should support:
   - Temporal queries (by year)
   - Spatial queries (by polygon)
@@ -60,6 +250,27 @@ cd pyFIA && uv run python benchmark_pyfia_optimized_v2.py
   - Grouping variables (grpBy, bySpecies, bySizeClass)
 - Include comprehensive tests for new functionality
 - Document all public functions with examples
+
+## Database Connection Management
+
+### Connection Patterns
+```python
+# Context manager pattern (recommended for single operations)
+with FIA("path/to/database.duckdb") as db:
+    results = tpa(db, method='TI')
+
+# Persistent connection (recommended for multiple operations)
+db = FIA("path/to/database.duckdb")
+results1 = biomass(db, component='AG')
+results2 = volume(db)
+# Connection persists for performance
+```
+
+### Database Type Handling
+- CN (Control Number) fields are VARCHAR(34), not integers
+- Use string comparisons for CN fields in joins and filters
+- DuckDB is preferred for production (national datasets)
+- SQLite is suitable for testing and regional data
 
 ## FIA Data Organization - Critical for Correct Implementation
 
@@ -229,3 +440,49 @@ TPA_VAR = (1/AREA_TOTAL²) * (TREE_VAR + (TPA² * AREA_VAR) - (2 * TPA * TREE_AR
 2. **Wrong: Using only ADJ_FACTOR_SUBP** - Must use appropriate factor for each TREE_BASIS
 3. **Wrong: Excluding zero plots** - Biases the estimate downward
 4. **Wrong: Simple mean of plot values** - Ignores stratification weights
+
+## Common API Patterns
+
+### Standard Estimator Interface
+All estimators follow this pattern:
+```python
+def estimator(db, method='TI', evalid=None, mostRecent=True,
+             grpBy=None, treeDomain=None, areaDomain=None,
+             bySpecies=False, bySizeClass=False, totals=False):
+    """
+    Standard FIA estimator parameters:
+    - db: FIA database instance
+    - method: Temporal method (TI, annual, SMA, LMA, EMA)
+    - evalid: Specific evaluation ID to use
+    - mostRecent: Use most recent evaluation if True
+    - grpBy: Additional grouping columns
+    - treeDomain: Filter expression for trees
+    - areaDomain: Filter expression for area
+    - bySpecies: Group results by species
+    - bySizeClass: Group results by size class
+    - totals: Return population totals (True) or per-acre (False)
+    """
+```
+
+### Working with Results
+```python
+# Results are Polars DataFrames
+results = tpa(db, bySpecies=True)
+print(results.columns)  # ['SPCD', 'COMMON_NAME', 'ESTIMATE', 'SE', 'SE_PERCENT', ...]
+
+# Filter and process results
+pine_tpa = results.filter(pl.col("COMMON_NAME").str.contains("pine"))
+top_species = results.sort("ESTIMATE", descending=True).head(10)
+```
+
+### Domain Specifications
+```python
+# Tree domain examples
+treeDomain = "DIA >= 10"  # Trees 10" DBH and larger
+treeDomain = "STATUSCD == 1"  # Live trees only
+treeDomain = "SPCD IN (110, 121, 122)"  # Specific species codes
+
+# Area domain examples
+areaDomain = "OWNGRPCD == 10"  # National Forest land
+areaDomain = "FORTYPCD >= 100 AND FORTYPCD < 200"  # Specific forest types
+```

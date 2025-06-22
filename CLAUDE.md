@@ -90,9 +90,7 @@ graph TB
     Volume["Volume Estimator"]:::estimator
     TPA["TPA Estimator"]:::estimator
     Mortality["Mortality Estimator"]:::estimator
-    MortalityDirect["Mortality Direct"]:::altEstimator
     Growth["Growth Estimator"]:::estimator
-    GrowthDirect["Growth Direct"]:::altEstimator
 
     %% Utilities
     EstUtils["Estimation Utils"]:::utility
@@ -132,9 +130,7 @@ graph TB
     Volume --> FIA
     TPA --> FIA
     Mortality --> FIA
-    MortalityDirect --> FIA
     Growth --> FIA
-    GrowthDirect --> FIA
 
     %% Connections - Data Layer
     DataReader --> DuckDB
@@ -146,9 +142,7 @@ graph TB
     Volume --> EstUtils
     TPA --> EstUtils
     Mortality --> EstUtils
-    MortalityDirect --> EstUtils
     Growth --> EstUtils
-    GrowthDirect --> EstUtils
     EstUtils --> ratio_var["ratio_var()"]:::utility
     EstUtils --> cv["cv()"]:::utility
 
@@ -184,9 +178,7 @@ graph TB
         Volume
         TPA
         Mortality
-        MortalityDirect
         Growth
-        GrowthDirect
     end
 
     subgraph Data["Data Access"]
@@ -250,9 +242,7 @@ pyFIA provides two distinct interfaces:
   - `volume.py`: Volume estimation
   - `tpa.py`: Trees per acre
   - `mortality.py`: Standard mortality estimation
-  - `mortality_direct.py`: Alternative mortality implementation
   - `growth.py`: Growth estimation
-  - `growth_direct.py`: Alternative growth implementation
 - AI components:
   - `ai_agent.py`: Base FIAAgent class with LangGraph
   - `ai_agent_enhanced.py`: Enhanced agent (extends FIAAgent)

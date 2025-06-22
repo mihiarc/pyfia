@@ -65,41 +65,41 @@ graph TB
     classDef external fill:#95a5a6,stroke:#fff,stroke-width:2px,color:#fff
 
     %% User Interfaces
-    CLI[CLI<br/>Direct API Access]:::userInterface
-    CLIAI[CLI-AI<br/>Natural Language]:::userInterface
-    API[Python API<br/>Direct Import]:::userInterface
+    CLI["CLI - Direct API"]:::userInterface
+    CLIAI["CLI-AI - Natural Language"]:::userInterface
+    API["Python API"]:::userInterface
 
     %% Core Components
-    FIA[FIA Core Class<br/>Orchestration & EVALID]:::coreComponent
+    FIA["FIA Core Class"]:::coreComponent
     
     %% AI Components
-    AIAgent[AI Agent<br/>LangGraph]:::aiComponent
-    AIEnhanced[AI Agent Enhanced<br/>Tool-based]:::aiComponent
-    AICognee[AI Agent Cognee<br/>Cognee Framework]:::aiComponent
-    DuckDBInterface[DuckDB Query<br/>Interface]:::aiComponent
+    AIAgent["AI Agent - LangGraph"]:::aiComponent
+    AIEnhanced["AI Agent Enhanced"]:::aiComponent
+    AICognee["AI Agent Cognee"]:::aiComponent
+    DuckDBInterface["DuckDB Query Interface"]:::aiComponent
 
     %% Data Layer
-    DataReader[FIA Data Reader<br/>DB Abstraction]:::dataLayer
-    DuckDB[(DuckDB<br/>Production)]:::external
-    SQLite[(SQLite<br/>Testing)]:::external
+    DataReader["FIA Data Reader"]:::dataLayer
+    DuckDB[("DuckDB")]:::external
+    SQLite[("SQLite")]:::external
 
     %% Estimation Modules
-    Area[Area<br/>Estimator]:::estimator
-    Biomass[Biomass<br/>Estimator]:::estimator
-    Volume[Volume<br/>Estimator]:::estimator
-    TPA[TPA<br/>Estimator]:::estimator
-    Mortality[Mortality<br/>Estimator]:::estimator
-    Growth[Growth<br/>Estimator]:::estimator
+    Area["Area Estimator"]:::estimator
+    Biomass["Biomass Estimator"]:::estimator
+    Volume["Volume Estimator"]:::estimator
+    TPA["TPA Estimator"]:::estimator
+    Mortality["Mortality Estimator"]:::estimator
+    Growth["Growth Estimator"]:::estimator
 
     %% Utilities
-    EstUtils[Estimation<br/>Utils]:::utility
-    Config[Config<br/>Management]:::utility
-    Models[Data<br/>Models]:::utility
+    EstUtils["Estimation Utils"]:::utility
+    Config["Config Management"]:::utility
+    Models["Data Models"]:::utility
 
     %% External Dependencies
-    Polars[Polars<br/>DataFrames]:::external
-    LangChain[LangChain<br/>LLM Framework]:::external
-    GeoPandas[GeoPandas<br/>Spatial]:::external
+    Polars["Polars DataFrames"]:::external
+    LangChain["LangChain Framework"]:::external
+    GeoPandas["GeoPandas"]:::external
 
     %% Connections - User Layer
     CLI --> FIA
@@ -145,24 +145,24 @@ graph TB
     FIA --> GeoPandas
 
     %% Add labels for clarity
-    subgraph "User Interfaces"
+    subgraph UI["User Interfaces"]
         CLI
         CLIAI
         API
     end
 
-    subgraph "AI Components"
+    subgraph AI["AI Components"]
         AIAgent
         AIEnhanced
         AICognee
         DuckDBInterface
     end
 
-    subgraph "Core System"
+    subgraph Core["Core System"]
         FIA
     end
 
-    subgraph "Estimation Modules"
+    subgraph Est["Estimation Modules"]
         Area
         Biomass
         Volume
@@ -171,13 +171,13 @@ graph TB
         Growth
     end
 
-    subgraph "Data Access"
+    subgraph Data["Data Access"]
         DataReader
         DuckDB
         SQLite
     end
 
-    subgraph "Utilities"
+    subgraph Utils["Utilities"]
         EstUtils
         Config
         Models

@@ -28,7 +28,8 @@
       "Bash(git init:*)",
       "Bash(git remote add:*)",
       "Bash(cp:*)",
-      "Bash(git checkout:*)"
+      "Bash(git checkout:*)",
+      "Bash(cat:*)"
     ],
     "deny": []
   }

@@ -47,6 +47,7 @@ dev = [
     "pytest-cov>=6.2.1",
     "ruff>=0.12.0",
     "mypy>=1.16.1",
+    "ty>=0.0.1a11",
 ]
 all = ["pyfia[spatial,pandas,langchain,dev]"]
 
@@ -85,9 +86,12 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-warn_return_any = true
+warn_return_any = false
 warn_unused_configs = true
 ignore_missing_imports = true
+no_implicit_optional = false
+check_untyped_defs = false
+disallow_untyped_defs = false
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

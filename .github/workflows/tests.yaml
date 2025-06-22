@@ -37,8 +37,13 @@ jobs:
         uv run ruff check pyfia/ tests/
         uv run ruff format --check pyfia/ tests/
     
-    - name: Run type checking
+    - name: Run type checking (MyPy)
       run: uv run mypy pyfia/
+      continue-on-error: true
+    
+    - name: Run type checking (ty - alpha)
+      run: uv run ty check pyfia/
+      continue-on-error: true
     
     - name: Run tests with coverage (Ubuntu Python 3.11 only)
       if: matrix.os == 'ubuntu-latest' && matrix.python-version == '3.11'

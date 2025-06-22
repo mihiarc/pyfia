@@ -8,7 +8,6 @@ EVALID-based filtering, and common operations following rFIA patterns.
 import polars as pl
 from pathlib import Path
 from typing import Optional, Union, List, Dict, Any
-import sqlite3
 import duckdb
 import warnings
 from .data_reader import FIADataReader
@@ -18,44 +17,38 @@ class FIA:
     """
     Main FIA database class for working with Forest Inventory and Analysis data.
     
-    This class provides methods for loading FIA data from SQLite databases,
+    This class provides methods for loading FIA data from DuckDB databases,
     filtering by EVALID, and preparing data for estimation functions.
     
     Attributes:
-        db_path (Path): Path to the SQLite database
+        db_path (Path): Path to the DuckDB database
         tables (Dict[str, pl.LazyFrame]): Loaded FIA tables as lazy frames
         evalid (Optional[List[int]]): Active EVALID filter
         most_recent (bool): Whether to use most recent evaluations
     """
     
-    def __init__(self, db_path: Union[str, Path], engine: str = "sqlite"):
+    def __init__(self, db_path: Union[str, Path], engine: str = "duckdb"):
         """
         Initialize FIA database connection.
         
         Args:
-            db_path: Path to FIA database
-            engine: Database engine ("sqlite" or "duckdb")
+            db_path: Path to FIA DuckDB database
+            engine: Database engine (kept for compatibility, always uses DuckDB)
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {db_path}")
         
-        self.engine = engine.lower()
-        if self.engine not in ["sqlite", "duckdb"]:
-            raise ValueError(f"Unsupported engine: {engine}. Use 'sqlite' or 'duckdb'")
-        
+        # Always use DuckDB regardless of engine parameter
         self.tables: Dict[str, pl.LazyFrame] = {}
         self.evalid: Optional[List[int]] = None
         self.most_recent: bool = False
-        self._conn: Optional[Union[sqlite3.Connection, duckdb.DuckDBPyConnection]] = None
-        self._reader = FIADataReader(db_path, engine=engine)
+        self._conn: Optional[duckdb.DuckDBPyConnection] = None
+        self._reader = FIADataReader(db_path, engine="duckdb")
     
     def __enter__(self):
         """Context manager entry."""
-        if self.engine == "sqlite":
-            self._conn = sqlite3.connect(self.db_path)
-        else:  # duckdb
-            self._conn = duckdb.connect(str(self.db_path), read_only=True)
+        self._conn = duckdb.connect(str(self.db_path), read_only=True)
         return self
     
     def __exit__(self, exc_type, exc_val, exc_tb):
@@ -64,13 +57,10 @@ class FIA:
             self._conn.close()
             self._conn = None
     
-    def _get_connection(self) -> Union[sqlite3.Connection, duckdb.DuckDBPyConnection]:
+    def _get_connection(self) -> duckdb.DuckDBPyConnection:
         """Get database connection, creating if needed."""
         if self._conn is None:
-            if self.engine == "sqlite":
-                self._conn = sqlite3.connect(self.db_path)
-            else:  # duckdb
-                self._conn = duckdb.connect(str(self.db_path), read_only=True)
+            self._conn = duckdb.connect(str(self.db_path), read_only=True)
         return self._conn
     
     def load_table(self, table_name: str, columns: Optional[List[str]] = None) -> pl.LazyFrame:
@@ -113,22 +103,36 @@ class FIA:
             List of EVALID values matching criteria
         """
         # Load required tables if not already loaded
-        if 'POP_EVAL' not in self.tables:
-            self.load_table('POP_EVAL')
-        if 'POP_EVAL_TYP' not in self.tables:
-            self.load_table('POP_EVAL_TYP', ['EVAL_CN', 'EVAL_TYP'])
-        
-        # Join POP_EVAL with POP_EVAL_TYP
-        pop_eval = self.tables['POP_EVAL'].collect()
-        pop_eval_typ = self.tables['POP_EVAL_TYP'].collect()
-        
-        # Join on CN = EVAL_CN
-        df = pop_eval.join(
-            pop_eval_typ,
-            left_on='CN',
-            right_on='EVAL_CN',
-            how='left'
-        )
+        try:
+            if 'POP_EVAL' not in self.tables:
+                self.load_table('POP_EVAL')
+            if 'POP_EVAL_TYP' not in self.tables:
+                self.load_table('POP_EVAL_TYP')
+            
+            # Get the data
+            pop_eval = self.tables['POP_EVAL'].collect()
+            pop_eval_typ = self.tables['POP_EVAL_TYP'].collect()
+            
+            # Check if EVALID exists in POP_EVAL, if not we need to handle differently
+            if 'EVALID' not in pop_eval.columns:
+                # Some FIA databases might have different schema
+                # Try to extract EVALID from CN or other columns
+                raise ValueError(
+                    f"EVALID column not found in POP_EVAL table. "
+                    f"Available columns: {pop_eval.columns}"
+                )
+            
+            # Join on CN = EVAL_CN
+            df = pop_eval.join(
+                pop_eval_typ,
+                left_on='CN',
+                right_on='EVAL_CN',
+                how='left'
+            )
+        except Exception as e:
+            # If tables don't exist or join fails, return empty list with warning
+            warnings.warn(f"Could not load evaluation tables: {e}")
+            return []
         
         # Apply filters
         if state is not None:

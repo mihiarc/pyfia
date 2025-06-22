@@ -116,8 +116,8 @@ def mortality(
     # Filter to mortality components and trees with mortality (either microplot or subplot)
     # Following EVALIDator methodology: COMPONENT LIKE 'MORTALITY%'
     tree_mort = tree_grm_component.filter(
-        (pl.col("COMPONENT").str.starts_with("MORTALITY")) &
-        ((pl.col(micr_mort_col) > 0) | (pl.col(subp_mort_col) > 0))
+        (pl.col("COMPONENT").str.starts_with("MORTALITY"))
+        & ((pl.col(micr_mort_col) > 0) | (pl.col(subp_mort_col) > 0))
     )
 
     # Join with beginning tree data for state variables

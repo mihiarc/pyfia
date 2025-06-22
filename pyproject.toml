@@ -57,9 +57,8 @@ Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 
 [project.scripts]
-fia-cli = "pyfia.cli:main"
-fia-query = "pyfia.cli_query:main"
-fia-ai = "pyfia.cli_ai_agent:main"
+pyfia = "pyfia.cli:main"
+pyfia-ai = "pyfia.cli_ai:main"
 
 [tool.setuptools]
 packages = ["pyfia"]

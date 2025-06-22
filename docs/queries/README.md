@@ -9,9 +9,9 @@ This directory contains a comprehensive, organized collection of tested and vali
 - Core tree enumeration and basic forest inventory queries
 
 ### 🌲 [Growth, Removal, and Mortality (GRM)](./growth_mortality/)
-- **Georgia Mortality by Species** - Complex GRM table analysis for mortality estimates
-- **South Carolina Harvest Removals** - Harvest/cut component analysis from GRM tables
-- Advanced queries using TREE_GRM_* tables with Oracle EVALIDator translations
+- **Colorado Merchantable Volume Mortality** - Annual mortality of growing-stock timber volume
+- **North Carolina Tree Mortality Rate** - Simple mortality rate in trees per acre per year
+- Advanced queries using TREE_GRM_* tables with proper component filtering
 
 ### 🌿 [Biomass and Carbon](./biomass_carbon/)
 - **Colorado Above-Ground Biomass** - Species-specific biomass calculations with wood/bark properties

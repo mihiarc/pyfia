@@ -52,3 +52,8 @@ NC_CSV/
 *_backup.py.env
 uv.lock
 CLAUDE.md
+.cognee_data/cognee_system/databases/cognee_db
+.cognee_data/cognee_system/databases/cognee_db__main_staging
+.cognee_data/cognee_system/databases/cognee_db-shm
+.cognee_data/cognee_system/databases/cognee_db-wal
+.cognee_data/cognee_system/databases/cognee.graph

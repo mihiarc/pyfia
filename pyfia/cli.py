@@ -67,7 +67,7 @@ class FIADirectCLI(cmd.Cmd):
         """Setup command history with readline."""
         if not HAS_READLINE:
             return
-            
+
         if self.history_file.exists():
             try:
                 readline.read_history_file(self.history_file)
@@ -81,7 +81,7 @@ class FIADirectCLI(cmd.Cmd):
         """Save command history."""
         if not HAS_READLINE:
             return
-            
+
         try:
             readline.write_history_file(self.history_file)
         except:

@@ -16,6 +16,7 @@ import polars as pl
 @dataclass
 class TableInfo:
     """Information about a database table."""
+
     name: str
     columns: List[Dict[str, str]]
     row_count: int
@@ -61,12 +62,12 @@ class DuckDBQueryInterface:
             "POP_PLOT_STRATUM_ASSGN": "Links plots to evaluations via strata",
             "POP_ESTN_UNIT": "Estimation unit definitions and areas",
             "REF_SPECIES": "Reference table for tree species codes and names",
-            "REF_FOREST_TYPE": "Reference table for forest type codes and descriptions"
+            "REF_FOREST_TYPE": "Reference table for forest type codes and descriptions",
         }
 
     def __del__(self):
         """Close database connection."""
-        if hasattr(self, 'conn') and self.conn:
+        if hasattr(self, "conn") and self.conn:
             self.conn.close()
 
     def get_database_schema(self) -> Dict[str, TableInfo]:
@@ -77,7 +78,7 @@ class DuckDBQueryInterface:
             Dictionary mapping table names to TableInfo objects
         """
         # Get all tables
-        tables = self.conn.execute("SHOW TABLES").pl()['name'].to_list()
+        tables = self.conn.execute("SHOW TABLES").pl()["name"].to_list()
 
         schema_info = {}
         for table in tables:
@@ -92,16 +93,14 @@ class DuckDBQueryInterface:
         # Get column information
         columns_df = self.conn.execute(f"DESCRIBE {table_name}").pl()
         columns = [
-            {
-                "name": row[0],
-                "type": row[1],
-                "nullable": row[2] == "YES"
-            }
+            {"name": row[0], "type": row[1], "nullable": row[2] == "YES"}
             for row in columns_df.iter_rows()
         ]
 
         # Get row count
-        row_count = self.conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[0]
+        row_count = self.conn.execute(f"SELECT COUNT(*) FROM {table_name}").fetchone()[
+            0
+        ]
 
         # Get sample data (first 5 rows)
         sample_data = None
@@ -113,7 +112,7 @@ class DuckDBQueryInterface:
             columns=columns,
             row_count=row_count,
             description=self.table_descriptions.get(table_name),
-            sample_data=sample_data
+            sample_data=sample_data,
         )
 
     def get_table_summary(self, table_name: str) -> str:
@@ -179,14 +178,10 @@ class DuckDBQueryInterface:
             return {
                 "valid": True,
                 "message": "Query is valid",
-                "estimated_cost": None  # Could parse EXPLAIN output for cost
+                "estimated_cost": None,  # Could parse EXPLAIN output for cost
             }
         except Exception as e:
-            return {
-                "valid": False,
-                "message": str(e),
-                "estimated_cost": None
-            }
+            return {"valid": False, "message": str(e), "estimated_cost": None}
 
     def get_evalid_info(self, evalid: Optional[int] = None) -> pl.DataFrame:
         """
@@ -232,7 +227,9 @@ class DuckDBQueryInterface:
         # Add key concept explanations
         context += "Key Concepts:\n"
         context += "- EVALID: Evaluation ID that groups statistically valid plot measurements\n"
-        context += "- CN: Control Number - unique identifier for records (stored as VARCHAR)\n"
+        context += (
+            "- CN: Control Number - unique identifier for records (stored as VARCHAR)\n"
+        )
         context += "- Plots contain Trees and Conditions\n"
         context += "- Population tables (POP_*) contain stratification and expansion factors\n\n"
 

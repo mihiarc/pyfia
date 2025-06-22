@@ -88,9 +88,13 @@ class FIADirectCLI(cmd.Cmd):
 
         # Display welcome message with proper formatting
         self.console.print()
-        self.console.rule("[bold green]🌲 pyFIA Direct Interface[/bold green]", style="green")
+        self.console.rule(
+            "[bold green]🌲 pyFIA Direct Interface[/bold green]", style="green"
+        )
         self.console.print()
-        self.console.print("Access Forest Inventory Analysis estimation methods directly.")
+        self.console.print(
+            "Access Forest Inventory Analysis estimation methods directly."
+        )
         self.console.print()
 
         # Quick Start section
@@ -140,7 +144,7 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Connecting to database...", total=None)
 
@@ -180,38 +184,91 @@ class FIADirectCLI(cmd.Cmd):
             if evalids:
                 try:
                     # Load POP_EVAL table if needed
-                    if 'POP_EVAL' not in self.fia.tables:
-                        self.fia.load_table('POP_EVAL')
+                    if "POP_EVAL" not in self.fia.tables:
+                        self.fia.load_table("POP_EVAL")
 
-                    pop_eval = self.fia.tables['POP_EVAL'].collect()
-                    pop_eval = pop_eval.filter(pl.col('EVALID').is_in(evalids))
+                    pop_eval = self.fia.tables["POP_EVAL"].collect()
+                    pop_eval = pop_eval.filter(pl.col("EVALID").is_in(evalids))
 
                     # Get states and convert to abbreviations
-                    state_codes = sorted(pop_eval['STATECD'].unique().to_list())
+                    state_codes = sorted(pop_eval["STATECD"].unique().to_list())
 
                     # State code to abbreviation mapping
                     code_to_abbr = {
-                        1: "AL", 2: "AK", 4: "AZ", 5: "AR", 6: "CA", 8: "CO", 9: "CT",
-                        10: "DE", 12: "FL", 13: "GA", 15: "HI", 16: "ID", 17: "IL", 18: "IN",
-                        19: "IA", 20: "KS", 21: "KY", 22: "LA", 23: "ME", 24: "MD", 25: "MA",
-                        26: "MI", 27: "MN", 28: "MS", 29: "MO", 30: "MT", 31: "NE", 32: "NV",
-                        33: "NH", 34: "NJ", 35: "NM", 36: "NY", 37: "NC", 38: "ND", 39: "OH",
-                        40: "OK", 41: "OR", 42: "PA", 44: "RI", 45: "SC", 46: "SD", 47: "TN",
-                        48: "TX", 49: "UT", 50: "VT", 51: "VA", 53: "WA", 54: "WV", 55: "WI",
-                        56: "WY", 60: "AS", 64: "FM", 66: "GU", 68: "MH", 69: "MP", 70: "PW",
-                        72: "PR", 78: "VI"
+                        1: "AL",
+                        2: "AK",
+                        4: "AZ",
+                        5: "AR",
+                        6: "CA",
+                        8: "CO",
+                        9: "CT",
+                        10: "DE",
+                        12: "FL",
+                        13: "GA",
+                        15: "HI",
+                        16: "ID",
+                        17: "IL",
+                        18: "IN",
+                        19: "IA",
+                        20: "KS",
+                        21: "KY",
+                        22: "LA",
+                        23: "ME",
+                        24: "MD",
+                        25: "MA",
+                        26: "MI",
+                        27: "MN",
+                        28: "MS",
+                        29: "MO",
+                        30: "MT",
+                        31: "NE",
+                        32: "NV",
+                        33: "NH",
+                        34: "NJ",
+                        35: "NM",
+                        36: "NY",
+                        37: "NC",
+                        38: "ND",
+                        39: "OH",
+                        40: "OK",
+                        41: "OR",
+                        42: "PA",
+                        44: "RI",
+                        45: "SC",
+                        46: "SD",
+                        47: "TN",
+                        48: "TX",
+                        49: "UT",
+                        50: "VT",
+                        51: "VA",
+                        53: "WA",
+                        54: "WV",
+                        55: "WI",
+                        56: "WY",
+                        60: "AS",
+                        64: "FM",
+                        66: "GU",
+                        68: "MH",
+                        69: "MP",
+                        70: "PW",
+                        72: "PR",
+                        78: "VI",
                     }
 
-                    state_abbrs = [code_to_abbr.get(code, f"#{code}") for code in state_codes]
+                    state_abbrs = [
+                        code_to_abbr.get(code, f"#{code}") for code in state_codes
+                    ]
                     summary.add_row("States", ", ".join(state_abbrs))
 
                     # Get year range and ensure integers
-                    years = pop_eval['END_INVYR'].to_list()
+                    years = pop_eval["END_INVYR"].to_list()
                     if years:
                         # Convert to integers to remove any decimal points
                         years = [int(y) for y in years if y is not None]
                         if years:
-                            summary.add_row("Year Range", f"{min(years)} - {max(years)}")
+                            summary.add_row(
+                                "Year Range", f"{min(years)} - {max(years)}"
+                            )
                 except:
                     summary.add_row("EVALID Range", f"{min(evalids)} - {max(evalids)}")
 
@@ -240,8 +297,8 @@ class FIADirectCLI(cmd.Cmd):
             - Full name: evalid "North Carolina" or evalid alabama
         """
         # Handle 'evalid help' syntax
-        if arg.strip().lower() == 'help':
-            self.do_help('evalid')
+        if arg.strip().lower() == "help":
+            self.do_help("evalid")
             return
 
         if not self._check_connection():
@@ -252,15 +309,17 @@ class FIADirectCLI(cmd.Cmd):
                 # Show available evaluations with interactive state selection
                 self._show_evaluations()
 
-            elif arg.lower() == 'clear':
+            elif arg.lower() == "clear":
                 self.fia.evalid = None
                 self.console.print("[yellow]EVALID filter cleared[/yellow]")
 
-            elif arg.lower().startswith('mostrecent'):
+            elif arg.lower().startswith("mostrecent"):
                 parts = arg.split()
                 eval_type = parts[1].upper() if len(parts) > 1 else None
                 self.fia.clip_most_recent(eval_type=eval_type)
-                self.console.print(f"[green]✓ Selected most recent evaluation: {self.fia.evalid}[/green]")
+                self.console.print(
+                    f"[green]✓ Selected most recent evaluation: {self.fia.evalid}[/green]"
+                )
 
             else:
                 # Try to parse as state identifier or EVALID
@@ -275,9 +334,13 @@ class FIADirectCLI(cmd.Cmd):
                         evalid = int(arg)
                         if len(str(evalid)) == 6:
                             self.fia.clip_by_evalid(evalid)
-                            self.console.print(f"[green]✓ Selected EVALID: {evalid}[/green]")
+                            self.console.print(
+                                f"[green]✓ Selected EVALID: {evalid}[/green]"
+                            )
                         else:
-                            self.console.print(f"[red]Invalid EVALID: {arg} (must be 6 digits)[/red]")
+                            self.console.print(
+                                f"[red]Invalid EVALID: {arg} (must be 6 digits)[/red]"
+                            )
                     except ValueError:
                         self.console.print(f"[red]Invalid input: {arg}[/red]")
                         self.console.print("Use 'help evalid' for usage information")
@@ -290,22 +353,64 @@ class FIADirectCLI(cmd.Cmd):
         # First, get all available states if no filter provided
         if state_filter is None:
             # Load POP_EVAL to get available states
-            if 'POP_EVAL' not in self.fia.tables:
-                self.fia.load_table('POP_EVAL')
+            if "POP_EVAL" not in self.fia.tables:
+                self.fia.load_table("POP_EVAL")
 
-            pop_eval_all = self.fia.tables['POP_EVAL'].collect()
-            available_states = sorted(pop_eval_all['STATECD'].unique().to_list())
+            pop_eval_all = self.fia.tables["POP_EVAL"].collect()
+            available_states = sorted(pop_eval_all["STATECD"].unique().to_list())
 
             # Map state codes to names (simplified for common states)
             state_names = {
-                1: "AL", 2: "AK", 4: "AZ", 5: "AR", 6: "CA", 8: "CO", 9: "CT",
-                10: "DE", 12: "FL", 13: "GA", 15: "HI", 16: "ID", 17: "IL", 18: "IN",
-                19: "IA", 20: "KS", 21: "KY", 22: "LA", 23: "ME", 24: "MD", 25: "MA",
-                26: "MI", 27: "MN", 28: "MS", 29: "MO", 30: "MT", 31: "NE", 32: "NV",
-                33: "NH", 34: "NJ", 35: "NM", 36: "NY", 37: "NC", 38: "ND", 39: "OH",
-                40: "OK", 41: "OR", 42: "PA", 44: "RI", 45: "SC", 46: "SD", 47: "TN",
-                48: "TX", 49: "UT", 50: "VT", 51: "VA", 53: "WA", 54: "WV", 55: "WI",
-                56: "WY"
+                1: "AL",
+                2: "AK",
+                4: "AZ",
+                5: "AR",
+                6: "CA",
+                8: "CO",
+                9: "CT",
+                10: "DE",
+                12: "FL",
+                13: "GA",
+                15: "HI",
+                16: "ID",
+                17: "IL",
+                18: "IN",
+                19: "IA",
+                20: "KS",
+                21: "KY",
+                22: "LA",
+                23: "ME",
+                24: "MD",
+                25: "MA",
+                26: "MI",
+                27: "MN",
+                28: "MS",
+                29: "MO",
+                30: "MT",
+                31: "NE",
+                32: "NV",
+                33: "NH",
+                34: "NJ",
+                35: "NM",
+                36: "NY",
+                37: "NC",
+                38: "ND",
+                39: "OH",
+                40: "OK",
+                41: "OR",
+                42: "PA",
+                44: "RI",
+                45: "SC",
+                46: "SD",
+                47: "TN",
+                48: "TX",
+                49: "UT",
+                50: "VT",
+                51: "VA",
+                53: "WA",
+                54: "WV",
+                55: "WI",
+                56: "WY",
             }
 
             # Show available states
@@ -317,7 +422,7 @@ class FIADirectCLI(cmd.Cmd):
 
             # Display in columns
             for i in range(0, len(states_display), 6):
-                self.console.print("  " + "  ".join(states_display[i:i+6]))
+                self.console.print("  " + "  ".join(states_display[i : i + 6]))
 
             self.console.print("\n[bold]Options:[/bold]")
             self.console.print("  - Enter a state (e.g., 37, NC, or North Carolina)")
@@ -337,11 +442,15 @@ class FIADirectCLI(cmd.Cmd):
                     if state_code in available_states:
                         state_filter = state_code
                     else:
-                        self.console.print(f"[red]State {choice} (code {state_code}) not found in database[/red]")
+                        self.console.print(
+                            f"[red]State {choice} (code {state_code}) not found in database[/red]"
+                        )
                         return
                 else:
                     self.console.print(f"[red]Invalid state: {choice}[/red]")
-                    self.console.print("Try a state code (37), abbreviation (NC), or name (North Carolina)")
+                    self.console.print(
+                        "Try a state code (37), abbreviation (NC), or name (North Carolina)"
+                    )
                     return
 
         # Now get evaluations for the selected state(s)
@@ -355,29 +464,33 @@ class FIADirectCLI(cmd.Cmd):
             return
 
         # Load tables for details
-        if 'POP_EVAL' not in self.fia.tables:
-            self.fia.load_table('POP_EVAL')
-        if 'POP_EVAL_TYP' not in self.fia.tables:
-            self.fia.load_table('POP_EVAL_TYP')
+        if "POP_EVAL" not in self.fia.tables:
+            self.fia.load_table("POP_EVAL")
+        if "POP_EVAL_TYP" not in self.fia.tables:
+            self.fia.load_table("POP_EVAL_TYP")
 
         # Get evaluation details
-        pop_eval = self.fia.tables['POP_EVAL'].filter(
-            pl.col('EVALID').is_in(evalids)
-        ).collect()
+        pop_eval = (
+            self.fia.tables["POP_EVAL"]
+            .filter(pl.col("EVALID").is_in(evalids))
+            .collect()
+        )
 
         # Get eval types - need to join through CN/EVAL_CN
-        eval_typ = self.fia.tables['POP_EVAL_TYP'].collect()
+        eval_typ = self.fia.tables["POP_EVAL_TYP"].collect()
 
         # Join POP_EVAL with POP_EVAL_TYP on CN = EVAL_CN
         eval_data = pop_eval.join(
-            eval_typ.select(['EVAL_CN', 'EVAL_TYP']),
-            left_on='CN',
-            right_on='EVAL_CN',
-            how='left'
+            eval_typ.select(["EVAL_CN", "EVAL_TYP"]),
+            left_on="CN",
+            right_on="EVAL_CN",
+            how="left",
         )
 
         # Create table
-        eval_table = Table(title="Available Evaluations", show_lines=True, box=box.ROUNDED)
+        eval_table = Table(
+            title="Available Evaluations", show_lines=True, box=box.ROUNDED
+        )
         eval_table.add_column("EVALID", style="cyan", width=8)
         eval_table.add_column("State", style="green", width=6)
         eval_table.add_column("Year", style="yellow", width=6)
@@ -386,17 +499,19 @@ class FIADirectCLI(cmd.Cmd):
 
         for row in eval_data.iter_rows(named=True):
             eval_table.add_row(
-                str(row['EVALID']),
-                str(row.get('STATECD', '')),
-                str(row.get('END_INVYR', '')),
-                str(row.get('EVAL_TYP', '')),
-                str(row.get('EVAL_DESCR', ''))
+                str(row["EVALID"]),
+                str(row.get("STATECD", "")),
+                str(row.get("END_INVYR", "")),
+                str(row.get("EVAL_TYP", "")),
+                str(row.get("EVAL_DESCR", "")),
             )
 
         self.console.print(eval_table)
 
         if self.fia.evalid:
-            self.console.print(f"\n[bold]Current:[/bold] {', '.join(map(str, self.fia.evalid))}")
+            self.console.print(
+                f"\n[bold]Current:[/bold] {', '.join(map(str, self.fia.evalid))}"
+            )
 
     def do_area(self, arg: str):
         """Calculate forest area estimates.
@@ -429,8 +544,8 @@ class FIADirectCLI(cmd.Cmd):
             area grpBy=OWNCD areaDomain="COND_STATUS_CD == 1"
         """
         # Handle 'area help' syntax
-        if arg.strip().lower() == 'help':
-            self.do_help('area')
+        if arg.strip().lower() == "help":
+            self.do_help("area")
             return
 
         if not self._check_connection():
@@ -458,14 +573,16 @@ class FIADirectCLI(cmd.Cmd):
                     if evalids:
                         self.fia.clip_by_evalid(evalids)
                     else:
-                        self.console.print(f"[red]No evaluations found for state: {state_name}[/red]")
+                        self.console.print(
+                            f"[red]No evaluations found for state: {state_name}[/red]"
+                        )
                         return
 
             kwargs = self._parse_kwargs(arg)
 
             # Always include totals for area command unless explicitly set to False
-            if 'totals' not in kwargs:
-                kwargs['totals'] = True
+            if "totals" not in kwargs:
+                kwargs["totals"] = True
 
             # Convert camelCase to snake_case for area function parameters
             kwargs = self._convert_kwargs_to_snake_case(kwargs)
@@ -484,7 +601,7 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Calculating forest area...", total=None)
                 result = self.fia.area(**kwargs)
@@ -494,7 +611,7 @@ class FIADirectCLI(cmd.Cmd):
             self._display_results(result, title)
 
             # Restore original evalid if we changed it
-            if state_code is not None and 'original_evalid' in locals():
+            if state_code is not None and "original_evalid" in locals():
                 self.fia.evalid = original_evalid
 
         except Exception as e:
@@ -514,8 +631,8 @@ class FIADirectCLI(cmd.Cmd):
             biomass component=TOTAL landType=timber
         """
         # Handle 'biomass help' syntax
-        if arg.strip().lower() == 'help':
-            self.do_help('biomass')
+        if arg.strip().lower() == "help":
+            self.do_help("biomass")
             return
 
         if not self._check_connection():
@@ -528,7 +645,7 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Calculating biomass...", total=None)
                 result = self.fia.biomass(**kwargs)
@@ -554,8 +671,8 @@ class FIADirectCLI(cmd.Cmd):
             volume volType=SOUND landType=timber
         """
         # Handle 'volume help' syntax
-        if arg.strip().lower() == 'help':
-            self.do_help('volume')
+        if arg.strip().lower() == "help":
+            self.do_help("volume")
             return
 
         if not self._check_connection():
@@ -568,7 +685,7 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Calculating volume...", total=None)
                 result = self.fia.volume(**kwargs)
@@ -594,8 +711,8 @@ class FIADirectCLI(cmd.Cmd):
             tpa bySizeClass landType=timber
         """
         # Handle 'tpa help' syntax
-        if arg.strip().lower() == 'help':
-            self.do_help('tpa')
+        if arg.strip().lower() == "help":
+            self.do_help("tpa")
             return
 
         if not self._check_connection():
@@ -608,7 +725,7 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Calculating trees per acre...", total=None)
                 result = self.fia.tpa(**kwargs)
@@ -634,8 +751,8 @@ class FIADirectCLI(cmd.Cmd):
             mortality grpBy=AGENTCD
         """
         # Handle 'mortality help' syntax
-        if arg.strip().lower() == 'help':
-            self.do_help('mortality')
+        if arg.strip().lower() == "help":
+            self.do_help("mortality")
             return
 
         if not self._check_connection():
@@ -648,7 +765,7 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Calculating mortality...", total=None)
                 result = self.fia.mortality(**kwargs)
@@ -669,18 +786,20 @@ class FIADirectCLI(cmd.Cmd):
             show n=50       - Show more rows
         """
         if not self.last_result:
-            self.console.print("[yellow]No results to show. Run an estimation command first.[/yellow]")
+            self.console.print(
+                "[yellow]No results to show. Run an estimation command first.[/yellow]"
+            )
             return
 
         try:
             if not arg:
                 self._display_dataframe(self.last_result, "Last Result")
-            elif arg == 'stats':
+            elif arg == "stats":
                 self._show_stats()
-            elif arg == 'columns':
+            elif arg == "columns":
                 self._show_columns()
-            elif arg.startswith('n='):
-                n = int(arg.split('=')[1])
+            elif arg.startswith("n="):
+                n = int(arg.split("=")[1])
                 self._display_dataframe(self.last_result, "Last Result", max_rows=n)
             else:
                 self.console.print(f"[red]Unknown option: {arg}[/red]")
@@ -693,8 +812,11 @@ class FIADirectCLI(cmd.Cmd):
         df = self.last_result
 
         # Get numeric columns
-        numeric_cols = [col for col in df.columns
-                       if df[col].dtype in [pl.Float32, pl.Float64, pl.Int32, pl.Int64]]
+        numeric_cols = [
+            col
+            for col in df.columns
+            if df[col].dtype in [pl.Float32, pl.Float64, pl.Int32, pl.Int64]
+        ]
 
         if not numeric_cols:
             self.console.print("[yellow]No numeric columns to summarize[/yellow]")
@@ -713,7 +835,7 @@ class FIADirectCLI(cmd.Cmd):
                 f"{df[col].mean():.2f}" if df[col].mean() is not None else "N/A",
                 f"{df[col].std():.2f}" if df[col].std() is not None else "N/A",
                 f"{df[col].min():.2f}" if df[col].min() is not None else "N/A",
-                f"{df[col].max():.2f}" if df[col].max() is not None else "N/A"
+                f"{df[col].max():.2f}" if df[col].max() is not None else "N/A",
             )
 
         self.console.print(stats_table)
@@ -728,11 +850,7 @@ class FIADirectCLI(cmd.Cmd):
         col_table.add_column("Non-null Count", style="yellow")
 
         for col in df.columns:
-            col_table.add_row(
-                col,
-                str(df[col].dtype),
-                str(df[col].count())
-            )
+            col_table.add_row(col, str(df[col].dtype), str(df[col].count()))
 
         self.console.print(col_table)
 
@@ -744,7 +862,9 @@ class FIADirectCLI(cmd.Cmd):
             export results.xlsx         - Export to Excel (requires openpyxl)
         """
         if not self.last_result:
-            self.console.print("[yellow]No results to export. Run an estimation command first.[/yellow]")
+            self.console.print(
+                "[yellow]No results to export. Run an estimation command first.[/yellow]"
+            )
             return
 
         if not arg:
@@ -757,23 +877,29 @@ class FIADirectCLI(cmd.Cmd):
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
-                task = progress.add_task(f"Exporting to {filename.suffix}...", total=None)
+                task = progress.add_task(
+                    f"Exporting to {filename.suffix}...", total=None
+                )
 
-                if filename.suffix.lower() == '.csv':
+                if filename.suffix.lower() == ".csv":
                     self.last_result.write_csv(filename)
-                elif filename.suffix.lower() == '.parquet':
+                elif filename.suffix.lower() == ".parquet":
                     self.last_result.write_parquet(filename)
-                elif filename.suffix.lower() == '.xlsx':
+                elif filename.suffix.lower() == ".xlsx":
                     self.last_result.write_excel(filename)
                 else:
-                    self.console.print("[red]Error: Unsupported format. Use .csv, .parquet, or .xlsx[/red]")
+                    self.console.print(
+                        "[red]Error: Unsupported format. Use .csv, .parquet, or .xlsx[/red]"
+                    )
                     return
 
                 progress.update(task, completed=True)
 
-            self.console.print(f"[green]✓ Exported {len(self.last_result)} rows to: {filename}[/green]")
+            self.console.print(
+                f"[green]✓ Exported {len(self.last_result)} rows to: {filename}[/green]"
+            )
 
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
@@ -796,7 +922,9 @@ class FIADirectCLI(cmd.Cmd):
             if 0 <= idx < len(recent):
                 self.do_connect(recent[idx])
             else:
-                self.console.print(f"[red]Invalid selection. Choose 1-{len(recent)}[/red]")
+                self.console.print(
+                    f"[red]Invalid selection. Choose 1-{len(recent)}[/red]"
+                )
         else:
             # Show recent databases
             table = Table(title="Recent Databases", box=box.ROUNDED)
@@ -837,16 +965,18 @@ class FIADirectCLI(cmd.Cmd):
 
             self.console.print(table)
 
-        elif args[0] == 'add' and len(args) == 3:
+        elif args[0] == "add" and len(args) == 3:
             # Add shortcut
             state, path = args[1].upper(), args[2]
             if Path(path).exists():
                 self.config.add_state_shortcut(state, path)
-                self.console.print(f"[green]✓ Added shortcut: {state} → {Path(path).name}[/green]")
+                self.console.print(
+                    f"[green]✓ Added shortcut: {state} → {Path(path).name}[/green]"
+                )
             else:
                 self.console.print(f"[red]Error: Database not found: {path}[/red]")
 
-        elif args[0] == 'remove' and len(args) == 2:
+        elif args[0] == "remove" and len(args) == 2:
             # Remove shortcut
             state = args[1].upper()
             if self.config.remove_state_shortcut(state):
@@ -871,7 +1001,7 @@ class FIADirectCLI(cmd.Cmd):
             setdefault <path>       - Set specific database as default
             setdefault none         - Clear default database
         """
-        if arg.strip() == 'none':
+        if arg.strip() == "none":
             self.config.default_database = None
             self.config.save_config()
             self.console.print("[yellow]Default database cleared[/yellow]")
@@ -880,19 +1010,23 @@ class FIADirectCLI(cmd.Cmd):
             path = Path(arg.strip())
             if path.exists():
                 self.config.default_database = str(path)
-                self.console.print(f"[green]✓ Default database set to: {path.name}[/green]")
+                self.console.print(
+                    f"[green]✓ Default database set to: {path.name}[/green]"
+                )
             else:
                 self.console.print(f"[red]Error: Database not found: {path}[/red]")
         elif self.db_path:
             # Set current database as default
             self.config.default_database = str(self.db_path)
-            self.console.print(f"[green]✓ Default database set to: {self.db_path.name}[/green]")
+            self.console.print(
+                f"[green]✓ Default database set to: {self.db_path.name}[/green]"
+            )
         else:
             self.console.print("[red]No database connected[/red]")
 
     def do_clear(self, arg: str):
         """Clear the screen."""
-        os.system('clear' if os.name == 'posix' else 'cls')
+        os.system("clear" if os.name == "posix" else "cls")
 
     def do_exit(self, arg: str):
         """Exit pyFIA CLI."""
@@ -906,8 +1040,8 @@ class FIADirectCLI(cmd.Cmd):
 
     def default(self, line: str):
         """Handle unknown commands."""
-        if line.strip() == '?':
-            self.do_help('')
+        if line.strip() == "?":
+            self.do_help("")
         else:
             self.console.print(f"[red]Unknown command: {line}[/red]")
             self.console.print("Type 'help' for available commands.")
@@ -917,16 +1051,18 @@ class FIADirectCLI(cmd.Cmd):
         if arg:
             # Show help for specific command
             try:
-                func = getattr(self, 'do_' + arg)
+                func = getattr(self, "do_" + arg)
                 doc = func.__doc__ or "No help available"
                 # Format the docstring nicely
-                lines = doc.strip().split('\n')
+                lines = doc.strip().split("\n")
                 formatted_lines = [line.strip() for line in lines]
-                self.console.print(Panel(
-                    '\n'.join(formatted_lines),
-                    title=f"Help: {arg}",
-                    border_style="blue"
-                ))
+                self.console.print(
+                    Panel(
+                        "\n".join(formatted_lines),
+                        title=f"Help: {arg}",
+                        border_style="blue",
+                    )
+                )
             except AttributeError:
                 self.console.print(f"[red]Unknown command: {arg}[/red]")
         else:
@@ -937,7 +1073,9 @@ class FIADirectCLI(cmd.Cmd):
             self.console.print("[bold yellow]Database Commands:[/bold yellow]")
             self.console.print("  connect <path>     - Connect to FIA DuckDB database")
             self.console.print("  evalid             - Manage EVALID selection")
-            self.console.print("  recent             - Show/connect to recent databases")
+            self.console.print(
+                "  recent             - Show/connect to recent databases"
+            )
             self.console.print("  shortcut           - Manage state shortcuts")
             self.console.print()
 
@@ -987,29 +1125,113 @@ class FIADirectCLI(cmd.Cmd):
         """
         # State mappings
         state_abbr_to_code = {
-            "AL": 1, "AK": 2, "AZ": 4, "AR": 5, "CA": 6, "CO": 8, "CT": 9,
-            "DE": 10, "FL": 12, "GA": 13, "HI": 15, "ID": 16, "IL": 17, "IN": 18,
-            "IA": 19, "KS": 20, "KY": 21, "LA": 22, "ME": 23, "MD": 24, "MA": 25,
-            "MI": 26, "MN": 27, "MS": 28, "MO": 29, "MT": 30, "NE": 31, "NV": 32,
-            "NH": 33, "NJ": 34, "NM": 35, "NY": 36, "NC": 37, "ND": 38, "OH": 39,
-            "OK": 40, "OR": 41, "PA": 42, "RI": 44, "SC": 45, "SD": 46, "TN": 47,
-            "TX": 48, "UT": 49, "VT": 50, "VA": 51, "WA": 53, "WV": 54, "WI": 55,
-            "WY": 56, "PR": 72, "VI": 78
+            "AL": 1,
+            "AK": 2,
+            "AZ": 4,
+            "AR": 5,
+            "CA": 6,
+            "CO": 8,
+            "CT": 9,
+            "DE": 10,
+            "FL": 12,
+            "GA": 13,
+            "HI": 15,
+            "ID": 16,
+            "IL": 17,
+            "IN": 18,
+            "IA": 19,
+            "KS": 20,
+            "KY": 21,
+            "LA": 22,
+            "ME": 23,
+            "MD": 24,
+            "MA": 25,
+            "MI": 26,
+            "MN": 27,
+            "MS": 28,
+            "MO": 29,
+            "MT": 30,
+            "NE": 31,
+            "NV": 32,
+            "NH": 33,
+            "NJ": 34,
+            "NM": 35,
+            "NY": 36,
+            "NC": 37,
+            "ND": 38,
+            "OH": 39,
+            "OK": 40,
+            "OR": 41,
+            "PA": 42,
+            "RI": 44,
+            "SC": 45,
+            "SD": 46,
+            "TN": 47,
+            "TX": 48,
+            "UT": 49,
+            "VT": 50,
+            "VA": 51,
+            "WA": 53,
+            "WV": 54,
+            "WI": 55,
+            "WY": 56,
+            "PR": 72,
+            "VI": 78,
         }
 
         state_name_to_code = {
-            "alabama": 1, "alaska": 2, "arizona": 4, "arkansas": 5, "california": 6,
-            "colorado": 8, "connecticut": 9, "delaware": 10, "florida": 12, "georgia": 13,
-            "hawaii": 15, "idaho": 16, "illinois": 17, "indiana": 18, "iowa": 19,
-            "kansas": 20, "kentucky": 21, "louisiana": 22, "maine": 23, "maryland": 24,
-            "massachusetts": 25, "michigan": 26, "minnesota": 27, "mississippi": 28,
-            "missouri": 29, "montana": 30, "nebraska": 31, "nevada": 32, "new hampshire": 33,
-            "new jersey": 34, "new mexico": 35, "new york": 36, "north carolina": 37,
-            "north dakota": 38, "ohio": 39, "oklahoma": 40, "oregon": 41, "pennsylvania": 42,
-            "rhode island": 44, "south carolina": 45, "south dakota": 46, "tennessee": 47,
-            "texas": 48, "utah": 49, "vermont": 50, "virginia": 51, "washington": 53,
-            "west virginia": 54, "wisconsin": 55, "wyoming": 56, "puerto rico": 72,
-            "virgin islands": 78
+            "alabama": 1,
+            "alaska": 2,
+            "arizona": 4,
+            "arkansas": 5,
+            "california": 6,
+            "colorado": 8,
+            "connecticut": 9,
+            "delaware": 10,
+            "florida": 12,
+            "georgia": 13,
+            "hawaii": 15,
+            "idaho": 16,
+            "illinois": 17,
+            "indiana": 18,
+            "iowa": 19,
+            "kansas": 20,
+            "kentucky": 21,
+            "louisiana": 22,
+            "maine": 23,
+            "maryland": 24,
+            "massachusetts": 25,
+            "michigan": 26,
+            "minnesota": 27,
+            "mississippi": 28,
+            "missouri": 29,
+            "montana": 30,
+            "nebraska": 31,
+            "nevada": 32,
+            "new hampshire": 33,
+            "new jersey": 34,
+            "new mexico": 35,
+            "new york": 36,
+            "north carolina": 37,
+            "north dakota": 38,
+            "ohio": 39,
+            "oklahoma": 40,
+            "oregon": 41,
+            "pennsylvania": 42,
+            "rhode island": 44,
+            "south carolina": 45,
+            "south dakota": 46,
+            "tennessee": 47,
+            "texas": 48,
+            "utah": 49,
+            "vermont": 50,
+            "virginia": 51,
+            "washington": 53,
+            "west virginia": 54,
+            "wisconsin": 55,
+            "wyoming": 56,
+            "puerto rico": 72,
+            "virgin islands": 78,
         }
 
         # Remove quotes if present
@@ -1043,21 +1265,29 @@ class FIADirectCLI(cmd.Cmd):
             return kwargs
 
         # Handle boolean flags
-        for flag in ['bySpecies', 'bySizeClass', 'byLandType', 'mostRecent', 'totals', 'variance']:
+        for flag in [
+            "bySpecies",
+            "bySizeClass",
+            "byLandType",
+            "mostRecent",
+            "totals",
+            "variance",
+        ]:
             if flag in arg:
                 kwargs[flag] = True
-                arg = arg.replace(flag, '')
+                arg = arg.replace(flag, "")
 
         # Parse key=value pairs
         import shlex
+
         try:
             parts = shlex.split(arg)
         except ValueError:
             parts = arg.split()
 
         for part in parts:
-            if '=' in part:
-                key, value = part.split('=', 1)
+            if "=" in part:
+                key, value = part.split("=", 1)
                 # Handle quoted strings
                 if value.startswith('"') and value.endswith('"'):
                     value = value[1:-1]
@@ -1079,15 +1309,15 @@ class FIADirectCLI(cmd.Cmd):
     def _convert_kwargs_to_snake_case(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
         """Convert camelCase kwargs to snake_case for FIA functions."""
         conversions = {
-            'byLandType': 'by_land_type',
-            'bySpecies': 'by_species',
-            'bySizeClass': 'by_size_class',
-            'landType': 'land_type',
-            'treeDomain': 'tree_domain',
-            'areaDomain': 'area_domain',
-            'treeType': 'tree_type',
-            'volType': 'vol_type',
-            'mostRecent': 'most_recent'
+            "byLandType": "by_land_type",
+            "bySpecies": "by_species",
+            "bySizeClass": "by_size_class",
+            "landType": "land_type",
+            "treeDomain": "tree_domain",
+            "areaDomain": "area_domain",
+            "treeType": "tree_type",
+            "volType": "vol_type",
+            "mostRecent": "most_recent",
         }
 
         for camel, snake in conversions.items():
@@ -1134,7 +1364,9 @@ class FIADirectCLI(cmd.Cmd):
         self.console.print(table)
 
         if len(df) > max_rows:
-            self.console.print(f"[dim]Showing {max_rows} of {len(df)} rows. Use 'export' to save all data.[/dim]")
+            self.console.print(
+                f"[dim]Showing {max_rows} of {len(df)} rows. Use 'export' to save all data.[/dim]"
+            )
 
     def _display_results(self, result: pl.DataFrame, title: str):
         """Display estimation results with proper formatting."""
@@ -1143,8 +1375,8 @@ class FIADirectCLI(cmd.Cmd):
             return
 
         # Check for standard estimation columns
-        any(col in result.columns for col in ['ESTIMATE', 'TOTAL', 'TPA', 'BIOMASS_AG'])
-        any(col in result.columns for col in ['SE', 'SE_PERCENT', 'VAR'])
+        any(col in result.columns for col in ["ESTIMATE", "TOTAL", "TPA", "BIOMASS_AG"])
+        any(col in result.columns for col in ["SE", "SE_PERCENT", "VAR"])
 
         self._display_dataframe(result, title)
 
@@ -1152,36 +1384,40 @@ class FIADirectCLI(cmd.Cmd):
         explanations = []
 
         # Area-specific explanations
-        if 'AREA' in result.columns:
+        if "AREA" in result.columns:
             explanations.append("AREA = Total acres")
-        if 'AREA_PERC' in result.columns:
-            if 'LAND_TYPE' in result.columns:
+        if "AREA_PERC" in result.columns:
+            if "LAND_TYPE" in result.columns:
                 explanations.append("AREA_PERC = Percentage of total land area")
             else:
-                explanations.append("AREA_PERC = Forest/criteria area as % of total land")
+                explanations.append(
+                    "AREA_PERC = Forest/criteria area as % of total land"
+                )
 
         # Standard error explanations
-        if 'SE' in result.columns:
+        if "SE" in result.columns:
             explanations.append("SE = Standard Error")
-        if 'SE_PERCENT' in result.columns:
+        if "SE_PERCENT" in result.columns:
             explanations.append("SE% = Standard Error as % of estimate")
-        if 'AREA_SE' in result.columns:
+        if "AREA_SE" in result.columns:
             explanations.append("AREA_SE = Standard Error of area estimate")
-        if 'AREA_PERC_SE' in result.columns:
+        if "AREA_PERC_SE" in result.columns:
             explanations.append("AREA_PERC_SE = Standard Error of percentage")
 
         # Other columns
-        if 'N_PLOTS' in result.columns:
+        if "N_PLOTS" in result.columns:
             explanations.append("N_PLOTS = Number of plots used")
-        if 'nPlots' in result.columns:
+        if "nPlots" in result.columns:
             explanations.append("nPlots = Number of plots used")
 
         if explanations:
             self.console.print(f"\n[dim]{', '.join(explanations)}[/dim]")
 
         # Add interpretation help for area results
-        if 'AREA_PERC' in result.columns and 'LAND_TYPE' in result.columns:
-            self.console.print("\n[dim]Note: Percentages show each land type as a portion of total evaluated land area[/dim]")
+        if "AREA_PERC" in result.columns and "LAND_TYPE" in result.columns:
+            self.console.print(
+                "\n[dim]Note: Percentages show each land type as a portion of total evaluated land area[/dim]"
+            )
 
 
 def main():
@@ -1192,9 +1428,7 @@ def main():
         description="pyFIA Direct CLI - Programmatic access to FIA estimation methods"
     )
     parser.add_argument(
-        'database',
-        nargs='?',
-        help='Path to FIA database (optional if default is set)'
+        "database", nargs="?", help="Path to FIA database (optional if default is set)"
     )
 
     args = parser.parse_args()
@@ -1207,6 +1441,7 @@ def main():
     except Exception as e:
         Console().print(f"[red]Fatal error: {e}[/red]")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

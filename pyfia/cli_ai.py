@@ -20,6 +20,7 @@ from typing import Optional
 # Load environment variables
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -57,9 +58,11 @@ class FIAAICli(cmd.Cmd):
         self.agent = None
 
         # Check API key
-        self.api_key = os.environ.get('OPENAI_API_KEY')
+        self.api_key = os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
-            self.console.print("[yellow]Warning: OPENAI_API_KEY not set. Some features will be limited.[/yellow]")
+            self.console.print(
+                "[yellow]Warning: OPENAI_API_KEY not set. Some features will be limited.[/yellow]"
+            )
 
         # Setup command history
         self._setup_history()
@@ -130,12 +133,14 @@ Natural language interface for Forest Inventory Analysis data.
         if self.db_path:
             status_items.append(f"DB: {self.db_path.name}")
 
-        self.console.print(Panel(
-            Markdown(welcome_text),
-            title="pyFIA AI Assistant",
-            subtitle=f"[dim]{' | '.join(status_items)}[/dim]",
-            border_style="blue"
-        ))
+        self.console.print(
+            Panel(
+                Markdown(welcome_text),
+                title="pyFIA AI Assistant",
+                subtitle=f"[dim]{' | '.join(status_items)}[/dim]",
+                border_style="blue",
+            )
+        )
 
     def do_connect(self, arg: str):
         """Connect to FIA database.
@@ -154,7 +159,7 @@ Natural language interface for Forest Inventory Analysis data.
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Connecting to database...", total=None)
 
@@ -184,21 +189,21 @@ Natural language interface for Forest Inventory Analysis data.
         try:
             if self.agent_type == "cognee":
                 from pyfia.cognee_fia_agent import CogneeFIAAgent
+
                 self.agent = CogneeFIAAgent(self.db_path)
                 self.console.print("[green]✓ Cognee AI agent initialized[/green]")
 
             elif self.agent_type == "enhanced":
                 from pyfia.ai_agent_enhanced import FIAAgentConfig, FIAAgentEnhanced
+
                 config = FIAAgentConfig(db_path=self.db_path)
                 self.agent = FIAAgentEnhanced(config)
                 self.console.print("[green]✓ Enhanced AI agent initialized[/green]")
 
             else:  # basic
                 from pyfia.ai_agent import FIAAgent, FIAAgentConfig
-                config = FIAAgentConfig(
-                    db_path=self.db_path,
-                    api_key=self.api_key
-                )
+
+                config = FIAAgentConfig(db_path=self.db_path, api_key=self.api_key)
                 self.agent = FIAAgent(self.db_path, config)
                 self.console.print("[green]✓ Basic AI agent initialized[/green]")
 
@@ -231,7 +236,9 @@ Natural language interface for Forest Inventory Analysis data.
             # Get largest tables
             table_sizes = [(name, info.row_count) for name, info in schema.items()]
             table_sizes.sort(key=lambda x: x[1], reverse=True)
-            top_tables = ", ".join([f"{name} ({count:,})" for name, count in table_sizes[:3]])
+            top_tables = ", ".join(
+                [f"{name} ({count:,})" for name, count in table_sizes[:3]]
+            )
             info_table.add_row("Largest Tables", top_tables)
 
             self.console.print(info_table)
@@ -246,7 +253,7 @@ Natural language interface for Forest Inventory Analysis data.
             return
 
         # Check for SQL prefix
-        if line.lower().startswith('sql:') or line.upper().startswith('SQL '):
+        if line.lower().startswith("sql:") or line.upper().startswith("SQL "):
             sql_query = line[4:].strip()
             self._execute_sql(sql_query)
         else:
@@ -259,13 +266,19 @@ Natural language interface for Forest Inventory Analysis data.
             return
 
         if not self.api_key:
-            self.console.print("[yellow]Natural language queries require an OpenAI API key.[/yellow]")
+            self.console.print(
+                "[yellow]Natural language queries require an OpenAI API key.[/yellow]"
+            )
             self.console.print("Set: export OPENAI_API_KEY='your-key'")
-            self.console.print("\n[dim]You can still use 'sql:' prefix for direct SQL queries[/dim]")
+            self.console.print(
+                "\n[dim]You can still use 'sql:' prefix for direct SQL queries[/dim]"
+            )
             return
 
         if not self.agent:
-            self.console.print("[yellow]AI agent not initialized. Trying to initialize now...[/yellow]")
+            self.console.print(
+                "[yellow]AI agent not initialized. Trying to initialize now...[/yellow]"
+            )
             self._initialize_agent()
             if not self.agent:
                 return
@@ -274,7 +287,7 @@ Natural language interface for Forest Inventory Analysis data.
             with Progress(
                 SpinnerColumn(),
                 TextColumn("[progress.description]{task.description}"),
-                console=self.console
+                console=self.console,
             ) as progress:
                 task = progress.add_task("Processing query...", total=None)
 
@@ -285,7 +298,9 @@ Natural language interface for Forest Inventory Analysis data.
                     result = self.agent.query(query)
                     if isinstance(result, pl.DataFrame):
                         self.last_result = result
-                        response = f"Query executed successfully. Found {len(result)} results."
+                        response = (
+                            f"Query executed successfully. Found {len(result)} results."
+                        )
                     else:
                         response = str(result)
 
@@ -304,7 +319,9 @@ Natural language interface for Forest Inventory Analysis data.
                     sql_part = parts[i].split("```")[0]
                     remaining = parts[i].split("```")[1] if "```" in parts[i] else ""
 
-                    syntax = Syntax(sql_part.strip(), "sql", theme="monokai", line_numbers=False)
+                    syntax = Syntax(
+                        sql_part.strip(), "sql", theme="monokai", line_numbers=False
+                    )
                     self.console.print(syntax)
 
                     if remaining:
@@ -314,15 +331,21 @@ Natural language interface for Forest Inventory Analysis data.
 
             # If we have results, display them
             if self.last_result is not None and not self.last_result.is_empty():
-                self.console.print(f"\n[green]Query returned {len(self.last_result)} rows[/green]")
+                self.console.print(
+                    f"\n[green]Query returned {len(self.last_result)} rows[/green]"
+                )
                 self._display_dataframe(self.last_result, max_rows=10)
 
             # Add to history
-            self.query_history.append({
-                "type": "natural",
-                "question": query,
-                "response": response[:200] + "..." if len(response) > 200 else response
-            })
+            self.query_history.append(
+                {
+                    "type": "natural",
+                    "question": query,
+                    "response": response[:200] + "..."
+                    if len(response) > 200
+                    else response,
+                }
+            )
 
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
@@ -345,16 +368,16 @@ Natural language interface for Forest Inventory Analysis data.
             if result.is_empty():
                 self.console.print("\n[yellow]No results found.[/yellow]")
             else:
-                self.console.print(f"\n[green]Query returned {len(result)} rows[/green]")
+                self.console.print(
+                    f"\n[green]Query returned {len(result)} rows[/green]"
+                )
                 self.last_result = result
                 self._display_dataframe(result)
 
                 # Add to history
-                self.query_history.append({
-                    "type": "sql",
-                    "query": query,
-                    "rows": len(result)
-                })
+                self.query_history.append(
+                    {"type": "sql", "query": query, "rows": len(result)}
+                )
 
         except Exception as e:
             self.console.print(f"\n[red]Query error: {e}[/red]")
@@ -371,7 +394,7 @@ Natural language interface for Forest Inventory Analysis data.
 
         args = arg.strip().split()
         table_name = args[0].upper() if args else None
-        show_sample = len(args) > 1 and args[1].lower() == 'sample'
+        show_sample = len(args) > 1 and args[1].lower() == "sample"
 
         try:
             if table_name:
@@ -399,13 +422,13 @@ Natural language interface for Forest Inventory Analysis data.
 
         for col in info.columns[:30]:
             col_table.add_row(
-                col['name'],
-                col['type'],
-                "Yes" if col.get('nullable', True) else "No"
+                col["name"], col["type"], "Yes" if col.get("nullable", True) else "No"
             )
 
         if len(info.columns) > 30:
-            col_table.add_row("...", f"[dim]+{len(info.columns) - 30} more[/dim]", "...")
+            col_table.add_row(
+                "...", f"[dim]+{len(info.columns) - 30} more[/dim]", "..."
+            )
 
         self.console.print(col_table)
 
@@ -420,28 +443,30 @@ Natural language interface for Forest Inventory Analysis data.
 
         # Group tables
         categories = {
-            'Core': ['PLOT', 'TREE', 'COND', 'SUBPLOT'],
-            'Population': ['POP_EVAL', 'POP_STRATUM', 'POP_PLOT_STRATUM_ASSGN'],
-            'Reference': ['REF_SPECIES', 'REF_FOREST_TYPE'],
-            'Other': []
+            "Core": ["PLOT", "TREE", "COND", "SUBPLOT"],
+            "Population": ["POP_EVAL", "POP_STRATUM", "POP_PLOT_STRATUM_ASSGN"],
+            "Reference": ["REF_SPECIES", "REF_FOREST_TYPE"],
+            "Other": [],
         }
 
         # Categorize
         categorized = set()
         for category in categories:
-            if category != 'Other':
+            if category != "Other":
                 for table in categories[category]:
                     if table in schema:
                         categorized.add(table)
 
-        categories['Other'] = [t for t in schema if t not in categorized]
+        categories["Other"] = [t for t in schema if t not in categorized]
 
         # Display
         for category, tables in categories.items():
             if not tables:
                 continue
 
-            cat_table = Table(title=f"{category} Tables", show_lines=True, box=box.SIMPLE)
+            cat_table = Table(
+                title=f"{category} Tables", show_lines=True, box=box.SIMPLE
+            )
             cat_table.add_column("Table", style="cyan")
             cat_table.add_column("Rows", style="green", justify="right")
 
@@ -467,10 +492,13 @@ Natural language interface for Forest Inventory Analysis data.
             # Filter if search term provided
             if arg:
                 search = arg.lower()
-                evalid_info = {k: v for k, v in evalid_info.items()
-                             if search in str(k).lower() or
-                             search in v.state_name.lower() or
-                             search in v.eval_typ.lower()}
+                evalid_info = {
+                    k: v
+                    for k, v in evalid_info.items()
+                    if search in str(k).lower()
+                    or search in v.state_name.lower()
+                    or search in v.eval_typ.lower()
+                }
 
             if not evalid_info:
                 self.console.print("[yellow]No evaluations found[/yellow]")
@@ -490,13 +518,15 @@ Natural language interface for Forest Inventory Analysis data.
                     info.state_name,
                     str(info.end_year),
                     info.eval_typ,
-                    f"{info.plot_count:,}"
+                    f"{info.plot_count:,}",
                 )
 
             self.console.print(eval_table)
 
             if len(evalid_info) > 50:
-                self.console.print(f"[dim]Showing 50 of {len(evalid_info)} evaluations[/dim]")
+                self.console.print(
+                    f"[dim]Showing 50 of {len(evalid_info)} evaluations[/dim]"
+                )
 
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
@@ -507,7 +537,7 @@ Natural language interface for Forest Inventory Analysis data.
             history         - Show recent queries
             history clear   - Clear history
         """
-        if arg.strip() == 'clear':
+        if arg.strip() == "clear":
             self.query_history.clear()
             self.console.print("[yellow]Query history cleared[/yellow]")
             return
@@ -527,15 +557,19 @@ Natural language interface for Forest Inventory Analysis data.
                 hist_table.add_row(
                     str(i),
                     "SQL",
-                    item["query"][:60] + "..." if len(item["query"]) > 60 else item["query"],
-                    f"{item['rows']} rows"
+                    item["query"][:60] + "..."
+                    if len(item["query"]) > 60
+                    else item["query"],
+                    f"{item['rows']} rows",
                 )
             else:
                 hist_table.add_row(
                     str(i),
                     "Natural",
-                    item["question"][:60] + "..." if len(item["question"]) > 60 else item["question"],
-                    "Answered"
+                    item["question"][:60] + "..."
+                    if len(item["question"]) > 60
+                    else item["question"],
+                    "Answered",
                 )
 
         self.console.print(hist_table)
@@ -547,7 +581,9 @@ Natural language interface for Forest Inventory Analysis data.
             export results.parquet  - Export to Parquet
         """
         if not self.last_result:
-            self.console.print("[yellow]No results to export. Run a query first.[/yellow]")
+            self.console.print(
+                "[yellow]No results to export. Run a query first.[/yellow]"
+            )
             return
 
         if not arg:
@@ -557,15 +593,19 @@ Natural language interface for Forest Inventory Analysis data.
         try:
             filename = Path(arg.strip())
 
-            if filename.suffix.lower() == '.csv':
+            if filename.suffix.lower() == ".csv":
                 self.last_result.write_csv(filename)
-            elif filename.suffix.lower() == '.parquet':
+            elif filename.suffix.lower() == ".parquet":
                 self.last_result.write_parquet(filename)
             else:
-                self.console.print("[red]Error: Unsupported format. Use .csv or .parquet[/red]")
+                self.console.print(
+                    "[red]Error: Unsupported format. Use .csv or .parquet[/red]"
+                )
                 return
 
-            self.console.print(f"[green]✓ Exported {len(self.last_result)} rows to: {filename}[/green]")
+            self.console.print(
+                f"[green]✓ Exported {len(self.last_result)} rows to: {filename}[/green]"
+            )
 
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
@@ -577,7 +617,9 @@ Natural language interface for Forest Inventory Analysis data.
             show 50     - Show more rows
         """
         if not self.last_result:
-            self.console.print("[yellow]No results to show. Run a query first.[/yellow]")
+            self.console.print(
+                "[yellow]No results to show. Run a query first.[/yellow]"
+            )
             return
 
         try:
@@ -599,8 +641,10 @@ Natural language interface for Forest Inventory Analysis data.
             return
 
         agent_type = arg.strip().lower()
-        if agent_type not in ['basic', 'enhanced', 'cognee']:
-            self.console.print("[red]Invalid agent type. Choose: basic, enhanced, or cognee[/red]")
+        if agent_type not in ["basic", "enhanced", "cognee"]:
+            self.console.print(
+                "[red]Invalid agent type. Choose: basic, enhanced, or cognee[/red]"
+            )
             return
 
         self.agent_type = agent_type
@@ -610,18 +654,22 @@ Natural language interface for Forest Inventory Analysis data.
             self._initialize_agent()
         else:
             self.console.print(f"[yellow]Agent type set to: {agent_type}[/yellow]")
-            self.console.print("[yellow]Connect to a database to initialize the agent[/yellow]")
+            self.console.print(
+                "[yellow]Connect to a database to initialize the agent[/yellow]"
+            )
 
     def do_help(self, arg: str):
         """Show help information."""
         if arg:
             try:
-                func = getattr(self, 'do_' + arg)
-                self.console.print(Panel(
-                    func.__doc__ or "No help available",
-                    title=f"Help: {arg}",
-                    border_style="blue"
-                ))
+                func = getattr(self, "do_" + arg)
+                self.console.print(
+                    Panel(
+                        func.__doc__ or "No help available",
+                        title=f"Help: {arg}",
+                        border_style="blue",
+                    )
+                )
             except AttributeError:
                 self.console.print(f"[red]Unknown command: {arg}[/red]")
         else:
@@ -652,15 +700,17 @@ Use `sql:` prefix for direct SQL:
 • Use tab completion for commands
 • Query results are automatically formatted
 """
-            self.console.print(Panel(
-                Markdown(help_text),
-                title="pyFIA AI Assistant Help",
-                border_style="blue"
-            ))
+            self.console.print(
+                Panel(
+                    Markdown(help_text),
+                    title="pyFIA AI Assistant Help",
+                    border_style="blue",
+                )
+            )
 
     def do_clear(self, arg: str):
         """Clear the screen."""
-        os.system('clear' if os.name == 'posix' else 'cls')
+        os.system("clear" if os.name == "posix" else "cls")
 
     def do_exit(self, arg: str):
         """Exit the AI CLI."""
@@ -716,7 +766,9 @@ Use `sql:` prefix for direct SQL:
         self.console.print(table)
 
         if len(df) > max_rows:
-            self.console.print(f"[dim]Showing {max_rows} of {len(df)} rows. Use 'export' to save all.[/dim]")
+            self.console.print(
+                f"[dim]Showing {max_rows} of {len(df)} rows. Use 'export' to save all.[/dim]"
+            )
 
 
 def main():
@@ -726,27 +778,22 @@ def main():
     parser = argparse.ArgumentParser(
         description="pyFIA AI Assistant - Natural language interface for FIA data"
     )
+    parser.add_argument("database", nargs="?", help="Path to FIA database")
     parser.add_argument(
-        'database',
-        nargs='?',
-        help='Path to FIA database'
+        "--agent",
+        choices=["basic", "enhanced", "cognee"],
+        default="basic",
+        help="AI agent type to use",
     )
     parser.add_argument(
-        '--agent',
-        choices=['basic', 'enhanced', 'cognee'],
-        default='basic',
-        help='AI agent type to use'
-    )
-    parser.add_argument(
-        '--api-key',
-        help='OpenAI API key (or set OPENAI_API_KEY env var)'
+        "--api-key", help="OpenAI API key (or set OPENAI_API_KEY env var)"
     )
 
     args = parser.parse_args()
 
     # Set API key if provided
     if args.api_key:
-        os.environ['OPENAI_API_KEY'] = args.api_key
+        os.environ["OPENAI_API_KEY"] = args.api_key
 
     try:
         cli = FIAAICli(args.database, args.agent)
@@ -756,6 +803,7 @@ def main():
     except Exception as e:
         Console().print(f"[red]Fatal error: {e}[/red]")
         import traceback
+
         traceback.print_exc()
         sys.exit(1)
 

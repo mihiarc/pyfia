@@ -15,6 +15,7 @@ from typing import Annotated, Any, Dict, List, Optional, Union
 # Load environment variables
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     # python-dotenv not available, skip loading
@@ -37,27 +38,46 @@ from .duckdb_query_interface import DuckDBQueryInterface
 # Pydantic models for structured outputs
 class QueryRequest(BaseModel):
     """Structured query request from user."""
-    natural_language_query: str = Field(description="User's natural language query about forest data")
-    query_type: str = Field(description="Type of query: 'data_retrieval', 'analysis', 'schema_info'")
-    specific_tables: Optional[List[str]] = Field(description="Specific tables mentioned or inferred")
-    temporal_scope: Optional[str] = Field(description="Time period mentioned (e.g., 'recent', '2020', 'latest')")
-    geographic_scope: Optional[str] = Field(description="Geographic area mentioned (state, region, etc.)")
+
+    natural_language_query: str = Field(
+        description="User's natural language query about forest data"
+    )
+    query_type: str = Field(
+        description="Type of query: 'data_retrieval', 'analysis', 'schema_info'"
+    )
+    specific_tables: Optional[List[str]] = Field(
+        description="Specific tables mentioned or inferred"
+    )
+    temporal_scope: Optional[str] = Field(
+        description="Time period mentioned (e.g., 'recent', '2020', 'latest')"
+    )
+    geographic_scope: Optional[str] = Field(
+        description="Geographic area mentioned (state, region, etc.)"
+    )
 
 
 class QueryResult(BaseModel):
     """Structured query result."""
+
     sql_query: str = Field(description="Generated SQL query")
-    explanation: str = Field(description="Human-readable explanation of what the query does")
+    explanation: str = Field(
+        description="Human-readable explanation of what the query does"
+    )
     results_summary: str = Field(description="Summary of query results")
     data_preview: Optional[str] = Field(description="Preview of returned data")
-    warnings: Optional[List[str]] = Field(description="Any warnings about data interpretation")
+    warnings: Optional[List[str]] = Field(
+        description="Any warnings about data interpretation"
+    )
 
 
 class AgentState(BaseModel):
     """State for the LangGraph agent."""
+
     model_config = {"arbitrary_types_allowed": True}
 
-    messages: Annotated[List[Union[HumanMessage, AIMessage, SystemMessage]], add_messages]
+    messages: Annotated[
+        List[Union[HumanMessage, AIMessage, SystemMessage]], add_messages
+    ]
     query_request: Optional[QueryRequest] = None
     sql_query: Optional[str] = None
     query_results: Optional[pl.DataFrame] = None
@@ -68,6 +88,7 @@ class AgentState(BaseModel):
 @dataclass
 class FIAAgentConfig:
     """Configuration for the FIA AI Agent."""
+
     model_name: str = "gpt-4o"
     temperature: float = 0.1
     max_tokens: int = 2000
@@ -89,10 +110,12 @@ class FIAAgent:
     - Structured workflows via LangGraph
     """
 
-    def __init__(self,
-                 db_path: Union[str, Path],
-                 config: Optional[FIAAgentConfig] = None,
-                 api_key: Optional[str] = None):
+    def __init__(
+        self,
+        db_path: Union[str, Path],
+        config: Optional[FIAAgentConfig] = None,
+        api_key: Optional[str] = None,
+    ):
         """
         Initialize the FIA AI Agent.
 
@@ -111,14 +134,14 @@ class FIAAgent:
         # Initialize LLM
         llm_kwargs = {
             "model": self.config.model_name,
-            "temperature": self.config.temperature
+            "temperature": self.config.temperature,
         }
 
         # Set API key from parameter, environment, or .env file
         if api_key:
             llm_kwargs["api_key"] = api_key
-        elif os.environ.get('OPENAI_API_KEY'):
-            llm_kwargs["api_key"] = os.environ.get('OPENAI_API_KEY')
+        elif os.environ.get("OPENAI_API_KEY"):
+            llm_kwargs["api_key"] = os.environ.get("OPENAI_API_KEY")
 
         self.llm = ChatOpenAI(**llm_kwargs)
 
@@ -157,12 +180,12 @@ class FIAAgent:
             try:
                 evalid_df = self.query_interface.get_evalid_info()
                 if state_code:
-                    evalid_df = evalid_df.filter(pl.col('STATECD') == state_code)
+                    evalid_df = evalid_df.filter(pl.col("STATECD") == state_code)
 
                 summary = f"Available EVALIDs: {len(evalid_df)} evaluations\n"
                 if len(evalid_df) > 0:
                     # Show recent evaluations
-                    recent = evalid_df.sort('END_INVYR', descending=True).head(10)
+                    recent = evalid_df.sort("END_INVYR", descending=True).head(10)
                     summary += "Recent evaluations:\n"
                     for row in recent.iter_rows(named=True):
                         summary += f"- EVALID {row['EVALID']}: {row['EVAL_DESCR']} (ends {row['END_INVYR']})\n"
@@ -215,7 +238,11 @@ class FIAAgent:
                 result = self.query_interface.execute_query(query)
 
                 if len(result) == 0:
-                    return f"No forest type found for code {fortypcd}" if fortypcd else "No forest types found"
+                    return (
+                        f"No forest type found for code {fortypcd}"
+                        if fortypcd
+                        else "No forest types found"
+                    )
 
                 formatted = "Forest Type Information:\n"
                 for row in result.iter_rows(named=True):
@@ -410,48 +437,48 @@ class FIAAgent:
             Tool(
                 name="execute_fia_query",
                 description="Execute SQL query against FIA database. Use for data retrieval after query generation.",
-                func=execute_fia_query
+                func=execute_fia_query,
             ),
             Tool(
                 name="get_database_schema",
                 description="Get FIA database schema and table information for query planning.",
-                func=get_database_schema
+                func=get_database_schema,
             ),
             Tool(
                 name="get_evalid_info",
                 description="Get information about available EVALIDs for statistical queries. Essential for proper FIA estimates.",
-                func=get_evalid_info
+                func=get_evalid_info,
             ),
             Tool(
                 name="find_species_codes",
                 description="Find FIA species codes by common or scientific name.",
-                func=find_species_codes
+                func=find_species_codes,
             ),
             Tool(
                 name="get_forest_type_info",
                 description="Get forest type information and descriptions by FORTYPCD.",
-                func=get_forest_type_info
+                func=get_forest_type_info,
             ),
             Tool(
                 name="get_survey_info",
                 description="Get survey and temporal information from SURVEY table.",
-                func=get_survey_info
+                func=get_survey_info,
             ),
             Tool(
                 name="get_seedling_regeneration_info",
                 description="Get seedling/regeneration information from SEEDLING table.",
-                func=get_seedling_regeneration_info
+                func=get_seedling_regeneration_info,
             ),
             Tool(
                 name="get_subplot_area_info",
                 description="Get subplot area information using SUBP_COND table for precise area calculations.",
-                func=get_subplot_area_info
+                func=get_subplot_area_info,
             ),
             Tool(
                 name="get_estimation_examples",
                 description="Get examples of common FIA estimation query patterns including new table capabilities.",
-                func=get_estimation_examples
-            )
+                func=get_estimation_examples,
+            ),
         ]
 
     def _build_workflow(self) -> StateGraph:
@@ -498,13 +525,20 @@ class FIAAgent:
             last_message = state.messages[-1]
 
             # Use LLM to understand the query intent
-            planning_prompt = ChatPromptTemplate.from_messages([
-                ("system", system_prompt),
-                ("human", "Analyze this forest inventory query and create a plan: {query}")
-            ])
+            planning_prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", system_prompt),
+                    (
+                        "human",
+                        "Analyze this forest inventory query and create a plan: {query}",
+                    ),
+                ]
+            )
 
             try:
-                response = self.llm.invoke(planning_prompt.format(query=last_message.content))
+                response = self.llm.invoke(
+                    planning_prompt.format(query=last_message.content)
+                )
 
                 # Extract query intent (simplified - could use structured output)
                 query_request = QueryRequest(
@@ -512,14 +546,18 @@ class FIAAgent:
                     query_type="data_retrieval",  # Default
                     specific_tables=None,
                     temporal_scope=None,
-                    geographic_scope=None
+                    geographic_scope=None,
                 )
 
                 state.query_request = query_request
-                state.messages.append(AIMessage(content=f"Planning query: {response.content}"))
+                state.messages.append(
+                    AIMessage(content=f"Planning query: {response.content}")
+                )
 
             except Exception as e:
-                state.messages.append(AIMessage(content=f"Error in query planning: {str(e)}"))
+                state.messages.append(
+                    AIMessage(content=f"Error in query planning: {str(e)}")
+                )
 
             return state
 
@@ -528,7 +566,10 @@ class FIAAgent:
             last_message = state.messages[-1]
 
             # Determine which tools to use based on query
-            if "schema" in last_message.content.lower() or "table" in last_message.content.lower():
+            if (
+                "schema" in last_message.content.lower()
+                or "table" in last_message.content.lower()
+            ):
                 tool_name = "get_database_schema"
                 tool_input = ""
             elif "species" in last_message.content.lower():
@@ -541,13 +582,22 @@ class FIAAgent:
             elif "forest type" in last_message.content.lower():
                 tool_name = "get_forest_type_info"
                 tool_input = ""
-            elif "seedling" in last_message.content.lower() or "regeneration" in last_message.content.lower():
+            elif (
+                "seedling" in last_message.content.lower()
+                or "regeneration" in last_message.content.lower()
+            ):
                 tool_name = "get_seedling_regeneration_info"
                 tool_input = ""
-            elif "survey" in last_message.content.lower() or "temporal" in last_message.content.lower():
+            elif (
+                "survey" in last_message.content.lower()
+                or "temporal" in last_message.content.lower()
+            ):
                 tool_name = "get_survey_info"
                 tool_input = ""
-            elif "subplot" in last_message.content.lower() or "area" in last_message.content.lower():
+            elif (
+                "subplot" in last_message.content.lower()
+                or "area" in last_message.content.lower()
+            ):
                 tool_name = "get_subplot_area_info"
                 tool_input = ""
             else:
@@ -560,15 +610,21 @@ class FIAAgent:
             try:
                 for tool in self.tools:
                     if tool.name == tool_name:
-                        tool_result = tool.func(tool_input) if tool_input else tool.func()
+                        tool_result = (
+                            tool.func(tool_input) if tool_input else tool.func()
+                        )
                         break
 
                 if tool_result:
                     state.tools_used.append(tool_name)
-                    state.messages.append(AIMessage(content=f"Tool {tool_name} result: {tool_result}"))
+                    state.messages.append(
+                        AIMessage(content=f"Tool {tool_name} result: {tool_result}")
+                    )
 
             except Exception as e:
-                state.messages.append(AIMessage(content=f"Error using tool {tool_name}: {str(e)}"))
+                state.messages.append(
+                    AIMessage(content=f"Error using tool {tool_name}: {str(e)}")
+                )
 
             return state
 
@@ -581,11 +637,18 @@ class FIAAgent:
                     context_parts.append(msg.content)
 
             context = "\n".join(context_parts)
-            user_query = state.query_request.natural_language_query if state.query_request else state.messages[0].content
+            user_query = (
+                state.query_request.natural_language_query
+                if state.query_request
+                else state.messages[0].content
+            )
 
-            query_prompt = ChatPromptTemplate.from_messages([
-                ("system", system_prompt + "\n\nDatabase Context:\n" + context),
-                ("human", """Generate a safe SQL query for this request: {query}
+            query_prompt = ChatPromptTemplate.from_messages(
+                [
+                    ("system", system_prompt + "\n\nDatabase Context:\n" + context),
+                    (
+                        "human",
+                        """Generate a safe SQL query for this request: {query}
 
                 Requirements:
                 - Use proper FIA table relationships including new SURVEY, SUBPLOT, SUBP_COND, SEEDLING tables
@@ -596,8 +659,10 @@ class FIAAgent:
                 Format your response as:
                 SQL: [your query]
                 EXPLANATION: [explanation of what the query does and any limitations]
-                """)
-            ])
+                """,
+                    ),
+                ]
+            )
 
             try:
                 response = self.llm.invoke(query_prompt.format(query=user_query))
@@ -606,13 +671,23 @@ class FIAAgent:
                 content = response.content
                 if "SQL:" in content:
                     sql_part = content.split("SQL:")[1].split("EXPLANATION:")[0].strip()
-                    explanation_part = content.split("EXPLANATION:")[1].strip() if "EXPLANATION:" in content else ""
+                    explanation_part = (
+                        content.split("EXPLANATION:")[1].strip()
+                        if "EXPLANATION:" in content
+                        else ""
+                    )
 
                     state.sql_query = sql_part
-                    state.messages.append(AIMessage(content=f"Generated SQL: {sql_part}\nExplanation: {explanation_part}"))
+                    state.messages.append(
+                        AIMessage(
+                            content=f"Generated SQL: {sql_part}\nExplanation: {explanation_part}"
+                        )
+                    )
 
             except Exception as e:
-                state.messages.append(AIMessage(content=f"Error generating query: {str(e)}"))
+                state.messages.append(
+                    AIMessage(content=f"Error generating query: {str(e)}")
+                )
 
             return state
 
@@ -624,10 +699,14 @@ class FIAAgent:
                     for tool in self.tools:
                         if tool.name == "execute_fia_query":
                             result = tool.func(state.sql_query)
-                            state.messages.append(AIMessage(content=f"Query results: {result}"))
+                            state.messages.append(
+                                AIMessage(content=f"Query results: {result}")
+                            )
                             break
                 except Exception as e:
-                    state.messages.append(AIMessage(content=f"Error executing query: {str(e)}"))
+                    state.messages.append(
+                        AIMessage(content=f"Error executing query: {str(e)}")
+                    )
 
             return state
 
@@ -637,7 +716,9 @@ class FIAAgent:
             final_response = "## Enhanced Forest Inventory Analysis Results\n\n"
 
             if state.sql_query:
-                final_response += f"**Generated Query:**\n```sql\n{state.sql_query}\n```\n\n"
+                final_response += (
+                    f"**Generated Query:**\n```sql\n{state.sql_query}\n```\n\n"
+                )
 
             # Add results from the last message
             if state.messages and isinstance(state.messages[-1], AIMessage):
@@ -690,18 +771,22 @@ class FIAAgent:
         """
         # Initialize state
         initial_state = AgentState(
-            messages=[HumanMessage(content=user_input)],
-            tools_used=[]
+            messages=[HumanMessage(content=user_input)], tools_used=[]
         )
 
         try:
             # Run the workflow
             final_state = self.workflow.invoke(initial_state)
-            return final_state.final_response or "I encountered an error processing your query."
+            return (
+                final_state.final_response
+                or "I encountered an error processing your query."
+            )
         except Exception as e:
             return f"Error processing query: {str(e)}"
 
-    def get_available_evaluations(self, state_code: Optional[int] = None) -> pl.DataFrame:
+    def get_available_evaluations(
+        self, state_code: Optional[int] = None
+    ) -> pl.DataFrame:
         """Get available evaluations for query planning."""
         return self.query_interface.get_evalid_info(state_code)
 
@@ -711,9 +796,9 @@ class FIAAgent:
 
 
 # Convenience function for quick agent creation
-def create_fia_agent(db_path: Union[str, Path],
-                     api_key: Optional[str] = None,
-                     **config_kwargs) -> FIAAgent:
+def create_fia_agent(
+    db_path: Union[str, Path], api_key: Optional[str] = None, **config_kwargs
+) -> FIAAgent:
     """
     Create a FIA AI Agent with optional configuration.
 

@@ -34,15 +34,13 @@ class CogneeFIAAgent:
         self.fia = FIA(db_path, engine="duckdb")
 
         # Set up API key
-        self.api_key = api_key or os.environ.get('OPENAI_API_KEY')
+        self.api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if not self.api_key:
             raise ValueError("OpenAI API key required")
 
         # Initialize LLM
         self.llm = ChatOpenAI(
-            api_key=self.api_key,
-            model="gpt-4o-mini",
-            temperature=0.1
+            api_key=self.api_key, model="gpt-4o-mini", temperature=0.1
         )
 
         self._initialized = False
@@ -89,7 +87,6 @@ class CogneeFIAAgent:
             - Tree basis: MICR (microplot), SUBP (subplot), MACR (macroplot)
             - Adjustment factors: Applied based on tree basis for proper expansion
             """,
-
             # pyFIA Usage
             """
             pyFIA Usage Patterns:
@@ -106,7 +103,6 @@ class CogneeFIAAgent:
             mortality_results = fia_filtered.mortality()
             area_results = fia_filtered.area()
             """,
-
             # Database Structure
             """
             FIA Database Key Tables:
@@ -118,7 +114,6 @@ class CogneeFIAAgent:
             - POP_PLOT_STRATUM_ASSGN: Links plots to evaluations
             - REF_SPECIES: Species codes and names
             """,
-
             # Statistical Methods
             """
             FIA Statistical Methods:
@@ -130,7 +125,6 @@ class CogneeFIAAgent:
 
             Variance uses delta method for ratio estimates
             """,
-
             # Common Queries
             """
             Common FIA SQL Patterns:
@@ -151,7 +145,7 @@ class CogneeFIAAgent:
             JOIN POP_PLOT_STRATUM_ASSGN ppsa ON p.CN = ppsa.PLT_CN
             JOIN POP_STRATUM ps ON ppsa.STRATUM_CN = ps.CN
             WHERE ppsa.EVALID = ? AND c.COND_STATUS_CD = 1
-            """
+            """,
         ]
 
         # Add each knowledge item to Cognee
@@ -187,8 +181,10 @@ class CogneeFIAAgent:
             memory_context = self._get_fallback_context(user_query)
 
         # Check if this is a data query or knowledge query
-        is_data_query = any(word in user_query.lower() for word in
-                           ['how many', 'what is the', 'show me', 'calculate', 'total'])
+        is_data_query = any(
+            word in user_query.lower()
+            for word in ["how many", "what is the", "show me", "calculate", "total"]
+        )
 
         if is_data_query:
             # Generate SQL query
@@ -317,13 +313,13 @@ async def test_agent():
     test_queries = [
         "What is EVALID and why is it important?",
         "How do I use pyFIA to calculate biomass?",
-        "What tables contain tree data?"
+        "What tables contain tree data?",
     ]
 
     for query in test_queries:
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"Query: {query}")
-        print(f"{'='*60}")
+        print(f"{'=' * 60}")
 
         response = await agent.query(query)
         print(response)

@@ -22,7 +22,7 @@ class SchemaMapper:
         "POP_PLOT_STRATUM_ASSGN": "POP_PLOT_STRATUM_ASSGN",
         "REF_SPECIES": "ref_species",
         "REF_FOREST_TYPE": "ref_forest_type",
-        "TREE_GRM_ESTN": "tree_grm_estn"
+        "TREE_GRM_ESTN": "tree_grm_estn",
     }
 
     # Reverse mapping (DuckDB -> SQLite/standard)
@@ -35,7 +35,7 @@ class SchemaMapper:
         "POP_PLOT_STRATUM_ASSGN": "POP_PLOT_STRATUM_ASSGN",
         "ref_species": "REF_SPECIES",
         "ref_forest_type": "REF_FOREST_TYPE",
-        "tree_grm_estn": "TREE_GRM_ESTN"
+        "tree_grm_estn": "TREE_GRM_ESTN",
     }
 
     # Column type differences (table -> column -> expected type)
@@ -44,17 +44,10 @@ class SchemaMapper:
             "CN": "BIGINT",  # DuckDB uses BIGINT instead of VARCHAR
             "SRV_CN": "BIGINT",
             "CTY_CN": "BIGINT",
-            "PREV_PLT_CN": "BIGINT"
+            "PREV_PLT_CN": "BIGINT",
         },
-        "tree": {
-            "CN": "BIGINT",
-            "PLT_CN": "BIGINT",
-            "PREV_TRE_CN": "BIGINT"
-        },
-        "cond": {
-            "CN": "BIGINT",
-            "PLT_CN": "BIGINT"
-        }
+        "tree": {"CN": "BIGINT", "PLT_CN": "BIGINT", "PREV_TRE_CN": "BIGINT"},
+        "cond": {"CN": "BIGINT", "PLT_CN": "BIGINT"},
     }
 
     def __init__(self, engine: str = "sqlite"):

@@ -168,3 +168,4 @@ site/queries/volume/california_volume_by_diameter/index.html
 site/search/search_index.json
 tests/__pycache__/test_area_integration.cpython-312-pytest-8.4.1.pyc
 tests/__pycache__/test_area.cpython-312-pytest-8.4.1.pyc
+fia.duckdb

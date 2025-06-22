@@ -5,27 +5,28 @@ This module provides shared functions for FIA population estimation
 following Bechtold & Patterson (2005) procedures.
 """
 
-import polars as pl
+from typing import Dict, List, Optional, Union
+
 import numpy as np
-from typing import Dict, List, Optional, Tuple, Union
+import polars as pl
 
 
 def merge_estimation_data(data: Dict[str, pl.DataFrame]) -> pl.DataFrame:
     """
     Merge FIA tables for estimation procedures.
-    
+
     This function joins PLOT, COND, and population tables to create
     a unified dataframe for estimation.
-    
+
     Args:
         data: Dictionary with FIA tables from data reader
-        
+
     Returns:
         Merged dataframe ready for estimation
     """
     # Start with plots
     result = data['plot'].clone()
-    
+
     # Add stratum assignments
     if 'pop_plot_stratum_assgn' in data and not data['pop_plot_stratum_assgn'].is_empty():
         result = result.join(
@@ -34,18 +35,18 @@ def merge_estimation_data(data: Dict[str, pl.DataFrame]) -> pl.DataFrame:
             right_on='PLT_CN',
             how='left'
         )
-    
+
     # Add stratum info (expansion factors)
     if 'pop_stratum' in data and not data['pop_stratum'].is_empty():
         result = result.join(
-            data['pop_stratum'].select(['CN', 'EXPNS', 'ADJ_FACTOR_SUBP', 
+            data['pop_stratum'].select(['CN', 'EXPNS', 'ADJ_FACTOR_SUBP',
                                        'ADJ_FACTOR_MICR', 'ADJ_FACTOR_MACR']),
             left_on='STRATUM_CN',
             right_on='CN',
             how='left',
             suffix='_STRATUM'
         )
-    
+
     # Add estimation unit info
     if 'pop_estn_unit' in data and not data['pop_estn_unit'].is_empty():
         # First need to link through pop_stratum
@@ -58,7 +59,7 @@ def merge_estimation_data(data: Dict[str, pl.DataFrame]) -> pl.DataFrame:
                 how='left',
                 suffix='_LINK'
             )
-            
+
             result = result.join(
                 data['pop_estn_unit'].select(['CN', 'AREA_USED']),
                 left_on='ESTN_UNIT_CN',
@@ -66,7 +67,7 @@ def merge_estimation_data(data: Dict[str, pl.DataFrame]) -> pl.DataFrame:
                 how='left',
                 suffix='_ESTN'
             )
-    
+
     return result
 
 
@@ -74,14 +75,14 @@ def calculate_adjustment_factors(data: pl.DataFrame,
                                  condition: Optional[str] = None) -> pl.DataFrame:
     """
     Calculate plot-level adjustment factors.
-    
+
     FIA uses adjustment factors to account for different plot designs
     and partially forested conditions.
-    
+
     Args:
         data: Plot data with condition information
         condition: Optional condition filter (e.g., "COND_STATUS_CD == 1")
-        
+
     Returns:
         Data with adjustment factors added
     """
@@ -92,7 +93,7 @@ def calculate_adjustment_factors(data: pl.DataFrame,
         .otherwise(1.0)  # Adjust for other designs as needed
         .alias('PLOT_ADJ_FACTOR')
     )
-    
+
     # Condition proportion adjustment
     if condition:
         # This would typically involve SUBP_COND_PROP calculations
@@ -104,12 +105,12 @@ def calculate_adjustment_factors(data: pl.DataFrame,
         data = data.with_columns(
             pl.lit(1.0).alias('COND_ADJ_FACTOR')
         )
-    
+
     # Combined adjustment
     data = data.with_columns(
         (pl.col('PLOT_ADJ_FACTOR') * pl.col('COND_ADJ_FACTOR')).alias('ADJ_FACTOR')
     )
-    
+
     return data
 
 
@@ -118,12 +119,12 @@ def calculate_stratum_estimates(data: pl.DataFrame,
                                area_col: str = 'AREA_USED') -> pl.DataFrame:
     """
     Calculate stratum-level estimates.
-    
+
     Args:
         data: Plot data with response variable and stratification
         response_col: Name of the response variable column
         area_col: Name of the area column
-        
+
     Returns:
         Stratum-level estimates
     """
@@ -138,45 +139,45 @@ def calculate_stratum_estimates(data: pl.DataFrame,
             pl.col(area_col).first().alias('area')
         ])
     )
-    
+
     # Calculate stratum weight and estimates
     stratum_stats = stratum_stats.with_columns([
         (pl.col('area') * pl.col('expns')).alias('stratum_weight'),
         (pl.col('ybar') * pl.col('area') * pl.col('expns')).alias('stratum_total')
     ])
-    
+
     return stratum_stats
 
 
 def calculate_population_estimates(stratum_estimates: pl.DataFrame) -> Dict[str, float]:
     """
     Calculate population-level estimates from stratum estimates.
-    
+
     Args:
         stratum_estimates: Stratum-level statistics
-        
+
     Returns:
         Dictionary with population estimates and variance
     """
     # Total area
     total_area = stratum_estimates['area'].sum()
-    
+
     # Population total
     pop_total = stratum_estimates['stratum_total'].sum()
-    
+
     # Population mean (per unit area)
     pop_mean = pop_total / total_area if total_area > 0 else 0
-    
+
     # Variance estimation (simplified - full version would use covariance)
     # V(Ŷ) = Σ (Nh² * sh² / nh)
     variance_components = stratum_estimates.with_columns([
         (pl.col('stratum_weight')**2 * pl.col('var_y') / pl.col('n_plots'))
         .alias('var_component')
     ])
-    
+
     pop_variance = variance_components['var_component'].sum()
     pop_se = np.sqrt(pop_variance)
-    
+
     return {
         'estimate': pop_mean,
         'variance': pop_variance,
@@ -192,29 +193,29 @@ def apply_domain_filter(data: pl.DataFrame,
                        area_domain: Optional[str] = None) -> pl.DataFrame:
     """
     Apply domain (subset) filters to data.
-    
+
     Args:
         data: Input dataframe
         tree_domain: Tree-level domain expression
         area_domain: Area-level domain expression
-        
+
     Returns:
         Filtered dataframe
     """
     result = data.clone()
-    
+
     if tree_domain:
         # Parse and apply tree domain filter
         # For now, just pass the expression as-is
         # In production, this should be properly parsed
         pass
-    
+
     if area_domain:
         # Parse and apply area domain filter
         # For now, just pass the expression as-is
         # In production, this should be properly parsed
         pass
-    
+
     return result
 
 
@@ -225,14 +226,14 @@ def calculate_ratio_estimates(numerator_data: pl.DataFrame,
                             by_stratum: bool = True) -> Dict[str, float]:
     """
     Calculate ratio estimates (e.g., volume per acre).
-    
+
     Args:
         numerator_data: Data for numerator (e.g., volume)
         denominator_data: Data for denominator (e.g., forest area)
         num_col: Column name for numerator variable
         den_col: Column name for denominator variable
         by_stratum: Whether to stratify calculation
-        
+
     Returns:
         Ratio estimates with variance
     """
@@ -240,32 +241,32 @@ def calculate_ratio_estimates(numerator_data: pl.DataFrame,
         # Calculate by stratum first
         num_strata = calculate_stratum_estimates(numerator_data, num_col)
         den_strata = calculate_stratum_estimates(denominator_data, den_col)
-        
+
         # Merge strata
         strata = num_strata.join(
             den_strata.select(['STRATUM_CN', 'stratum_total']),
             on='STRATUM_CN',
             suffix='_den'
         )
-        
+
         # Population totals
         total_num = strata['stratum_total'].sum()
         total_den = strata['stratum_total_den'].sum()
-        
+
         # Ratio
         ratio = total_num / total_den if total_den > 0 else 0
-        
+
         # Simplified variance (full version requires covariance terms)
         # This is a placeholder - actual implementation needs full covariance
         variance = 0.0  # Would calculate proper ratio variance here
-        
+
     else:
         # Simple ratio without stratification
         total_num = numerator_data[num_col].sum()
         total_den = denominator_data[den_col].sum()
         ratio = total_num / total_den if total_den > 0 else 0
         variance = 0.0
-    
+
     return {
         'ratio': ratio,
         'variance': variance,
@@ -281,13 +282,13 @@ def summarize_by_groups(data: pl.DataFrame,
                        agg_func: str = 'sum') -> pl.DataFrame:
     """
     Summarize data by grouping variables.
-    
+
     Args:
         data: Input data
         response_col: Column to summarize
         group_cols: Columns to group by
         agg_func: Aggregation function ('sum', 'mean', etc.)
-        
+
     Returns:
         Summarized dataframe
     """
@@ -300,7 +301,7 @@ def summarize_by_groups(data: pl.DataFrame,
         agg_expr = pl.count()
     else:
         raise ValueError(f"Unknown aggregation function: {agg_func}")
-    
+
     # Add other useful statistics
     result = (data
         .group_by(group_cols)
@@ -312,7 +313,7 @@ def summarize_by_groups(data: pl.DataFrame,
             pl.col(response_col).max().alias(f'{response_col}_max')
         ])
     )
-    
+
     return result
 
 
@@ -336,10 +337,10 @@ def ratio_var(
 ) -> Union[float, pl.Expr]:
     """
     Calculate variance of a ratio using the delta method.
-    
+
     For ratio R = Y/X, the variance is:
     Var(R) = (1/X²) * [Var(Y) + R² * Var(X) - 2 * R * Cov(Y,X)]
-    
+
     Parameters
     ----------
     numerator : float or pl.Expr
@@ -352,7 +353,7 @@ def ratio_var(
         Variance of the denominator
     covar : float or pl.Expr
         Covariance between numerator and denominator
-        
+
     Returns
     -------
     float or pl.Expr

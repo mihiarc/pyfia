@@ -5,8 +5,10 @@ This module implements volume estimation following FIA procedures,
 matching the functionality of rFIA::volume().
 """
 
+from typing import List, Optional, Union
+
 import polars as pl
-from typing import Union, Optional, List
+
 from .core import FIA
 
 
@@ -30,7 +32,7 @@ def volume(db: Union[str, FIA],
            mr: bool = False) -> pl.DataFrame:
     """
     Estimate volume from FIA data following rFIA methodology.
-    
+
     Parameters
     ----------
     db : FIA or str
@@ -69,7 +71,7 @@ def volume(db: Union[str, FIA],
         Use remote database (not implemented)
     mr : bool, default False
         Use most recent evaluation
-        
+
     Returns
     -------
     pl.DataFrame
@@ -80,32 +82,32 @@ def volume(db: Union[str, FIA],
         fia = FIA(db)
     else:
         fia = db
-    
+
     # Ensure required tables are loaded
     fia.load_table('PLOT')
     fia.load_table('TREE')
     fia.load_table('COND')
     fia.load_table('POP_STRATUM')
     fia.load_table('POP_PLOT_STRATUM_ASSGN')
-    
+
     # Get filtered data
     trees = fia.get_trees()
     conds = fia.get_conditions()
-    
+
     # Apply filters following rFIA methodology
     trees = _apply_tree_filters(trees, treeType, treeDomain)
     conds = _apply_area_filters(conds, landType, areaDomain)
-    
+
     # Join trees with forest conditions
     tree_cond = trees.join(
         conds.select(['PLT_CN', 'CONDID', 'CONDPROP_UNADJ']),
         on=['PLT_CN', 'CONDID'],
         how='inner'
     )
-    
+
     # Get volume columns based on volType
     volume_cols = _get_volume_columns(volType)
-    
+
     # Calculate volume per acre following rFIA: VOL * TPA_UNADJ
     vol_calculations = []
     for vol_col, result_col in volume_cols.items():
@@ -113,35 +115,35 @@ def volume(db: Union[str, FIA],
             vol_calculations.append(
                 (pl.col(vol_col) * pl.col("TPA_UNADJ")).alias(result_col)
             )
-    
+
     if not vol_calculations:
         raise ValueError(f"No volume columns found for volType '{volType}'")
-    
+
     tree_cond = tree_cond.with_columns(vol_calculations)
-    
+
     # Set up grouping
     group_cols = _setup_grouping_columns(tree_cond, grpBy, bySpecies, bySizeClass)
-    
+
     # Sum to plot level
     if group_cols:
         plot_groups = ["PLT_CN"] + group_cols
     else:
         plot_groups = ["PLT_CN"]
-    
+
     # Aggregate volume columns
     agg_exprs = []
     for _, result_col in volume_cols.items():
         agg_exprs.append(pl.sum(result_col).alias(f"PLOT_{result_col}"))
-    
+
     plot_vol = tree_cond.group_by(plot_groups).agg(agg_exprs)
-    
+
     # Get stratification data
     ppsa = fia.tables['POP_PLOT_STRATUM_ASSGN'].filter(
         pl.col('EVALID').is_in(fia.evalid) if fia.evalid else pl.lit(True)
     ).collect()
-    
+
     pop_stratum = fia.tables['POP_STRATUM'].collect()
-    
+
     # Join with stratification
     plot_with_strat = plot_vol.join(
         ppsa.select(["PLT_CN", "STRATUM_CN"]),
@@ -153,7 +155,7 @@ def volume(db: Union[str, FIA],
         right_on="CN",
         how="inner"
     )
-    
+
     # CRITICAL: Use direct expansion (matches area/biomass calculation approach)
     expansion_exprs = []
     for _, result_col in volume_cols.items():
@@ -162,9 +164,9 @@ def volume(db: Union[str, FIA],
             expansion_exprs.append(
                 (pl.col(plot_col) * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias(f"TOTAL_{result_col}")
             )
-    
+
     plot_with_strat = plot_with_strat.with_columns(expansion_exprs)
-    
+
     # Calculate population estimates
     if group_cols:
         agg_exprs = []
@@ -173,7 +175,7 @@ def volume(db: Union[str, FIA],
             if total_col in plot_with_strat.columns:
                 agg_exprs.append(pl.sum(total_col).alias(f"VOL_TOTAL_{result_col}"))
         agg_exprs.append(pl.len().alias("nPlots_TREE"))
-        
+
         pop_est = plot_with_strat.group_by(group_cols).agg(agg_exprs)
     else:
         agg_exprs = []
@@ -182,12 +184,12 @@ def volume(db: Union[str, FIA],
             if total_col in plot_with_strat.columns:
                 agg_exprs.append(pl.sum(total_col).alias(f"VOL_TOTAL_{result_col}"))
         agg_exprs.append(pl.len().alias("nPlots_TREE"))
-        
+
         pop_est = plot_with_strat.select(agg_exprs)
-    
+
     # Calculate per-acre estimates using forest area
     forest_area = 18592940  # From area estimation (should be calculated dynamically)
-    
+
     per_acre_exprs = []
     se_exprs = []
     for _, result_col in volume_cols.items():
@@ -195,7 +197,7 @@ def volume(db: Union[str, FIA],
         if total_col in pop_est.columns:
             per_acre_col = _get_output_column_name(result_col, volType)
             se_col = f"{per_acre_col}_SE"
-            
+
             per_acre_exprs.append(
                 (pl.col(total_col) / forest_area).alias(per_acre_col)
             )
@@ -203,36 +205,36 @@ def volume(db: Union[str, FIA],
             se_exprs.append(
                 (pl.col(total_col) / forest_area * 0.015).alias(se_col)
             )
-    
+
     pop_est = pop_est.with_columns(per_acre_exprs + se_exprs)
-    
+
     # Add other columns to match rFIA output
     pop_est = pop_est.with_columns([
         pl.lit(2023).alias("YEAR"),
         pl.col("nPlots_TREE").alias("nPlots_AREA"),
         pl.len().alias("N")
     ])
-    
+
     # Select output columns based on volType
     result_cols = ["YEAR", "nPlots_TREE", "nPlots_AREA", "N"]
-    
+
     # Add volume-specific columns
     for _, result_col in volume_cols.items():
         per_acre_col = _get_output_column_name(result_col, volType)
         se_col = f"{per_acre_col}_SE"
         if per_acre_col in pop_est.columns:
             result_cols.extend([per_acre_col, se_col])
-    
+
     if group_cols:
         result_cols = group_cols + result_cols
-    
+
     if totals:
         # Add total columns
         for _, result_col in volume_cols.items():
             total_col = f"VOL_TOTAL_{result_col}"
             if total_col in pop_est.columns:
                 result_cols.append(total_col)
-        
+
     return pop_est.select([col for col in result_cols if col in pop_est.columns])
 
 
@@ -246,18 +248,18 @@ def _apply_tree_filters(tree_df: pl.DataFrame, tree_type: str, tree_domain: Opti
     elif tree_type == "gs":  # Growing stock
         tree_df = tree_df.filter(pl.col("STATUSCD").is_in([1, 2]))
     # "all" includes everything
-    
+
     # Filter for valid volume data (following rFIA)
     tree_df = tree_df.filter(
         (pl.col("DIA").is_not_null()) &
         (pl.col("TPA_UNADJ") > 0) &
         (pl.col("VOLCFGRS").is_not_null())  # At least gross volume required
     )
-    
+
     # User-defined tree domain
     if tree_domain:
         tree_df = tree_df.filter(pl.sql_expr(tree_domain))
-    
+
     return tree_df
 
 
@@ -272,18 +274,18 @@ def _apply_area_filters(cond_df: pl.DataFrame, land_type: str, area_domain: Opti
             (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])) &
             (pl.col("RESERVCD") == 0)
         )
-    
+
     # User-defined area domain
     if area_domain:
         cond_df = cond_df.filter(pl.sql_expr(area_domain))
-    
+
     return cond_df
 
 
 def _get_volume_columns(vol_type: str) -> dict:
     """Get the volume column mapping for the specified volume type."""
     vol_type = vol_type.upper()
-    
+
     if vol_type == "NET":
         return {
             "VOLCFNET": "BOLE_CF_ACRE",     # Bole cubic feet (net)
@@ -314,7 +316,7 @@ def _get_volume_columns(vol_type: str) -> dict:
 def _get_output_column_name(result_col: str, vol_type: str) -> str:
     """Get the output column name for rFIA compatibility."""
     vol_type = vol_type.upper()
-    
+
     # Map internal names to rFIA output names
     if result_col == "BOLE_CF_ACRE":
         if vol_type == "NET":
@@ -337,24 +339,24 @@ def _get_output_column_name(result_col: str, vol_type: str) -> str:
             return "VOLBFNET_ACRE"
         elif vol_type == "GROSS":
             return "VOLBFGRS_ACRE"
-    
+
     return result_col
 
 
-def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str, List[str]]], 
+def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str, List[str]]],
                            by_species: bool, by_size_class: bool) -> List[str]:
     """Set up grouping columns."""
     group_cols = []
-    
+
     if grp_by:
         if isinstance(grp_by, str):
             group_cols = [grp_by]
         else:
             group_cols = list(grp_by)
-    
+
     if by_species:
         group_cols.append('SPCD')
-    
+
     if by_size_class:
         # Add size class based on diameter (following FIA standards)
         tree_cond = tree_cond.with_columns(
@@ -366,5 +368,5 @@ def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str,
             .alias('sizeClass')
         )
         group_cols.append('sizeClass')
-    
+
     return group_cols

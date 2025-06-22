@@ -5,8 +5,10 @@ This module implements biomass estimation following FIA procedures,
 matching the functionality of rFIA::biomass().
 """
 
+from typing import List, Optional, Union
+
 import polars as pl
-from typing import Union, Optional, List
+
 from .core import FIA
 
 
@@ -31,7 +33,7 @@ def biomass(db: Union[str, FIA],
             modelSnag: bool = True) -> pl.DataFrame:
     """
     Estimate biomass from FIA data following rFIA methodology.
-    
+
     Parameters
     ----------
     db : FIA or str
@@ -72,7 +74,7 @@ def biomass(db: Union[str, FIA],
         Use most recent evaluation
     modelSnag : bool, default True
         Model standing dead biomass (not implemented)
-        
+
     Returns
     -------
     pl.DataFrame
@@ -83,29 +85,29 @@ def biomass(db: Union[str, FIA],
         fia = FIA(db)
     else:
         fia = db
-    
+
     # Ensure required tables are loaded
     fia.load_table('PLOT')
     fia.load_table('TREE')
     fia.load_table('COND')
     fia.load_table('POP_STRATUM')
     fia.load_table('POP_PLOT_STRATUM_ASSGN')
-    
+
     # Get filtered data
     trees = fia.get_trees()
     conds = fia.get_conditions()
-    
+
     # Apply filters following rFIA methodology
     trees = _apply_tree_filters(trees, treeType, treeDomain)
     conds = _apply_area_filters(conds, landType, areaDomain)
-    
+
     # Join trees with forest conditions
     tree_cond = trees.join(
         conds.select(['PLT_CN', 'CONDID', 'CONDPROP_UNADJ']),
         on=['PLT_CN', 'CONDID'],
         how='inner'
     )
-    
+
     # Get biomass component data and calculate biomass per acre
     if component == "TOTAL":
         # For total biomass, sum AG and BG components
@@ -118,27 +120,27 @@ def biomass(db: Union[str, FIA],
         tree_cond = tree_cond.with_columns([
             (pl.col(biomass_col) * pl.col("TPA_UNADJ") / 2000).alias("BIO_ACRE")
         ])
-    
+
     # Set up grouping
     group_cols = _setup_grouping_columns(tree_cond, grpBy, bySpecies, bySizeClass)
-    
+
     # Sum to plot level
     if group_cols:
         plot_groups = ["PLT_CN"] + group_cols
     else:
         plot_groups = ["PLT_CN"]
-    
+
     plot_bio = tree_cond.group_by(plot_groups).agg([
         pl.sum("BIO_ACRE").alias("PLOT_BIO_ACRE")
     ])
-    
+
     # Get stratification data
     ppsa = fia.tables['POP_PLOT_STRATUM_ASSGN'].filter(
         pl.col('EVALID').is_in(fia.evalid) if fia.evalid else pl.lit(True)
     ).collect()
-    
+
     pop_stratum = fia.tables['POP_STRATUM'].collect()
-    
+
     # Join with stratification
     plot_with_strat = plot_bio.join(
         ppsa.select(["PLT_CN", "STRATUM_CN"]),
@@ -150,12 +152,12 @@ def biomass(db: Union[str, FIA],
         right_on="CN",
         how="inner"
     )
-    
+
     # CRITICAL: Use direct expansion (matches area calculation approach)
     plot_with_strat = plot_with_strat.with_columns([
         (pl.col("PLOT_BIO_ACRE") * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias("TOTAL_BIO_EXPANDED")
     ])
-    
+
     # Calculate population estimates
     if group_cols:
         pop_est = plot_with_strat.group_by(group_cols).agg([
@@ -167,16 +169,16 @@ def biomass(db: Union[str, FIA],
             pl.sum("TOTAL_BIO_EXPANDED").alias("BIO_TOTAL"),
             pl.len().alias("nPlots_TREE")
         ])
-    
+
     # Calculate per-acre estimate using forest area
     forest_area = 18592940  # From area estimation (should be calculated dynamically)
-    
+
     pop_est = pop_est.with_columns([
         (pl.col("BIO_TOTAL") / forest_area).alias("BIO_ACRE"),
         # Simplified SE calculation (should use proper variance estimation)
         (pl.col("BIO_TOTAL") / forest_area * 0.015).alias("BIO_ACRE_SE")
     ])
-    
+
     # Add other columns to match rFIA output
     pop_est = pop_est.with_columns([
         pl.lit(2023).alias("YEAR"),
@@ -186,17 +188,17 @@ def biomass(db: Union[str, FIA],
         pl.col("nPlots_TREE").alias("nPlots_AREA"),
         pl.len().alias("N")
     ])
-    
+
     # Select output columns to match rFIA
-    result_cols = ["YEAR", "BIO_ACRE", "CARB_ACRE", "BIO_ACRE_SE", "CARB_ACRE_SE", 
+    result_cols = ["YEAR", "BIO_ACRE", "CARB_ACRE", "BIO_ACRE_SE", "CARB_ACRE_SE",
                    "nPlots_TREE", "nPlots_AREA", "N"]
-    
+
     if group_cols:
         result_cols = group_cols + result_cols
-    
+
     if totals:
         result_cols.extend(["BIO_TOTAL"])
-        
+
     return pop_est.select([col for col in result_cols if col in pop_est.columns])
 
 
@@ -210,17 +212,17 @@ def _apply_tree_filters(tree_df: pl.DataFrame, tree_type: str, tree_domain: Opti
     elif tree_type == "gs":
         tree_df = tree_df.filter(pl.col("STATUSCD").is_in([1, 2]))
     # "all" includes everything
-    
+
     # Filter for valid biomass data (following rFIA)
     tree_df = tree_df.filter(
         (pl.col("DIA").is_not_null()) &
         (pl.col("TPA_UNADJ") > 0)
     )
-    
+
     # User-defined tree domain
     if tree_domain:
         tree_df = tree_df.filter(pl.sql_expr(tree_domain))
-    
+
     return tree_df
 
 
@@ -235,11 +237,11 @@ def _apply_area_filters(cond_df: pl.DataFrame, land_type: str, area_domain: Opti
             (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])) &
             (pl.col("RESERVCD") == 0)
         )
-    
+
     # User-defined area domain
     if area_domain:
         cond_df = cond_df.filter(pl.sql_expr(area_domain))
-    
+
     return cond_df
 
 
@@ -256,32 +258,32 @@ def _get_biomass_column(component: str) -> str:
         "STUMP_BARK": "DRYBIO_STUMP_BARK",
         "BOLE": "DRYBIO_BOLE",
         "BOLE_BARK": "DRYBIO_BOLE_BARK",
-        "SAWLOG": "DRYBIO_SAWLOG", 
+        "SAWLOG": "DRYBIO_SAWLOG",
         "SAWLOG_BARK": "DRYBIO_SAWLOG_BARK",
         "ROOT": "DRYBIO_BG"
     }
-    
+
     if component == "TOTAL":
         # For total, we'll need to sum AG and BG - handle separately
         return "DRYBIO_AG"  # Will be modified in calling function
-    
+
     return component_map.get(component, f"DRYBIO_{component}")
 
 
-def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str, List[str]]], 
+def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str, List[str]]],
                            by_species: bool, by_size_class: bool) -> List[str]:
     """Set up grouping columns."""
     group_cols = []
-    
+
     if grp_by:
         if isinstance(grp_by, str):
             group_cols = [grp_by]
         else:
             group_cols = list(grp_by)
-    
+
     if by_species:
         group_cols.append('SPCD')
-    
+
     if by_size_class:
         # Add size class based on diameter (following FIA standards)
         tree_cond = tree_cond.with_columns(
@@ -293,5 +295,5 @@ def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str,
             .alias('sizeClass')
         )
         group_cols.append('sizeClass')
-    
+
     return group_cols

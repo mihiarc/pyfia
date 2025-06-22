@@ -5,16 +5,16 @@ This module provides mappings and utilities to handle naming and type difference
 between different FIA database implementations.
 """
 
-from typing import Dict, Optional
+from typing import Optional
 
 
 class SchemaMapper:
     """Maps table and column names between different database schemas."""
-    
+
     # Table name mappings (SQLite/standard -> DuckDB)
     TABLE_MAPPINGS = {
         "PLOT": "plot",
-        "TREE": "tree", 
+        "TREE": "tree",
         "COND": "cond",
         "POP_EVAL": "pop_eval_grp",  # DuckDB uses pop_eval_grp instead
         "POP_STRATUM": None,  # Not available in this DuckDB version
@@ -24,7 +24,7 @@ class SchemaMapper:
         "REF_FOREST_TYPE": "ref_forest_type",
         "TREE_GRM_ESTN": "tree_grm_estn"
     }
-    
+
     # Reverse mapping (DuckDB -> SQLite/standard)
     REVERSE_TABLE_MAPPINGS = {
         "plot": "PLOT",
@@ -37,7 +37,7 @@ class SchemaMapper:
         "ref_forest_type": "REF_FOREST_TYPE",
         "tree_grm_estn": "TREE_GRM_ESTN"
     }
-    
+
     # Column type differences (table -> column -> expected type)
     COLUMN_TYPE_OVERRIDES = {
         "plot": {
@@ -56,23 +56,23 @@ class SchemaMapper:
             "PLT_CN": "BIGINT"
         }
     }
-    
+
     def __init__(self, engine: str = "sqlite"):
         """
         Initialize schema mapper.
-        
+
         Args:
             engine: Database engine ("sqlite" or "duckdb")
         """
         self.engine = engine.lower()
-    
+
     def get_table_name(self, standard_name: str) -> Optional[str]:
         """
         Get the actual table name for the database engine.
-        
+
         Args:
             standard_name: Standard FIA table name (usually uppercase)
-            
+
         Returns:
             Actual table name for the engine, or None if not available
         """
@@ -80,14 +80,14 @@ class SchemaMapper:
             return standard_name
         else:  # duckdb
             return self.TABLE_MAPPINGS.get(standard_name, standard_name)
-    
+
     def get_standard_name(self, actual_name: str) -> str:
         """
         Get the standard table name from engine-specific name.
-        
+
         Args:
             actual_name: Engine-specific table name
-            
+
         Returns:
             Standard FIA table name
         """
@@ -95,34 +95,34 @@ class SchemaMapper:
             return actual_name
         else:  # duckdb
             return self.REVERSE_TABLE_MAPPINGS.get(actual_name, actual_name)
-    
+
     def is_cn_field_bigint(self, table_name: str, column_name: str) -> bool:
         """
         Check if a CN field should be treated as BIGINT.
-        
+
         Args:
             table_name: Table name (engine-specific)
             column_name: Column name
-            
+
         Returns:
             True if the field is BIGINT in DuckDB
         """
         if self.engine == "sqlite":
             return False
-        
+
         table_overrides = self.COLUMN_TYPE_OVERRIDES.get(table_name, {})
         return table_overrides.get(column_name) == "BIGINT"
-    
+
     def get_evalid_query(self) -> str:
         """
         Get the appropriate EVALID query for the engine.
-        
+
         Returns:
             SQL query to get evaluation information
         """
         if self.engine == "sqlite":
             return """
-            SELECT 
+            SELECT
                 pe.EVALID,
                 pe.EVAL_DESCR,
                 pe.STATECD,
@@ -139,7 +139,7 @@ class SchemaMapper:
         else:  # duckdb
             # Use pop_eval_grp table structure
             return """
-            SELECT 
+            SELECT
                 peg.EVAL_GRP as EVALID,
                 peg.EVAL_GRP_DESCR as EVAL_DESCR,
                 peg.STATECD,
@@ -152,20 +152,20 @@ class SchemaMapper:
             GROUP BY peg.EVAL_GRP, peg.EVAL_GRP_DESCR, peg.STATECD, peg.RSCD, peu.EVALID
             ORDER BY peg.EVAL_GRP DESC
             """
-    
+
     def adapt_query(self, query: str) -> str:
         """
         Adapt a standard SQL query for the specific engine.
-        
+
         Args:
             query: Standard SQL query with uppercase table names
-            
+
         Returns:
             Adapted query for the engine
         """
         if self.engine == "sqlite":
             return query
-        
+
         # For DuckDB, replace table names
         adapted = query
         for standard, actual in self.TABLE_MAPPINGS.items():
@@ -175,5 +175,5 @@ class SchemaMapper:
                 adapted = adapted.replace(f" {standard}.", f" {actual}.")
                 adapted = adapted.replace(f"FROM {standard}", f"FROM {actual}")
                 adapted = adapted.replace(f"JOIN {standard}", f"JOIN {actual}")
-        
+
         return adapted

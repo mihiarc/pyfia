@@ -10,26 +10,27 @@ Tests cover:
 - Edge cases and error handling
 """
 
-import pytest
+from unittest.mock import Mock
+
 import polars as pl
-import numpy as np
-from unittest.mock import Mock, MagicMock, patch
+import pytest
+
 from pyfia.area import (
-    area,
+    _add_land_type_categories,
     _apply_area_filters,
     _apply_tree_domain_to_conditions,
-    _add_land_type_categories,
     _calculate_domain_indicators,
-    _prepare_area_stratification,
     _calculate_plot_area_estimates,
+    _calculate_population_area_estimates,
     _calculate_stratum_area_estimates,
-    _calculate_population_area_estimates
+    _prepare_area_stratification,
+    area,
 )
 
 
 class TestAreaEstimation:
     """Test suite for area estimation functions."""
-    
+
     @pytest.fixture
     def mock_db(self):
         """Create a mock FIA database object."""
@@ -38,7 +39,7 @@ class TestAreaEstimation:
         db.tables = {}
         db.load_table = Mock()
         return db
-    
+
     @pytest.fixture
     def sample_plot_data(self):
         """Create sample PLOT data."""
@@ -48,7 +49,7 @@ class TestAreaEstimation:
             "STATECD": [37, 37, 37, 37, 37],
             "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0]
         })
-    
+
     @pytest.fixture
     def sample_cond_data(self):
         """Create sample COND data with various land types and PROP_BASIS."""
@@ -63,7 +64,7 @@ class TestAreaEstimation:
             "RESERVCD": [0, 0, 0, 0, 0, 1],  # Last one is reserved
             "FORTYPCD": [161, 161, 406, None, None, 171]  # Loblolly pine types
         })
-    
+
     @pytest.fixture
     def sample_tree_data(self):
         """Create sample TREE data."""
@@ -76,7 +77,7 @@ class TestAreaEstimation:
             "DIA": [10.5, 8.2, 15.3, 12.0, 6.5],
             "TPA_UNADJ": [5.0, 5.0, 5.0, 5.0, 5.0]
         })
-    
+
     @pytest.fixture
     def sample_stratum_data(self):
         """Create sample POP_STRATUM data."""
@@ -91,7 +92,7 @@ class TestAreaEstimation:
             "STRATUM_WGT": [0.6, 0.4],
             "AREA_USED": [18000.0, 12000.0]  # Total area in stratum
         })
-    
+
     @pytest.fixture
     def sample_ppsa_data(self):
         """Create sample POP_PLOT_STRATUM_ASSGN data."""
@@ -100,39 +101,39 @@ class TestAreaEstimation:
             "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
             "EVALID": [372301, 372301, 372301, 372301, 372301]
         })
-    
+
     def test_apply_area_filters_basic(self, sample_cond_data):
         """Test basic area filtering without domain."""
         result = _apply_area_filters(sample_cond_data, "forest", None)
         assert len(result) == 6  # No filtering applied yet
-    
+
     def test_apply_area_filters_with_domain(self, sample_cond_data):
         """Test area filtering with area domain."""
         result = _apply_area_filters(sample_cond_data, "forest", "FORTYPCD == 161")
         assert len(result) == 2  # Only loblolly pine forest type
         assert all(result["FORTYPCD"] == 161)
-    
+
     def test_apply_tree_domain_to_conditions(self, sample_cond_data, sample_tree_data):
         """Test applying tree domain at condition level."""
         # Filter for conditions with live loblolly pine
         result = _apply_tree_domain_to_conditions(
-            sample_cond_data, 
+            sample_cond_data,
             sample_tree_data,
             "STATUSCD == 1 and SPCD == 131"
         )
-        
+
         assert "HAS_QUALIFYING_TREE" in result.columns
         # Plots 1 and 2 have live loblolly pine
         qualifying = result.filter(pl.col("HAS_QUALIFYING_TREE") == 1)
         assert set(qualifying["PLT_CN"].unique()) == {"1", "2"}
-    
+
     def test_add_land_type_categories(self, sample_cond_data):
         """Test land type categorization."""
         result = _add_land_type_categories(sample_cond_data)
-        
+
         assert "LAND_TYPE" in result.columns
         land_types = result["LAND_TYPE"].to_list()
-        
+
         # Check categorization logic
         assert land_types[0] == "Timber"  # Forest, unreserved, site class 3
         assert land_types[1] == "Timber"  # Forest, unreserved, site class 3
@@ -140,49 +141,49 @@ class TestAreaEstimation:
         assert land_types[3] == "Non-Forest"  # Status 2
         assert land_types[4] == "Water"  # Status 3
         assert land_types[5] == "Non-Timber Forest"  # Forest but reserved
-    
+
     def test_calculate_domain_indicators_forest(self, sample_cond_data):
         """Test domain indicator calculation for forest land."""
         result = _calculate_domain_indicators(sample_cond_data, "forest", False)
-        
+
         assert "landD" in result.columns
         assert "aDI" in result.columns
         assert "pDI" in result.columns
-        
+
         # Forest land indicator should be 1 for status 1, 0 otherwise
         forest_conds = result.filter(pl.col("COND_STATUS_CD") == 1)
         assert all(forest_conds["landD"] == 1)
-        
+
         non_forest = result.filter(pl.col("COND_STATUS_CD") != 1)
         assert all(non_forest["landD"] == 0)
-    
+
     def test_calculate_domain_indicators_by_land_type(self, sample_cond_data):
         """Test domain indicators when grouping by land type."""
         cond_with_types = _add_land_type_categories(sample_cond_data)
         result = _calculate_domain_indicators(cond_with_types, "forest", True)
-        
+
         # For by_land_type, pDI should exclude water (only status 1,2)
         land_conds = result.filter(pl.col("COND_STATUS_CD").is_in([1, 2]))
         assert all(land_conds["pDI"] == 1)
-        
+
         water_conds = result.filter(pl.col("COND_STATUS_CD").is_in([3, 4]))
         assert all(water_conds["pDI"] == 0)
-    
+
     def test_prepare_area_stratification(self, sample_stratum_data, sample_ppsa_data):
         """Test stratification data preparation."""
         result = _prepare_area_stratification(sample_stratum_data, sample_ppsa_data)
-        
+
         # Check all required columns are present
-        required_cols = ["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP", 
+        required_cols = ["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP",
                         "ADJ_FACTOR_MACR", "P2POINTCNT"]
         for col in required_cols:
             assert col in result.columns
-        
+
         # Check joins worked correctly
         assert len(result) == 5  # One row per plot
         assert set(result["STRATUM_CN"].unique()) == {"S1", "S2"}
-    
-    def test_calculate_plot_area_estimates_prop_basis(self, 
+
+    def test_calculate_plot_area_estimates_prop_basis(self,
                                                      sample_plot_data,
                                                      sample_cond_data,
                                                      sample_stratum_data,
@@ -191,31 +192,31 @@ class TestAreaEstimation:
         # Add domain indicators
         cond_df = _calculate_domain_indicators(sample_cond_data, "forest", False)
         strat_df = _prepare_area_stratification(sample_stratum_data, sample_ppsa_data)
-        
+
         result = _calculate_plot_area_estimates(
             sample_plot_data,
             cond_df,
             strat_df,
             grp_by=None
         )
-        
+
         # Check PROP_BASIS was extracted and used
         assert "PROP_BASIS" in result.columns
         assert "ADJ_FACTOR" in result.columns
-        
+
         # Verify MACR plots get MACR adjustment factor
         macr_plots = result.filter(pl.col("PROP_BASIS") == "MACR")
         if len(macr_plots) > 0:
             # Get the adjustment factors from strat_df for comparison
             macr_plt_cns = macr_plots["PLT_CN"].to_list()
-            macr_strat = strat_df.filter(pl.col("PLT_CN").is_in(macr_plt_cns))
+            strat_df.filter(pl.col("PLT_CN").is_in(macr_plt_cns))
             assert all(macr_plots["ADJ_FACTOR"] == 0.25)  # ADJ_FACTOR_MACR value
-        
-        # Verify SUBP plots get SUBP adjustment factor  
+
+        # Verify SUBP plots get SUBP adjustment factor
         subp_plots = result.filter(pl.col("PROP_BASIS") != "MACR")
         if len(subp_plots) > 0:
             assert all(subp_plots["ADJ_FACTOR"] == 1.0)  # ADJ_FACTOR_SUBP value
-    
+
     def test_calculate_plot_area_estimates_with_grouping(self,
                                                         sample_plot_data,
                                                         sample_cond_data,
@@ -226,20 +227,20 @@ class TestAreaEstimation:
         cond_df = _add_land_type_categories(sample_cond_data)
         cond_df = _calculate_domain_indicators(cond_df, "forest", True)
         strat_df = _prepare_area_stratification(sample_stratum_data, sample_ppsa_data)
-        
+
         result = _calculate_plot_area_estimates(
             sample_plot_data,
             cond_df,
             strat_df,
             grp_by=["LAND_TYPE"]
         )
-        
+
         # Check grouping worked
         assert "LAND_TYPE" in result.columns
         # Number of result rows depends on unique LAND_TYPE values per plot
         # Just check that we have results
         assert len(result) >= 1
-    
+
     def test_calculate_stratum_area_estimates(self):
         """Test stratum-level area estimation."""
         # Create mock plot estimates
@@ -252,21 +253,21 @@ class TestAreaEstimation:
             "fad_expanded": [1000.0, 1000.0, 1000.0, 1500.0, 1500.0],
             "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0, 1500.0]
         })
-        
+
         result = _calculate_stratum_area_estimates(plot_est, grp_by=None)
-        
+
         # Check calculations
         assert len(result) == 2  # Two strata
         assert "fa_expanded_total" in result.columns
         assert "fad_expanded_total" in result.columns
         assert "s_fa_h" in result.columns  # Standard deviation
         assert "corr_fa_fad" in result.columns  # Correlation
-        
+
         # Verify totals
         s1 = result.filter(pl.col("STRATUM_CN") == "S1")
         assert s1["fa_expanded_total"][0] == 1700.0  # 700 + 1000 + 0
         assert s1["fad_expanded_total"][0] == 3000.0  # 1000 * 3
-    
+
     def test_calculate_population_area_estimates(self):
         """Test population-level area estimation."""
         # Create mock stratum estimates
@@ -282,28 +283,28 @@ class TestAreaEstimation:
             "w_h": [1000.0, 1500.0],
             "n_h": [3, 2]
         })
-        
+
         result = _calculate_population_area_estimates(
-            stratum_est, 
+            stratum_est,
             grp_by=None,
             totals=True,
             variance=False
         )
-        
+
         # Check results
         assert "AREA_PERC" in result.columns
         assert "AREA" in result.columns  # Total area requested
         assert "AREA_PERC_SE" in result.columns
         assert "N_PLOTS" in result.columns
-        
+
         # Verify percentage calculation
         expected_perc = (3200.0 / 6000.0) * 100  # (1700+1500)/(3000+3000)
         assert abs(result["AREA_PERC"][0] - expected_perc) < 0.01
-        
+
         # Verify total plots
         assert result["N_PLOTS"][0] == 5  # 3 + 2
-    
-    def test_area_main_function_integration(self, mock_db, 
+
+    def test_area_main_function_integration(self, mock_db,
                                           sample_plot_data,
                                           sample_cond_data,
                                           sample_tree_data,
@@ -320,23 +321,23 @@ class TestAreaEstimation:
                 filter=Mock(return_value=Mock(collect=Mock(return_value=sample_ppsa_data)))
             )
         }
-        
+
         # Test basic area calculation
         result = area(mock_db, land_type="forest")
-        
+
         assert isinstance(result, pl.DataFrame)
         assert "AREA_PERC" in result.columns
         assert "N_PLOTS" in result.columns
         assert "AREA_PERC_SE" in result.columns
-        
+
         # Test with totals
         result_with_totals = area(mock_db, land_type="forest", totals=True)
         assert "AREA" in result_with_totals.columns
-        
+
         # Test with variance
         result_with_var = area(mock_db, land_type="forest", variance=True)
         assert "AREA_PERC_VAR" in result_with_var.columns
-    
+
     def test_area_by_land_type(self, mock_db,
                                sample_plot_data,
                                sample_cond_data,
@@ -352,12 +353,12 @@ class TestAreaEstimation:
                 filter=Mock(return_value=Mock(collect=Mock(return_value=sample_ppsa_data)))
             )
         }
-        
+
         result = area(mock_db, by_land_type=True)
-        
+
         assert "LAND_TYPE" in result.columns
         assert len(result) >= 1  # At least one land type category
-        
+
         # Check that percentages are reasonable
         if len(result) > 0:
             # Each percentage should be valid
@@ -366,7 +367,7 @@ class TestAreaEstimation:
                 # Handle None/null values
                 if perc is not None:
                     assert 0 <= perc <= 100
-            
+
             # For land area (excluding water), percentages should sum to 100%
             land_only = result.filter(~pl.col("LAND_TYPE").str.contains("Water"))
             if len(land_only) > 0:
@@ -376,7 +377,7 @@ class TestAreaEstimation:
                     total_land_perc = sum(valid_percs)
                     # Should sum to approximately 100%
                     assert 95 <= total_land_perc <= 105
-    
+
     def test_area_with_tree_domain(self, mock_db,
                                    sample_plot_data,
                                    sample_cond_data,
@@ -384,7 +385,7 @@ class TestAreaEstimation:
                                    sample_stratum_data,
                                    sample_ppsa_data):
         """Test area calculation with tree domain filter."""
-        # Setup mock database  
+        # Setup mock database
         mock_db.get_plots = Mock(return_value=sample_plot_data)
         mock_db.get_conditions = Mock(return_value=sample_cond_data)
         mock_db.get_trees = Mock(return_value=sample_tree_data)
@@ -394,14 +395,14 @@ class TestAreaEstimation:
                 filter=Mock(return_value=Mock(collect=Mock(return_value=sample_ppsa_data)))
             )
         }
-        
+
         # Calculate area for conditions with loblolly pine
         result = area(mock_db, tree_domain="SPCD == 131 and STATUSCD == 1")
-        
+
         assert isinstance(result, pl.DataFrame)
         # Area should be less than total forest area since filtered by tree domain
         assert result["AREA_PERC"][0] < 100.0
-    
+
     def test_area_timber_land_type(self, mock_db,
                                    sample_plot_data,
                                    sample_cond_data,
@@ -417,14 +418,14 @@ class TestAreaEstimation:
                 filter=Mock(return_value=Mock(collect=Mock(return_value=sample_ppsa_data)))
             )
         }
-        
+
         result = area(mock_db, land_type="timber")
-        
+
         assert isinstance(result, pl.DataFrame)
         # Timber area should be less than total forest area
         # since it excludes reserved and non-productive sites
         assert result["AREA_PERC"][0] <= 100.0
-    
+
     def test_area_with_custom_grouping(self, mock_db,
                                        sample_plot_data,
                                        sample_cond_data,
@@ -435,7 +436,7 @@ class TestAreaEstimation:
         cond_with_fortype = sample_cond_data.with_columns(
             pl.col("FORTYPCD").fill_null(999)  # Fill nulls for grouping
         )
-        
+
         mock_db.get_plots = Mock(return_value=sample_plot_data)
         mock_db.get_conditions = Mock(return_value=cond_with_fortype)
         mock_db.tables = {
@@ -444,12 +445,12 @@ class TestAreaEstimation:
                 filter=Mock(return_value=Mock(collect=Mock(return_value=sample_ppsa_data)))
             )
         }
-        
+
         result = area(mock_db, grp_by=["FORTYPCD"])
-        
+
         assert "FORTYPCD" in result.columns
         assert len(result) >= 1  # At least one forest type group
-    
+
     def test_edge_cases(self, mock_db):
         """Test edge cases and error conditions."""
         # Empty data with proper schema and types
@@ -478,7 +479,7 @@ class TestAreaEstimation:
             "STRATUM_CN": pl.Series([], dtype=pl.Utf8),
             "EVALID": pl.Series([], dtype=pl.Int32)
         })
-        
+
         mock_db.get_plots = Mock(return_value=empty_plots)
         mock_db.get_conditions = Mock(return_value=empty_conds)
         mock_db.tables = {
@@ -487,7 +488,7 @@ class TestAreaEstimation:
                 filter=Mock(return_value=Mock(collect=Mock(return_value=empty_ppsa)))
             )
         }
-        
+
         # Should handle empty data gracefully
         result = area(mock_db)
         assert isinstance(result, pl.DataFrame)
@@ -495,7 +496,7 @@ class TestAreaEstimation:
         if len(result) > 0:
             assert "AREA_PERC" in result.columns
             assert "N_PLOTS" in result.columns
-    
+
     def test_variance_calculations(self):
         """Test variance calculation formulas."""
         # Test with known values
@@ -510,18 +511,18 @@ class TestAreaEstimation:
             "w_h": [1000.0],
             "n_h": [10]
         })
-        
+
         result = _calculate_population_area_estimates(
             stratum_est,
             grp_by=None,
             totals=False,
             variance=True
         )
-        
+
         # Verify variance components are calculated
         assert "AREA_PERC_VAR" in result.columns
         assert result["AREA_PERC_VAR"][0] > 0  # Variance should be positive
-        
+
         # Verify ratio variance formula is applied correctly
         # The variance should incorporate both numerator and denominator variance
         # plus the covariance term

@@ -187,14 +187,32 @@ class FIADirectCLI(cmd.Cmd):
                     pop_eval = self.fia.tables['POP_EVAL'].collect()
                     pop_eval = pop_eval.filter(pl.col('EVALID').is_in(evalids))
                     
-                    # Get states
-                    states = pop_eval['STATECD'].unique().to_list()
-                    summary.add_row("States", ", ".join(map(str, sorted(states))))
+                    # Get states and convert to abbreviations
+                    state_codes = sorted(pop_eval['STATECD'].unique().to_list())
                     
-                    # Get year range
+                    # State code to abbreviation mapping
+                    code_to_abbr = {
+                        1: "AL", 2: "AK", 4: "AZ", 5: "AR", 6: "CA", 8: "CO", 9: "CT",
+                        10: "DE", 12: "FL", 13: "GA", 15: "HI", 16: "ID", 17: "IL", 18: "IN",
+                        19: "IA", 20: "KS", 21: "KY", 22: "LA", 23: "ME", 24: "MD", 25: "MA",
+                        26: "MI", 27: "MN", 28: "MS", 29: "MO", 30: "MT", 31: "NE", 32: "NV",
+                        33: "NH", 34: "NJ", 35: "NM", 36: "NY", 37: "NC", 38: "ND", 39: "OH",
+                        40: "OK", 41: "OR", 42: "PA", 44: "RI", 45: "SC", 46: "SD", 47: "TN",
+                        48: "TX", 49: "UT", 50: "VT", 51: "VA", 53: "WA", 54: "WV", 55: "WI",
+                        56: "WY", 60: "AS", 64: "FM", 66: "GU", 68: "MH", 69: "MP", 70: "PW",
+                        72: "PR", 78: "VI"
+                    }
+                    
+                    state_abbrs = [code_to_abbr.get(code, f"#{code}") for code in state_codes]
+                    summary.add_row("States", ", ".join(state_abbrs))
+                    
+                    # Get year range and ensure integers
                     years = pop_eval['END_INVYR'].to_list()
                     if years:
-                        summary.add_row("Year Range", f"{min(years)} - {max(years)}")
+                        # Convert to integers to remove any decimal points
+                        years = [int(y) for y in years if y is not None]
+                        if years:
+                            summary.add_row("Year Range", f"{min(years)} - {max(years)}")
                 except:
                     summary.add_row("EVALID Range", f"{min(evalids)} - {max(evalids)}")
             
@@ -222,6 +240,11 @@ class FIADirectCLI(cmd.Cmd):
             - Abbreviation: evalid NC or evalid nc
             - Full name: evalid "North Carolina" or evalid alabama
         """
+        # Handle 'evalid help' syntax
+        if arg.strip().lower() == 'help':
+            self.do_help('evalid')
+            return
+            
         if not self._check_connection():
             return
         
@@ -379,22 +402,85 @@ class FIADirectCLI(cmd.Cmd):
     def do_area(self, arg: str):
         """Calculate forest area estimates.
         Usage:
-            area                        - Total forest area
+            area                        - Forest area (acres and % of total land)
+            area <state>                - Forest area for specific state
+            area byLandType             - Area by land type categories
             area bySpecies              - Area by species
             area landType=timber        - Timber land only
             area grpBy=FORTYPCD         - Group by forest type
             area treeDomain="DIA > 10"  - Custom tree filter
             area variance               - Include variance (not SE)
         
+        State can be specified as:
+            - Abbreviation: area AL or area al
+            - Full name: area Alabama or area alabama
+            - Code: area 1
+        
+        Notes:
+            - AREA shows total acres
+            - AREA_PERC shows percentage of total land area
+            - Use byLandType to see forest vs non-forest breakdown
+        
         Examples:
-            area bySpecies landType=timber
+            area                                    - Forest area (current EVALID)
+            area AL                                 - Alabama forest area
+            area NC byLandType                      - North Carolina land types
+            area byLandType                         - All land types breakdown
+            area bySpecies landType=timber          - Timber area by species
             area grpBy=OWNCD areaDomain="COND_STATUS_CD == 1"
         """
+        # Handle 'area help' syntax
+        if arg.strip().lower() == 'help':
+            self.do_help('area')
+            return
+            
         if not self._check_connection():
             return
         
         try:
+            # Check if first argument is a state identifier
+            args = arg.strip().split(maxsplit=1)
+            state_code = None
+            state_name = None
+            
+            if args:
+                # Try to parse first argument as state
+                potential_state = args[0]
+                state_code = self._parse_state_identifier(potential_state)
+                
+                if state_code is not None:
+                    # Found a state, use the rest as kwargs
+                    state_name = potential_state
+                    arg = args[1] if len(args) > 1 else ""
+                    
+                    # Set evaluation to most recent for this state
+                    original_evalid = self.fia.evalid
+                    evalids = self.fia.find_evalid(state=state_code, most_recent=True)
+                    if evalids:
+                        self.fia.clip_by_evalid(evalids)
+                    else:
+                        self.console.print(f"[red]No evaluations found for state: {state_name}[/red]")
+                        return
+            
             kwargs = self._parse_kwargs(arg)
+            
+            # Always include totals for area command unless explicitly set to False
+            if 'totals' not in kwargs:
+                kwargs['totals'] = True
+                
+            # Convert camelCase to snake_case for area function parameters
+            kwargs = self._convert_kwargs_to_snake_case(kwargs)
+            
+            # Note: AREA_PERC shows percentage of total area meeting criteria
+            # When landType="forest" (default), it shows forest as % of total land
+            # The percentage is most meaningful when using byLandType or other groupings
+            
+            # Build descriptive title
+            title = "Forest Area Estimates"
+            if state_name:
+                title = f"Forest Area Estimates - {state_name.upper()}"
+            if self.fia.evalid:
+                title += f" (EVALID: {', '.join(map(str, self.fia.evalid))})"
             
             with Progress(
                 SpinnerColumn(),
@@ -406,7 +492,11 @@ class FIADirectCLI(cmd.Cmd):
                 progress.update(task, completed=True)
             
             self.last_result = result
-            self._display_results(result, "Forest Area Estimates")
+            self._display_results(result, title)
+            
+            # Restore original evalid if we changed it
+            if state_code is not None and 'original_evalid' in locals():
+                self.fia.evalid = original_evalid
             
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
@@ -424,11 +514,17 @@ class FIADirectCLI(cmd.Cmd):
             biomass component=AG bySpecies
             biomass component=TOTAL landType=timber
         """
+        # Handle 'biomass help' syntax
+        if arg.strip().lower() == 'help':
+            self.do_help('biomass')
+            return
+            
         if not self._check_connection():
             return
         
         try:
             kwargs = self._parse_kwargs(arg)
+            kwargs = self._convert_kwargs_to_snake_case(kwargs)
             
             with Progress(
                 SpinnerColumn(),
@@ -458,11 +554,17 @@ class FIADirectCLI(cmd.Cmd):
             volume volType=NET bySpecies
             volume volType=SOUND landType=timber
         """
+        # Handle 'volume help' syntax
+        if arg.strip().lower() == 'help':
+            self.do_help('volume')
+            return
+            
         if not self._check_connection():
             return
         
         try:
             kwargs = self._parse_kwargs(arg)
+            kwargs = self._convert_kwargs_to_snake_case(kwargs)
             
             with Progress(
                 SpinnerColumn(),
@@ -492,11 +594,17 @@ class FIADirectCLI(cmd.Cmd):
             tpa bySpecies treeType=live
             tpa bySizeClass landType=timber
         """
+        # Handle 'tpa help' syntax
+        if arg.strip().lower() == 'help':
+            self.do_help('tpa')
+            return
+            
         if not self._check_connection():
             return
         
         try:
             kwargs = self._parse_kwargs(arg)
+            kwargs = self._convert_kwargs_to_snake_case(kwargs)
             
             with Progress(
                 SpinnerColumn(),
@@ -526,11 +634,17 @@ class FIADirectCLI(cmd.Cmd):
             mortality bySpecies
             mortality grpBy=AGENTCD
         """
+        # Handle 'mortality help' syntax
+        if arg.strip().lower() == 'help':
+            self.do_help('mortality')
+            return
+            
         if not self._check_connection():
             return
         
         try:
             kwargs = self._parse_kwargs(arg)
+            kwargs = self._convert_kwargs_to_snake_case(kwargs)
             
             with Progress(
                 SpinnerColumn(),
@@ -930,7 +1044,7 @@ class FIADirectCLI(cmd.Cmd):
             return kwargs
         
         # Handle boolean flags
-        for flag in ['bySpecies', 'bySizeClass', 'mostRecent', 'totals', 'variance']:
+        for flag in ['bySpecies', 'bySizeClass', 'byLandType', 'mostRecent', 'totals', 'variance']:
             if flag in arg:
                 kwargs[flag] = True
                 arg = arg.replace(flag, '')
@@ -961,6 +1075,26 @@ class FIADirectCLI(cmd.Cmd):
                             pass  # Keep as string
                 kwargs[key] = value
         
+        return kwargs
+    
+    def _convert_kwargs_to_snake_case(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+        """Convert camelCase kwargs to snake_case for FIA functions."""
+        conversions = {
+            'byLandType': 'by_land_type',
+            'bySpecies': 'by_species', 
+            'bySizeClass': 'by_size_class',
+            'landType': 'land_type',
+            'treeDomain': 'tree_domain',
+            'areaDomain': 'area_domain',
+            'treeType': 'tree_type',
+            'volType': 'vol_type',
+            'mostRecent': 'most_recent'
+        }
+        
+        for camel, snake in conversions.items():
+            if camel in kwargs:
+                kwargs[snake] = kwargs.pop(camel)
+                
         return kwargs
     
     def _display_dataframe(self, df: pl.DataFrame, title: str = "", max_rows: int = 20):
@@ -1017,15 +1151,38 @@ class FIADirectCLI(cmd.Cmd):
         
         # Show column explanations if needed
         explanations = []
+        
+        # Area-specific explanations
+        if 'AREA' in result.columns:
+            explanations.append("AREA = Total acres")
+        if 'AREA_PERC' in result.columns:
+            if 'LAND_TYPE' in result.columns:
+                explanations.append("AREA_PERC = Percentage of total land area")
+            else:
+                explanations.append("AREA_PERC = Forest/criteria area as % of total land")
+        
+        # Standard error explanations
         if 'SE' in result.columns:
             explanations.append("SE = Standard Error")
         if 'SE_PERCENT' in result.columns:
             explanations.append("SE% = Standard Error as % of estimate")
+        if 'AREA_SE' in result.columns:
+            explanations.append("AREA_SE = Standard Error of area estimate")
+        if 'AREA_PERC_SE' in result.columns:
+            explanations.append("AREA_PERC_SE = Standard Error of percentage")
+            
+        # Other columns
+        if 'N_PLOTS' in result.columns:
+            explanations.append("N_PLOTS = Number of plots used")
         if 'nPlots' in result.columns:
             explanations.append("nPlots = Number of plots used")
         
         if explanations:
             self.console.print(f"\n[dim]{', '.join(explanations)}[/dim]")
+            
+        # Add interpretation help for area results
+        if 'AREA_PERC' in result.columns and 'LAND_TYPE' in result.columns:
+            self.console.print("\n[dim]Note: Percentages show each land type as a portion of total evaluated land area[/dim]")
 
 
 def main():

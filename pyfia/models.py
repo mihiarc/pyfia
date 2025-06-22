@@ -2,10 +2,10 @@
 Pydantic models for pyFIA data validation.
 """
 
-from typing import List, Optional, Dict, Any, Union
-from pydantic import BaseModel, Field, field_validator
-from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
+
 import polars as pl
+from pydantic import BaseModel, Field, field_validator
 
 
 class EvaluationInfo(BaseModel):
@@ -16,7 +16,7 @@ class EvaluationInfo(BaseModel):
     start_invyr: int
     end_invyr: int
     nplots: Optional[int] = None
-    
+
     @field_validator('eval_typ')
     @classmethod
     def validate_eval_type(cls, v: str) -> str:
@@ -44,7 +44,7 @@ class EstimationResult(BaseModel):
     total: float
     area: float
     nPlots: Optional[int] = None
-    
+
     @field_validator('cv')
     @classmethod
     def validate_cv(cls, v: float) -> float:
@@ -62,7 +62,7 @@ class QueryParameters(BaseModel):
     area_domain: Optional[str] = None
     evalid: Optional[Union[int, List[int]]] = None
     most_recent: bool = False
-    
+
     @field_validator('evalid')
     @classmethod
     def validate_evalid(cls, v: Optional[Union[int, List[int]]]) -> Optional[List[int]]:
@@ -78,12 +78,12 @@ class CLICommand(BaseModel):
     command: str
     args: List[str] = []
     kwargs: Dict[str, Any] = {}
-    
+
     @field_validator('command')
     @classmethod
     def validate_command(cls, v: str) -> str:
         valid_commands = [
-            'connect', 'info', 'evalid', 'clip', 'tpa', 'biomass', 
+            'connect', 'info', 'evalid', 'clip', 'tpa', 'biomass',
             'volume', 'mortality', 'show', 'export', 'help', 'exit',
             'recent', 'shortcut', 'setdefault', 'clear'
         ]
@@ -94,22 +94,22 @@ class CLICommand(BaseModel):
 
 class FIADataFrameWrapper(BaseModel):
     """Wrapper for polars DataFrames with validation."""
-    
+
     class Config:
         arbitrary_types_allowed = True
-    
+
     data: pl.DataFrame
     table_name: str
     row_count: int = 0
     column_names: List[str] = []
-    
+
     @field_validator('data')
     @classmethod
     def validate_dataframe(cls, v: pl.DataFrame) -> pl.DataFrame:
         if not isinstance(v, pl.DataFrame):
             raise ValueError('data must be a polars DataFrame')
         return v
-    
+
     def model_post_init(self, __context) -> None:
         """Post-init to set derived fields."""
         self.row_count = len(self.data)

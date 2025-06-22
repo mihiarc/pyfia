@@ -5,9 +5,11 @@ This module implements the post-stratified ratio-of-means estimator for
 calculating trees per acre from FIA data, following Bechtold & Patterson (2005).
 """
 
+from typing import List, Optional
+
 import polars as pl
-from typing import Optional, List, Dict, Any, Union
-from pyfia.estimation_utils import ratio_var, cv
+
+from pyfia.estimation_utils import ratio_var
 
 
 def tpa(
@@ -27,9 +29,9 @@ def tpa(
 ) -> pl.DataFrame:
     """
     Estimate Trees Per Acre (TPA) and Basal Area per Acre (BAA) from FIA data.
-    
+
     Uses the post-stratified ratio-of-means estimator following FIA methodology.
-    
+
     Parameters
     ----------
     db : FIA
@@ -58,7 +60,7 @@ def tpa(
         Return variance instead of standard error
     most_recent : bool, default False
         Use only most recent evaluation
-        
+
     Returns
     -------
     pl.DataFrame
@@ -70,7 +72,7 @@ def tpa(
     db.load_table('TREE')
     db.load_table('POP_STRATUM')
     db.load_table('POP_PLOT_STRATUM_ASSGN')
-    
+
     # Get filtered data
     plots = db.get_plots()
     data = {
@@ -79,7 +81,7 @@ def tpa(
         "TREE": db.get_trees(),
         "POP_STRATUM": db.tables['POP_STRATUM'].collect()
     }
-    
+
     # Get plot-stratum assignments filtered by current evaluation
     if db.evalid:
         ppsa = db.tables['POP_PLOT_STRATUM_ASSGN'].filter(
@@ -91,33 +93,33 @@ def tpa(
         ppsa = db.tables['POP_PLOT_STRATUM_ASSGN'].filter(
             pl.col('PLT_CN').is_in(plot_cns)
         ).collect()
-    
+
     data["POP_PLOT_STRATUM_ASSGN"] = ppsa
-    
+
     # Apply domain filters
     tree_df = _apply_tree_filters(data["TREE"], tree_type, tree_domain)
     cond_df = _apply_cond_filters(data["COND"], land_type, area_domain)
-    
+
     # Calculate TREE_BASIS for each tree
     tree_df = _assign_tree_basis(tree_df, data["PLOT"])
-    
+
     # Add species information if requested
     if by_species:
         tree_df = _add_species_info(tree_df, db)
         if grp_by is None:
             grp_by = []
         grp_by.extend(["SPCD", "COMMON_NAME", "SCIENTIFIC_NAME"])
-    
+
     # Add size class if requested
     if by_size_class:
         tree_df = _add_size_class(tree_df)
         if grp_by is None:
             grp_by = []
         grp_by.append("SIZE_CLASS")
-    
+
     # Join stratification data
     strat_df = _prepare_stratification(data["POP_STRATUM"], data["POP_PLOT_STRATUM_ASSGN"])
-    
+
     # Calculate plot-level estimates
     plot_est = _calculate_plot_estimates(
         plot_df=data["PLOT"],
@@ -126,13 +128,13 @@ def tpa(
         strat_df=strat_df,
         grp_by=grp_by
     )
-    
+
     # Calculate stratum-level estimates
     stratum_est = _calculate_stratum_estimates(plot_est, grp_by)
-    
+
     # Calculate population estimates
     pop_est = _calculate_population_estimates(stratum_est, grp_by, totals, variance)
-    
+
     return pop_est
 
 
@@ -145,31 +147,31 @@ def _apply_tree_filters(
     # Tree type domain
     if tree_type == "live":
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 1) & 
-            (pl.col("DIA").is_not_null()) & 
+            (pl.col("STATUSCD") == 1) &
+            (pl.col("DIA").is_not_null()) &
             (pl.col("DIA") >= 1.0)
         )
     elif tree_type == "dead":
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 2) & 
-            (pl.col("DIA").is_not_null()) & 
+            (pl.col("STATUSCD") == 2) &
+            (pl.col("DIA").is_not_null()) &
             (pl.col("DIA") >= 5.0)
         )
     elif tree_type == "gs":
         tree_df = tree_df.filter(
-            (pl.col("TREECLCD") == 2) & 
-            (pl.col("DIA").is_not_null()) & 
+            (pl.col("TREECLCD") == 2) &
+            (pl.col("DIA").is_not_null()) &
             (pl.col("DIA") >= 1.0)
         )
     # "all" includes everything with valid DIA
-    
+
     # User-defined tree domain
     if tree_domain:
         tree_df = tree_df.filter(pl.sql_expr(tree_domain))
-    
+
     # Only keep trees with positive TPA_UNADJ
     tree_df = tree_df.filter(pl.col("TPA_UNADJ") > 0)
-    
+
     return tree_df
 
 
@@ -188,11 +190,11 @@ def _apply_cond_filters(
             (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])) &
             (pl.col("RESERVCD") == 0)
         )
-    
+
     # User-defined area domain
     if area_domain:
         cond_df = cond_df.filter(pl.sql_expr(area_domain))
-    
+
     return cond_df
 
 
@@ -204,7 +206,7 @@ def _assign_tree_basis(tree_df: pl.DataFrame, plot_df: pl.DataFrame) -> pl.DataF
         on="PLT_CN",
         how="left"
     )
-    
+
     # Assign TREE_BASIS following rFIA logic
     tree_df = tree_df.with_columns(
         pl.when(pl.col("DIA").is_null())
@@ -220,12 +222,12 @@ def _assign_tree_basis(tree_df: pl.DataFrame, plot_df: pl.DataFrame) -> pl.DataF
         .otherwise(pl.lit("MACR"))
         .alias("TREE_BASIS")
     )
-    
+
     # Calculate basal area for each tree
     tree_df = tree_df.with_columns(
         (0.005454154 * pl.col("DIA") ** 2).alias("BASAL_AREA")
     )
-    
+
     return tree_df
 
 
@@ -235,13 +237,13 @@ def _add_species_info(tree_df: pl.DataFrame, db) -> pl.DataFrame:
     # For now, just ensure SPCD is included
     if "SPCD" not in tree_df.columns:
         raise ValueError("SPCD column not found in TREE table")
-    
+
     # Placeholder for species names - in real implementation would join with reference table
     tree_df = tree_df.with_columns([
         pl.col("SPCD").cast(pl.Utf8).alias("COMMON_NAME"),
         pl.col("SPCD").cast(pl.Utf8).alias("SCIENTIFIC_NAME")
     ])
-    
+
     return tree_df
 
 
@@ -263,18 +265,18 @@ def _prepare_stratification(
         # Get the EVALID from the first row (they should all be the same after clipping)
         current_evalid = assgn_df["EVALID"][0]
         assgn_df = assgn_df.filter(pl.col("EVALID") == current_evalid)
-    
+
     # Join assignment with stratum info
     strat_df = assgn_df.join(
         stratum_df.select([
-            "CN", "EXPNS", "ADJ_FACTOR_MICR", 
+            "CN", "EXPNS", "ADJ_FACTOR_MICR",
             "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", "P2POINTCNT"
         ]),
         left_on="STRATUM_CN",
         right_on="CN",
         how="inner"
     )
-    
+
     return strat_df
 
 
@@ -289,20 +291,20 @@ def _calculate_plot_estimates(
     # Ensure plot_df has PLT_CN column
     if "PLT_CN" not in plot_df.columns:
         plot_df = plot_df.rename({"CN": "PLT_CN"})
-    
+
     # First, calculate forest area proportion for each plot
     area_by_plot = (
         cond_df
         .group_by("PLT_CN")
         .agg(pl.sum("CONDPROP_UNADJ").alias("PROP_FOREST"))
     )
-    
+
     # Calculate tree-level estimates with proper expansion
     if grp_by:
         tree_groups = ["PLT_CN", "TREE_BASIS"] + grp_by
     else:
         tree_groups = ["PLT_CN", "TREE_BASIS"]
-    
+
     tree_est = (
         tree_df
         .group_by(tree_groups)
@@ -311,14 +313,14 @@ def _calculate_plot_estimates(
             (pl.col("TPA_UNADJ") * pl.col("BASAL_AREA")).sum().alias("BAA_UNADJ_SUM")
         ])
     )
-    
+
     # Join with stratification to get adjustment factors
     tree_est = tree_est.join(
         strat_df.select(["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]),
         on="PLT_CN",
         how="left"
     )
-    
+
     # Apply adjustment factors based on TREE_BASIS
     tree_est = tree_est.with_columns([
         pl.when(pl.col("TREE_BASIS") == "MICR")
@@ -329,7 +331,7 @@ def _calculate_plot_estimates(
         .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MACR"))
         .otherwise(pl.col("TPA_UNADJ_SUM"))
         .alias("TPA_ADJ"),
-        
+
         pl.when(pl.col("TREE_BASIS") == "MICR")
         .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MICR"))
         .when(pl.col("TREE_BASIS") == "SUBP")
@@ -339,13 +341,13 @@ def _calculate_plot_estimates(
         .otherwise(pl.col("BAA_UNADJ_SUM"))
         .alias("BAA_ADJ")
     ])
-    
+
     # Sum across TREE_BASIS within plot
     if grp_by:
         plot_groups = ["PLT_CN", "STRATUM_CN", "EXPNS"] + grp_by
     else:
         plot_groups = ["PLT_CN", "STRATUM_CN", "EXPNS"]
-    
+
     plot_est = (
         tree_est
         .group_by(plot_groups)
@@ -354,17 +356,17 @@ def _calculate_plot_estimates(
             pl.sum("BAA_ADJ").alias("BAA_PLT")
         ])
     )
-    
+
     # Join with forest area proportion
     plot_est = plot_est.join(area_by_plot, on="PLT_CN", how="left")
-    
+
     # Fill missing values with 0
     plot_est = plot_est.with_columns([
         pl.col("TPA_PLT").fill_null(0),
         pl.col("BAA_PLT").fill_null(0),
         pl.col("PROP_FOREST").fill_null(0)
     ])
-    
+
     return plot_est
 
 
@@ -377,7 +379,7 @@ def _calculate_stratum_estimates(
         strat_groups = ["STRATUM_CN"] + grp_by
     else:
         strat_groups = ["STRATUM_CN"]
-    
+
     # Calculate stratum means and variance components
     stratum_est = (
         plot_est
@@ -402,18 +404,18 @@ def _calculate_stratum_estimates(
             pl.first("EXPNS").alias("w_h")
         ])
     )
-    
+
     # Calculate covariances from correlations
     stratum_est = stratum_est.with_columns([
         (pl.col("corr_yx") * pl.col("s_yh") * pl.col("s_xh")).alias("s_yxh"),
         (pl.col("corr_bx") * pl.col("s_bh") * pl.col("s_xh")).alias("s_bxh")
     ])
-    
+
     # Replace null std devs with 0
     stratum_est = stratum_est.with_columns([
         pl.col(c).fill_null(0) for c in ["s_yh", "s_bh", "s_xh", "s_yxh", "s_bxh"]
     ])
-    
+
     return stratum_est
 
 
@@ -428,7 +430,7 @@ def _calculate_population_estimates(
         pop_groups = grp_by
     else:
         pop_groups = []
-    
+
     # Calculate totals across strata
     agg_exprs = [
         # Weighted means
@@ -445,19 +447,19 @@ def _calculate_population_estimates(
         # Sample size
         pl.col("n_h").sum().alias("N_PLOTS")
     ]
-    
+
     if pop_groups:
         pop_est = stratum_est.group_by(pop_groups).agg(agg_exprs)
     else:
         # No grouping - calculate overall totals
         pop_est = stratum_est.select(agg_exprs)
-    
+
     # Calculate ratios (per acre values)
     pop_est = pop_est.with_columns([
         (pl.col("TREE_TOTAL") / pl.col("AREA_TOTAL")).alias("TPA"),
         (pl.col("BA_TOTAL") / pl.col("AREA_TOTAL")).alias("BAA")
     ])
-    
+
     # Calculate ratio variances using delta method
     pop_est = pop_est.with_columns([
         ratio_var(
@@ -471,7 +473,7 @@ def _calculate_population_estimates(
             pl.col("COV_BX")
         ).alias("BAA_VAR")
     ])
-    
+
     # Calculate standard errors
     pop_est = pop_est.with_columns([
         (pl.col("TPA_VAR").sqrt() / pl.col("TPA") * 100).alias("TPA_SE"),
@@ -480,13 +482,13 @@ def _calculate_population_estimates(
         (pl.col("BA_VAR").sqrt() / pl.col("BA_TOTAL") * 100).alias("BA_TOTAL_SE"),
         (pl.col("AREA_VAR").sqrt() / pl.col("AREA_TOTAL") * 100).alias("AREA_TOTAL_SE")
     ])
-    
+
     # Select final columns
     cols = pop_groups + ["TPA", "BAA", "N_PLOTS"]
-    
+
     if totals:
         cols.extend(["TREE_TOTAL", "BA_TOTAL", "AREA_TOTAL"])
-        
+
     if variance:
         cols.extend(["TPA_VAR", "BAA_VAR"])
         if totals:
@@ -495,5 +497,5 @@ def _calculate_population_estimates(
         cols.extend(["TPA_SE", "BAA_SE"])
         if totals:
             cols.extend(["TREE_TOTAL_SE", "BA_TOTAL_SE", "AREA_TOTAL_SE"])
-    
+
     return pop_est.select(cols)

@@ -6,8 +6,6 @@ This module provides default settings and paths for pyFIA operations.
 
 import os
 from pathlib import Path
-from typing import Optional
-
 
 # Default database paths
 DEFAULT_DUCKDB_PATH = "fia.duckdb"
@@ -21,11 +19,11 @@ FIA_DB_ENGINE = os.environ.get("FIA_DB_ENGINE", DEFAULT_ENGINE)
 def get_default_db_path() -> Path:
     """
     Get the default database path.
-    
+
     Checks in order:
     1. FIA_DB_PATH environment variable
     2. Default DuckDB path
-    
+
     Returns:
         Path to the default database
     """
@@ -38,7 +36,7 @@ def get_default_db_path() -> Path:
 def get_default_engine() -> str:
     """
     Get the default database engine.
-    
+
     Returns:
         Default engine type ("sqlite" or "duckdb")
     """
@@ -47,23 +45,23 @@ def get_default_engine() -> str:
 
 class Config:
     """Configuration container for pyFIA settings."""
-    
+
     def __init__(self):
         self.db_path = get_default_db_path()
         self.engine = get_default_engine()
         self.cache_dir = Path.home() / ".pyfia" / "cache"
         self.log_dir = Path.home() / ".pyfia" / "logs"
-        
+
         # Create directories if they don't exist
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def set_db_path(self, path: str):
         """Set the database path."""
         self.db_path = Path(path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {path}")
-    
+
     def set_engine(self, engine: str):
         """Set the database engine."""
         if engine.lower() not in ["sqlite", "duckdb"]:

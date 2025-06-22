@@ -36,12 +36,20 @@ jobs:
         source .venv/bin/activate
         uv run pytest --cov=pyfia --cov-report=xml --cov-report=term-missing
     
+    - name: Display coverage summary
+      run: |
+        echo "## Coverage Summary" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        source .venv/bin/activate
+        uv run pytest --cov=pyfia --cov-report=term-missing --tb=no -q | tail -n +2 >> $GITHUB_STEP_SUMMARY || true
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+    
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@v4
       with:
         file: ./coverage.xml
         flags: unittests
         name: codecov-umbrella
-        fail_ci_if_error: true
+        fail_ci_if_error: false
       env:
         CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}

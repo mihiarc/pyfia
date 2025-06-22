@@ -16,6 +16,7 @@ from pathlib import Path
 # Optional readline import for Windows compatibility
 try:
     import readline
+
     HAS_READLINE = True
 except ImportError:
     HAS_READLINE = False

@@ -299,10 +299,10 @@ def _prepare_area_stratification(
         current_evalid = assgn_df["EVALID"][0]
         assgn_df = assgn_df.filter(pl.col("EVALID") == current_evalid)
     
-    # Join assignment with stratum info
+    # Join assignment with stratum info - include both SUBP and MACR adjustment factors
     strat_df = assgn_df.join(
         stratum_df.select([
-            "CN", "EXPNS", "ADJ_FACTOR_SUBP", "P2POINTCNT"
+            "CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", "P2POINTCNT"
         ]),
         left_on="STRATUM_CN",
         right_on="CN",
@@ -329,39 +329,59 @@ def _calculate_plot_area_estimates(
     else:
         cond_groups = ["PLT_CN"]
     
-    # Area meeting criteria (numerator)
+    # Area meeting criteria (numerator) - include PROP_BASIS for adjustment factor selection
     area_num = (
         cond_df
         .group_by(cond_groups)
-        .agg((pl.col("CONDPROP_UNADJ") * pl.col("aDI")).sum().alias("fa"))
+        .agg([
+            (pl.col("CONDPROP_UNADJ") * pl.col("aDI")).sum().alias("fa"),
+            # Get dominant PROP_BASIS for the plot (most common or first)
+            pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS")
+        ])
     )
     
-    # Total area in domain (denominator)
+    # Total area in domain (denominator) - also need PROP_BASIS
     area_den = (
         cond_df
         .group_by("PLT_CN")
-        .agg((pl.col("CONDPROP_UNADJ") * pl.col("pDI")).sum().alias("fad"))
+        .agg([
+            (pl.col("CONDPROP_UNADJ") * pl.col("pDI")).sum().alias("fad"),
+            pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS_DEN")
+        ])
     )
     
     # Join numerator and denominator
     plot_est = area_num.join(area_den, on="PLT_CN", how="left")
     
-    # Join with stratification
+    # Use consistent PROP_BASIS (prefer from numerator if available)
+    plot_est = plot_est.with_columns(
+        pl.coalesce(["PROP_BASIS", "PROP_BASIS_DEN"]).alias("PROP_BASIS")
+    ).drop("PROP_BASIS_DEN")
+    
+    # Join with stratification - now includes both adjustment factors
     plot_est = plot_est.join(
-        strat_df.select(["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP"]),
+        strat_df.select(["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]),
         on="PLT_CN",
         how="left"
+    )
+    
+    # Select appropriate adjustment factor based on PROP_BASIS
+    plot_est = plot_est.with_columns(
+        pl.when(pl.col("PROP_BASIS") == "MACR")
+        .then(pl.col("ADJ_FACTOR_MACR"))
+        .otherwise(pl.col("ADJ_FACTOR_SUBP"))
+        .alias("ADJ_FACTOR")
     )
     
     # Apply adjustment factor and calculate expanded values
     # CRITICAL: Use direct expansion (plot proportion × adjustment × EXPNS)
     # NOT post-stratified means
     plot_est = plot_est.with_columns([
-        (pl.col("fa") * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias("fa_expanded"),
-        (pl.col("fad") * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias("fad_expanded"),
+        (pl.col("fa") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias("fa_expanded"),
+        (pl.col("fad") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias("fad_expanded"),
         # Keep original values for variance calculation
-        (pl.col("fa") * pl.col("ADJ_FACTOR_SUBP")).alias("fa"),
-        (pl.col("fad") * pl.col("ADJ_FACTOR_SUBP")).alias("fad")
+        (pl.col("fa") * pl.col("ADJ_FACTOR")).alias("fa"),
+        (pl.col("fad") * pl.col("ADJ_FACTOR")).alias("fad")
     ])
     
     # Fill missing values
@@ -433,6 +453,10 @@ def _calculate_population_area_estimates(
     else:
         pop_groups = []
     
+    # Check if we're doing by_land_type analysis
+    # Only treat as by_land_type if the exact column "LAND_TYPE" is the only or primary grouping
+    by_land_type = pop_groups == ["LAND_TYPE"] if pop_groups else False
+    
     # Calculate totals using DIRECT EXPANSION, not stratum means
     agg_exprs = [
         # Direct expansion totals
@@ -453,9 +477,42 @@ def _calculate_population_area_estimates(
         pop_est = stratum_est.select(agg_exprs)
     
     # Calculate percentage (ratio estimate)
-    pop_est = pop_est.with_columns(
-        ((pl.col("FA_TOTAL") / pl.col("FAD_TOTAL")) * 100).alias("AREA_PERC")
-    )
+    # Handle division by zero to avoid infinity values
+    if by_land_type:
+        # For by_land_type, we need a common denominator across all land types
+        # Calculate total land area (sum of all non-water FAD_TOTAL)
+        # First, identify water rows if LAND_TYPE column exists
+        if "LAND_TYPE" in pop_est.columns:
+            # Get total land area (excluding water)
+            land_area_total = (
+                pop_est
+                .filter(~pl.col("LAND_TYPE").str.contains("Water"))
+                .select(pl.sum("FAD_TOTAL").alias("TOTAL_LAND_AREA"))
+            )[0, 0]
+            
+            # Use total land area as denominator for all land types
+            pop_est = pop_est.with_columns(
+                pl.when(land_area_total == 0)
+                .then(0.0)
+                .otherwise((pl.col("FA_TOTAL") / land_area_total) * 100)
+                .alias("AREA_PERC")
+            )
+        else:
+            # Fallback to regular calculation
+            pop_est = pop_est.with_columns(
+                pl.when(pl.col("FAD_TOTAL") == 0)
+                .then(0.0)
+                .otherwise((pl.col("FA_TOTAL") / pl.col("FAD_TOTAL")) * 100)
+                .alias("AREA_PERC")
+            )
+    else:
+        # Regular percentage calculation
+        pop_est = pop_est.with_columns(
+            pl.when(pl.col("FAD_TOTAL") == 0)
+            .then(0.0)
+            .otherwise((pl.col("FA_TOTAL") / pl.col("FAD_TOTAL")) * 100)
+            .alias("AREA_PERC")
+        )
     
     # Calculate ratio variance
     pop_est = pop_est.with_columns(

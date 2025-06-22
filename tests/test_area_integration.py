@@ -24,59 +24,166 @@ class TestAreaIntegrationEVALIDator:
         EVALID: 272201 - should produce forest type group areas.
         """
         # Create realistic plot data
-        plots = pl.DataFrame({
-            "CN": [f"P{i}" for i in range(1, 11)],
-            "PLT_CN": [f"P{i}" for i in range(1, 11)],
-            "STATECD": [23] * 10,  # Minnesota
-            "MACRO_BREAKPOINT_DIA": [24.0] * 10
-        })
+        plots = pl.DataFrame(
+            {
+                "CN": [f"P{i}" for i in range(1, 11)],
+                "PLT_CN": [f"P{i}" for i in range(1, 11)],
+                "STATECD": [23] * 10,  # Minnesota
+                "MACRO_BREAKPOINT_DIA": [24.0] * 10,
+            }
+        )
 
         # Create conditions with forest type groups
         # Matching the SQL: Aspen/birch (0900), Spruce/fir (0120), Oak/hickory (0500)
-        conditions = pl.DataFrame({
-            "CN": [f"C{i}" for i in range(1, 16)],
-            "PLT_CN": ["P1", "P1", "P2", "P3", "P3", "P4", "P5", "P6", "P7", "P8", "P8", "P9", "P9", "P10", "P10"],
-            "CONDID": [1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2],
-            "COND_STATUS_CD": [1, 1, 1, 1, 2, 1, 1, 1, 1, 1, 1, 1, 3, 1, 1],  # Mix of forest, non-forest, water
-            "CONDPROP_UNADJ": [0.6, 0.4, 1.0, 0.7, 0.3, 1.0, 1.0, 1.0, 1.0, 0.5, 0.5, 0.8, 0.2, 0.3, 0.7],
-            "PROP_BASIS": ["SUBP"] * 12 + ["MACR"] * 3,  # Some macroplot conditions
-            "FORTYPCD": [901, 902, 121, 122, None, 901, 501, 701, 801, 101, 901, 121, None, 999, 501],
-            "SITECLCD": [3, 3, 3, 3, None, 3, 3, 3, 3, 3, 3, 3, None, 3, 3],
-            "RESERVCD": [0] * 15
-        })
+        conditions = pl.DataFrame(
+            {
+                "CN": [f"C{i}" for i in range(1, 16)],
+                "PLT_CN": [
+                    "P1",
+                    "P1",
+                    "P2",
+                    "P3",
+                    "P3",
+                    "P4",
+                    "P5",
+                    "P6",
+                    "P7",
+                    "P8",
+                    "P8",
+                    "P9",
+                    "P9",
+                    "P10",
+                    "P10",
+                ],
+                "CONDID": [1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2],
+                "COND_STATUS_CD": [
+                    1,
+                    1,
+                    1,
+                    1,
+                    2,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    1,
+                    3,
+                    1,
+                    1,
+                ],  # Mix of forest, non-forest, water
+                "CONDPROP_UNADJ": [
+                    0.6,
+                    0.4,
+                    1.0,
+                    0.7,
+                    0.3,
+                    1.0,
+                    1.0,
+                    1.0,
+                    1.0,
+                    0.5,
+                    0.5,
+                    0.8,
+                    0.2,
+                    0.3,
+                    0.7,
+                ],
+                "PROP_BASIS": ["SUBP"] * 12 + ["MACR"] * 3,  # Some macroplot conditions
+                "FORTYPCD": [
+                    901,
+                    902,
+                    121,
+                    122,
+                    None,
+                    901,
+                    501,
+                    701,
+                    801,
+                    101,
+                    901,
+                    121,
+                    None,
+                    999,
+                    501,
+                ],
+                "SITECLCD": [3, 3, 3, 3, None, 3, 3, 3, 3, 3, 3, 3, None, 3, 3],
+                "RESERVCD": [0] * 15,
+            }
+        )
 
         # Create stratification data
-        strata = pl.DataFrame({
-            "CN": ["S1", "S2", "S3"],
-            "EVALID": [272201] * 3,
-            "EXPNS": [6000.0, 5000.0, 4000.0],  # Total ~17.6M acres when summed across plots
-            "ADJ_FACTOR_SUBP": [1.0] * 3,
-            "ADJ_FACTOR_MACR": [0.25] * 3,
-            "P2POINTCNT": [4, 3, 3],
-            "STRATUM_WGT": [0.4, 0.35, 0.25],
-            "AREA_USED": [7040000.0, 6160000.0, 4400000.0]  # ~17.6M total
-        })
+        strata = pl.DataFrame(
+            {
+                "CN": ["S1", "S2", "S3"],
+                "EVALID": [272201] * 3,
+                "EXPNS": [
+                    6000.0,
+                    5000.0,
+                    4000.0,
+                ],  # Total ~17.6M acres when summed across plots
+                "ADJ_FACTOR_SUBP": [1.0] * 3,
+                "ADJ_FACTOR_MACR": [0.25] * 3,
+                "P2POINTCNT": [4, 3, 3],
+                "STRATUM_WGT": [0.4, 0.35, 0.25],
+                "AREA_USED": [7040000.0, 6160000.0, 4400000.0],  # ~17.6M total
+            }
+        )
 
         # Create plot-stratum assignments
-        ppsa = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"],
-            "STRATUM_CN": ["S1", "S1", "S1", "S1", "S2", "S2", "S2", "S3", "S3", "S3"],
-            "EVALID": [272201] * 10
-        })
+        ppsa = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"],
+                "STRATUM_CN": [
+                    "S1",
+                    "S1",
+                    "S1",
+                    "S1",
+                    "S2",
+                    "S2",
+                    "S2",
+                    "S3",
+                    "S3",
+                    "S3",
+                ],
+                "EVALID": [272201] * 10,
+            }
+        )
 
         # Create forest type reference data
-        forest_types = pl.DataFrame({
-            "VALUE": [901, 902, 121, 122, 501, 701, 801, 101, 999],
-            "TYPGRPCD": [900, 900, 120, 120, 500, 700, 800, 100, 999],
-            "MEANING": ["Aspen", "Birch", "Spruce", "Fir", "Oak/hickory", "Elm/ash", "Maple/beech", "White pine", "Nonstocked"]
-        })
+        forest_types = pl.DataFrame(
+            {
+                "VALUE": [901, 902, 121, 122, 501, 701, 801, 101, 999],
+                "TYPGRPCD": [900, 900, 120, 120, 500, 700, 800, 100, 999],
+                "MEANING": [
+                    "Aspen",
+                    "Birch",
+                    "Spruce",
+                    "Fir",
+                    "Oak/hickory",
+                    "Elm/ash",
+                    "Maple/beech",
+                    "White pine",
+                    "Nonstocked",
+                ],
+            }
+        )
 
-        forest_type_groups = pl.DataFrame({
-            "VALUE": [900, 120, 500, 700, 800, 100, 999],
-            "MEANING": ["Aspen / birch group", "Spruce / fir group", "Oak / hickory group",
-                       "Elm / ash / cottonwood group", "Maple / beech / birch group",
-                       "White / red / jack pine group", "Nonstocked"]
-        })
+        forest_type_groups = pl.DataFrame(
+            {
+                "VALUE": [900, 120, 500, 700, 800, 100, 999],
+                "MEANING": [
+                    "Aspen / birch group",
+                    "Spruce / fir group",
+                    "Oak / hickory group",
+                    "Elm / ash / cottonwood group",
+                    "Maple / beech / birch group",
+                    "White / red / jack pine group",
+                    "Nonstocked",
+                ],
+            }
+        )
 
         return {
             "plots": plots,
@@ -84,7 +191,7 @@ class TestAreaIntegrationEVALIDator:
             "strata": strata,
             "ppsa": ppsa,
             "forest_types": forest_types,
-            "forest_type_groups": forest_type_groups
+            "forest_type_groups": forest_type_groups,
         }
 
     def test_minnesota_forest_area_by_type_group(self, minnesota_forest_area_data):
@@ -95,16 +202,20 @@ class TestAreaIntegrationEVALIDator:
         data = minnesota_forest_area_data
 
         # Add forest type group to conditions
-        conditions_with_group = data["conditions"].join(
-            data["forest_types"].select(["VALUE", "TYPGRPCD"]),
-            left_on="FORTYPCD",
-            right_on="VALUE",
-            how="left"
-        ).join(
-            data["forest_type_groups"].rename({"MEANING": "FOREST_TYPE_GROUP"}),
-            left_on="TYPGRPCD",
-            right_on="VALUE",
-            how="left"
+        conditions_with_group = (
+            data["conditions"]
+            .join(
+                data["forest_types"].select(["VALUE", "TYPGRPCD"]),
+                left_on="FORTYPCD",
+                right_on="VALUE",
+                how="left",
+            )
+            .join(
+                data["forest_type_groups"].rename({"MEANING": "FOREST_TYPE_GROUP"}),
+                left_on="TYPGRPCD",
+                right_on="VALUE",
+                how="left",
+            )
         )
 
         # Mock database
@@ -113,15 +224,17 @@ class TestAreaIntegrationEVALIDator:
         mock_db.get_plots = Mock(return_value=data["plots"])
         mock_db.get_conditions = Mock(return_value=conditions_with_group)
         mock_db.tables = {
-            'POP_STRATUM': Mock(collect=Mock(return_value=data["strata"])),
-            'POP_PLOT_STRATUM_ASSGN': Mock(
+            "POP_STRATUM": Mock(collect=Mock(return_value=data["strata"])),
+            "POP_PLOT_STRATUM_ASSGN": Mock(
                 filter=Mock(return_value=Mock(collect=Mock(return_value=data["ppsa"])))
-            )
+            ),
         }
         mock_db.load_table = Mock()
 
         # Calculate area by forest type group
-        result = area(mock_db, grp_by=["FOREST_TYPE_GROUP"], land_type="forest", totals=True)
+        result = area(
+            mock_db, grp_by=["FOREST_TYPE_GROUP"], land_type="forest", totals=True
+        )
 
         # Verify results structure
         assert "FOREST_TYPE_GROUP" in result.columns
@@ -159,38 +272,37 @@ class TestAreaIntegrationEVALIDator:
         END
         """
         # Create test data with clear MACR vs SUBP distinction
-        plots = pl.DataFrame({
-            "CN": ["P1", "P2"],
-            "PLT_CN": ["P1", "P2"]
-        })
+        plots = pl.DataFrame({"CN": ["P1", "P2"], "PLT_CN": ["P1", "P2"]})
 
-        conditions = pl.DataFrame({
-            "CN": ["C1", "C2"],
-            "PLT_CN": ["P1", "P2"],
-            "CONDID": [1, 1],
-            "COND_STATUS_CD": [1, 1],
-            "CONDPROP_UNADJ": [1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "MACR"],  # Different PROP_BASIS
-            "SITECLCD": [3, 3],
-            "RESERVCD": [0, 0]
-        })
+        conditions = pl.DataFrame(
+            {
+                "CN": ["C1", "C2"],
+                "PLT_CN": ["P1", "P2"],
+                "CONDID": [1, 1],
+                "COND_STATUS_CD": [1, 1],
+                "CONDPROP_UNADJ": [1.0, 1.0],
+                "PROP_BASIS": ["SUBP", "MACR"],  # Different PROP_BASIS
+                "SITECLCD": [3, 3],
+                "RESERVCD": [0, 0],
+            }
+        )
 
-        strata = pl.DataFrame({
-            "CN": ["S1"],
-            "EVALID": [1],
-            "EXPNS": [1000.0],
-            "ADJ_FACTOR_SUBP": [1.0],    # SUBP adjustment = 1.0
-            "ADJ_FACTOR_MACR": [0.25],   # MACR adjustment = 0.25
-            "P2POINTCNT": [2],
-            "STRATUM_WGT": [1.0],
-            "AREA_USED": [2000.0]
-        })
+        strata = pl.DataFrame(
+            {
+                "CN": ["S1"],
+                "EVALID": [1],
+                "EXPNS": [1000.0],
+                "ADJ_FACTOR_SUBP": [1.0],  # SUBP adjustment = 1.0
+                "ADJ_FACTOR_MACR": [0.25],  # MACR adjustment = 0.25
+                "P2POINTCNT": [2],
+                "STRATUM_WGT": [1.0],
+                "AREA_USED": [2000.0],
+            }
+        )
 
-        ppsa = pl.DataFrame({
-            "PLT_CN": ["P1", "P2"],
-            "STRATUM_CN": ["S1", "S1"],
-            "EVALID": [1, 1]
-        })
+        ppsa = pl.DataFrame(
+            {"PLT_CN": ["P1", "P2"], "STRATUM_CN": ["S1", "S1"], "EVALID": [1, 1]}
+        )
 
         # Mock database
         mock_db = Mock()
@@ -198,10 +310,10 @@ class TestAreaIntegrationEVALIDator:
         mock_db.get_plots = Mock(return_value=plots)
         mock_db.get_conditions = Mock(return_value=conditions)
         mock_db.tables = {
-            'POP_STRATUM': Mock(collect=Mock(return_value=strata)),
-            'POP_PLOT_STRATUM_ASSGN': Mock(
+            "POP_STRATUM": Mock(collect=Mock(return_value=strata)),
+            "POP_PLOT_STRATUM_ASSGN": Mock(
                 filter=Mock(return_value=Mock(collect=Mock(return_value=ppsa)))
-            )
+            ),
         }
         mock_db.load_table = Mock()
 
@@ -221,38 +333,41 @@ class TestAreaIntegrationEVALIDator:
         SUM(c.CONDPROP_UNADJ * adjustment_factor * ps.EXPNS)
         """
         # Create simple test case
-        plots = pl.DataFrame({
-            "CN": ["P1", "P2", "P3"],
-            "PLT_CN": ["P1", "P2", "P3"]
-        })
+        plots = pl.DataFrame({"CN": ["P1", "P2", "P3"], "PLT_CN": ["P1", "P2", "P3"]})
 
-        conditions = pl.DataFrame({
-            "CN": ["C1", "C2", "C3"],
-            "PLT_CN": ["P1", "P2", "P3"],
-            "CONDID": [1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1],  # All forest
-            "CONDPROP_UNADJ": [1.0, 0.5, 0.75],  # Different proportions
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP"],
-            "SITECLCD": [3, 3, 3],
-            "RESERVCD": [0, 0, 0]
-        })
+        conditions = pl.DataFrame(
+            {
+                "CN": ["C1", "C2", "C3"],
+                "PLT_CN": ["P1", "P2", "P3"],
+                "CONDID": [1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 1],  # All forest
+                "CONDPROP_UNADJ": [1.0, 0.5, 0.75],  # Different proportions
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP"],
+                "SITECLCD": [3, 3, 3],
+                "RESERVCD": [0, 0, 0],
+            }
+        )
 
-        strata = pl.DataFrame({
-            "CN": ["S1", "S2"],
-            "EVALID": [1, 1],
-            "EXPNS": [1000.0, 2000.0],  # Different expansion factors
-            "ADJ_FACTOR_SUBP": [1.0, 1.0],
-            "ADJ_FACTOR_MACR": [0.25, 0.25],
-            "P2POINTCNT": [2, 1],
-            "STRATUM_WGT": [0.6, 0.4],
-            "AREA_USED": [2000.0, 2000.0]
-        })
+        strata = pl.DataFrame(
+            {
+                "CN": ["S1", "S2"],
+                "EVALID": [1, 1],
+                "EXPNS": [1000.0, 2000.0],  # Different expansion factors
+                "ADJ_FACTOR_SUBP": [1.0, 1.0],
+                "ADJ_FACTOR_MACR": [0.25, 0.25],
+                "P2POINTCNT": [2, 1],
+                "STRATUM_WGT": [0.6, 0.4],
+                "AREA_USED": [2000.0, 2000.0],
+            }
+        )
 
-        ppsa = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3"],
-            "STRATUM_CN": ["S1", "S1", "S2"],  # P1,P2 in S1; P3 in S2
-            "EVALID": [1, 1, 1]
-        })
+        ppsa = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3"],
+                "STRATUM_CN": ["S1", "S1", "S2"],  # P1,P2 in S1; P3 in S2
+                "EVALID": [1, 1, 1],
+            }
+        )
 
         # Mock database
         mock_db = Mock()
@@ -260,10 +375,10 @@ class TestAreaIntegrationEVALIDator:
         mock_db.get_plots = Mock(return_value=plots)
         mock_db.get_conditions = Mock(return_value=conditions)
         mock_db.tables = {
-            'POP_STRATUM': Mock(collect=Mock(return_value=strata)),
-            'POP_PLOT_STRATUM_ASSGN': Mock(
+            "POP_STRATUM": Mock(collect=Mock(return_value=strata)),
+            "POP_PLOT_STRATUM_ASSGN": Mock(
                 filter=Mock(return_value=Mock(collect=Mock(return_value=ppsa)))
-            )
+            ),
         }
         mock_db.load_table = Mock()
 
@@ -285,38 +400,43 @@ class TestAreaIntegrationEVALIDator:
         Test that by_land_type uses correct denominator (excludes water).
         For byLandType=TRUE: percentages should be of land area only (status 1+2).
         """
-        plots = pl.DataFrame({
-            "CN": ["P1", "P2", "P3", "P4"],
-            "PLT_CN": ["P1", "P2", "P3", "P4"]
-        })
+        plots = pl.DataFrame(
+            {"CN": ["P1", "P2", "P3", "P4"], "PLT_CN": ["P1", "P2", "P3", "P4"]}
+        )
 
-        conditions = pl.DataFrame({
-            "CN": ["C1", "C2", "C3", "C4"],
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 2, 3],  # Forest, Forest, Non-forest, Water
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP"] * 4,
-            "SITECLCD": [3, 7, None, None],  # Timber, Non-timber, N/A, N/A
-            "RESERVCD": [0, 0, 0, 0]
-        })
+        conditions = pl.DataFrame(
+            {
+                "CN": ["C1", "C2", "C3", "C4"],
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 2, 3],  # Forest, Forest, Non-forest, Water
+                "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+                "PROP_BASIS": ["SUBP"] * 4,
+                "SITECLCD": [3, 7, None, None],  # Timber, Non-timber, N/A, N/A
+                "RESERVCD": [0, 0, 0, 0],
+            }
+        )
 
-        strata = pl.DataFrame({
-            "CN": ["S1"],
-            "EVALID": [1],
-            "EXPNS": [1000.0],
-            "ADJ_FACTOR_SUBP": [1.0],
-            "ADJ_FACTOR_MACR": [0.25],
-            "P2POINTCNT": [4],
-            "STRATUM_WGT": [1.0],
-            "AREA_USED": [4000.0]
-        })
+        strata = pl.DataFrame(
+            {
+                "CN": ["S1"],
+                "EVALID": [1],
+                "EXPNS": [1000.0],
+                "ADJ_FACTOR_SUBP": [1.0],
+                "ADJ_FACTOR_MACR": [0.25],
+                "P2POINTCNT": [4],
+                "STRATUM_WGT": [1.0],
+                "AREA_USED": [4000.0],
+            }
+        )
 
-        ppsa = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "STRATUM_CN": ["S1"] * 4,
-            "EVALID": [1] * 4
-        })
+        ppsa = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": ["S1"] * 4,
+                "EVALID": [1] * 4,
+            }
+        )
 
         # Mock database
         mock_db = Mock()
@@ -324,10 +444,10 @@ class TestAreaIntegrationEVALIDator:
         mock_db.get_plots = Mock(return_value=plots)
         mock_db.get_conditions = Mock(return_value=conditions)
         mock_db.tables = {
-            'POP_STRATUM': Mock(collect=Mock(return_value=strata)),
-            'POP_PLOT_STRATUM_ASSGN': Mock(
+            "POP_STRATUM": Mock(collect=Mock(return_value=strata)),
+            "POP_PLOT_STRATUM_ASSGN": Mock(
                 filter=Mock(return_value=Mock(collect=Mock(return_value=ppsa)))
-            )
+            ),
         }
         mock_db.load_table = Mock()
 
@@ -366,38 +486,46 @@ class TestAreaIntegrationEVALIDator:
         Should calculate variance at stratum level and combine properly.
         """
         # Create data with variation for meaningful variance
-        plots = pl.DataFrame({
-            "CN": [f"P{i}" for i in range(1, 7)],
-            "PLT_CN": [f"P{i}" for i in range(1, 7)]
-        })
+        plots = pl.DataFrame(
+            {
+                "CN": [f"P{i}" for i in range(1, 7)],
+                "PLT_CN": [f"P{i}" for i in range(1, 7)],
+            }
+        )
 
-        conditions = pl.DataFrame({
-            "CN": [f"C{i}" for i in range(1, 7)],
-            "PLT_CN": [f"P{i}" for i in range(1, 7)],
-            "CONDID": [1] * 6,
-            "COND_STATUS_CD": [1, 1, 1, 1, 2, 2],  # Mix of forest and non-forest
-            "CONDPROP_UNADJ": [1.0, 0.8, 0.6, 1.0, 1.0, 0.5],
-            "PROP_BASIS": ["SUBP"] * 6,
-            "SITECLCD": [3, 3, 3, 3, None, None],
-            "RESERVCD": [0] * 6
-        })
+        conditions = pl.DataFrame(
+            {
+                "CN": [f"C{i}" for i in range(1, 7)],
+                "PLT_CN": [f"P{i}" for i in range(1, 7)],
+                "CONDID": [1] * 6,
+                "COND_STATUS_CD": [1, 1, 1, 1, 2, 2],  # Mix of forest and non-forest
+                "CONDPROP_UNADJ": [1.0, 0.8, 0.6, 1.0, 1.0, 0.5],
+                "PROP_BASIS": ["SUBP"] * 6,
+                "SITECLCD": [3, 3, 3, 3, None, None],
+                "RESERVCD": [0] * 6,
+            }
+        )
 
-        strata = pl.DataFrame({
-            "CN": ["S1", "S2"],
-            "EVALID": [1, 1],
-            "EXPNS": [1000.0, 1500.0],
-            "ADJ_FACTOR_SUBP": [1.0, 1.0],
-            "ADJ_FACTOR_MACR": [0.25, 0.25],
-            "P2POINTCNT": [3, 3],
-            "STRATUM_WGT": [0.5, 0.5],
-            "AREA_USED": [3000.0, 4500.0]
-        })
+        strata = pl.DataFrame(
+            {
+                "CN": ["S1", "S2"],
+                "EVALID": [1, 1],
+                "EXPNS": [1000.0, 1500.0],
+                "ADJ_FACTOR_SUBP": [1.0, 1.0],
+                "ADJ_FACTOR_MACR": [0.25, 0.25],
+                "P2POINTCNT": [3, 3],
+                "STRATUM_WGT": [0.5, 0.5],
+                "AREA_USED": [3000.0, 4500.0],
+            }
+        )
 
-        ppsa = pl.DataFrame({
-            "PLT_CN": [f"P{i}" for i in range(1, 7)],
-            "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2", "S2"],
-            "EVALID": [1] * 6
-        })
+        ppsa = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(1, 7)],
+                "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2", "S2"],
+                "EVALID": [1] * 6,
+            }
+        )
 
         # Mock database
         mock_db = Mock()
@@ -405,10 +533,10 @@ class TestAreaIntegrationEVALIDator:
         mock_db.get_plots = Mock(return_value=plots)
         mock_db.get_conditions = Mock(return_value=conditions)
         mock_db.tables = {
-            'POP_STRATUM': Mock(collect=Mock(return_value=strata)),
-            'POP_PLOT_STRATUM_ASSGN': Mock(
+            "POP_STRATUM": Mock(collect=Mock(return_value=strata)),
+            "POP_PLOT_STRATUM_ASSGN": Mock(
                 filter=Mock(return_value=Mock(collect=Mock(return_value=ppsa)))
-            )
+            ),
         }
         mock_db.load_table = Mock()
 

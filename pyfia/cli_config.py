@@ -19,7 +19,7 @@ class CLIConfig:
         """Load configuration from file."""
         if self.config_file.exists():
             try:
-                with open(self.config_file, 'r') as f:
+                with open(self.config_file, "r") as f:
                     return json.load(f)
             except:
                 pass
@@ -28,24 +28,24 @@ class CLIConfig:
     def save_config(self):
         """Save configuration to file."""
         self.config_dir.mkdir(exist_ok=True)
-        with open(self.config_file, 'w') as f:
+        with open(self.config_file, "w") as f:
             json.dump(self.config, f, indent=2)
 
     @property
     def default_database(self) -> Optional[str]:
         """Get default database path."""
-        return self.config.get('default_database')
+        return self.config.get("default_database")
 
     @default_database.setter
     def default_database(self, path: str):
         """Set default database path."""
-        self.config['default_database'] = path
+        self.config["default_database"] = path
         self.save_config()
 
     @property
     def recent_databases(self) -> list:
         """Get list of recently used databases."""
-        return self.config.get('recent_databases', [])
+        return self.config.get("recent_databases", [])
 
     def add_recent_database(self, path: str):
         """Add database to recent list."""
@@ -54,17 +54,17 @@ class CLIConfig:
             recent.remove(path)
         recent.insert(0, path)
         # Keep only last 5
-        self.config['recent_databases'] = recent[:5]
+        self.config["recent_databases"] = recent[:5]
         self.save_config()
 
     @property
     def state_shortcuts(self) -> Dict[str, str]:
         """Get state database shortcuts."""
-        return self.config.get('state_shortcuts', {})
+        return self.config.get("state_shortcuts", {})
 
     def add_state_shortcut(self, state: str, path: str):
         """Add a state shortcut."""
-        if 'state_shortcuts' not in self.config:
-            self.config['state_shortcuts'] = {}
-        self.config['state_shortcuts'][state.upper()] = path
+        if "state_shortcuts" not in self.config:
+            self.config["state_shortcuts"] = {}
+        self.config["state_shortcuts"][state.upper()] = path
         self.save_config()

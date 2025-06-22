@@ -12,24 +12,26 @@ import polars as pl
 from .core import FIA
 
 
-def volume(db: Union[str, FIA],
-           grpBy: Optional[Union[str, List[str]]] = None,
-           bySpecies: bool = False,
-           bySizeClass: bool = False,
-           landType: str = 'forest',
-           treeType: str = 'live',
-           volType: str = 'net',
-           method: str = 'TI',
-           lambda_: float = 0.5,
-           treeDomain: Optional[str] = None,
-           areaDomain: Optional[str] = None,
-           totals: bool = False,
-           variance: bool = False,
-           byPlot: bool = False,
-           condList: bool = False,
-           nCores: int = 1,
-           remote: bool = False,
-           mr: bool = False) -> pl.DataFrame:
+def volume(
+    db: Union[str, FIA],
+    grpBy: Optional[Union[str, List[str]]] = None,
+    bySpecies: bool = False,
+    bySizeClass: bool = False,
+    landType: str = "forest",
+    treeType: str = "live",
+    volType: str = "net",
+    method: str = "TI",
+    lambda_: float = 0.5,
+    treeDomain: Optional[str] = None,
+    areaDomain: Optional[str] = None,
+    totals: bool = False,
+    variance: bool = False,
+    byPlot: bool = False,
+    condList: bool = False,
+    nCores: int = 1,
+    remote: bool = False,
+    mr: bool = False,
+) -> pl.DataFrame:
     """
     Estimate volume from FIA data following rFIA methodology.
 
@@ -84,11 +86,11 @@ def volume(db: Union[str, FIA],
         fia = db
 
     # Ensure required tables are loaded
-    fia.load_table('PLOT')
-    fia.load_table('TREE')
-    fia.load_table('COND')
-    fia.load_table('POP_STRATUM')
-    fia.load_table('POP_PLOT_STRATUM_ASSGN')
+    fia.load_table("PLOT")
+    fia.load_table("TREE")
+    fia.load_table("COND")
+    fia.load_table("POP_STRATUM")
+    fia.load_table("POP_PLOT_STRATUM_ASSGN")
 
     # Get filtered data
     trees = fia.get_trees()
@@ -100,9 +102,9 @@ def volume(db: Union[str, FIA],
 
     # Join trees with forest conditions
     tree_cond = trees.join(
-        conds.select(['PLT_CN', 'CONDID', 'CONDPROP_UNADJ']),
-        on=['PLT_CN', 'CONDID'],
-        how='inner'
+        conds.select(["PLT_CN", "CONDID", "CONDPROP_UNADJ"]),
+        on=["PLT_CN", "CONDID"],
+        how="inner",
     )
 
     # Get volume columns based on volType
@@ -138,22 +140,22 @@ def volume(db: Union[str, FIA],
     plot_vol = tree_cond.group_by(plot_groups).agg(agg_exprs)
 
     # Get stratification data
-    ppsa = fia.tables['POP_PLOT_STRATUM_ASSGN'].filter(
-        pl.col('EVALID').is_in(fia.evalid) if fia.evalid else pl.lit(True)
-    ).collect()
+    ppsa = (
+        fia.tables["POP_PLOT_STRATUM_ASSGN"]
+        .filter(pl.col("EVALID").is_in(fia.evalid) if fia.evalid else pl.lit(True))
+        .collect()
+    )
 
-    pop_stratum = fia.tables['POP_STRATUM'].collect()
+    pop_stratum = fia.tables["POP_STRATUM"].collect()
 
     # Join with stratification
     plot_with_strat = plot_vol.join(
-        ppsa.select(["PLT_CN", "STRATUM_CN"]),
-        on="PLT_CN",
-        how="inner"
+        ppsa.select(["PLT_CN", "STRATUM_CN"]), on="PLT_CN", how="inner"
     ).join(
         pop_stratum.select(["CN", "EXPNS", "ADJ_FACTOR_SUBP"]),
         left_on="STRATUM_CN",
         right_on="CN",
-        how="inner"
+        how="inner",
     )
 
     # CRITICAL: Use direct expansion (matches area/biomass calculation approach)
@@ -162,7 +164,9 @@ def volume(db: Union[str, FIA],
         plot_col = f"PLOT_{result_col}"
         if plot_col in plot_with_strat.columns:
             expansion_exprs.append(
-                (pl.col(plot_col) * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias(f"TOTAL_{result_col}")
+                (pl.col(plot_col) * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias(
+                    f"TOTAL_{result_col}"
+                )
             )
 
     plot_with_strat = plot_with_strat.with_columns(expansion_exprs)
@@ -198,22 +202,20 @@ def volume(db: Union[str, FIA],
             per_acre_col = _get_output_column_name(result_col, volType)
             se_col = f"{per_acre_col}_SE"
 
-            per_acre_exprs.append(
-                (pl.col(total_col) / forest_area).alias(per_acre_col)
-            )
+            per_acre_exprs.append((pl.col(total_col) / forest_area).alias(per_acre_col))
             # Simplified SE calculation (should use proper variance estimation)
-            se_exprs.append(
-                (pl.col(total_col) / forest_area * 0.015).alias(se_col)
-            )
+            se_exprs.append((pl.col(total_col) / forest_area * 0.015).alias(se_col))
 
     pop_est = pop_est.with_columns(per_acre_exprs + se_exprs)
 
     # Add other columns to match rFIA output
-    pop_est = pop_est.with_columns([
-        pl.lit(2023).alias("YEAR"),
-        pl.col("nPlots_TREE").alias("nPlots_AREA"),
-        pl.len().alias("N")
-    ])
+    pop_est = pop_est.with_columns(
+        [
+            pl.lit(2023).alias("YEAR"),
+            pl.col("nPlots_TREE").alias("nPlots_AREA"),
+            pl.len().alias("N"),
+        ]
+    )
 
     # Select output columns based on volType
     result_cols = ["YEAR", "nPlots_TREE", "nPlots_AREA", "N"]
@@ -238,7 +240,9 @@ def volume(db: Union[str, FIA],
     return pop_est.select([col for col in result_cols if col in pop_est.columns])
 
 
-def _apply_tree_filters(tree_df: pl.DataFrame, tree_type: str, tree_domain: Optional[str]) -> pl.DataFrame:
+def _apply_tree_filters(
+    tree_df: pl.DataFrame, tree_type: str, tree_domain: Optional[str]
+) -> pl.DataFrame:
     """Apply tree type and domain filters following rFIA methodology."""
     # Tree type filters
     if tree_type == "live":
@@ -251,9 +255,9 @@ def _apply_tree_filters(tree_df: pl.DataFrame, tree_type: str, tree_domain: Opti
 
     # Filter for valid volume data (following rFIA)
     tree_df = tree_df.filter(
-        (pl.col("DIA").is_not_null()) &
-        (pl.col("TPA_UNADJ") > 0) &
-        (pl.col("VOLCFGRS").is_not_null())  # At least gross volume required
+        (pl.col("DIA").is_not_null())
+        & (pl.col("TPA_UNADJ") > 0)
+        & (pl.col("VOLCFGRS").is_not_null())  # At least gross volume required
     )
 
     # User-defined tree domain
@@ -263,16 +267,18 @@ def _apply_tree_filters(tree_df: pl.DataFrame, tree_type: str, tree_domain: Opti
     return tree_df
 
 
-def _apply_area_filters(cond_df: pl.DataFrame, land_type: str, area_domain: Optional[str]) -> pl.DataFrame:
+def _apply_area_filters(
+    cond_df: pl.DataFrame, land_type: str, area_domain: Optional[str]
+) -> pl.DataFrame:
     """Apply land type and area domain filters."""
     # Land type domain
     if land_type == "forest":
         cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == 1)
     elif land_type == "timber":
         cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == 1) &
-            (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])) &
-            (pl.col("RESERVCD") == 0)
+            (pl.col("COND_STATUS_CD") == 1)
+            & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
+            & (pl.col("RESERVCD") == 0)
         )
 
     # User-defined area domain
@@ -288,26 +294,26 @@ def _get_volume_columns(vol_type: str) -> dict:
 
     if vol_type == "NET":
         return {
-            "VOLCFNET": "BOLE_CF_ACRE",     # Bole cubic feet (net)
-            "VOLCSNET": "SAW_CF_ACRE",      # Sawlog cubic feet (net)
-            "VOLBFNET": "SAW_BF_ACRE"       # Sawlog board feet (net)
+            "VOLCFNET": "BOLE_CF_ACRE",  # Bole cubic feet (net)
+            "VOLCSNET": "SAW_CF_ACRE",  # Sawlog cubic feet (net)
+            "VOLBFNET": "SAW_BF_ACRE",  # Sawlog board feet (net)
         }
     elif vol_type == "GROSS":
         return {
-            "VOLCFGRS": "BOLE_CF_ACRE",     # Bole cubic feet (gross)
-            "VOLCSGRS": "SAW_CF_ACRE",      # Sawlog cubic feet (gross)
-            "VOLBFGRS": "SAW_BF_ACRE"       # Sawlog board feet (gross)
+            "VOLCFGRS": "BOLE_CF_ACRE",  # Bole cubic feet (gross)
+            "VOLCSGRS": "SAW_CF_ACRE",  # Sawlog cubic feet (gross)
+            "VOLBFGRS": "SAW_BF_ACRE",  # Sawlog board feet (gross)
         }
     elif vol_type == "SOUND":
         return {
-            "VOLCFSND": "BOLE_CF_ACRE",     # Bole cubic feet (sound)
-            "VOLCSSND": "SAW_CF_ACRE",      # Sawlog cubic feet (sound)
+            "VOLCFSND": "BOLE_CF_ACRE",  # Bole cubic feet (sound)
+            "VOLCSSND": "SAW_CF_ACRE",  # Sawlog cubic feet (sound)
             # VOLBFSND not available in FIA
         }
     elif vol_type == "SAWLOG":
         return {
-            "VOLCSNET": "SAW_CF_ACRE",      # Sawlog cubic feet (net)
-            "VOLBFNET": "SAW_BF_ACRE"       # Sawlog board feet (net)
+            "VOLCSNET": "SAW_CF_ACRE",  # Sawlog cubic feet (net)
+            "VOLBFNET": "SAW_BF_ACRE",  # Sawlog board feet (net)
         }
     else:
         raise ValueError(f"Unknown volume type: {vol_type}")
@@ -343,8 +349,12 @@ def _get_output_column_name(result_col: str, vol_type: str) -> str:
     return result_col
 
 
-def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str, List[str]]],
-                           by_species: bool, by_size_class: bool) -> List[str]:
+def _setup_grouping_columns(
+    tree_cond: pl.DataFrame,
+    grp_by: Optional[Union[str, List[str]]],
+    by_species: bool,
+    by_size_class: bool,
+) -> List[str]:
     """Set up grouping columns."""
     group_cols = []
 
@@ -355,18 +365,22 @@ def _setup_grouping_columns(tree_cond: pl.DataFrame, grp_by: Optional[Union[str,
             group_cols = list(grp_by)
 
     if by_species:
-        group_cols.append('SPCD')
+        group_cols.append("SPCD")
 
     if by_size_class:
         # Add size class based on diameter (following FIA standards)
         tree_cond = tree_cond.with_columns(
-            pl.when(pl.col('DIA') < 5.0).then(pl.lit('1.0-4.9'))
-            .when(pl.col('DIA') < 10.0).then(pl.lit('5.0-9.9'))
-            .when(pl.col('DIA') < 20.0).then(pl.lit('10.0-19.9'))
-            .when(pl.col('DIA') < 30.0).then(pl.lit('20.0-29.9'))
-            .otherwise(pl.lit('30.0+'))
-            .alias('sizeClass')
+            pl.when(pl.col("DIA") < 5.0)
+            .then(pl.lit("1.0-4.9"))
+            .when(pl.col("DIA") < 10.0)
+            .then(pl.lit("5.0-9.9"))
+            .when(pl.col("DIA") < 20.0)
+            .then(pl.lit("10.0-19.9"))
+            .when(pl.col("DIA") < 30.0)
+            .then(pl.lit("20.0-29.9"))
+            .otherwise(pl.lit("30.0+"))
+            .alias("sizeClass")
         )
-        group_cols.append('sizeClass')
+        group_cols.append("sizeClass")
 
     return group_cols

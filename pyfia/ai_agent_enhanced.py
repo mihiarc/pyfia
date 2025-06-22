@@ -14,6 +14,7 @@ from typing import List, Optional, Union
 # Load environment variables
 try:
     from dotenv import load_dotenv
+
     load_dotenv()
 except ImportError:
     pass
@@ -32,6 +33,7 @@ from .ai_agent import AgentState, FIAAgent, FIAAgentConfig
 
 class CodeKnowledge(BaseModel):
     """Structured representation of code knowledge."""
+
     module_name: str = Field(description="Name of the Python module")
     function_name: str = Field(description="Name of the function or class")
     docstring: str = Field(description="Documentation string")
@@ -43,7 +45,10 @@ class CodeKnowledge(BaseModel):
 
 class DocumentationKnowledge(BaseModel):
     """Structured representation of documentation knowledge."""
-    source: str = Field(description="Source document (e.g., 'FIA Handbook', 'CLAUDE.md')")
+
+    source: str = Field(
+        description="Source document (e.g., 'FIA Handbook', 'CLAUDE.md')"
+    )
     section: str = Field(description="Section or chapter name")
     content: str = Field(description="Documentation content")
     relevance_score: float = Field(description="Relevance score for retrieval")
@@ -51,6 +56,7 @@ class DocumentationKnowledge(BaseModel):
 
 class EnhancedAgentState(AgentState):
     """Enhanced state with code and documentation knowledge."""
+
     code_knowledge: List[CodeKnowledge] = field(default_factory=list)
     documentation_knowledge: List[DocumentationKnowledge] = field(default_factory=list)
     source_context: Optional[str] = None
@@ -59,6 +65,7 @@ class EnhancedAgentState(AgentState):
 @dataclass
 class EnhancedFIAAgentConfig(FIAAgentConfig):
     """Enhanced configuration with knowledge base settings."""
+
     pyfia_path: Optional[Path] = None
     documentation_path: Optional[Path] = None
     enable_code_search: bool = True
@@ -85,7 +92,7 @@ class PyFIAKnowledgeBase:
         knowledge_items = []
 
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r") as f:
                 source = f.read()
 
             # Parse AST
@@ -99,7 +106,7 @@ class PyFIAKnowledgeBase:
                     for alias in node.names:
                         imports.append(f"import {alias.name}")
                 elif isinstance(node, ast.ImportFrom):
-                    module = node.module or ''
+                    module = node.module or ""
                     for alias in node.names:
                         imports.append(f"from {module} import {alias.name}")
 
@@ -111,10 +118,10 @@ class PyFIAKnowledgeBase:
 
                     # Get source code
                     try:
-                        source_lines = source.split('\n')
+                        source_lines = source.split("\n")
                         start_line = node.lineno - 1
                         end_line = node.end_lineno or start_line + 1
-                        source_code = '\n'.join(source_lines[start_line:end_line])
+                        source_code = "\n".join(source_lines[start_line:end_line])
                     except:
                         source_code = f"# Source code for {node.name}"
 
@@ -134,7 +141,7 @@ class PyFIAKnowledgeBase:
                         signature=signature,
                         source_code=source_code[:1000],  # Truncate long code
                         imports=imports[:10],  # Limit imports
-                        usage_examples=self._extract_examples(docstring)
+                        usage_examples=self._extract_examples(docstring),
                     )
                     knowledge_items.append(knowledge)
 
@@ -153,17 +160,17 @@ class PyFIAKnowledgeBase:
         if "Example" in docstring:
             example_section = docstring.split("Example")[1]
             # Extract code blocks
-            code_blocks = re.findall(r'```python(.*?)```', example_section, re.DOTALL)
+            code_blocks = re.findall(r"```python(.*?)```", example_section, re.DOTALL)
             examples.extend(code_blocks)
 
             # Also look for >>> style examples
-            lines = example_section.split('\n')
+            lines = example_section.split("\n")
             current_example = []
             for line in lines:
-                if line.strip().startswith('>>>'):
+                if line.strip().startswith(">>>"):
                     current_example.append(line.strip())
                 elif current_example and not line.strip():
-                    examples.append('\n'.join(current_example))
+                    examples.append("\n".join(current_example))
                     current_example = []
 
         return examples[:3]  # Limit to 3 examples
@@ -194,7 +201,7 @@ Source Code Preview:
                     metadata = {
                         "module": item.module_name,
                         "function": item.function_name,
-                        "type": "code"
+                        "type": "code",
                     }
 
                     doc = Document(page_content=content, metadata=metadata)
@@ -207,22 +214,26 @@ Source Code Preview:
         # 2. Load CLAUDE.md documentation
         claude_md_path = self.pyfia_path / "CLAUDE.md"
         if claude_md_path.exists():
-            with open(claude_md_path, 'r') as f:
+            with open(claude_md_path, "r") as f:
                 claude_content = f.read()
 
             # Split into sections
-            sections = re.split(r'^#{1,3}\s+', claude_content, flags=re.MULTILINE)
+            sections = re.split(r"^#{1,3}\s+", claude_content, flags=re.MULTILINE)
             for i, section in enumerate(sections):
                 if not section.strip():
                     continue
 
-                lines = section.split('\n', 1)
+                lines = section.split("\n", 1)
                 title = lines[0].strip() if lines else f"Section {i}"
                 content = lines[1] if len(lines) > 1 else ""
 
                 doc = Document(
                     page_content=f"CLAUDE.md - {title}\n\n{content}",
-                    metadata={"source": "CLAUDE.md", "section": title, "type": "documentation"}
+                    metadata={
+                        "source": "CLAUDE.md",
+                        "section": title,
+                        "type": "documentation",
+                    },
                 )
                 documents.append(doc)
 
@@ -230,9 +241,7 @@ Source Code Preview:
         if documents:
             # Split documents
             text_splitter = RecursiveCharacterTextSplitter(
-                chunk_size=1000,
-                chunk_overlap=200,
-                separators=["\n\n", "\n", " ", ""]
+                chunk_size=1000, chunk_overlap=200, separators=["\n\n", "\n", " ", ""]
             )
             split_docs = text_splitter.split_documents(documents)
 
@@ -240,13 +249,15 @@ Source Code Preview:
             if self.config.vector_store_path and self.config.vector_store_path.exists():
                 self.vector_store = Chroma(
                     persist_directory=str(self.config.vector_store_path),
-                    embedding_function=self.embeddings
+                    embedding_function=self.embeddings,
                 )
             else:
                 self.vector_store = Chroma.from_documents(
                     documents=split_docs,
                     embedding=self.embeddings,
-                    persist_directory=str(self.config.vector_store_path) if self.config.vector_store_path else None
+                    persist_directory=str(self.config.vector_store_path)
+                    if self.config.vector_store_path
+                    else None,
                 )
 
     def search_code(self, query: str, k: int = 5) -> List[CodeKnowledge]:
@@ -256,9 +267,7 @@ Source Code Preview:
 
         # Search vector store
         results = self.vector_store.similarity_search(
-            query,
-            k=k,
-            filter={"type": "code"}
+            query, k=k, filter={"type": "code"}
         )
 
         # Extract code knowledge
@@ -276,16 +285,16 @@ Source Code Preview:
 
         return code_items
 
-    def search_documentation(self, query: str, k: int = 5) -> List[DocumentationKnowledge]:
+    def search_documentation(
+        self, query: str, k: int = 5
+    ) -> List[DocumentationKnowledge]:
         """Search for relevant documentation."""
         if not self.vector_store:
             return []
 
         # Search vector store
         results = self.vector_store.similarity_search(
-            query,
-            k=k,
-            filter={"type": "documentation"}
+            query, k=k, filter={"type": "documentation"}
         )
 
         # Convert to DocumentationKnowledge
@@ -295,13 +304,15 @@ Source Code Preview:
                 source=doc.metadata.get("source", "Unknown"),
                 section=doc.metadata.get("section", ""),
                 content=doc.page_content,
-                relevance_score=1.0 - (i * 0.1)  # Simple scoring
+                relevance_score=1.0 - (i * 0.1),  # Simple scoring
             )
             doc_items.append(knowledge)
 
         return doc_items
 
-    def get_function_details(self, module_name: str, function_name: str) -> Optional[CodeKnowledge]:
+    def get_function_details(
+        self, module_name: str, function_name: str
+    ) -> Optional[CodeKnowledge]:
         """Get detailed information about a specific function."""
         key = f"{module_name}.{function_name}"
         return self.code_index.get(key)
@@ -318,10 +329,12 @@ class EnhancedFIAAgent(FIAAgent):
     - Understanding of statistical methodologies in the codebase
     """
 
-    def __init__(self,
-                 db_path: Union[str, Path],
-                 config: Optional[EnhancedFIAAgentConfig] = None,
-                 api_key: Optional[str] = None):
+    def __init__(
+        self,
+        db_path: Union[str, Path],
+        config: Optional[EnhancedFIAAgentConfig] = None,
+        api_key: Optional[str] = None,
+    ):
         """Initialize enhanced agent with knowledge base."""
         # Set default pyfia_path if not provided
         if config is None:
@@ -355,10 +368,13 @@ class EnhancedFIAAgent(FIAAgent):
                 for item in code_items:
                     result += f"### {item.module_name}.{item.function_name}\n"
                     result += f"**Signature:** `{item.signature}`\n"
-                    result += f"**Description:** {item.docstring.split('\\n')[0]}\n"
+                    newline = "\n"
+                    result += f"**Description:** {item.docstring.split(newline)[0]}\n"
 
                     if item.usage_examples:
-                        result += f"**Example:**\n```python\n{item.usage_examples[0]}\n```\n"
+                        result += (
+                            f"**Example:**\n```python\n{item.usage_examples[0]}\n```\n"
+                        )
 
                     result += "\n"
 
@@ -375,7 +391,7 @@ class EnhancedFIAAgent(FIAAgent):
                     "biomass": "pyfia.biomass",
                     "volume": "pyfia.volume",
                     "mortality": "pyfia.mortality",
-                    "area": "pyfia.area"
+                    "area": "pyfia.area",
                 }
 
                 module = estimation_modules.get(estimation_type.lower())
@@ -383,7 +399,9 @@ class EnhancedFIAAgent(FIAAgent):
                     return f"Unknown estimation type: {estimation_type}"
 
                 # Get the main function
-                func_details = self.knowledge_base.get_function_details(module, estimation_type.lower())
+                func_details = self.knowledge_base.get_function_details(
+                    module, estimation_type.lower()
+                )
 
                 if not func_details:
                     return f"Could not find implementation for {estimation_type}"
@@ -395,7 +413,9 @@ class EnhancedFIAAgent(FIAAgent):
                 result += f"**Documentation:**\n{func_details.docstring}\n\n"
 
                 # Add key implementation details from CLAUDE.md
-                claude_docs = self.knowledge_base.search_documentation(f"{estimation_type} estimation", k=2)
+                claude_docs = self.knowledge_base.search_documentation(
+                    f"{estimation_type} estimation", k=2
+                )
                 if claude_docs:
                     result += "**Implementation Notes from CLAUDE.md:**\n"
                     for doc in claude_docs:
@@ -411,7 +431,9 @@ class EnhancedFIAAgent(FIAAgent):
             try:
                 # Search for relevant code and documentation
                 code_items = self.knowledge_base.search_code(task_description, k=2)
-                doc_items = self.knowledge_base.search_documentation(task_description, k=2)
+                doc_items = self.knowledge_base.search_documentation(
+                    task_description, k=2
+                )
 
                 result = f"## pyFIA Usage Suggestions for: {task_description}\n\n"
 
@@ -419,7 +441,8 @@ class EnhancedFIAAgent(FIAAgent):
                 if code_items:
                     result += "### Relevant Functions:\n"
                     for item in code_items:
-                        result += f"- `{item.module_name}.{item.function_name}`: {item.docstring.split(chr(10))[0]}\n"
+                        newline_char = chr(10)
+                        result += f"- `{item.module_name}.{item.function_name}`: {item.docstring.split(newline_char)[0]}\n"
                     result += "\n"
 
                 # Provide example usage
@@ -444,7 +467,9 @@ class EnhancedFIAAgent(FIAAgent):
                     result += ")\n"
                 elif "mortality" in task_description.lower():
                     result += "# Estimate mortality\n"
-                    result += "mortality_results = fia.clip_by_evalid(372303).mortality(\n"
+                    result += (
+                        "mortality_results = fia.clip_by_evalid(372303).mortality(\n"
+                    )
                     result += "    bySpecies=True,\n"
                     result += "    landType='Forest'\n"
                     result += ")\n"
@@ -473,15 +498,21 @@ class EnhancedFIAAgent(FIAAgent):
             """Get information about statistical methodologies used in pyFIA."""
             try:
                 # Search documentation for statistical concepts
-                docs = self.knowledge_base.search_documentation(f"statistical {concept}", k=3)
+                docs = self.knowledge_base.search_documentation(
+                    f"statistical {concept}", k=3
+                )
 
                 result = f"## Statistical Methodology: {concept}\n\n"
 
                 # Look for specific methodologies
                 if "ratio" in concept.lower() or "estimator" in concept.lower():
                     result += "### Post-Stratified Ratio-of-Means Estimator\n"
-                    result += "pyFIA implements the standard FIA estimation procedures:\n"
-                    result += "1. **Tree Level**: Apply TPA_UNADJ and adjustment factors\n"
+                    result += (
+                        "pyFIA implements the standard FIA estimation procedures:\n"
+                    )
+                    result += (
+                        "1. **Tree Level**: Apply TPA_UNADJ and adjustment factors\n"
+                    )
                     result += "2. **Plot Level**: Sum tree values by plot\n"
                     result += "3. **Stratum Level**: Calculate means and variances\n"
                     result += "4. **Population Level**: Weight by stratum areas\n\n"
@@ -493,8 +524,8 @@ class EnhancedFIAAgent(FIAAgent):
 
                 if "tree basis" in concept.lower() or "adjustment" in concept.lower():
                     result += "### Tree Basis and Adjustment Factors\n"
-                    result += "- MICR: Microplot (1/300 acre) - trees 1.0-4.9\" DBH\n"
-                    result += "- SUBP: Subplot (1/24 acre) - trees 5.0\"+ DBH\n"
+                    result += '- MICR: Microplot (1/300 acre) - trees 1.0-4.9" DBH\n'
+                    result += '- SUBP: Subplot (1/24 acre) - trees 5.0"+ DBH\n'
                     result += "- MACR: Macroplot (1/4 acre) - large trees\n"
                     result += "Each basis has specific adjustment factors applied\n\n"
 
@@ -512,23 +543,23 @@ class EnhancedFIAAgent(FIAAgent):
             Tool(
                 name="search_pyfia_code",
                 description="Search pyFIA source code for implementations, functions, and usage patterns",
-                func=search_pyfia_code
+                func=search_pyfia_code,
             ),
             Tool(
                 name="get_estimation_implementation",
                 description="Get detailed implementation for specific estimation types (tpa, biomass, volume, mortality, area)",
-                func=get_estimation_implementation
+                func=get_estimation_implementation,
             ),
             Tool(
                 name="suggest_pyfia_usage",
                 description="Suggest how to use pyFIA for specific forest inventory analysis tasks",
-                func=suggest_pyfia_usage
+                func=suggest_pyfia_usage,
             ),
             Tool(
                 name="get_statistical_methodology",
                 description="Get information about statistical methodologies and concepts used in pyFIA",
-                func=get_statistical_methodology
-            )
+                func=get_statistical_methodology,
+            ),
         ]
 
     def _build_workflow(self) -> StateGraph:
@@ -544,10 +575,12 @@ class EnhancedFIAAgent(FIAAgent):
         return base_workflow
 
 
-def create_enhanced_fia_agent(db_path: Union[str, Path],
-                             pyfia_path: Optional[Path] = None,
-                             api_key: Optional[str] = None,
-                             **config_kwargs) -> EnhancedFIAAgent:
+def create_enhanced_fia_agent(
+    db_path: Union[str, Path],
+    pyfia_path: Optional[Path] = None,
+    api_key: Optional[str] = None,
+    **config_kwargs,
+) -> EnhancedFIAAgent:
     """
     Create an enhanced FIA AI Agent with source code knowledge.
 

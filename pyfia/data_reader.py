@@ -66,24 +66,30 @@ class FIADataReader:
         return schema
 
     @overload
-    def read_table(self,
-                   table_name: str,
-                   columns: Optional[List[str]] = None,
-                   where: Optional[str] = None,
-                   lazy: Literal[False] = False) -> pl.DataFrame: ...
+    def read_table(
+        self,
+        table_name: str,
+        columns: Optional[List[str]] = None,
+        where: Optional[str] = None,
+        lazy: Literal[False] = False,
+    ) -> pl.DataFrame: ...
 
     @overload
-    def read_table(self,
-                   table_name: str,
-                   columns: Optional[List[str]] = None,
-                   where: Optional[str] = None,
-                   lazy: Literal[True] = True) -> pl.LazyFrame: ...
+    def read_table(
+        self,
+        table_name: str,
+        columns: Optional[List[str]] = None,
+        where: Optional[str] = None,
+        lazy: Literal[True] = True,
+    ) -> pl.LazyFrame: ...
 
-    def read_table(self,
-                   table_name: str,
-                   columns: Optional[List[str]] = None,
-                   where: Optional[str] = None,
-                   lazy: bool = True) -> Union[pl.DataFrame, pl.LazyFrame]:
+    def read_table(
+        self,
+        table_name: str,
+        columns: Optional[List[str]] = None,
+        where: Optional[str] = None,
+        lazy: bool = True,
+    ) -> Union[pl.DataFrame, pl.LazyFrame]:
         """
         Read a table from the FIA database.
 
@@ -112,7 +118,7 @@ class FIADataReader:
         # Handle CN fields consistently
         self.get_table_schema(table_name)
         for col in df.columns:
-            if col.endswith('_CN') or col == 'CN':
+            if col.endswith("_CN") or col == "CN":
                 # In DuckDB, CN fields might be BIGINT - convert to string for consistency
                 df = df.with_columns(pl.col(col).cast(pl.Utf8))
 
@@ -131,14 +137,14 @@ class FIADataReader:
         # First get plot CNs from assignments
         evalid_str = ", ".join(str(e) for e in evalid)
         ppsa = self.read_table(
-            'POP_PLOT_STRATUM_ASSGN',
-            columns=['PLT_CN', 'STRATUM_CN', 'EVALID'],
+            "POP_PLOT_STRATUM_ASSGN",
+            columns=["PLT_CN", "STRATUM_CN", "EVALID"],
             where=f"EVALID IN ({evalid_str})",
-            lazy=False
+            lazy=False,
         )
 
         # Get unique plot CNs
-        plot_cns = ppsa.select('PLT_CN').unique()['PLT_CN'].to_list()
+        plot_cns = ppsa.select("PLT_CN").unique()["PLT_CN"].to_list()
 
         # Read plots
         if plot_cns:
@@ -147,14 +153,10 @@ class FIADataReader:
             plot_dfs = []
 
             for i in range(0, len(plot_cns), batch_size):
-                batch = plot_cns[i:i + batch_size]
+                batch = plot_cns[i : i + batch_size]
                 cn_str = ", ".join(f"'{cn}'" for cn in batch)
 
-                df = self.read_table(
-                    'PLOT',
-                    where=f"CN IN ({cn_str})",
-                    lazy=False
-                )
+                df = self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=False)
                 plot_dfs.append(df)
 
             plots = pl.concat(plot_dfs, how="diagonal") if plot_dfs else pl.DataFrame()
@@ -164,10 +166,10 @@ class FIADataReader:
         # Add EVALID information
         if not plots.is_empty():
             plots = plots.join(
-                ppsa.select(['PLT_CN', 'STRATUM_CN', 'EVALID']),
-                left_on='CN',
-                right_on='PLT_CN',
-                how='left'
+                ppsa.select(["PLT_CN", "STRATUM_CN", "EVALID"]),
+                left_on="CN",
+                right_on="PLT_CN",
+                how="left",
             )
 
         return plots
@@ -190,14 +192,10 @@ class FIADataReader:
         tree_dfs = []
 
         for i in range(0, len(plot_cns), batch_size):
-            batch = plot_cns[i:i + batch_size]
+            batch = plot_cns[i : i + batch_size]
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
 
-            df = self.read_table(
-                'TREE',
-                where=f"PLT_CN IN ({cn_str})",
-                lazy=False
-            )
+            df = self.read_table("TREE", where=f"PLT_CN IN ({cn_str})", lazy=False)
             tree_dfs.append(df)
 
         return pl.concat(tree_dfs, how="diagonal") if tree_dfs else pl.DataFrame()
@@ -220,14 +218,10 @@ class FIADataReader:
         cond_dfs = []
 
         for i in range(0, len(plot_cns), batch_size):
-            batch = plot_cns[i:i + batch_size]
+            batch = plot_cns[i : i + batch_size]
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
 
-            df = self.read_table(
-                'COND',
-                where=f"PLT_CN IN ({cn_str})",
-                lazy=False
-            )
+            df = self.read_table("COND", where=f"PLT_CN IN ({cn_str})", lazy=False)
             cond_dfs.append(df)
 
         return pl.concat(cond_dfs, how="diagonal") if cond_dfs else pl.DataFrame()
@@ -246,52 +240,48 @@ class FIADataReader:
 
         # Read POP_EVAL
         pop_eval = self.read_table(
-            'POP_EVAL',
-            where=f"EVALID IN ({evalid_str})",
-            lazy=False
+            "POP_EVAL", where=f"EVALID IN ({evalid_str})", lazy=False
         )
 
         # Read POP_PLOT_STRATUM_ASSGN
         ppsa = self.read_table(
-            'POP_PLOT_STRATUM_ASSGN',
-            where=f"EVALID IN ({evalid_str})",
-            lazy=False
+            "POP_PLOT_STRATUM_ASSGN", where=f"EVALID IN ({evalid_str})", lazy=False
         )
 
         # Get unique stratum CNs
         if not ppsa.is_empty():
-            stratum_cns = ppsa.select('STRATUM_CN').unique()['STRATUM_CN'].to_list()
+            stratum_cns = ppsa.select("STRATUM_CN").unique()["STRATUM_CN"].to_list()
             stratum_cn_str = ", ".join(f"'{cn}'" for cn in stratum_cns)
 
             # Read POP_STRATUM
             pop_stratum = self.read_table(
-                'POP_STRATUM',
-                where=f"CN IN ({stratum_cn_str})",
-                lazy=False
+                "POP_STRATUM", where=f"CN IN ({stratum_cn_str})", lazy=False
             )
 
             # Get estimation unit CNs
-            estn_unit_cns = pop_stratum.select('ESTN_UNIT_CN').unique()['ESTN_UNIT_CN'].to_list()
+            estn_unit_cns = (
+                pop_stratum.select("ESTN_UNIT_CN").unique()["ESTN_UNIT_CN"].to_list()
+            )
             estn_unit_cn_str = ", ".join(f"'{cn}'" for cn in estn_unit_cns)
 
             # Read POP_ESTN_UNIT
             pop_estn_unit = self.read_table(
-                'POP_ESTN_UNIT',
-                where=f"CN IN ({estn_unit_cn_str})",
-                lazy=False
+                "POP_ESTN_UNIT", where=f"CN IN ({estn_unit_cn_str})", lazy=False
             )
         else:
             pop_stratum = pl.DataFrame()
             pop_estn_unit = pl.DataFrame()
 
         return {
-            'pop_eval': pop_eval,
-            'pop_plot_stratum_assgn': ppsa,
-            'pop_stratum': pop_stratum,
-            'pop_estn_unit': pop_estn_unit
+            "pop_eval": pop_eval,
+            "pop_plot_stratum_assgn": ppsa,
+            "pop_stratum": pop_stratum,
+            "pop_estn_unit": pop_estn_unit,
         }
 
-    def read_evalid_data(self, evalid: Union[int, List[int]]) -> Dict[str, pl.DataFrame]:
+    def read_evalid_data(
+        self, evalid: Union[int, List[int]]
+    ) -> Dict[str, pl.DataFrame]:
         """
         Read all data for specified EVALID(s).
 
@@ -312,15 +302,10 @@ class FIADataReader:
 
         # Read plot data
         plots = self.read_plot_data(evalid)
-        plot_cns = plots['CN'].to_list() if not plots.is_empty() else []
+        plot_cns = plots["CN"].to_list() if not plots.is_empty() else []
 
         # Read associated data
         trees = self.read_tree_data(plot_cns)
         conds = self.read_cond_data(plot_cns)
 
-        return {
-            'plot': plots,
-            'tree': trees,
-            'cond': conds,
-            **pop_tables
-        }
+        return {"plot": plots, "tree": trees, "cond": conds, **pop_tables}

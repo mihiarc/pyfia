@@ -32,5 +32,6 @@ def configure_cognee():
     This must be called after importing cognee.
     """
     from cognee import config
+
     config.data_root_directory(COGNEE_DATA_DIR)
     config.system_root_directory(COGNEE_SYSTEM_DIR)

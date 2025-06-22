@@ -23,7 +23,7 @@ def area(
     lambda_: float = 0.5,
     totals: bool = False,
     variance: bool = False,
-    most_recent: bool = False
+    most_recent: bool = False,
 ) -> pl.DataFrame:
     """
     Estimate forest area and land proportions from FIA data.
@@ -67,21 +67,21 @@ def area(
         - N_PLOTS: Number of plots
     """
     # Ensure tables are loaded
-    db.load_table('PLOT')
-    db.load_table('COND')
-    db.load_table('POP_STRATUM')
-    db.load_table('POP_PLOT_STRATUM_ASSGN')
+    db.load_table("PLOT")
+    db.load_table("COND")
+    db.load_table("POP_STRATUM")
+    db.load_table("POP_PLOT_STRATUM_ASSGN")
 
     # Load TREE table only if tree_domain is specified
     if tree_domain:
-        db.load_table('TREE')
+        db.load_table("TREE")
 
     # Get filtered data
     plots = db.get_plots()
     data = {
         "PLOT": plots,
         "COND": db.get_conditions(),
-        "POP_STRATUM": db.tables['POP_STRATUM'].collect()
+        "POP_STRATUM": db.tables["POP_STRATUM"].collect(),
     }
 
     # Get tree data if needed
@@ -90,14 +90,18 @@ def area(
 
     # Get plot-stratum assignments filtered by current evaluation
     if db.evalid:
-        ppsa = db.tables['POP_PLOT_STRATUM_ASSGN'].filter(
-            pl.col('EVALID').is_in(db.evalid)
-        ).collect()
+        ppsa = (
+            db.tables["POP_PLOT_STRATUM_ASSGN"]
+            .filter(pl.col("EVALID").is_in(db.evalid))
+            .collect()
+        )
     else:
-        plot_cns = plots['CN'].to_list()
-        ppsa = db.tables['POP_PLOT_STRATUM_ASSGN'].filter(
-            pl.col('PLT_CN').is_in(plot_cns)
-        ).collect()
+        plot_cns = plots["CN"].to_list()
+        ppsa = (
+            db.tables["POP_PLOT_STRATUM_ASSGN"]
+            .filter(pl.col("PLT_CN").is_in(plot_cns))
+            .collect()
+        )
 
     data["POP_PLOT_STRATUM_ASSGN"] = ppsa
 
@@ -106,9 +110,7 @@ def area(
 
     # Handle tree domain if specified
     if tree_domain:
-        cond_df = _apply_tree_domain_to_conditions(
-            cond_df, data["TREE"], tree_domain
-        )
+        cond_df = _apply_tree_domain_to_conditions(cond_df, data["TREE"], tree_domain)
 
     # Add land type categories if requested
     if by_land_type:
@@ -122,16 +124,12 @@ def area(
 
     # Join stratification data
     strat_df = _prepare_area_stratification(
-        data["POP_STRATUM"],
-        data["POP_PLOT_STRATUM_ASSGN"]
+        data["POP_STRATUM"], data["POP_PLOT_STRATUM_ASSGN"]
     )
 
     # Calculate plot-level estimates
     plot_est = _calculate_plot_area_estimates(
-        plot_df=data["PLOT"],
-        cond_df=cond_df,
-        strat_df=strat_df,
-        grp_by=grp_by
+        plot_df=data["PLOT"], cond_df=cond_df, strat_df=strat_df, grp_by=grp_by
     )
 
     # Calculate stratum-level estimates
@@ -146,9 +144,7 @@ def area(
 
 
 def _apply_area_filters(
-    cond_df: pl.DataFrame,
-    land_type: str,
-    area_domain: Optional[str]
+    cond_df: pl.DataFrame, land_type: str, area_domain: Optional[str]
 ) -> pl.DataFrame:
     """Apply land type and area domain filters."""
     # For area estimation, we don't filter by land type here
@@ -162,9 +158,7 @@ def _apply_area_filters(
 
 
 def _apply_tree_domain_to_conditions(
-    cond_df: pl.DataFrame,
-    tree_df: pl.DataFrame,
-    tree_domain: str
+    cond_df: pl.DataFrame, tree_df: pl.DataFrame, tree_domain: str
 ) -> pl.DataFrame:
     """
     Apply tree domain at the condition level.
@@ -177,20 +171,15 @@ def _apply_tree_domain_to_conditions(
 
     # Get unique PLT_CN/CONDID combinations with qualifying trees
     qualifying_conds = (
-        qualifying_trees
-        .select(["PLT_CN", "CONDID"])
+        qualifying_trees.select(["PLT_CN", "CONDID"])
         .unique()
         .with_columns(pl.lit(1).alias("HAS_QUALIFYING_TREE"))
     )
 
     # Join back to conditions
     cond_df = cond_df.join(
-        qualifying_conds,
-        on=["PLT_CN", "CONDID"],
-        how="left"
-    ).with_columns(
-        pl.col("HAS_QUALIFYING_TREE").fill_null(0)
-    )
+        qualifying_conds, on=["PLT_CN", "CONDID"], how="left"
+    ).with_columns(pl.col("HAS_QUALIFYING_TREE").fill_null(0))
 
     return cond_df
 
@@ -198,9 +187,11 @@ def _apply_tree_domain_to_conditions(
 def _add_land_type_categories(cond_df: pl.DataFrame) -> pl.DataFrame:
     """Add land type categories for grouping."""
     return cond_df.with_columns(
-        pl.when((pl.col("COND_STATUS_CD") == 1) &
-                pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]) &
-                (pl.col("RESERVCD") == 0))
+        pl.when(
+            (pl.col("COND_STATUS_CD") == 1)
+            & pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])
+            & (pl.col("RESERVCD") == 0)
+        )
         .then(pl.lit("Timber"))
         .when(pl.col("COND_STATUS_CD") == 1)
         .then(pl.lit("Non-Timber Forest"))
@@ -214,18 +205,14 @@ def _add_land_type_categories(cond_df: pl.DataFrame) -> pl.DataFrame:
 
 
 def _calculate_domain_indicators(
-    cond_df: pl.DataFrame,
-    land_type: str,
-    by_land_type: bool = False
+    cond_df: pl.DataFrame, land_type: str, by_land_type: bool = False
 ) -> pl.DataFrame:
     """Calculate domain indicators for area estimation."""
     # When grouping by land type, we want each category as a percentage of total
     if by_land_type and "LAND_TYPE" in cond_df.columns:
         # For by_land_type, landD is 1 for each specific land type category
         # This will be handled in the aggregation by grouping
-        cond_df = cond_df.with_columns(
-            pl.lit(1).alias("landD")
-        )
+        cond_df = cond_df.with_columns(pl.lit(1).alias("landD"))
     else:
         # Land type domain indicator
         if land_type == "forest":
@@ -234,37 +221,31 @@ def _calculate_domain_indicators(
             )
         elif land_type == "timber":
             cond_df = cond_df.with_columns(
-                ((pl.col("COND_STATUS_CD") == 1) &
-                 pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]) &
-                 (pl.col("RESERVCD") == 0)).cast(pl.Int32).alias("landD")
+                (
+                    (pl.col("COND_STATUS_CD") == 1)
+                    & pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])
+                    & (pl.col("RESERVCD") == 0)
+                )
+                .cast(pl.Int32)
+                .alias("landD")
             )
         else:  # "all"
-            cond_df = cond_df.with_columns(
-                pl.lit(1).alias("landD")
-            )
+            cond_df = cond_df.with_columns(pl.lit(1).alias("landD"))
 
     # Area domain indicator (already filtered)
-    cond_df = cond_df.with_columns(
-        pl.lit(1).alias("aD")
-    )
+    cond_df = cond_df.with_columns(pl.lit(1).alias("aD"))
 
     # Tree domain indicator
     if "HAS_QUALIFYING_TREE" in cond_df.columns:
-        cond_df = cond_df.with_columns(
-            pl.col("HAS_QUALIFYING_TREE").alias("tD")
-        )
+        cond_df = cond_df.with_columns(pl.col("HAS_QUALIFYING_TREE").alias("tD"))
     else:
-        cond_df = cond_df.with_columns(
-            pl.lit(1).alias("tD")
-        )
+        cond_df = cond_df.with_columns(pl.lit(1).alias("tD"))
 
     # Comprehensive domain indicator (numerator)
     # For by_land_type, this will be 1 only for conditions of that land type
     if by_land_type:
         # Each land type category gets its own indicator
-        cond_df = cond_df.with_columns(
-            pl.col("aD").alias("aDI")
-        )
+        cond_df = cond_df.with_columns(pl.col("aD").alias("aDI"))
     else:
         cond_df = cond_df.with_columns(
             (pl.col("landD") * pl.col("aD") * pl.col("tD")).alias("aDI")
@@ -284,16 +265,13 @@ def _calculate_domain_indicators(
     else:
         # For specific land_type: denominator is the same as numerator domain
         # This gives percentages relative to the specified domain
-        cond_df = cond_df.with_columns(
-            (pl.col("landD") * pl.col("aD")).alias("pDI")
-        )
+        cond_df = cond_df.with_columns((pl.col("landD") * pl.col("aD")).alias("pDI"))
 
     return cond_df
 
 
 def _prepare_area_stratification(
-    stratum_df: pl.DataFrame,
-    assgn_df: pl.DataFrame
+    stratum_df: pl.DataFrame, assgn_df: pl.DataFrame
 ) -> pl.DataFrame:
     """Prepare stratification data for area estimation."""
     # Filter assignments to current evaluation if EVALID is present
@@ -303,12 +281,12 @@ def _prepare_area_stratification(
 
     # Join assignment with stratum info - include both SUBP and MACR adjustment factors
     strat_df = assgn_df.join(
-        stratum_df.select([
-            "CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", "P2POINTCNT"
-        ]),
+        stratum_df.select(
+            ["CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", "P2POINTCNT"]
+        ),
         left_on="STRATUM_CN",
         right_on="CN",
-        how="inner"
+        how="inner",
     )
 
     return strat_df
@@ -318,7 +296,7 @@ def _calculate_plot_area_estimates(
     plot_df: pl.DataFrame,
     cond_df: pl.DataFrame,
     strat_df: pl.DataFrame,
-    grp_by: Optional[List[str]]
+    grp_by: Optional[List[str]],
 ) -> pl.DataFrame:
     """Calculate plot-level area estimates."""
     # Ensure plot_df has PLT_CN column
@@ -332,24 +310,20 @@ def _calculate_plot_area_estimates(
         cond_groups = ["PLT_CN"]
 
     # Area meeting criteria (numerator) - include PROP_BASIS for adjustment factor selection
-    area_num = (
-        cond_df
-        .group_by(cond_groups)
-        .agg([
+    area_num = cond_df.group_by(cond_groups).agg(
+        [
             (pl.col("CONDPROP_UNADJ") * pl.col("aDI")).sum().alias("fa"),
             # Get dominant PROP_BASIS for the plot (most common or first)
-            pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS")
-        ])
+            pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS"),
+        ]
     )
 
     # Total area in domain (denominator) - also need PROP_BASIS
-    area_den = (
-        cond_df
-        .group_by("PLT_CN")
-        .agg([
+    area_den = cond_df.group_by("PLT_CN").agg(
+        [
             (pl.col("CONDPROP_UNADJ") * pl.col("pDI")).sum().alias("fad"),
-            pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS_DEN")
-        ])
+            pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS_DEN"),
+        ]
     )
 
     # Join numerator and denominator
@@ -362,9 +336,11 @@ def _calculate_plot_area_estimates(
 
     # Join with stratification - now includes both adjustment factors
     plot_est = plot_est.join(
-        strat_df.select(["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]),
+        strat_df.select(
+            ["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]
+        ),
         on="PLT_CN",
-        how="left"
+        how="left",
     )
 
     # Select appropriate adjustment factor based on PROP_BASIS
@@ -378,28 +354,35 @@ def _calculate_plot_area_estimates(
     # Apply adjustment factor and calculate expanded values
     # CRITICAL: Use direct expansion (plot proportion × adjustment × EXPNS)
     # NOT post-stratified means
-    plot_est = plot_est.with_columns([
-        (pl.col("fa") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias("fa_expanded"),
-        (pl.col("fad") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias("fad_expanded"),
-        # Keep original values for variance calculation
-        (pl.col("fa") * pl.col("ADJ_FACTOR")).alias("fa"),
-        (pl.col("fad") * pl.col("ADJ_FACTOR")).alias("fad")
-    ])
+    plot_est = plot_est.with_columns(
+        [
+            (pl.col("fa") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias(
+                "fa_expanded"
+            ),
+            (pl.col("fad") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias(
+                "fad_expanded"
+            ),
+            # Keep original values for variance calculation
+            (pl.col("fa") * pl.col("ADJ_FACTOR")).alias("fa"),
+            (pl.col("fad") * pl.col("ADJ_FACTOR")).alias("fad"),
+        ]
+    )
 
     # Fill missing values
-    plot_est = plot_est.with_columns([
-        pl.col("fa").fill_null(0),
-        pl.col("fad").fill_null(0),
-        pl.col("fa_expanded").fill_null(0),
-        pl.col("fad_expanded").fill_null(0)
-    ])
+    plot_est = plot_est.with_columns(
+        [
+            pl.col("fa").fill_null(0),
+            pl.col("fad").fill_null(0),
+            pl.col("fa_expanded").fill_null(0),
+            pl.col("fad_expanded").fill_null(0),
+        ]
+    )
 
     return plot_est
 
 
 def _calculate_stratum_area_estimates(
-    plot_est: pl.DataFrame,
-    grp_by: Optional[List[str]]
+    plot_est: pl.DataFrame, grp_by: Optional[List[str]]
 ) -> pl.DataFrame:
     """Calculate stratum-level area estimates."""
     if grp_by:
@@ -408,10 +391,8 @@ def _calculate_stratum_area_estimates(
         strat_groups = ["STRATUM_CN"]
 
     # Calculate stratum totals and variance components
-    stratum_est = (
-        plot_est
-        .group_by(strat_groups)
-        .agg([
+    stratum_est = plot_est.group_by(strat_groups).agg(
+        [
             # Sample size
             pl.len().alias("n_h"),
             # Direct expansion totals (sum of expanded values)
@@ -426,28 +407,27 @@ def _calculate_stratum_area_estimates(
             # Correlation for ratio variance
             pl.corr("fa", "fad").fill_null(0).alias("corr_fa_fad"),
             # Stratum weight
-            pl.first("EXPNS").alias("w_h")
-        ])
+            pl.first("EXPNS").alias("w_h"),
+        ]
     )
 
     # Calculate covariance from correlation
     stratum_est = stratum_est.with_columns(
-        (pl.col("corr_fa_fad") * pl.col("s_fa_h") * pl.col("s_fad_h")).alias("s_fa_fad_h")
+        (pl.col("corr_fa_fad") * pl.col("s_fa_h") * pl.col("s_fad_h")).alias(
+            "s_fa_fad_h"
+        )
     )
 
     # Replace null std devs with 0
-    stratum_est = stratum_est.with_columns([
-        pl.col(c).fill_null(0) for c in ["s_fa_h", "s_fad_h", "s_fa_fad_h"]
-    ])
+    stratum_est = stratum_est.with_columns(
+        [pl.col(c).fill_null(0) for c in ["s_fa_h", "s_fad_h", "s_fa_fad_h"]]
+    )
 
     return stratum_est
 
 
 def _calculate_population_area_estimates(
-    stratum_est: pl.DataFrame,
-    grp_by: Optional[List[str]],
-    totals: bool,
-    variance: bool
+    stratum_est: pl.DataFrame, grp_by: Optional[List[str]], totals: bool, variance: bool
 ) -> pl.DataFrame:
     """Calculate population-level area estimates using direct expansion."""
     if grp_by:
@@ -465,12 +445,18 @@ def _calculate_population_area_estimates(
         pl.col("fa_expanded_total").sum().alias("FA_TOTAL"),
         pl.col("fad_expanded_total").sum().alias("FAD_TOTAL"),
         # Variance components (still use stratum-based variance)
-        ((pl.col("w_h") ** 2) * (pl.col("s_fa_h") ** 2) / pl.col("n_h")).sum().alias("FA_VAR"),
-        ((pl.col("w_h") ** 2) * (pl.col("s_fad_h") ** 2) / pl.col("n_h")).sum().alias("FAD_VAR"),
+        ((pl.col("w_h") ** 2) * (pl.col("s_fa_h") ** 2) / pl.col("n_h"))
+        .sum()
+        .alias("FA_VAR"),
+        ((pl.col("w_h") ** 2) * (pl.col("s_fad_h") ** 2) / pl.col("n_h"))
+        .sum()
+        .alias("FAD_VAR"),
         # Covariance term
-        ((pl.col("w_h") ** 2) * pl.col("s_fa_fad_h") / pl.col("n_h")).sum().alias("COV_FA_FAD"),
+        ((pl.col("w_h") ** 2) * pl.col("s_fa_fad_h") / pl.col("n_h"))
+        .sum()
+        .alias("COV_FA_FAD"),
         # Sample size
-        pl.col("n_h").sum().alias("N_PLOTS")
+        pl.col("n_h").sum().alias("N_PLOTS"),
     ]
 
     if pop_groups:
@@ -487,9 +473,9 @@ def _calculate_population_area_estimates(
         if "LAND_TYPE" in pop_est.columns:
             # Get total land area (excluding water)
             land_area_total = (
-                pop_est
-                .filter(~pl.col("LAND_TYPE").str.contains("Water"))
-                .select(pl.sum("FAD_TOTAL").alias("TOTAL_LAND_AREA"))
+                pop_est.filter(~pl.col("LAND_TYPE").str.contains("Water")).select(
+                    pl.sum("FAD_TOTAL").alias("TOTAL_LAND_AREA")
+                )
             )[0, 0]
 
             # Use total land area as denominator for all land types
@@ -519,9 +505,11 @@ def _calculate_population_area_estimates(
     # Calculate ratio variance
     pop_est = pop_est.with_columns(
         ratio_var(
-            pl.col("FA_TOTAL"), pl.col("FAD_TOTAL"),
-            pl.col("FA_VAR"), pl.col("FAD_VAR"),
-            pl.col("COV_FA_FAD")
+            pl.col("FA_TOTAL"),
+            pl.col("FAD_TOTAL"),
+            pl.col("FA_VAR"),
+            pl.col("FAD_VAR"),
+            pl.col("COV_FA_FAD"),
         ).alias("PERC_VAR_RATIO")
     )
 
@@ -531,19 +519,19 @@ def _calculate_population_area_estimates(
     )
 
     # Calculate standard errors
-    pop_est = pop_est.with_columns([
-        (pl.col("AREA_PERC_VAR").sqrt()).alias("AREA_PERC_SE"),
-        (pl.col("FA_VAR").sqrt() / pl.col("FA_TOTAL") * 100).alias("AREA_SE")
-    ])
+    pop_est = pop_est.with_columns(
+        [
+            (pl.col("AREA_PERC_VAR").sqrt()).alias("AREA_PERC_SE"),
+            (pl.col("FA_VAR").sqrt() / pl.col("FA_TOTAL") * 100).alias("AREA_SE"),
+        ]
+    )
 
     # Select final columns
     cols = pop_groups + ["AREA_PERC", "N_PLOTS"]
 
     if totals:
         # Add total area in acres
-        pop_est = pop_est.with_columns(
-            pl.col("FA_TOTAL").alias("AREA")
-        )
+        pop_est = pop_est.with_columns(pl.col("FA_TOTAL").alias("AREA"))
         cols.append("AREA")
 
     if variance:

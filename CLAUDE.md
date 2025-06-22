@@ -61,6 +61,7 @@ graph TB
     classDef dataLayer fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
     classDef aiComponent fill:#9b59b6,stroke:#fff,stroke-width:2px,color:#fff
     classDef estimator fill:#f39c12,stroke:#fff,stroke-width:2px,color:#fff
+    classDef altEstimator fill:#e67e22,stroke:#fff,stroke-width:2px,color:#fff
     classDef utility fill:#34495e,stroke:#fff,stroke-width:2px,color:#fff
     classDef external fill:#95a5a6,stroke:#fff,stroke-width:2px,color:#fff
 
@@ -73,15 +74,15 @@ graph TB
     FIA["FIA Core Class"]:::coreComponent
     
     %% AI Components
-    AIAgent["AI Agent - LangGraph"]:::aiComponent
-    AIEnhanced["AI Agent Enhanced"]:::aiComponent
-    AICognee["AI Agent Cognee"]:::aiComponent
+    AIAgent["FIAAgent - Base"]:::aiComponent
+    AIEnhanced["FIAAgentEnhanced"]:::aiComponent
+    AICognee["CogneeFIAAgent"]:::aiComponent
     DuckDBInterface["DuckDB Query Interface"]:::aiComponent
+    CogneeSetup["Cognee Setup"]:::utility
 
     %% Data Layer
     DataReader["FIA Data Reader"]:::dataLayer
     DuckDB[("DuckDB")]:::external
-    SQLite[("SQLite")]:::external
 
     %% Estimation Modules
     Area["Area Estimator"]:::estimator
@@ -89,17 +90,22 @@ graph TB
     Volume["Volume Estimator"]:::estimator
     TPA["TPA Estimator"]:::estimator
     Mortality["Mortality Estimator"]:::estimator
+    MortalityDirect["Mortality Direct"]:::altEstimator
     Growth["Growth Estimator"]:::estimator
+    GrowthDirect["Growth Direct"]:::altEstimator
 
     %% Utilities
     EstUtils["Estimation Utils"]:::utility
-    Config["Config Management"]:::utility
+    Config["Config"]:::utility
+    CLIConfig["CLI Config"]:::utility
     Models["Data Models"]:::utility
+    SchemaMapper["DB Schema Mapper"]:::utility
 
     %% External Dependencies
     Polars["Polars DataFrames"]:::external
     LangChain["LangChain Framework"]:::external
     GeoPandas["GeoPandas"]:::external
+    OpenAI["OpenAI API"]:::external
 
     %% Connections - User Layer
     CLI --> FIA
@@ -109,40 +115,50 @@ graph TB
     API --> FIA
 
     %% Connections - AI Layer
+    AIEnhanced -.->|inherits| AIAgent
     AIAgent --> DuckDBInterface
     AIEnhanced --> DuckDBInterface
     AICognee --> DuckDBInterface
+    AICognee --> CogneeSetup
     AIAgent --> LangChain
     AIEnhanced --> LangChain
+    LangChain --> OpenAI
     DuckDBInterface --> DuckDB
 
     %% Connections - Core Layer
     FIA --> DataReader
-    FIA --> Area
-    FIA --> Biomass
-    FIA --> Volume
-    FIA --> TPA
-    FIA --> Mortality
-    FIA --> Growth
+    Area --> FIA
+    Biomass --> FIA
+    Volume --> FIA
+    TPA --> FIA
+    Mortality --> FIA
+    MortalityDirect --> FIA
+    Growth --> FIA
+    GrowthDirect --> FIA
 
     %% Connections - Data Layer
     DataReader --> DuckDB
-    DataReader --> SQLite
     DataReader --> Polars
 
-    %% Connections - Estimators
+    %% Connections - Estimators to Utils
     Area --> EstUtils
     Biomass --> EstUtils
     Volume --> EstUtils
     TPA --> EstUtils
     Mortality --> EstUtils
+    MortalityDirect --> EstUtils
     Growth --> EstUtils
+    GrowthDirect --> EstUtils
+    EstUtils --> ratio_var["ratio_var()"]:::utility
+    EstUtils --> cv["cv()"]:::utility
 
     %% Connections - Utilities
     FIA --> Config
-    EstUtils --> Models
+    CLI --> CLIConfig
+    CLIAI --> CLIConfig
     EstUtils --> Polars
-    FIA --> GeoPandas
+    Area --> GeoPandas
+    DuckDBInterface --> SchemaMapper
 
     %% Add labels for clarity
     subgraph UI["User Interfaces"]
@@ -168,19 +184,25 @@ graph TB
         Volume
         TPA
         Mortality
+        MortalityDirect
         Growth
+        GrowthDirect
     end
 
     subgraph Data["Data Access"]
         DataReader
         DuckDB
-        SQLite
     end
 
     subgraph Utils["Utilities"]
         EstUtils
         Config
+        CLIConfig
         Models
+        SchemaMapper
+        CogneeSetup
+        ratio_var
+        cv
     end
 ```
 
@@ -221,13 +243,27 @@ pyFIA provides two distinct interfaces:
 ### Python Package Structure  
 - `pyfia/core.py`: Main FIA class and common functionality
 - `pyfia/data_reader.py`: Database interface for SQLite/DuckDB
-- `pyfia/estimation_common.py`: Shared estimation procedures
-- `pyfia/*_equations.py`: Biomass and volume equation implementations
-- Individual estimation modules for different metrics (area, biomass, volume, etc.)
-- `pyfia/ai_agent/`: AI components for natural language processing
-  - `agent.py`: Basic LangGraph agent
-  - `agent_enhanced.py`: Enhanced agent with tool-based analysis
-  - `agent_cognee.py`: Cognee-based agent implementation
+- `pyfia/estimation_utils.py`: Shared estimation procedures and utilities
+- Individual estimation modules for different metrics:
+  - `area.py`: Forest area estimation
+  - `biomass.py`: Biomass calculations
+  - `volume.py`: Volume estimation
+  - `tpa.py`: Trees per acre
+  - `mortality.py`: Standard mortality estimation
+  - `mortality_direct.py`: Alternative mortality implementation
+  - `growth.py`: Growth estimation
+  - `growth_direct.py`: Alternative growth implementation
+- AI components:
+  - `ai_agent.py`: Base FIAAgent class with LangGraph
+  - `ai_agent_enhanced.py`: Enhanced agent (extends FIAAgent)
+  - `cognee_fia_agent.py`: Cognee-based agent implementation
+  - `duckdb_query_interface.py`: Direct SQL interface for AI agents
+  - `cognee_setup.py`: Cognee configuration utilities
+- Utilities:
+  - `models.py`: Pydantic data models
+  - `db_schema_mapper.py`: Database schema utilities
+  - `cli_config.py`: CLI configuration
+  - `config.py`: General configuration
 
 ### Key Design Patterns
 

@@ -7,6 +7,9 @@ This directory contains SQL queries for estimating forest growth, mortality, and
 ### Mortality Queries
 
 - **[Colorado Merchantable Volume Mortality](colorado_mortality_merchantable_volume.md)** - Annual mortality of merchantable bole wood volume of growing-stock trees
+- **[North Carolina Tree Mortality Rate](north_carolina_mortality_trees_per_acre.md)** - Simple mortality rate in trees per acre per year on forest land
+- **[Georgia Growing-Stock Mortality by Damage Agent](georgia_growing_stock_mortality_by_agent.md)** - Annual mortality by tree-level cause of death and species
+- **[Georgia Growing-Stock Mortality by Disturbance Type](georgia_growing_stock_mortality_by_disturbance.md)** - Annual mortality by condition-level disturbance and species
 
 ## Key Concepts
 

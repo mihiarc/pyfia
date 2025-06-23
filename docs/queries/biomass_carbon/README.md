@@ -21,6 +21,23 @@ A comprehensive biomass calculation that demonstrates:
 - **12**: True fir - 122,095,237 tons (11.1%)
 - **23**: Woodland softwoods - 114,570,440 tons (10.5%)
 
+### 2. [North Carolina Merchantable Bole Biomass](./north_carolina_merchantable_biomass.md)
+**EVALID: 372301 (North Carolina 2023)**  
+**Result: 1.56 billion green short tons merchantable bole biomass**
+
+Calculates merchantable bole bark and wood biomass for timber species ≥5" DBH:
+- Green weight (includes moisture content) calculations
+- Merchantable bole components (DRYBIO_BOLE + DRYBIO_BOLE_BARK)
+- Results by diameter class and species
+- Complex moisture content conversions for wood and bark
+- EVALIDator-compatible formatting with species details
+
+**Key Findings:**
+- Peak biomass in 11.0-12.9" diameter class (202.1 million tons)
+- Loblolly pine dominates across all size classes
+- 995 unique diameter class × species combinations
+- Demonstrates managed forest structure with concentration in pole-sized trees
+
 ## Key Concepts Demonstrated
 
 - **Species-Specific Calculations**: Each species has unique wood and bark properties

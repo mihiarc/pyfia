@@ -35,6 +35,10 @@ This directory contains a comprehensive, organized collection of tested and vali
 - **Alabama Land Area by Condition** - Land use classification and area estimates
 - Forest vs non-forest land analysis
 
+### 🔄 [Forest Change](./forest_change/)
+- **Missouri Forest Type Change** - Forest area changes by type group using remeasurement data
+- Temporal analysis using SUBP_COND_CHNG_MTRX and change evaluations
+
 ## 🎯 Key Features
 
 - **✅ EVALIDator Compatible**: All queries match Oracle EVALIDator methodology

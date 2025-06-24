@@ -14,24 +14,24 @@ from .core import FIA
 
 def biomass(
     db: Union[str, FIA],
-    grpBy: Optional[Union[str, List[str]]] = None,
-    bySpecies: bool = False,
-    bySizeClass: bool = False,
-    landType: str = "forest",
-    treeType: str = "live",
+    grp_by: Optional[Union[str, List[str]]] = None,
+    by_species: bool = False,
+    by_size_class: bool = False,
+    land_type: str = "forest",
+    tree_type: str = "live",
     component: str = "AG",
     method: str = "TI",
     lambda_: float = 0.5,
-    treeDomain: Optional[str] = None,
-    areaDomain: Optional[str] = None,
+    tree_domain: Optional[str] = None,
+    area_domain: Optional[str] = None,
     totals: bool = False,
     variance: bool = False,
-    byPlot: bool = False,
-    condList: bool = False,
-    nCores: int = 1,
+    by_plot: bool = False,
+    cond_list: bool = False,
+    n_cores: int = 1,
     remote: bool = False,
     mr: bool = False,
-    modelSnag: bool = True,
+    model_snag: bool = True,
 ) -> pl.DataFrame:
     """
     Estimate biomass from FIA data following rFIA methodology.
@@ -40,15 +40,15 @@ def biomass(
     ----------
     db : FIA or str
         FIA database object or path to database
-    grpBy : list of str, optional
+    grp_by : list of str, optional
         Columns to group estimates by
-    bySpecies : bool, default False
+    by_species : bool, default False
         Group by species
-    bySizeClass : bool, default False
+    by_size_class : bool, default False
         Group by size classes
-    landType : str, default "forest"
+    land_type : str, default "forest"
         Land type filter: "forest" or "timber"
-    treeType : str, default "live"
+    tree_type : str, default "live"
         Tree type filter: "live", "dead", "gs", "all"
     component : str, default "AG"
         Biomass component: "AG", "BG", "TOTAL", "STEM", etc.
@@ -56,25 +56,25 @@ def biomass(
         Estimation method (currently only "TI" supported)
     lambda_ : float, default 0.5
         Temporal weighting parameter (not used for TI)
-    treeDomain : str, optional
+    tree_domain : str, optional
         SQL-like condition to filter trees
-    areaDomain : str, optional
+    area_domain : str, optional
         SQL-like condition to filter area
     totals : bool, default False
         Include population totals in addition to per-acre estimates
     variance : bool, default False
         Return variance instead of standard error
-    byPlot : bool, default False
+    by_plot : bool, default False
         Return plot-level estimates
-    condList : bool, default False
+    cond_list : bool, default False
         Return condition list
-    nCores : int, default 1
+    n_cores : int, default 1
         Number of cores (not implemented)
     remote : bool, default False
         Use remote database (not implemented)
     mr : bool, default False
         Use most recent evaluation
-    modelSnag : bool, default True
+    model_snag : bool, default True
         Model standing dead biomass (not implemented)
 
     Returns
@@ -100,8 +100,8 @@ def biomass(
     conds = fia.get_conditions()
 
     # Apply filters following rFIA methodology
-    trees = _apply_tree_filters(trees, treeType, treeDomain)
-    conds = _apply_area_filters(conds, landType, areaDomain)
+    trees = _apply_tree_filters(trees, tree_type, tree_domain)
+    conds = _apply_area_filters(conds, land_type, area_domain)
 
     # Join trees with forest conditions
     tree_cond = trees.join(
@@ -130,7 +130,7 @@ def biomass(
         )
 
     # Set up grouping
-    group_cols = _setup_grouping_columns(tree_cond, grpBy, bySpecies, bySizeClass)
+    group_cols = _setup_grouping_columns(tree_cond, grp_by, by_species, by_size_class)
 
     # Sum to plot level
     if group_cols:

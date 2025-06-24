@@ -597,8 +597,7 @@ class FIADirectCLI(cmd.Cmd):
             if "totals" not in kwargs:
                 kwargs["totals"] = True
 
-            # Convert camelCase to snake_case for area function parameters
-            kwargs = self._convert_kwargs_to_snake_case(kwargs)
+            # No conversion needed - all functions use snake_case now
 
             # Note: AREA_PERC shows percentage of total area meeting criteria
             # When landType="forest" (default), it shows forest as % of total land
@@ -653,7 +652,7 @@ class FIADirectCLI(cmd.Cmd):
 
         try:
             kwargs = self._parse_kwargs(arg)
-            kwargs = self._convert_kwargs_to_snake_case(kwargs)
+            # No conversion needed - all functions use snake_case now
 
             with Progress(
                 SpinnerColumn(),
@@ -693,7 +692,7 @@ class FIADirectCLI(cmd.Cmd):
 
         try:
             kwargs = self._parse_kwargs(arg)
-            kwargs = self._convert_kwargs_to_snake_case(kwargs)
+            # No conversion needed - all functions use snake_case now
 
             with Progress(
                 SpinnerColumn(),
@@ -733,7 +732,7 @@ class FIADirectCLI(cmd.Cmd):
 
         try:
             kwargs = self._parse_kwargs(arg)
-            kwargs = self._convert_kwargs_to_snake_case(kwargs)
+            # No conversion needed - all functions use snake_case now
 
             with Progress(
                 SpinnerColumn(),
@@ -773,7 +772,7 @@ class FIADirectCLI(cmd.Cmd):
 
         try:
             kwargs = self._parse_kwargs(arg)
-            kwargs = self._convert_kwargs_to_snake_case(kwargs)
+            # No conversion needed - all functions use snake_case now
 
             with Progress(
                 SpinnerColumn(),
@@ -1319,25 +1318,7 @@ class FIADirectCLI(cmd.Cmd):
 
         return kwargs
 
-    def _convert_kwargs_to_snake_case(self, kwargs: Dict[str, Any]) -> Dict[str, Any]:
-        """Convert camelCase kwargs to snake_case for FIA functions."""
-        conversions = {
-            "byLandType": "by_land_type",
-            "bySpecies": "by_species",
-            "bySizeClass": "by_size_class",
-            "landType": "land_type",
-            "treeDomain": "tree_domain",
-            "areaDomain": "area_domain",
-            "treeType": "tree_type",
-            "volType": "vol_type",
-            "mostRecent": "most_recent",
-        }
-
-        for camel, snake in conversions.items():
-            if camel in kwargs:
-                kwargs[snake] = kwargs.pop(camel)
-
-        return kwargs
+    # Removed - no longer needed since all functions use snake_case
 
     def _display_dataframe(self, df: pl.DataFrame, title: str = "", max_rows: int = 20):
         """Display a Polars DataFrame as a rich table."""

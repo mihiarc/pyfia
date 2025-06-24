@@ -14,23 +14,23 @@ from .core import FIA
 
 def mortality(
     db: Union[FIA, str],
-    grpBy: Optional[Union[str, List[str]]] = None,
+    grp_by: Optional[Union[str, List[str]]] = None,
     polys: Optional[Any] = None,
-    returnSpatial: bool = False,
-    bySpecies: bool = False,
-    bySizeClass: bool = False,
-    landType: str = "forest",
-    treeType: str = "all",
-    treeClass: str = "all",
+    return_spatial: bool = False,
+    by_species: bool = False,
+    by_size_class: bool = False,
+    land_type: str = "forest",
+    tree_type: str = "all",
+    tree_class: str = "all",
     method: str = "TI",
     lambda_: float = 0.5,
-    treeDomain: Optional[str] = None,
-    areaDomain: Optional[str] = None,
+    tree_domain: Optional[str] = None,
+    area_domain: Optional[str] = None,
     totals: bool = False,
     variance: bool = False,
-    byPlot: bool = False,
-    returnComponents: bool = False,
-    nCores: int = 1,
+    by_plot: bool = False,
+    return_components: bool = False,
+    n_cores: int = 1,
     remote: bool = False,
     mr: bool = False,
     **kwargs,
@@ -44,23 +44,23 @@ def mortality(
 
     Args:
         db: FIA database object or path to database
-        grpBy: Grouping variables for estimation
+        grp_by: Grouping variables for estimation
         polys: Spatial polygons for estimation
-        returnSpatial: Return sf spatial object
-        bySpecies: Report estimates by species
-        bySizeClass: Report estimates by size class
-        landType: Land type filter ('forest' or 'all')
-        treeType: Tree type filter (typically 'all' for mortality)
-        treeClass: Tree classification ('all' or 'growing_stock'). Use 'growing_stock' for merchantable volume mortality
+        return_spatial: Return sf spatial object
+        by_species: Report estimates by species
+        by_size_class: Report estimates by size class
+        land_type: Land type filter ('forest' or 'all')
+        tree_type: Tree type filter (typically 'all' for mortality)
+        tree_class: Tree classification ('all' or 'growing_stock'). Use 'growing_stock' for merchantable volume mortality
         method: Estimation method ('TI', 'SMA', 'LMA', 'EMA', 'ANNUAL')
         lambda_: Lambda parameter for moving average
-        treeDomain: Logical expression for tree subset
-        areaDomain: Logical expression for area subset
+        tree_domain: Logical expression for tree subset
+        area_domain: Logical expression for area subset
         totals: Return total estimates
         variance: Return variance components
-        byPlot: Return plot-level estimates
-        returnComponents: Return component values (mortality, survivor trees)
-        nCores: Number of cores for parallel processing
+        by_plot: Return plot-level estimates
+        return_components: Return component values (mortality, survivor trees)
+        n_cores: Number of cores for parallel processing
         remote: Use remote database
         mr: Most recent subset
 
@@ -102,12 +102,12 @@ def mortality(
 
     # Filter trees with mortality data based on land type and tree class
     # FIA database structure: mortality data is in separate columns by tree basis, land type, and tree class
-    if treeClass == "growing_stock":
+    if tree_class == "growing_stock":
         # Use growing stock columns for merchantable volume mortality
-        land_suffix = "_GS_FOREST" if landType == "forest" else "_GS_TIMBER"
+        land_suffix = "_GS_FOREST" if land_type == "forest" else "_GS_TIMBER"
     else:
         # Use all live columns for total mortality
-        land_suffix = "_AL_FOREST" if landType == "forest" else "_AL_TIMBER"
+        land_suffix = "_AL_FOREST" if land_type == "forest" else "_AL_TIMBER"
 
     # Select appropriate mortality columns
     micr_mort_col = f"MICR_TPAMORT_UNADJ{land_suffix}"
@@ -172,15 +172,15 @@ def mortality(
     )
 
     # Apply land type filter
-    if landType == "forest":
+    if land_type == "forest":
         tree_plot_cond = tree_plot_cond.filter(pl.col("COND_STATUS_CD") == 1)
 
     # Apply domain filters
-    if treeDomain:
-        tree_plot_cond = tree_plot_cond.filter(pl.Expr.from_json(treeDomain))
+    if tree_domain:
+        tree_plot_cond = tree_plot_cond.filter(pl.Expr.from_json(tree_domain))
 
-    if areaDomain:
-        tree_plot_cond = tree_plot_cond.filter(pl.Expr.from_json(areaDomain))
+    if area_domain:
+        tree_plot_cond = tree_plot_cond.filter(pl.Expr.from_json(area_domain))
 
     # Calculate tree basis based on diameter
     tree_plot_cond = tree_plot_cond.with_columns(
@@ -231,16 +231,16 @@ def mortality(
 
     # Create grouping columns
     group_cols = ["EVALID"]
-    if grpBy:
-        if isinstance(grpBy, str):
-            group_cols.append(grpBy)
+    if grp_by:
+        if isinstance(grp_by, str):
+            group_cols.append(grp_by)
         else:
-            group_cols.extend(grpBy)
+            group_cols.extend(grp_by)
 
-    if bySpecies:
+    if by_species:
         group_cols.append("SPCD")
 
-    if bySizeClass:
+    if by_size_class:
         # Add size class based on beginning diameter
         tree_plot_cond = tree_plot_cond.with_columns(
             pl.when(pl.col("DIA_BEGIN") < 5.0)
@@ -295,7 +295,7 @@ def mortality(
     )
 
     # If we need survivor trees for mortality rate calculation
-    if returnComponents:
+    if return_components:
         # Get survivor tree counts
         tree_grm_component.filter(pl.col("COMPONENT") == "SURVIVOR")
 
@@ -364,7 +364,7 @@ def mortality(
     else:
         # Per acre estimates
         # Get total forest area
-        area_data = _calculate_forest_area(data, landType, areaDomain)
+        area_data = _calculate_forest_area(data, land_type, area_domain)
 
         # Join area with estimates
         pop_estimates = (
@@ -458,7 +458,7 @@ def mortality(
     result = pop_estimates.select(result_cols)
 
     # Add species names if grouped by species
-    if bySpecies:
+    if by_species:
         # Would join with REF_SPECIES table here
         pass
 
@@ -466,7 +466,7 @@ def mortality(
 
 
 def _calculate_forest_area(
-    data: Dict[str, pl.DataFrame], landType: str, areaDomain: Optional[str]
+    data: Dict[str, pl.DataFrame], land_type: str, area_domain: Optional[str]
 ) -> pl.DataFrame:
     """Calculate forest area for mortality denominators."""
     cond_data = data["cond"]
@@ -475,11 +475,11 @@ def _calculate_forest_area(
     pop_stratum = data["pop_stratum"]
 
     # Filter conditions
-    if landType == "forest":
+    if land_type == "forest":
         cond_data = cond_data.filter(pl.col("COND_STATUS_CD") == 1)
 
-    if areaDomain:
-        cond_data = cond_data.filter(pl.Expr.from_json(areaDomain))
+    if area_domain:
+        cond_data = cond_data.filter(pl.Expr.from_json(area_domain))
 
     # Calculate condition proportions
     cond_props = cond_data.group_by(["PLT_CN"]).agg(

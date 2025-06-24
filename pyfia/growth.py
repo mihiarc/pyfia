@@ -16,11 +16,11 @@ from .core import FIA
 
 def growth(
     db: Union[FIA, str],
-    grpBy: Optional[Union[str, List[str]]] = None,
-    bySpecies: bool = False,
-    bySizeClass: bool = False,
-    landType: str = "forest",
-    treeType: str = "all",
+    grp_by: Optional[Union[str, List[str]]] = None,
+    by_species: bool = False,
+    by_size_class: bool = False,
+    land_type: str = "forest",
+    tree_type: str = "all",
     method: str = "TI",
     totals: bool = False,
     mr: bool = False,
@@ -37,11 +37,11 @@ def growth(
 
     Args:
         db: FIA database object or path to database
-        grpBy: Grouping variables for estimation
-        bySpecies: Report estimates by species
-        bySizeClass: Report estimates by size class
-        landType: Land type filter ('forest' or 'all')
-        treeType: Tree type filter
+        grp_by: Grouping variables for estimation
+        by_species: Report estimates by species
+        by_size_class: Report estimates by size class
+        land_type: Land type filter ('forest' or 'all')
+        tree_type: Tree type filter
         method: Estimation method ('TI', 'SMA', 'LMA', 'EMA', 'ANNUAL')
         totals: Return total estimates
         mr: Most recent subset
@@ -76,7 +76,7 @@ def growth(
     pop_stratum = data["pop_stratum"]
 
     # Set up columns based on land type
-    land_suffix = "_AL_FOREST" if landType == "forest" else "_AL_TIMBER"
+    land_suffix = "_AL_FOREST" if land_type == "forest" else "_AL_TIMBER"
     micr_grow_col = f"MICR_TPAGROW_UNADJ{land_suffix}"
     subp_grow_col = f"SUBP_TPAGROW_UNADJ{land_suffix}"
     component_col = f"SUBP_COMPONENT{land_suffix}"
@@ -94,8 +94,8 @@ def growth(
         component_col,
         micr_grow_col,
         subp_grow_col,
-        grpBy,
-        bySpecies,
+        grp_by,
+        by_species,
     )
     results.append(recruitment)
 
@@ -108,8 +108,8 @@ def growth(
         ppsa,
         pop_stratum,
         component_col,
-        grpBy,
-        bySpecies,
+        grp_by,
+        by_species,
     )
     results.append(dia_growth)
 
@@ -122,8 +122,8 @@ def growth(
         ppsa,
         pop_stratum,
         component_col,
-        grpBy,
-        bySpecies,
+        grp_by,
+        by_species,
     )
     results.append(vol_growth)
 
@@ -136,8 +136,8 @@ def growth(
         ppsa,
         pop_stratum,
         component_col,
-        grpBy,
-        bySpecies,
+        grp_by,
+        by_species,
     )
     results.append(bio_growth)
 
@@ -155,8 +155,8 @@ def _calculate_recruitment(
     component_col,
     micr_grow_col,
     subp_grow_col,
-    grpBy,
-    bySpecies,
+    grp_by,
+    by_species,
 ):
     """Calculate recruitment (ingrowth) of new trees."""
 
@@ -209,8 +209,8 @@ def _calculate_diameter_growth(
     ppsa,
     pop_stratum,
     component_col,
-    grpBy,
-    bySpecies,
+    grp_by,
+    by_species,
 ):
     """Calculate diameter growth of surviving trees."""
 
@@ -257,8 +257,8 @@ def _calculate_volume_growth(
     ppsa,
     pop_stratum,
     component_col,
-    grpBy,
-    bySpecies,
+    grp_by,
+    by_species,
 ):
     """Calculate volume growth based on diameter growth."""
 
@@ -308,8 +308,8 @@ def _calculate_biomass_growth(
     ppsa,
     pop_stratum,
     component_col,
-    grpBy,
-    bySpecies,
+    grp_by,
+    by_species,
 ):
     """Calculate biomass growth based on diameter growth."""
 
@@ -319,14 +319,14 @@ def _calculate_biomass_growth(
     return pl.DataFrame()  # Placeholder
 
 
-def _aggregate_and_expand(data, value_col, output_col, grpBy, bySpecies):
+def _aggregate_and_expand(data, value_col, output_col, grp_by, by_species):
     """Aggregate to plot level and expand using direct expansion."""
 
     # Set up grouping
     group_cols = []
-    if grpBy:
-        group_cols.extend(grpBy if isinstance(grpBy, list) else [grpBy])
-    if bySpecies:
+    if grp_by:
+        group_cols.extend(grp_by if isinstance(grp_by, list) else [grp_by])
+    if by_species:
         group_cols.append("SPCD")
 
     # Aggregate to plot level
@@ -340,7 +340,7 @@ def _aggregate_and_expand(data, value_col, output_col, grpBy, bySpecies):
     return pl.DataFrame()  # Placeholder
 
 
-def _aggregate_mean(data, value_col, output_col, grpBy, bySpecies):
+def _aggregate_mean(data, value_col, output_col, grp_by, by_species):
     """Calculate mean values (for diameter growth)."""
 
     # Similar to _aggregate_and_expand but calculating means

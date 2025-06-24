@@ -279,47 +279,8 @@ def add_species_info(
     )
 
 
-def standardize_group_names(
-    df: pl.DataFrame,
-    name_mapping: Optional[Dict[str, str]] = None,
-) -> pl.DataFrame:
-    """
-    Standardize grouping column names across different estimators.
-    
-    This helps maintain consistency when different modules use different
-    naming conventions (e.g., grpBy vs grp_by).
-    
-    Parameters
-    ----------
-    df : pl.DataFrame
-        Input dataframe
-    name_mapping : Dict[str, str], optional
-        Mapping of old names to new names. If None, uses default mapping
-    
-    Returns
-    -------
-    pl.DataFrame
-        Dataframe with standardized column names
-    """
-    if name_mapping is None:
-        # Default standardization mapping
-        name_mapping = {
-            "grpBy": "grp_by",
-            "bySpecies": "by_species",
-            "bySizeClass": "by_size_class",
-            "landClass": "land_class",
-            "treeClass": "tree_class",
-        }
-    
-    # Only rename columns that exist
-    rename_dict = {
-        old: new for old, new in name_mapping.items() 
-        if old in df.columns
-    }
-    
-    if rename_dict:
-        return df.rename(rename_dict)
-    return df
+# standardize_group_names function removed - no longer needed
+# All modules now use consistent snake_case naming
 
 
 def validate_grouping_columns(

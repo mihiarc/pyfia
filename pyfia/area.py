@@ -10,6 +10,12 @@ from typing import List, Optional
 import polars as pl
 
 from pyfia.estimation_utils import ratio_var
+from pyfia.constants import (
+    LandStatus,
+    SiteClass,
+    ReserveStatus,
+    PlotBasis,
+)
 
 
 def area(
@@ -188,16 +194,16 @@ def _add_land_type_categories(cond_df: pl.DataFrame) -> pl.DataFrame:
     """Add land type categories for grouping."""
     return cond_df.with_columns(
         pl.when(
-            (pl.col("COND_STATUS_CD") == 1)
-            & pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])
-            & (pl.col("RESERVCD") == 0)
+            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)
+            & pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES)
+            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
         )
         .then(pl.lit("Timber"))
-        .when(pl.col("COND_STATUS_CD") == 1)
+        .when(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
         .then(pl.lit("Non-Timber Forest"))
-        .when(pl.col("COND_STATUS_CD") == 2)
+        .when(pl.col("COND_STATUS_CD") == LandStatus.NONFOREST)
         .then(pl.lit("Non-Forest"))
-        .when(pl.col("COND_STATUS_CD").is_in([3, 4]))
+        .when(pl.col("COND_STATUS_CD").is_in([LandStatus.WATER, LandStatus.CENSUS_WATER]))
         .then(pl.lit("Water"))
         .otherwise(pl.lit("Other"))
         .alias("LAND_TYPE")
@@ -217,14 +223,14 @@ def _calculate_domain_indicators(
         # Land type domain indicator
         if land_type == "forest":
             cond_df = cond_df.with_columns(
-                (pl.col("COND_STATUS_CD") == 1).cast(pl.Int32).alias("landD")
+                (pl.col("COND_STATUS_CD") == LandStatus.FOREST).cast(pl.Int32).alias("landD")
             )
         elif land_type == "timber":
             cond_df = cond_df.with_columns(
                 (
-                    (pl.col("COND_STATUS_CD") == 1)
-                    & pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])
-                    & (pl.col("RESERVCD") == 0)
+                    (pl.col("COND_STATUS_CD") == LandStatus.FOREST)
+                    & pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES)
+                    & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
                 )
                 .cast(pl.Int32)
                 .alias("landD")
@@ -257,7 +263,7 @@ def _calculate_domain_indicators(
         # For byLandType=TRUE: percentages should be of land area only (status 1+2)
         # Use only land conditions for denominator (excludes water)
         cond_df = cond_df.with_columns(
-            pl.when(pl.col("COND_STATUS_CD").is_in([1, 2]))
+            pl.when(pl.col("COND_STATUS_CD").is_in([LandStatus.FOREST, LandStatus.NONFOREST]))
             .then(pl.col("aD"))
             .otherwise(0)
             .alias("pDI")
@@ -345,7 +351,7 @@ def _calculate_plot_area_estimates(
 
     # Select appropriate adjustment factor based on PROP_BASIS
     plot_est = plot_est.with_columns(
-        pl.when(pl.col("PROP_BASIS") == "MACR")
+        pl.when(pl.col("PROP_BASIS") == PlotBasis.MACROPLOT)
         .then(pl.col("ADJ_FACTOR_MACR"))
         .otherwise(pl.col("ADJ_FACTOR_SUBP"))
         .alias("ADJ_FACTOR")

@@ -9,6 +9,14 @@ consistent filtering methodology.
 from typing import Optional, Union, List, Tuple
 import polars as pl
 
+from .constants import (
+    TreeStatus,
+    TreeClass,
+    LandStatus,
+    SiteClass,
+    ReserveStatus,
+)
+
 
 def apply_tree_filters(
     tree_df: pl.DataFrame,
@@ -25,8 +33,8 @@ def apply_tree_filters(
     tree_type : str, default "all"
         Type of trees to include:
         - "all": All trees
-        - "live": Live trees only (STATUSCD == 1)
-        - "dead": Dead trees only (STATUSCD == 2)
+        - "live": Live trees only (STATUSCD == TreeStatus.LIVE)
+        - "dead": Dead trees only (STATUSCD == TreeStatus.DEAD)
         - "gs": Growing stock trees (live, sound, commercial species)
         - "live_gs": Live growing stock
         - "dead_gs": Dead growing stock
@@ -40,26 +48,26 @@ def apply_tree_filters(
     """
     # Apply tree type filters
     if tree_type == "live":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == 1)
+        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.LIVE)
     elif tree_type == "dead":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == 2)
+        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.DEAD)
     elif tree_type == "gs":
         # Growing stock: live, sound, commercial species
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 1)  # Live
-            & (pl.col("TREECLCD") == 2)  # Growing stock
+            (pl.col("STATUSCD") == TreeStatus.LIVE)  # Live
+            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)  # Growing stock
             & (pl.col("AGENTCD") < 30)  # No severe damage
         )
     elif tree_type == "live_gs":
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 1)
-            & (pl.col("TREECLCD") == 2)
+            (pl.col("STATUSCD") == TreeStatus.LIVE)
+            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
             & (pl.col("AGENTCD") < 30)
         )
     elif tree_type == "dead_gs":
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 2)
-            & (pl.col("TREECLCD") == 2)
+            (pl.col("STATUSCD") == TreeStatus.DEAD)
+            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
             & (pl.col("AGENTCD") < 30)
         )
     elif tree_type != "all":
@@ -86,7 +94,7 @@ def apply_area_filters(
         Condition dataframe to filter
     land_type : str, default "forest"
         Type of land to include:
-        - "forest": Forest land (COND_STATUS_CD == 1)
+        - "forest": Forest land (COND_STATUS_CD == LandStatus.FOREST)
         - "timber": Timberland (forest + productive + unreserved)
         - "all": All conditions
     area_domain : str, optional
@@ -99,13 +107,13 @@ def apply_area_filters(
     """
     # Apply land type filters
     if land_type == "forest":
-        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == 1)
+        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
     elif land_type == "timber":
         # Timberland: forest + productive + unreserved
         cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == 1)  # Forest
-            & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))  # Productive
-            & (pl.col("RESERVCD") == 0)  # Not reserved
+            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)  # Forest
+            & (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))  # Productive
+            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)  # Not reserved
         )
     elif land_type != "all":
         raise ValueError(f"Invalid land_type: {land_type}")
@@ -182,8 +190,8 @@ def apply_growing_stock_filter(
     """
     # Base growing stock filter
     gs_filter = (
-        (pl.col("STATUSCD") == 1)  # Live
-        & (pl.col("TREECLCD") == 2)  # Growing stock class
+        (pl.col("STATUSCD") == TreeStatus.LIVE)  # Live
+        & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)  # Growing stock class
         & (pl.col("AGENTCD") < 30)  # No severe damage
     )
     
@@ -226,7 +234,7 @@ def apply_mortality_filters(
     if tree_class == "growing_stock":
         # Apply growing stock filters to mortality trees
         mort_df = mort_df.filter(
-            (pl.col("TREECLCD") == 2)  # Growing stock class
+            (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)  # Growing stock class
             & (pl.col("AGENTCD") < 30)  # No severe damage at time of death
         )
     elif tree_class != "all":

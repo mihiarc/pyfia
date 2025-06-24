@@ -9,9 +9,14 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Set up LLM API key for Cognee
-if "OPENAI_API_KEY" in os.environ and "LLM_API_KEY" not in os.environ:
+if "OPENAI_API_KEY" in os.environ:
+    # Cognee expects these environment variables
     os.environ["LLM_API_KEY"] = os.environ["OPENAI_API_KEY"]
-    print("Set LLM_API_KEY from OPENAI_API_KEY")
+    os.environ["LLM_PROVIDER"] = "openai"
+    os.environ["LLM_MODEL"] = "gpt-4o-mini"
+    os.environ["EMBEDDING_PROVIDER"] = "openai"
+    os.environ["EMBEDDING_API_KEY"] = os.environ["OPENAI_API_KEY"]
+    print("Configured Cognee with OpenAI settings")
 
 # Configure data directories
 data_dir = Path.cwd() / ".cognee_data" / "data_storage"
@@ -31,7 +36,20 @@ def configure_cognee():
 
     This must be called after importing cognee.
     """
-    from cognee import config
-
-    config.data_root_directory(COGNEE_DATA_DIR)
-    config.system_root_directory(COGNEE_SYSTEM_DIR)
+    try:
+        from cognee import config
+        
+        config.data_root_directory(COGNEE_DATA_DIR)
+        config.system_root_directory(COGNEE_SYSTEM_DIR)
+        
+        # Also set environment variables as backup
+        os.environ["COGNEE_DATA_DIR"] = COGNEE_DATA_DIR
+        os.environ["COGNEE_SYSTEM_DIR"] = COGNEE_SYSTEM_DIR
+        
+        print(f"Cognee configured with data dir: {COGNEE_DATA_DIR}")
+        
+    except Exception as e:
+        print(f"Warning: Could not configure Cognee: {e}")
+        # Set environment variables as fallback
+        os.environ["COGNEE_DATA_DIR"] = COGNEE_DATA_DIR
+        os.environ["COGNEE_SYSTEM_DIR"] = COGNEE_SYSTEM_DIR

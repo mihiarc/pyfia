@@ -33,6 +33,7 @@ from pydantic import BaseModel, Field
 
 from .core import FIA
 from .duckdb_query_interface import DuckDBQueryInterface
+from .fia_domain_knowledge import fia_knowledge
 
 
 # Pydantic models for structured outputs
@@ -130,6 +131,10 @@ class FIAAgent:
         # Initialize database interfaces
         self.query_interface = DuckDBQueryInterface(db_path)
         self.fia = FIA(db_path, engine="duckdb")
+        
+        # Enable debugging if verbose
+        if self.config.verbose:
+            print(f"[DEBUG] Initialized FIA Agent with database: {db_path}")
 
         # Initialize LLM
         llm_kwargs = {
@@ -159,15 +164,24 @@ class FIAAgent:
 
         def execute_fia_query(query: str, limit: int = None) -> str:
             """Execute a SQL query against the FIA database safely."""
+            if self.config.verbose:
+                print(f"[DEBUG] Executing query: {query[:100]}...")
+            
             try:
                 limit = limit or self.config.result_limit
                 result = self.query_interface.execute_query(query, limit=limit)
+                
+                if self.config.verbose:
+                    print(f"[DEBUG] Query returned {len(result)} rows")
 
                 # Format results for LLM
                 formatted = self.query_interface.format_results_for_llm(result)
                 return formatted
             except Exception as e:
-                return f"Query execution failed: {str(e)}"
+                error_msg = f"Query execution failed: {str(e)}"
+                if self.config.verbose:
+                    print(f"[DEBUG] {error_msg}")
+                return error_msg
 
         def get_database_schema() -> str:
             """Get database schema information for query generation."""
@@ -197,22 +211,46 @@ class FIAAgent:
         def find_species_codes(species_name: str) -> str:
             """Find species codes by common or scientific name."""
             try:
-                # Simple query to find species
+                # Clean the species name
+                species_clean = species_name.replace("'", "''")  # Escape single quotes
+                
+                # Query to find species
                 query = f"""
                 SELECT SPCD, COMMON_NAME, SCIENTIFIC_NAME
                 FROM REF_SPECIES
-                WHERE LOWER(COMMON_NAME) LIKE LOWER('%{species_name}%')
-                   OR LOWER(SCIENTIFIC_NAME) LIKE LOWER('%{species_name}%')
-                LIMIT 10
+                WHERE LOWER(COMMON_NAME) LIKE LOWER('%{species_clean}%')
+                   OR LOWER(SCIENTIFIC_NAME) LIKE LOWER('%{species_clean}%')
+                ORDER BY 
+                    CASE 
+                        WHEN LOWER(COMMON_NAME) = LOWER('{species_clean}') THEN 1
+                        WHEN LOWER(COMMON_NAME) LIKE LOWER('{species_clean}%') THEN 2
+                        ELSE 3
+                    END,
+                    COMMON_NAME
+                LIMIT 20
                 """
                 result = self.query_interface.execute_query(query)
 
                 if len(result) == 0:
                     return f"No species found matching '{species_name}'"
 
-                formatted = "Species matches:\n"
+                formatted = f"Species matches for '{species_name}':\n"
+                count = 0
                 for row in result.iter_rows(named=True):
                     formatted += f"- Code {row['SPCD']}: {row['COMMON_NAME']} ({row['SCIENTIFIC_NAME']})\n"
+                    count += 1
+                
+                if count > 10:
+                    formatted += f"\n(Showing first 10 of {len(result)} matches)"
+                
+                # Add hint for common searches
+                if species_name.lower() == "oak":
+                    formatted += "\nNote: 'Oak' includes many species. Common ones:\n"
+                    formatted += "- White oak (802), Northern red oak (833), Chestnut oak (832)\n"
+                    formatted += "- Live oak (838), Coast live oak (839), Canyon live oak (841)"
+                elif species_name.lower() == "pine":
+                    formatted += "\nNote: 'Pine' includes many species. Common ones:\n"
+                    formatted += "- Loblolly pine (131), Longleaf pine (121), Ponderosa pine (122)"
 
                 return formatted
             except Exception as e:
@@ -433,6 +471,31 @@ class FIAAgent:
             """
             return examples
 
+        def explain_fia_concept(concept_name: str) -> str:
+            """Explain a specific FIA concept in detail."""
+            # First try exact match
+            concept = fia_knowledge.get_concept(concept_name)
+            
+            if not concept:
+                # Try to find partial matches
+                concepts = fia_knowledge.extract_concepts(concept_name)
+                if concepts:
+                    concept = concepts[0]
+            
+            if concept:
+                return fia_knowledge.format_concept_help(concept.name)
+            else:
+                # Provide general help
+                available_concepts = list(fia_knowledge.concepts.keys())
+                return f"""
+                Concept '{concept_name}' not found.
+                
+                Available FIA concepts include:
+                {', '.join(available_concepts[:10])}...
+                
+                Try asking about specific terms like 'biomass', 'tpa', 'evalid', or 'forest type'.
+                """
+
         return [
             Tool(
                 name="execute_fia_query",
@@ -479,6 +542,11 @@ class FIAAgent:
                 description="Get examples of common FIA estimation query patterns including new table capabilities.",
                 func=get_estimation_examples,
             ),
+            Tool(
+                name="explain_fia_concept",
+                description="Explain FIA forestry concepts like 'biomass', 'tpa', 'basal area', 'evalid', etc.",
+                func=explain_fia_concept,
+            ),
         ]
 
     def _build_workflow(self) -> StateGraph:
@@ -487,6 +555,16 @@ class FIAAgent:
         # Define the enhanced system prompt with new table knowledge
         system_prompt = """You are an expert Forest Inventory Analysis (FIA) data scientist and SQL specialist.
         You help users query FIA databases using natural language by generating accurate, safe SQL queries.
+
+        IMPORTANT: When users ask for counts or data (e.g., "how many trees"), you should:
+        1. Generate the SQL query
+        2. The system will execute it automatically
+        3. Provide the actual numbers in your response
+        
+        For species queries:
+        - "Oak" is not a single species - use COMMON_NAME LIKE '%oak%' to find all oaks
+        - "Pine" is not a single species - use COMMON_NAME LIKE '%pine%' to find all pines
+        - Always join with REF_SPECIES to get species names
 
         Enhanced FIA Knowledge (Now with Complete Table Set):
         - FIA data is organized around PLOTS, TREES, CONDITIONS, and POPULATION ESTIMATION tables
@@ -502,6 +580,7 @@ class FIAAgent:
         - TPA_UNADJ provides trees per acre expansion for tree-level data
         - Species codes (SPCD) link to REF_SPECIES for names
         - Forest type codes (FORTYPCD) link to REF_FOREST_TYPE for descriptions
+        - State code for California is 6
 
         Enhanced Analysis Capabilities:
         - Use SUBP_COND for more accurate area calculations than COND alone
@@ -523,11 +602,31 @@ class FIAAgent:
         def query_planner(state: AgentState) -> AgentState:
             """Plan the query based on user input."""
             last_message = state.messages[-1]
+            query_text = last_message.content
+
+            # Extract FIA concepts from the query
+            concepts = fia_knowledge.extract_concepts(query_text)
+            suggested_tables = fia_knowledge.suggest_tables(concepts)
+            suggested_columns = fia_knowledge.suggest_columns(concepts)
+            query_hints = fia_knowledge.get_query_hints(query_text)
+
+            # Build enhanced context for LLM
+            domain_context = "\n\nExtracted FIA Concepts:\n"
+            for concept in concepts:
+                domain_context += f"- {concept.name}: {concept.description}\n"
+            
+            if suggested_tables:
+                domain_context += f"\nSuggested Tables: {', '.join(suggested_tables)}\n"
+            
+            if query_hints:
+                domain_context += "\nQuery Hints:\n"
+                for hint in query_hints[:3]:
+                    domain_context += f"- {hint}\n"
 
             # Use LLM to understand the query intent
             planning_prompt = ChatPromptTemplate.from_messages(
                 [
-                    ("system", system_prompt),
+                    ("system", system_prompt + domain_context),
                     (
                         "human",
                         "Analyze this forest inventory query and create a plan: {query}",
@@ -540,18 +639,18 @@ class FIAAgent:
                     planning_prompt.format(query=last_message.content)
                 )
 
-                # Extract query intent (simplified - could use structured output)
+                # Extract query intent with domain knowledge
                 query_request = QueryRequest(
                     natural_language_query=last_message.content,
                     query_type="data_retrieval",  # Default
-                    specific_tables=None,
+                    specific_tables=list(suggested_tables) if suggested_tables else None,
                     temporal_scope=None,
                     geographic_scope=None,
                 )
 
                 state.query_request = query_request
                 state.messages.append(
-                    AIMessage(content=f"Planning query: {response.content}")
+                    AIMessage(content=f"Planning query: {response.content}\n{domain_context}")
                 )
 
             except Exception as e:
@@ -564,67 +663,70 @@ class FIAAgent:
         def tool_user(state: AgentState) -> AgentState:
             """Use tools to gather information and execute queries."""
             last_message = state.messages[-1]
+            query_lower = last_message.content.lower()
+
+            # Extract concepts to help determine tools
+            concepts = fia_knowledge.extract_concepts(last_message.content)
+            concept_names = [c.name for c in concepts]
 
             # Determine which tools to use based on query
-            if (
-                "schema" in last_message.content.lower()
-                or "table" in last_message.content.lower()
-            ):
-                tool_name = "get_database_schema"
-                tool_input = ""
-            elif "species" in last_message.content.lower():
+            tool_selections = []
+            
+            # Check for concept explanations
+            if any(word in query_lower for word in ["what is", "explain", "define", "tell me about"]):
+                if concepts:
+                    tool_selections.append(("explain_fia_concept", concepts[0].name))
+                else:
+                    tool_selections.append(("get_database_schema", ""))
+            
+            # Check for specific information needs
+            if "schema" in query_lower or "table" in query_lower:
+                tool_selections.append(("get_database_schema", ""))
+            
+            if "species" in concept_names or "species" in query_lower:
                 # Extract species name (simplified)
-                tool_name = "find_species_codes"
-                tool_input = last_message.content  # Could be more sophisticated
-            elif "evalid" in last_message.content.lower():
-                tool_name = "get_evalid_info"
-                tool_input = ""
-            elif "forest type" in last_message.content.lower():
-                tool_name = "get_forest_type_info"
-                tool_input = ""
-            elif (
-                "seedling" in last_message.content.lower()
-                or "regeneration" in last_message.content.lower()
-            ):
-                tool_name = "get_seedling_regeneration_info"
-                tool_input = ""
-            elif (
-                "survey" in last_message.content.lower()
-                or "temporal" in last_message.content.lower()
-            ):
-                tool_name = "get_survey_info"
-                tool_input = ""
-            elif (
-                "subplot" in last_message.content.lower()
-                or "area" in last_message.content.lower()
-            ):
-                tool_name = "get_subplot_area_info"
-                tool_input = ""
-            else:
-                # Default to getting schema first
-                tool_name = "get_database_schema"
-                tool_input = ""
+                tool_selections.append(("find_species_codes", last_message.content))
+            
+            if "evalid" in concept_names or "evalid" in query_lower:
+                tool_selections.append(("get_evalid_info", ""))
+            
+            if "forest_type" in concept_names or "forest type" in query_lower:
+                tool_selections.append(("get_forest_type_info", ""))
+            
+            if "seedlings" in concept_names or any(w in query_lower for w in ["seedling", "regeneration"]):
+                tool_selections.append(("get_seedling_regeneration_info", ""))
+            
+            if any(w in query_lower for w in ["survey", "temporal", "time", "trend"]):
+                tool_selections.append(("get_survey_info", ""))
+            
+            if "example" in query_lower or "pattern" in query_lower:
+                tool_selections.append(("get_estimation_examples", ""))
+            
+            # Default to schema if no specific tools selected
+            if not tool_selections:
+                tool_selections.append(("get_database_schema", ""))
 
-            # Execute tool
-            tool_result = None
-            try:
-                for tool in self.tools:
-                    if tool.name == tool_name:
-                        tool_result = (
-                            tool.func(tool_input) if tool_input else tool.func()
+            # Execute selected tools (limit to first 2 to avoid overload)
+            for tool_name, tool_input in tool_selections[:2]:
+                try:
+                    tool_result = None
+                    for tool in self.tools:
+                        if tool.name == tool_name:
+                            tool_result = (
+                                tool.func(tool_input) if tool_input else tool.func()
+                            )
+                            break
+
+                    if tool_result:
+                        state.tools_used.append(tool_name)
+                        state.messages.append(
+                            AIMessage(content=f"Tool {tool_name} result: {tool_result}")
                         )
-                        break
 
-                if tool_result:
-                    state.tools_used.append(tool_name)
+                except Exception as e:
                     state.messages.append(
-                        AIMessage(content=f"Tool {tool_name} result: {tool_result}")
+                        AIMessage(content=f"Error using tool {tool_name}: {str(e)}")
                     )
-
-            except Exception as e:
-                state.messages.append(
-                    AIMessage(content=f"Error using tool {tool_name}: {str(e)}")
-                )
 
             return state
 
@@ -643,9 +745,22 @@ class FIAAgent:
                 else state.messages[0].content
             )
 
+            # Get domain-specific query hints
+            domain_hints = fia_knowledge.get_query_hints(user_query)
+            concepts = fia_knowledge.extract_concepts(user_query)
+            
+            # Build enhanced prompt with domain knowledge
+            domain_guidance = "\n\nDomain-Specific Guidance:\n"
+            if concepts:
+                domain_guidance += "Identified concepts: " + ", ".join([c.name for c in concepts]) + "\n"
+            if domain_hints:
+                domain_guidance += "SQL Patterns:\n"
+                for hint in domain_hints[:5]:
+                    domain_guidance += f"- {hint}\n"
+
             query_prompt = ChatPromptTemplate.from_messages(
                 [
-                    ("system", system_prompt + "\n\nDatabase Context:\n" + context),
+                    ("system", system_prompt + "\n\nDatabase Context:\n" + context + domain_guidance),
                     (
                         "human",
                         """Generate a safe SQL query for this request: {query}
@@ -654,6 +769,7 @@ class FIAAgent:
                 - Use proper FIA table relationships including new SURVEY, SUBPLOT, SUBP_COND, SEEDLING tables
                 - Include appropriate EVALID filtering if needed for estimates
                 - Add reasonable LIMIT clause
+                - Apply proper expansion factors (TPA_UNADJ, EXPNS, adjustment factors)
                 - Explain the query logic and any forest science concepts
 
                 Format your response as:
@@ -667,15 +783,48 @@ class FIAAgent:
             try:
                 response = self.llm.invoke(query_prompt.format(query=user_query))
 
-                # Extract SQL (simplified parsing)
+                # Extract SQL (handle different formats)
                 content = response.content
+                sql_part = None
+                explanation_part = ""
+                
+                # Try different SQL extraction patterns
                 if "SQL:" in content:
                     sql_part = content.split("SQL:")[1].split("EXPLANATION:")[0].strip()
-                    explanation_part = (
-                        content.split("EXPLANATION:")[1].strip()
-                        if "EXPLANATION:" in content
-                        else ""
-                    )
+                    if "EXPLANATION:" in content:
+                        explanation_part = content.split("EXPLANATION:")[1].strip()
+                elif "```sql" in content.lower():
+                    # Extract from markdown code block
+                    import re
+                    sql_match = re.search(r'```sql\s*(.*?)\s*```', content, re.DOTALL | re.IGNORECASE)
+                    if sql_match:
+                        sql_part = sql_match.group(1).strip()
+                    # Get explanation after code block
+                    parts = re.split(r'```sql.*?```', content, flags=re.DOTALL | re.IGNORECASE)
+                    if len(parts) > 1:
+                        explanation_part = parts[1].strip()
+                elif "SELECT" in content.upper():
+                    # Try to extract raw SQL
+                    lines = content.split('\n')
+                    sql_lines = []
+                    in_sql = False
+                    for line in lines:
+                        if 'SELECT' in line.upper() and not in_sql:
+                            in_sql = True
+                        if in_sql:
+                            if line.strip() and not line.startswith('*'):
+                                sql_lines.append(line)
+                            if ';' in line:
+                                break
+                    if sql_lines:
+                        sql_part = '\n'.join(sql_lines)
+                
+                if sql_part:
+
+                    # Validate the generated SQL semantically
+                    warnings = fia_knowledge.validate_query_semantics(user_query, sql_part)
+                    if warnings:
+                        explanation_part += "\n\nWarnings:\n" + "\n".join(f"- {w}" for w in warnings)
 
                     state.sql_query = sql_part
                     state.messages.append(
@@ -693,20 +842,54 @@ class FIAAgent:
 
         def query_executor(state: AgentState) -> AgentState:
             """Execute the generated SQL query."""
+            if self.config.verbose:
+                print(f"[DEBUG] Query executor called. SQL query present: {bool(state.sql_query)}")
+                
             if state.sql_query:
                 try:
+                    # Clean the SQL query
+                    sql_query = state.sql_query.strip()
+                    if sql_query.endswith('```'):
+                        sql_query = sql_query[:-3].strip()
+                    
+                    if self.config.verbose:
+                        print(f"[DEBUG] Executing SQL: {sql_query[:100]}...")
+                    
                     # Execute using the query tool
+                    tool_found = False
                     for tool in self.tools:
                         if tool.name == "execute_fia_query":
-                            result = tool.func(state.sql_query)
+                            tool_found = True
+                            if self.config.verbose:
+                                print("[DEBUG] Found execute_fia_query tool")
+                            result = tool.func(sql_query)
                             state.messages.append(
                                 AIMessage(content=f"Query results: {result}")
                             )
                             break
+                    
+                    if not tool_found:
+                        # Fallback: execute directly
+                        if self.config.verbose:
+                            print("[DEBUG] Tool not found, using direct execution")
+                        result = self.query_interface.execute_query(sql_query, limit=self.config.result_limit)
+                        formatted_result = self.query_interface.format_results_for_llm(result)
+                        state.messages.append(
+                            AIMessage(content=f"Query results: {formatted_result}")
+                        )
+                        
                 except Exception as e:
+                    error_msg = f"Error executing query: {str(e)}"
+                    if self.config.verbose:
+                        print(f"[DEBUG] {error_msg}")
+                        import traceback
+                        traceback.print_exc()
                     state.messages.append(
-                        AIMessage(content=f"Error executing query: {str(e)}")
+                        AIMessage(content=error_msg)
                     )
+            else:
+                if self.config.verbose:
+                    print("[DEBUG] No SQL query to execute")
 
             return state
 
@@ -715,17 +898,48 @@ class FIAAgent:
             # Combine all information into a comprehensive response
             final_response = "## Enhanced Forest Inventory Analysis Results\n\n"
 
+            # Extract concepts from the original query
+            user_query = state.messages[0].content if state.messages else ""
+            concepts = fia_knowledge.extract_concepts(user_query)
+
             if state.sql_query:
                 final_response += (
                     f"**Generated Query:**\n```sql\n{state.sql_query}\n```\n\n"
                 )
 
-            # Add results from the last message
-            if state.messages and isinstance(state.messages[-1], AIMessage):
-                last_result = state.messages[-1].content
-                if "Query results:" in last_result:
-                    results_part = last_result.split("Query results:")[1].strip()
-                    final_response += f"**Results:**\n{results_part}\n\n"
+            # Look for query results and errors in all messages
+            query_results_found = False
+            error_found = False
+            
+            for msg in reversed(state.messages):
+                if isinstance(msg, AIMessage):
+                    if "Query results:" in msg.content:
+                        results_part = msg.content.split("Query results:")[1].strip()
+                        final_response += f"**Results:**\n{results_part}\n\n"
+                        query_results_found = True
+                        break
+                    elif "Error executing query:" in msg.content or "Query execution failed:" in msg.content:
+                        final_response += f"**Error:** {msg.content}\n\n"
+                        error_found = True
+                        break
+            
+            # If no results but we have a query, check why
+            if state.sql_query and not query_results_found and not error_found:
+                final_response += "**Note:** Query generated but results not available. This might be a workflow issue.\n\n"
+                
+                # Debug info if verbose
+                if self.config.verbose:
+                    final_response += "**Debug Info:**\n"
+                    final_response += f"- Total messages: {len(state.messages)}\n"
+                    final_response += f"- Tools used: {state.tools_used}\n"
+                    final_response += f"- SQL query length: {len(state.sql_query)}\n\n"
+
+            # Add concept explanations if relevant
+            if concepts and len(concepts) <= 3:
+                final_response += "**Key Concepts Used:**\n"
+                for concept in concepts:
+                    final_response += f"- **{concept.name.replace('_', ' ').title()}**: {concept.description}\n"
+                final_response += "\n"
 
             # Add enhanced context about new capabilities
             final_response += "**Enhanced Capabilities Note:** This analysis leverages the complete FIA database including "
@@ -777,10 +991,21 @@ class FIAAgent:
         try:
             # Run the workflow
             final_state = self.workflow.invoke(initial_state)
-            return (
-                final_state.final_response
-                or "I encountered an error processing your query."
-            )
+            
+            # Handle different return types from langgraph
+            if hasattr(final_state, 'final_response'):
+                return final_state.final_response or "I encountered an error processing your query."
+            elif isinstance(final_state, dict) and 'final_response' in final_state:
+                return final_state['final_response'] or "I encountered an error processing your query."
+            elif isinstance(final_state, dict) and 'messages' in final_state:
+                # Extract the last AI message
+                messages = final_state['messages']
+                for msg in reversed(messages):
+                    if isinstance(msg, AIMessage) and msg.content:
+                        return msg.content
+                return "Query processed but no response generated."
+            else:
+                return f"Unexpected response format: {type(final_state)}"
         except Exception as e:
             return f"Error processing query: {str(e)}"
 

@@ -10,14 +10,14 @@ import os
 from pathlib import Path
 from typing import Optional, Union
 
-# Now import cognee after environment is configured
-import cognee
-
 # Import setup FIRST to configure environment
 from . import cognee_setup
 
 # Configure Cognee with our directories
 cognee_setup.configure_cognee()
+
+# Now import cognee after environment is configured
+import cognee
 from langchain_openai import ChatOpenAI
 
 from .core import FIA
@@ -77,6 +77,7 @@ class CogneeFIAAgent:
         """Load core pyFIA and FIA knowledge."""
         print("Loading FIA knowledge into memory...")
 
+        # First load basic knowledge items
         knowledge_items = [
             # FIA Core Concepts
             """
@@ -148,15 +149,56 @@ class CogneeFIAAgent:
             """,
         ]
 
-        # Add each knowledge item to Cognee
+        # Add basic knowledge items
         for i, item in enumerate(knowledge_items, 1):
             try:
                 await cognee.add(item.strip())
-                print(f"  Loaded knowledge item {i}/{len(knowledge_items)}")
+                print(f"  Loaded basic knowledge item {i}/{len(knowledge_items)}")
             except Exception as e:
-                print(f"  Warning: Failed to load knowledge item {i}: {e}")
+                print(f"  Warning: Failed to load basic knowledge item {i}: {e}")
 
-        print("Knowledge loading complete!")
+        # Now load documentation from memory_docs if available
+        memory_docs_path = Path(__file__).parent / "memory_docs"
+        if memory_docs_path.exists():
+            print("\nLoading FIA documentation from memory_docs...")
+            
+            # Prioritize key documentation files
+            priority_docs = [
+                "FIA_DATABASE_TABLES.md",
+                "fia_expansion_factors.md",
+                "fia_section_2_4_plot.md",
+                "fia_section_3_1_tree.md",
+                "fia_section_2_5_cond.md",
+                "fia_section_9_2_pop_eval.md",
+                "fia_section_9_7_pop_stratum.md"
+            ]
+            
+            loaded_count = 0
+            max_docs = 10  # Limit to avoid overwhelming memory
+            
+            # Load priority docs first
+            for doc_name in priority_docs:
+                if loaded_count >= max_docs:
+                    break
+                    
+                doc_path = memory_docs_path / doc_name
+                if doc_path.exists():
+                    try:
+                        with open(doc_path, 'r') as f:
+                            content = f.read()
+                            # Truncate very long documents
+                            if len(content) > 5000:
+                                content = content[:5000] + "\n... (truncated)"
+                            
+                        await cognee.add(f"FIA Documentation - {doc_name}:\n{content}")
+                        loaded_count += 1
+                        print(f"  Loaded {doc_name}")
+                    except Exception as e:
+                        print(f"  Warning: Failed to load {doc_name}: {e}")
+            
+            print(f"  Loaded {loaded_count} documentation files")
+
+        print("\nKnowledge loading complete!")
 
     async def query(self, user_query: str) -> str:
         """Process a user query with Cognee memory enhancement."""

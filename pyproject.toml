@@ -98,3 +98,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+
+[dependency-groups]
+dev = [
+    "pytest-cov>=6.2.1",
+]

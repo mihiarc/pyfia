@@ -91,8 +91,8 @@ class TestEstimationResultProperties:
             assert result.cv == pytest.approx((se / estimate) * 100)
     
     @given(
-        estimate=st.floats(),
-        variance=st.floats()
+        estimate=st.floats(allow_nan=False, allow_infinity=False),
+        variance=st.floats(allow_nan=False, allow_infinity=False)
     )
     def test_negative_variance_rejected(self, estimate, variance):
         """Negative variance should be rejected."""

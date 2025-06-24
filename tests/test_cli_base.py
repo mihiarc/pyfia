@@ -16,7 +16,7 @@ import polars as pl
 from pyfia.cli_base import BaseCLI
 
 
-class TestBaseCLI(BaseCLI):
+class BaseCLITestHelper(BaseCLI):
     """Test implementation of BaseCLI for testing purposes."""
     
     def __init__(self):
@@ -44,7 +44,7 @@ class TestBaseCLI(BaseCLI):
 @pytest.fixture
 def cli():
     """Create a test CLI instance."""
-    test_cli = TestBaseCLI()
+    test_cli = BaseCLITestHelper()
     yield test_cli
     test_cli.cleanup()
 
@@ -74,7 +74,7 @@ class TestBaseCLIInitialization:
     def test_initialization_without_readline(self):
         """Test initialization when readline is not available."""
         # This should not raise any errors
-        test_cli = TestBaseCLI()
+        test_cli = BaseCLITestHelper()
         assert test_cli.console is not None
         test_cli.cleanup()
 

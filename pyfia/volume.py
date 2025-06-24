@@ -14,21 +14,21 @@ from .core import FIA
 
 def volume(
     db: Union[str, FIA],
-    grpBy: Optional[Union[str, List[str]]] = None,
-    bySpecies: bool = False,
-    bySizeClass: bool = False,
-    landType: str = "forest",
-    treeType: str = "live",
-    volType: str = "net",
+    grp_by: Optional[Union[str, List[str]]] = None,
+    by_species: bool = False,
+    by_size_class: bool = False,
+    land_type: str = "forest",
+    tree_type: str = "live",
+    vol_type: str = "net",
     method: str = "TI",
     lambda_: float = 0.5,
-    treeDomain: Optional[str] = None,
-    areaDomain: Optional[str] = None,
+    tree_domain: Optional[str] = None,
+    area_domain: Optional[str] = None,
     totals: bool = False,
     variance: bool = False,
-    byPlot: bool = False,
-    condList: bool = False,
-    nCores: int = 1,
+    by_plot: bool = False,
+    cond_list: bool = False,
+    n_cores: int = 1,
     remote: bool = False,
     mr: bool = False,
 ) -> pl.DataFrame:
@@ -39,35 +39,35 @@ def volume(
     ----------
     db : FIA or str
         FIA database object or path to database
-    grpBy : list of str, optional
+    grp_by : list of str, optional
         Columns to group estimates by
-    bySpecies : bool, default False
+    by_species : bool, default False
         Group by species
-    bySizeClass : bool, default False
+    by_size_class : bool, default False
         Group by size classes
-    landType : str, default "forest"
+    land_type : str, default "forest"
         Land type filter: "forest" or "timber"
-    treeType : str, default "live"
+    tree_type : str, default "live"
         Tree type filter: "live", "dead", "gs", "all"
-    volType : str, default "net"
+    vol_type : str, default "net"
         Volume type: "net", "gross", "sound", "sawlog"
     method : str, default "TI"
         Estimation method (currently only "TI" supported)
     lambda_ : float, default 0.5
         Temporal weighting parameter (not used for TI)
-    treeDomain : str, optional
+    tree_domain : str, optional
         SQL-like condition to filter trees
-    areaDomain : str, optional
+    area_domain : str, optional
         SQL-like condition to filter area
     totals : bool, default False
         Include population totals in addition to per-acre estimates
     variance : bool, default False
         Return variance instead of standard error
-    byPlot : bool, default False
+    by_plot : bool, default False
         Return plot-level estimates
-    condList : bool, default False
+    cond_list : bool, default False
         Return condition list
-    nCores : int, default 1
+    n_cores : int, default 1
         Number of cores (not implemented)
     remote : bool, default False
         Use remote database (not implemented)
@@ -97,8 +97,8 @@ def volume(
     conds = fia.get_conditions()
 
     # Apply filters following rFIA methodology
-    trees = _apply_tree_filters(trees, treeType, treeDomain)
-    conds = _apply_area_filters(conds, landType, areaDomain)
+    trees = _apply_tree_filters(trees, tree_type, tree_domain)
+    conds = _apply_area_filters(conds, land_type, area_domain)
 
     # Join trees with forest conditions
     tree_cond = trees.join(
@@ -108,7 +108,7 @@ def volume(
     )
 
     # Get volume columns based on volType
-    volume_cols = _get_volume_columns(volType)
+    volume_cols = _get_volume_columns(vol_type)
 
     # Calculate volume per acre following rFIA: VOL * TPA_UNADJ
     vol_calculations = []
@@ -119,12 +119,12 @@ def volume(
             )
 
     if not vol_calculations:
-        raise ValueError(f"No volume columns found for volType '{volType}'")
+        raise ValueError(f"No volume columns found for vol_type '{vol_type}'")
 
     tree_cond = tree_cond.with_columns(vol_calculations)
 
     # Set up grouping
-    group_cols = _setup_grouping_columns(tree_cond, grpBy, bySpecies, bySizeClass)
+    group_cols = _setup_grouping_columns(tree_cond, grp_by, by_species, by_size_class)
 
     # Sum to plot level
     if group_cols:
@@ -199,7 +199,7 @@ def volume(
     for _, result_col in volume_cols.items():
         total_col = f"VOL_TOTAL_{result_col}"
         if total_col in pop_est.columns:
-            per_acre_col = _get_output_column_name(result_col, volType)
+            per_acre_col = _get_output_column_name(result_col, vol_type)
             se_col = f"{per_acre_col}_SE"
 
             per_acre_exprs.append((pl.col(total_col) / forest_area).alias(per_acre_col))

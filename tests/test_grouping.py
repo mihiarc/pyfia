@@ -8,7 +8,6 @@ from pyfia.grouping import (
     add_land_type_column,
     prepare_plot_groups,
     add_species_info,
-    standardize_group_names,
     validate_grouping_columns,
     get_size_class_bounds,
     STANDARD_SIZE_CLASSES,
@@ -278,47 +277,7 @@ class TestSpeciesInfo:
             add_species_info(df)
 
 
-class TestStandardization:
-    """Test column name standardization."""
-    
-    def test_standardize_default_mapping(self):
-        """Test default name standardization."""
-        df = pl.DataFrame({
-            "grpBy": ["A", "B"],
-            "bySpecies": [True, False],
-            "other_col": [1, 2],
-        })
-        
-        result = standardize_group_names(df)
-        
-        assert "grp_by" in result.columns
-        assert "by_species" in result.columns
-        assert "grpBy" not in result.columns
-        assert "bySpecies" not in result.columns
-        assert "other_col" in result.columns
-    
-    def test_standardize_custom_mapping(self):
-        """Test custom name mapping."""
-        df = pl.DataFrame({
-            "old_name": [1, 2],
-            "keep_this": [3, 4],
-        })
-        
-        mapping = {"old_name": "new_name"}
-        result = standardize_group_names(df, mapping)
-        
-        assert "new_name" in result.columns
-        assert "old_name" not in result.columns
-        assert "keep_this" in result.columns
-    
-    def test_standardize_no_changes_needed(self):
-        """Test when no standardization needed."""
-        df = pl.DataFrame({"already_good": [1, 2]})
-        result = standardize_group_names(df)
-        
-        assert result.columns == df.columns
-
-
+# TestStandardization class removed - standardize_group_names no longer needed
 class TestValidation:
     """Test validation functions."""
     

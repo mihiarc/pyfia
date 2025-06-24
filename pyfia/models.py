@@ -113,8 +113,7 @@ class CLICommand(BaseModel):
 class FIADataFrameWrapper(BaseModel):
     """Wrapper for polars DataFrames with validation."""
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = {"arbitrary_types_allowed": True}
 
     data: pl.DataFrame
     table_name: str
@@ -128,7 +127,7 @@ class FIADataFrameWrapper(BaseModel):
             raise ValueError("data must be a polars DataFrame")
         return v
 
-    def model_post_init(self, __context) -> None:
+    def model_post_init(self, __context: Any) -> None:
         """Post-init to set derived fields."""
         self.row_count = len(self.data)
         self.column_names = self.data.columns

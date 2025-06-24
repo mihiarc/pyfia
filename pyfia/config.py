@@ -2,16 +2,20 @@
 Configuration settings for pyFIA.
 
 This module provides default settings and paths for pyFIA operations.
+Note: For new code, prefer using settings.py with Pydantic Settings.
 """
 
 import os
 from pathlib import Path
 
-# Default database paths
+# Import new settings for migration path
+from .settings import settings as pydantic_settings
+
+# Default database paths (kept for backwards compatibility)
 DEFAULT_DUCKDB_PATH = "fia.duckdb"
 DEFAULT_ENGINE = "duckdb"
 
-# Environment variable override
+# Environment variable override (kept for backwards compatibility)
 FIA_DB_PATH = os.environ.get("FIA_DB_PATH", DEFAULT_DUCKDB_PATH)
 FIA_DB_ENGINE = os.environ.get("FIA_DB_ENGINE", DEFAULT_ENGINE)
 

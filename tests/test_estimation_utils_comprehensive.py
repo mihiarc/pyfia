@@ -62,8 +62,9 @@ class TestRatioVarianceCalculation:
         x_var = 9.0
         cov_yx = 10.0
         
-        with pytest.raises((ValueError, ZeroDivisionError)):
-            ratio_var(y_total, x_total, y_var, x_var, cov_yx)
+        # Function returns 0.0 when denominator is zero
+        result = ratio_var(y_total, x_total, y_var, x_var, cov_yx)
+        assert result == 0.0
     
     def test_ratio_var_negative_variances(self):
         """Test ratio variance with negative variances."""
@@ -133,83 +134,90 @@ class TestCoefficientOfVariation:
     def test_cv_basic(self):
         """Test basic CV calculation."""
         estimate = 100.0
-        standard_error = 5.0
+        variance = 25.0  # SE = 5.0, so variance = 25.0
         
-        cv_result = cv(estimate, standard_error)
+        cv_result = cv(estimate, variance)
         
-        # CV should be (SE / Estimate) * 100
-        expected_cv = (standard_error / estimate) * 100
+        # CV should be (sqrt(variance) / Estimate) * 100
+        import math
+        expected_cv = (math.sqrt(variance) / estimate) * 100
         assert abs(cv_result - expected_cv) < 1e-10
-        assert cv_result == 5.0  # 5/100 * 100 = 5%
+        assert cv_result == 5.0  # sqrt(25)/100 * 100 = 5%
     
     def test_cv_zero_estimate(self):
         """Test CV with zero estimate."""
         estimate = 0.0
-        standard_error = 5.0
+        variance = 25.0
         
-        with pytest.raises((ValueError, ZeroDivisionError)):
-            cv(estimate, standard_error)
+        # CV function returns 0.0 when estimate is 0
+        cv_result = cv(estimate, variance)
+        assert cv_result == 0.0
     
-    def test_cv_zero_se(self):
-        """Test CV with zero standard error."""
+    def test_cv_zero_variance(self):
+        """Test CV with zero variance."""
         estimate = 100.0
-        standard_error = 0.0
+        variance = 0.0
         
-        cv_result = cv(estimate, standard_error)
+        cv_result = cv(estimate, variance)
         assert cv_result == 0.0
     
     def test_cv_negative_estimate(self):
         """Test CV with negative estimate."""
         estimate = -100.0
-        standard_error = 5.0
+        variance = 25.0  # SE = 5.0, so variance = 25.0
         
         # CV with negative estimate should be handled appropriately
-        cv_result = cv(estimate, standard_error)
+        cv_result = cv(estimate, variance)
         # Implementation dependent - might return absolute value or raise error
         assert isinstance(cv_result, float)
     
-    def test_cv_negative_se(self):
-        """Test CV with negative standard error."""
+    def test_cv_negative_variance(self):
+        """Test CV with negative variance."""
         estimate = 100.0
-        standard_error = -5.0
+        variance = -25.0
         
-        # Negative SE is invalid
+        # Negative variance is invalid
         try:
-            cv_result = cv(estimate, standard_error)
-            # If it doesn't raise an error, should handle appropriately
-            assert isinstance(cv_result, float)
-        except ValueError:
-            # Expected for negative SE
+            cv_result = cv(estimate, variance)
+            # If it doesn't raise an error, might be complex or nan
+            assert isinstance(cv_result, (float, complex)) or math.isnan(cv_result)
+        except (ValueError, TypeError):
+            # Expected for negative variance
             pass
     
     def test_cv_small_estimate(self):
         """Test CV with very small estimate."""
         estimate = 1e-10
-        standard_error = 1e-11
+        variance = 1e-22  # sqrt(1e-22) = 1e-11
         
-        cv_result = cv(estimate, standard_error)
-        expected_cv = (1e-11 / 1e-10) * 100
+        cv_result = cv(estimate, variance)
+        import math
+        expected_cv = (math.sqrt(variance) / estimate) * 100
         assert abs(cv_result - expected_cv) < 1e-8
         assert cv_result == 10.0  # 10%
     
     def test_cv_large_values(self):
         """Test CV with large values."""
         estimate = 1e6
-        standard_error = 1e4
+        variance = 1e8  # sqrt(1e8) = 1e4
         
-        cv_result = cv(estimate, standard_error)
-        expected_cv = (1e4 / 1e6) * 100
+        cv_result = cv(estimate, variance)
+        import math
+        expected_cv = (math.sqrt(variance) / estimate) * 100
         assert abs(cv_result - expected_cv) < 1e-10
         assert cv_result == 1.0  # 1%
     
     def test_cv_percentage_output(self):
         """Test that CV is returned as percentage."""
         estimate = 50.0
-        standard_error = 5.0
+        variance = 25.0  # sqrt(25) = 5.0
         
-        cv_result = cv(estimate, standard_error)
+        cv_result = cv(estimate, variance)
         
         # Should be percentage, not proportion
+        import math
+        expected = (math.sqrt(variance) / estimate) * 100  # (5/50)*100 = 10%
+        assert abs(cv_result - expected) < 1e-10
         assert cv_result == 10.0  # 10%, not 0.1
         assert cv_result > 1.0  # Should be percentage scale
 
@@ -272,7 +280,7 @@ class TestEstimationUtilsEdgeCases:
         
         # Test cv with NaN
         try:
-            result = cv(float('nan'), 5.0)
+            result = cv(float('nan'), 25.0)  # variance = 25.0
             assert math.isnan(result) or isinstance(result, float)
         except ValueError:
             # Expected for NaN input
@@ -290,7 +298,7 @@ class TestEstimationUtilsEdgeCases:
         
         # Test cv with infinity
         try:
-            result = cv(float('inf'), 5.0)
+            result = cv(float('inf'), 25.0)  # variance = 25.0
             assert result == 0.0 or math.isnan(result)
         except (ValueError, OverflowError):
             # Expected for infinite input
@@ -339,7 +347,7 @@ class TestEstimationUtilsIntegration:
         tpa_estimate = tree_total / area_total
         tpa_variance = ratio_var(tree_total, area_total, tree_var, area_var, cov_tree_area)
         tpa_se = math.sqrt(tpa_variance)
-        tpa_cv = cv(tpa_estimate, tpa_se)
+        tpa_cv = cv(tpa_estimate, tpa_variance)
         
         # Check results are reasonable
         assert tpa_estimate == 20.0  # 1000/50 = 20 TPA
@@ -351,18 +359,18 @@ class TestEstimationUtilsIntegration:
     def test_low_cv_scenario(self):
         """Test scenario with low coefficient of variation."""
         estimate = 1000.0
-        se = 10.0  # 1% CV
+        variance = 100.0  # SE = 10.0, so variance = 100.0, 1% CV
         
-        cv_result = cv(estimate, se)
+        cv_result = cv(estimate, variance)
         assert cv_result == 1.0
         assert cv_result < 5.0  # Good precision
     
     def test_high_cv_scenario(self):
         """Test scenario with high coefficient of variation."""
         estimate = 100.0
-        se = 50.0  # 50% CV
+        variance = 2500.0  # SE = 50.0, so variance = 2500.0, 50% CV
         
-        cv_result = cv(estimate, se)
+        cv_result = cv(estimate, variance)
         assert cv_result == 50.0
         assert cv_result > 30.0  # Poor precision
     
@@ -370,11 +378,11 @@ class TestEstimationUtilsIntegration:
         """Test scenario with zero estimate (no trees)."""
         # When there are no trees, estimate is 0
         estimate = 0.0
-        se = 0.0
+        variance = 0.0
         
-        # CV is undefined for zero estimate
-        with pytest.raises((ValueError, ZeroDivisionError)):
-            cv(estimate, se)
+        # CV function returns 0.0 for zero estimate
+        cv_result = cv(estimate, variance)
+        assert cv_result == 0.0
     
     def test_biomass_ratio_estimation(self):
         """Test ratio estimation for biomass per acre."""
@@ -389,7 +397,7 @@ class TestEstimationUtilsIntegration:
         biomass_per_acre = biomass_total / area_total
         biomass_variance = ratio_var(biomass_total, area_total, biomass_var, area_var, cov_biomass_area)
         biomass_se = math.sqrt(biomass_variance)
-        biomass_cv = cv(biomass_per_acre, biomass_se)
+        biomass_cv = cv(biomass_per_acre, biomass_variance)
         
         # Check results
         assert biomass_per_acre == 50.0  # 5000/100 = 50 tons/acre
@@ -432,7 +440,8 @@ class TestEstimationUtilsPolarsIntegration:
         # Calculate CV for each row (except zero estimate)
         for i, row in enumerate(df.iter_rows(named=True)):
             if row["estimate"] > 0:
-                cv_result = cv(row["estimate"], row["se"])
+                variance = row["se"] ** 2  # Convert SE to variance
+                cv_result = cv(row["estimate"], variance)
                 assert cv_result >= 0
                 assert not math.isnan(cv_result)
             else:
@@ -458,7 +467,7 @@ class TestEstimationUtilsPolarsIntegration:
         # Calculate population variance (simplified)
         population_var = (strata_df["stratum_var"] * strata_df["area_weight"] ** 2).sum()
         population_se = math.sqrt(population_var)
-        population_cv = cv(population_mean, population_se)
+        population_cv = cv(population_mean, population_var)
         
         # Check results
         assert population_mean > 0

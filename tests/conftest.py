@@ -77,6 +77,9 @@ def sample_fia_db(temp_db_path):
             VOLCFNET REAL,
             VOLCSNET REAL,
             VOLBFNET REAL,
+            VOLCFGRS REAL,
+            VOLCSGRS REAL,
+            VOLBFGRS REAL,
             FOREIGN KEY (PLT_CN) REFERENCES PLOT(CN)
         )
     """)
@@ -181,15 +184,19 @@ def sample_fia_db(temp_db_path):
             volcfnet = dia * 1.8  # Simplified volume
             volcsnet = volcfnet * 0.7  # Sawlog volume
             volbfnet = volcsnet * 5.5  # Board feet
+            volcfgrs = volcfnet * 1.1  # Gross volume (10% more than net)
+            volcsgrs = volcsnet * 1.1  # Gross sawlog volume
+            volbfgrs = volbfnet * 1.1  # Gross board feet
             
             tree_data.append((
                 tree_cn, plt_cn, 1, tree_num, 1, spcd, dia, ht,
-                tpa_unadj, drybio_ag, drybio_bg, volcfnet, volcsnet, volbfnet
+                tpa_unadj, drybio_ag, drybio_bg, volcfnet, volcsnet, volbfnet,
+                volcfgrs, volcsgrs, volbfgrs
             ))
             tree_id += 1
     
     cursor.executemany("""
-        INSERT INTO TREE VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO TREE VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, tree_data)
     
     # Evaluation

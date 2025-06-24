@@ -228,7 +228,7 @@ def volume(
 
     # Add volume-specific columns
     for _, result_col in volume_cols.items():
-        per_acre_col = _get_output_column_name(result_col, volType)
+        per_acre_col = _get_output_column_name(result_col, vol_type)
         se_col = f"{per_acre_col}_SE"
         if per_acre_col in pop_est.columns:
             result_cols.extend([per_acre_col, se_col])

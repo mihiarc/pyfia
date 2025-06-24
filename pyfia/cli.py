@@ -7,34 +7,33 @@ pyFIA's statistical estimation methods without SQL or AI layers.
 Uses DuckDB for efficient handling of large-scale FIA datasets.
 """
 
-import atexit
-import cmd
 import os
 import sys
 from pathlib import Path
-
-# Optional readline import for Windows compatibility
-try:
-    import readline
-
-    HAS_READLINE = True
-except ImportError:
-    HAS_READLINE = False
 from typing import Any, Dict, Optional
 
 import polars as pl
-from rich import box
-from rich.console import Console
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
-from pyfia.cli_config import CLIConfig
+from pyfia.cli_base import BaseCLI
+from pyfia.cli_utils import (
+    create_database_info_panel,
+    create_help_table,
+    format_estimation_results_help,
+    get_state_abbreviation,
+    parse_area_arguments,
+    parse_biomass_arguments,
+    parse_state_identifier,
+    parse_tpa_arguments,
+    parse_volume_arguments,
+)
 from pyfia.core import FIA
 
 
-class FIADirectCLI(cmd.Cmd):
+class FIADirectCLI(BaseCLI):
     """Direct interface to pyFIA estimation methods."""
 
     intro = None
@@ -43,16 +42,9 @@ class FIADirectCLI(cmd.Cmd):
     undoc_header = "Other commands:"
 
     def __init__(self, db_path: Optional[str] = None):
-        super().__init__()
-        self.console = Console()
+        super().__init__(history_filename=".pyfia_history")
         self.fia: Optional[FIA] = None
         self.db_path: Optional[Path] = None
-        self.last_result: Optional[pl.DataFrame] = None
-        self.history_file = Path.home() / ".pyfia_history"
-        self.config = CLIConfig()
-
-        # Setup command history
-        self._setup_history()
 
         # Display welcome message
         self._show_welcome()
@@ -60,33 +52,37 @@ class FIADirectCLI(cmd.Cmd):
         # Connect to database if provided
         if db_path:
             self.do_connect(db_path)
-        elif self.config.default_database:
-            self.console.print("[cyan]Auto-connecting to default database...[/cyan]")
-            self.do_connect(self.config.default_database)
+        else:
+            self._auto_connect_database()
 
-    def _setup_history(self):
-        """Setup command history with readline."""
-        if not HAS_READLINE:
-            return
-
-        if self.history_file.exists():
-            try:
-                readline.read_history_file(self.history_file)
-            except:
-                pass
-
-        readline.set_history_length(1000)
-        atexit.register(self._save_history)
-
-    def _save_history(self):
-        """Save command history."""
-        if not HAS_READLINE:
-            return
-
+    def _connect_to_database(self, db_path_str: str) -> bool:
+        """Connect to database with validation and progress display."""
+        db_path = self._validate_database_path(db_path_str)
+        if not db_path:
+            return False
+        
         try:
-            readline.write_history_file(self.history_file)
-        except:
-            pass
+            with self._create_progress_bar("Connecting to database...") as progress:
+                task = progress.add_task("Connecting...", total=None)
+                
+                # Always use DuckDB engine
+                self.fia = FIA(str(db_path), engine="duckdb")
+                self.db_path = db_path
+                progress.update(task, completed=True)
+            
+            self._show_connection_status(db_path, success=True)
+            
+            # Save to recent databases
+            self.config.add_recent_database(str(db_path))
+            
+            # Show basic info
+            self._show_db_summary()
+            return True
+            
+        except Exception as e:
+            self.console.print(f"[red]Error connecting to database: {e}[/red]")
+            self._show_connection_status(db_path, success=False)
+            return False
 
     def _show_welcome(self):
         """Display welcome message."""
@@ -144,38 +140,7 @@ class FIADirectCLI(cmd.Cmd):
 
         Expects a DuckDB database file (.duckdb, .duck, or .db extension).
         """
-        if not arg:
-            self.console.print("[red]Error: Please provide a database path[/red]")
-            return
-
-        db_path = Path(arg.strip())
-        if not db_path.exists():
-            self.console.print(f"[red]Error: Database not found: {db_path}[/red]")
-            return
-
-        try:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=self.console,
-            ) as progress:
-                task = progress.add_task("Connecting to database...", total=None)
-
-                # Always use DuckDB engine
-                self.fia = FIA(str(db_path), engine="duckdb")
-                self.db_path = db_path
-                progress.update(task, completed=True)
-
-            self.console.print(f"[green]✓ Connected to: {db_path.name}[/green]")
-
-            # Save to recent databases
-            self.config.add_recent_database(str(db_path))
-
-            # Show basic info
-            self._show_db_summary()
-
-        except Exception as e:
-            self.console.print(f"[red]Error connecting to database: {e}[/red]")
+        self._connect_to_database(arg.strip())
 
     def _show_db_summary(self):
         """Show database summary information."""
@@ -206,70 +171,9 @@ class FIADirectCLI(cmd.Cmd):
                     # Get states and convert to abbreviations
                     state_codes = sorted(pop_eval["STATECD"].unique().to_list())
 
-                    # State code to abbreviation mapping
-                    code_to_abbr = {
-                        1: "AL",
-                        2: "AK",
-                        4: "AZ",
-                        5: "AR",
-                        6: "CA",
-                        8: "CO",
-                        9: "CT",
-                        10: "DE",
-                        12: "FL",
-                        13: "GA",
-                        15: "HI",
-                        16: "ID",
-                        17: "IL",
-                        18: "IN",
-                        19: "IA",
-                        20: "KS",
-                        21: "KY",
-                        22: "LA",
-                        23: "ME",
-                        24: "MD",
-                        25: "MA",
-                        26: "MI",
-                        27: "MN",
-                        28: "MS",
-                        29: "MO",
-                        30: "MT",
-                        31: "NE",
-                        32: "NV",
-                        33: "NH",
-                        34: "NJ",
-                        35: "NM",
-                        36: "NY",
-                        37: "NC",
-                        38: "ND",
-                        39: "OH",
-                        40: "OK",
-                        41: "OR",
-                        42: "PA",
-                        44: "RI",
-                        45: "SC",
-                        46: "SD",
-                        47: "TN",
-                        48: "TX",
-                        49: "UT",
-                        50: "VT",
-                        51: "VA",
-                        53: "WA",
-                        54: "WV",
-                        55: "WI",
-                        56: "WY",
-                        60: "AS",
-                        64: "FM",
-                        66: "GU",
-                        68: "MH",
-                        69: "MP",
-                        70: "PW",
-                        72: "PR",
-                        78: "VI",
-                    }
-
+                    # Get state abbreviations
                     state_abbrs = [
-                        code_to_abbr.get(code, f"#{code}") for code in state_codes
+                        get_state_abbreviation(code) or f"#{code}" for code in state_codes
                     ]
                     summary.add_row("States", ", ".join(state_abbrs))
 
@@ -336,7 +240,7 @@ class FIADirectCLI(cmd.Cmd):
 
             else:
                 # Try to parse as state identifier or EVALID
-                state_code = self._parse_state_identifier(arg)
+                state_code = parse_state_identifier(arg)
 
                 if state_code is not None:
                     # It's a state identifier
@@ -450,7 +354,7 @@ class FIADirectCLI(cmd.Cmd):
                 state_filter = None
             else:
                 # Try to parse state identifier
-                state_code = self._parse_state_identifier(choice)
+                state_code = parse_state_identifier(choice)
                 if state_code is not None:
                     if state_code in available_states:
                         state_filter = state_code
@@ -573,7 +477,7 @@ class FIADirectCLI(cmd.Cmd):
             if args:
                 # Try to parse first argument as state
                 potential_state = args[0]
-                state_code = self._parse_state_identifier(potential_state)
+                state_code = parse_state_identifier(potential_state)
 
                 if state_code is not None:
                     # Found a state, use the rest as kwargs
@@ -1126,149 +1030,6 @@ class FIADirectCLI(cmd.Cmd):
             return False
         return True
 
-    def _parse_state_identifier(self, identifier: str) -> Optional[int]:
-        """Parse state identifier (code, abbreviation, or name) to state code.
-
-        Args:
-            identifier: State identifier (e.g., "37", "NC", "North Carolina")
-
-        Returns:
-            State code if found, None otherwise
-        """
-        # State mappings
-        state_abbr_to_code = {
-            "AL": 1,
-            "AK": 2,
-            "AZ": 4,
-            "AR": 5,
-            "CA": 6,
-            "CO": 8,
-            "CT": 9,
-            "DE": 10,
-            "FL": 12,
-            "GA": 13,
-            "HI": 15,
-            "ID": 16,
-            "IL": 17,
-            "IN": 18,
-            "IA": 19,
-            "KS": 20,
-            "KY": 21,
-            "LA": 22,
-            "ME": 23,
-            "MD": 24,
-            "MA": 25,
-            "MI": 26,
-            "MN": 27,
-            "MS": 28,
-            "MO": 29,
-            "MT": 30,
-            "NE": 31,
-            "NV": 32,
-            "NH": 33,
-            "NJ": 34,
-            "NM": 35,
-            "NY": 36,
-            "NC": 37,
-            "ND": 38,
-            "OH": 39,
-            "OK": 40,
-            "OR": 41,
-            "PA": 42,
-            "RI": 44,
-            "SC": 45,
-            "SD": 46,
-            "TN": 47,
-            "TX": 48,
-            "UT": 49,
-            "VT": 50,
-            "VA": 51,
-            "WA": 53,
-            "WV": 54,
-            "WI": 55,
-            "WY": 56,
-            "PR": 72,
-            "VI": 78,
-        }
-
-        state_name_to_code = {
-            "alabama": 1,
-            "alaska": 2,
-            "arizona": 4,
-            "arkansas": 5,
-            "california": 6,
-            "colorado": 8,
-            "connecticut": 9,
-            "delaware": 10,
-            "florida": 12,
-            "georgia": 13,
-            "hawaii": 15,
-            "idaho": 16,
-            "illinois": 17,
-            "indiana": 18,
-            "iowa": 19,
-            "kansas": 20,
-            "kentucky": 21,
-            "louisiana": 22,
-            "maine": 23,
-            "maryland": 24,
-            "massachusetts": 25,
-            "michigan": 26,
-            "minnesota": 27,
-            "mississippi": 28,
-            "missouri": 29,
-            "montana": 30,
-            "nebraska": 31,
-            "nevada": 32,
-            "new hampshire": 33,
-            "new jersey": 34,
-            "new mexico": 35,
-            "new york": 36,
-            "north carolina": 37,
-            "north dakota": 38,
-            "ohio": 39,
-            "oklahoma": 40,
-            "oregon": 41,
-            "pennsylvania": 42,
-            "rhode island": 44,
-            "south carolina": 45,
-            "south dakota": 46,
-            "tennessee": 47,
-            "texas": 48,
-            "utah": 49,
-            "vermont": 50,
-            "virginia": 51,
-            "washington": 53,
-            "west virginia": 54,
-            "wisconsin": 55,
-            "wyoming": 56,
-            "puerto rico": 72,
-            "virgin islands": 78,
-        }
-
-        # Remove quotes if present
-        identifier = identifier.strip().strip('"').strip("'")
-
-        # Try numeric code first
-        try:
-            code = int(identifier)
-            if 1 <= code <= 78:  # Valid state code range
-                return code
-        except ValueError:
-            pass
-
-        # Try abbreviation (case insensitive)
-        upper_id = identifier.upper()
-        if upper_id in state_abbr_to_code:
-            return state_abbr_to_code[upper_id]
-
-        # Try full name (case insensitive)
-        lower_id = identifier.lower()
-        if lower_id in state_name_to_code:
-            return state_name_to_code[lower_id]
-
-        # Not found
-        return None
 
     def _parse_kwargs(self, arg: str) -> Dict[str, Any]:
         """Parse command arguments into kwargs."""
@@ -1320,47 +1081,6 @@ class FIADirectCLI(cmd.Cmd):
 
     # Removed - no longer needed since all functions use snake_case
 
-    def _display_dataframe(self, df: pl.DataFrame, title: str = "", max_rows: int = 20):
-        """Display a Polars DataFrame as a rich table."""
-        if df.is_empty():
-            self.console.print("[yellow]No data to display[/yellow]")
-            return
-
-        # Create table
-        table = Table(title=title, show_lines=True, box=box.ROUNDED)
-
-        # Add columns
-        for col in df.columns:
-            # Style numeric columns differently
-            if df[col].dtype in [pl.Float32, pl.Float64]:
-                table.add_column(col, style="cyan", justify="right")
-            elif df[col].dtype in [pl.Int32, pl.Int64]:
-                table.add_column(col, style="green", justify="right")
-            else:
-                table.add_column(col, style="white")
-
-        # Format and add rows
-        for row in df.head(max_rows).iter_rows():
-            formatted_row = []
-            for i, val in enumerate(row):
-                if val is None:
-                    formatted_row.append("NULL")
-                elif isinstance(val, float):
-                    # Format floats with appropriate precision
-                    if abs(val) < 0.01 and val != 0:
-                        formatted_row.append(f"{val:.2e}")
-                    else:
-                        formatted_row.append(f"{val:.2f}")
-                else:
-                    formatted_row.append(str(val))
-            table.add_row(*formatted_row)
-
-        self.console.print(table)
-
-        if len(df) > max_rows:
-            self.console.print(
-                f"[dim]Showing {max_rows} of {len(df)} rows. Use 'export' to save all data.[/dim]"
-            )
 
     def _display_results(self, result: pl.DataFrame, title: str):
         """Display estimation results with proper formatting."""

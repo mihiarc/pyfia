@@ -44,6 +44,7 @@ from rich.table import Table
 
 from pyfia.cli_config import CLIConfig
 from pyfia.duckdb_query_interface import DuckDBQueryInterface
+from pyfia.fia_domain_knowledge import fia_knowledge
 
 
 class FIAAICli(cmd.Cmd):
@@ -111,27 +112,41 @@ class FIAAICli(cmd.Cmd):
     def _show_welcome(self):
         """Display welcome message."""
         welcome_text = """
-# 🤖 pyFIA AI Assistant
+# 🌲 pyFIA AI Assistant
 
-Natural language interface for Forest Inventory Analysis data.
+**Natural language interface for Forest Inventory Analysis (FIA) data**
 
-## Features:
-• **Natural Language Queries**: Ask questions in plain English
-• **SQL Generation**: AI translates questions to SQL
-• **Direct SQL**: Execute SQL queries with syntax highlighting
-• **Schema Awareness**: AI understands FIA database structure
-• **Export Results**: Save query results to CSV/Parquet
+## 🚀 Quick Start
 
-## Quick Start:
-• Just type your question: "How many live oak trees are in North Carolina?"
-• Use `sql:` prefix for direct SQL queries
-• Type `help` for all commands
+Just type your question naturally:
+```
+How many live oak trees are in North Carolina?
+Calculate biomass by species
+Show forest area trends over time
+```
 
-## Examples:
-• "Show me the total forest area by state"
-• "What's the average DBH of pine trees?"
-• "Find plots with high biomass in evaluation 372301"
-• "sql: SELECT COUNT(*) FROM TREE WHERE STATUSCD = 1"
+## 📊 Key Features
+
+**Natural Language** → Ask questions in plain English  
+**Smart SQL** → AI generates optimized FIA queries  
+**Domain Knowledge** → Understands forestry terms (TPA, basal area, DBH)  
+**Direct SQL** → Use `sql:` prefix for manual queries  
+**Export Data** → Save results as CSV or Parquet  
+
+## 💡 Example Queries
+
+**Analysis:** "What's the mortality rate for pine species?"  
+**Concepts:** "What is EVALID and why is it important?"  
+**pyFIA:** "How do I calculate biomass using pyFIA?"  
+**Direct:** `sql: SELECT * FROM TREE WHERE DIA > 20 LIMIT 10`
+
+## 🎯 Pro Tips
+
+• Be specific: "live trees" instead of just "trees"
+• Use FIA terms: TPA, biomass, volume, mortality
+• Filter by EVALID for valid statistical estimates
+• Type `concepts` to explore FIA terminology
+• Type `help` for all available commands
 """
 
         # Status
@@ -207,18 +222,18 @@ Natural language interface for Forest Inventory Analysis data.
                 self.console.print("[green]✓ Cognee AI agent initialized[/green]")
 
             elif self.agent_type == "enhanced":
-                from pyfia.ai_agent_enhanced import FIAAgentConfig, FIAAgentEnhanced
+                from pyfia.ai_agent_enhanced import EnhancedFIAAgentConfig, EnhancedFIAAgent
 
-                config = FIAAgentConfig(db_path=self.db_path)
-                self.agent = FIAAgentEnhanced(config)
+                config = EnhancedFIAAgentConfig()
+                self.agent = EnhancedFIAAgent(self.db_path, config, self.api_key)
                 self.console.print("[green]✓ Enhanced AI agent initialized[/green]")
 
             else:  # basic
                 from pyfia.ai_agent import FIAAgent, FIAAgentConfig
 
-                config = FIAAgentConfig(db_path=self.db_path, api_key=self.api_key)
-                self.agent = FIAAgent(self.db_path, config)
-                self.console.print("[green]✓ Basic AI agent initialized[/green]")
+                config = FIAAgentConfig(verbose=True)  # Enable verbose for debugging
+                self.agent = FIAAgent(self.db_path, config, self.api_key)
+                self.console.print("[green]✓ Basic AI agent initialized (verbose mode)[/green]")
 
         except Exception as e:
             self.console.print(f"[yellow]Could not initialize AI agent: {e}[/yellow]")
@@ -641,6 +656,95 @@ Natural language interface for Forest Inventory Analysis data.
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
 
+    def do_concepts(self, arg: str):
+        """Show FIA concepts and terminology.
+        Usage:
+            concepts            - List all FIA concepts
+            concepts biomass    - Explain a specific concept
+            concepts search oak - Find concepts in a phrase
+        """
+        args = arg.strip().split(maxsplit=1)
+        
+        if not args:
+            # List all concepts
+            concepts_table = Table(title="FIA Domain Concepts", show_lines=True)
+            concepts_table.add_column("Concept", style="cyan")
+            concepts_table.add_column("Category", style="green")
+            concepts_table.add_column("Description", style="white")
+            
+            for name, concept in list(fia_knowledge.concepts.items())[:20]:
+                concepts_table.add_row(
+                    name.replace('_', ' ').title(),
+                    concept.category.replace('_', ' ').title(),
+                    concept.description[:60] + "..." if len(concept.description) > 60 else concept.description
+                )
+            
+            self.console.print(concepts_table)
+            self.console.print(f"\n[dim]Showing 20 of {len(fia_knowledge.concepts)} concepts[/dim]")
+            
+        elif args[0] == "search" and len(args) > 1:
+            # Search for concepts in a phrase
+            phrase = args[1]
+            concepts = fia_knowledge.extract_concepts(phrase)
+            
+            if concepts:
+                self.console.print(f"\n[bold]Concepts found in '{phrase}':[/bold]")
+                for concept in concepts:
+                    self.console.print(f"\n[cyan]{concept.name.replace('_', ' ').title()}[/cyan]")
+                    self.console.print(f"  {concept.description}")
+                    self.console.print(f"  [dim]Synonyms: {', '.join(concept.synonyms[:3])}[/dim]")
+            else:
+                self.console.print(f"[yellow]No FIA concepts found in '{phrase}'[/yellow]")
+                
+        else:
+            # Explain specific concept
+            concept_name = args[0]
+            concept = fia_knowledge.get_concept(concept_name)
+            
+            if not concept:
+                # Try to find partial match
+                concepts = fia_knowledge.extract_concepts(concept_name)
+                if concepts:
+                    concept = concepts[0]
+            
+            if concept:
+                help_text = fia_knowledge.format_concept_help(concept.name)
+                self.console.print(Panel(
+                    Markdown(help_text),
+                    title=f"FIA Concept: {concept.name.replace('_', ' ').title()}",
+                    border_style="cyan"
+                ))
+            else:
+                self.console.print(f"[yellow]Concept '{concept_name}' not found[/yellow]")
+                self.console.print("Try: concepts (to list all)")
+
+    def do_verbose(self, arg: str):
+        """Toggle verbose mode for debugging.
+        Usage: verbose [on|off]
+        """
+        if not arg:
+            if hasattr(self, 'agent') and hasattr(self.agent, 'config'):
+                current = self.agent.config.verbose
+                self.console.print(f"[cyan]Verbose mode is: {'ON' if current else 'OFF'}[/cyan]")
+            else:
+                self.console.print("[yellow]No agent initialized[/yellow]")
+            return
+        
+        if arg.lower() in ['on', 'true', '1']:
+            if hasattr(self, 'agent') and hasattr(self.agent, 'config'):
+                self.agent.config.verbose = True
+                self.console.print("[green]Verbose mode enabled[/green]")
+            else:
+                self.console.print("[yellow]No agent to configure[/yellow]")
+        elif arg.lower() in ['off', 'false', '0']:
+            if hasattr(self, 'agent') and hasattr(self.agent, 'config'):
+                self.agent.config.verbose = False
+                self.console.print("[yellow]Verbose mode disabled[/yellow]")
+            else:
+                self.console.print("[yellow]No agent to configure[/yellow]")
+        else:
+            self.console.print("[red]Usage: verbose [on|off][/red]")
+
     def do_agent(self, arg: str):
         """Switch AI agent type.
         Usage:
@@ -701,6 +805,7 @@ Use `sql:` prefix for direct SQL:
 • **connect** <path> - Connect to database
 • **schema** [table] - View database schema
 • **evalid** [search] - Show evaluations
+• **concepts** [term] - Explore FIA terminology
 • **history** - View query history
 • **export** <file> - Export results
 • **show** [n] - Show last results

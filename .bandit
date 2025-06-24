@@ -1,0 +1,11 @@
+# Bandit configuration file
+[bandit]
+# Skip test files
+exclude_dirs = /tests/,/htmlcov/,/build/,/dist/
+
+# Test IDs to skip
+skips = B101,B601,B602
+
+# B101: assert_used - We use asserts in our code
+# B601: paramiko_calls - False positives on parameter names
+# B602: subprocess_popen_with_shell_equals_true - We control inputs

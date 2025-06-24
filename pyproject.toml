@@ -60,6 +60,7 @@ Issues = "https://github.com/mihiarc/pyfia/issues"
 [project.scripts]
 pyfia = "pyfia.cli:main"
 pyfia-ai = "pyfia.cli_ai:main"
+pyfia-setup-precommit = "scripts.setup_precommit:main"
 
 [tool.setuptools]
 packages = ["pyfia"]
@@ -99,7 +100,17 @@ python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
 
+[tool.pydocstyle]
+# D100: Missing docstring in public module
+# D104: Missing docstring in public package
+# D213: Multi-line docstring summary should start at the second line
+# D203: 1 blank line required before class docstring
+ignore = ["D100", "D104", "D213", "D203"]
+match = "(?!test_).*\\.py"
+match-dir = "(?!tests).*"
+
 [dependency-groups]
 dev = [
     "pytest-cov>=6.2.1",
+    "pre-commit>=3.6.0",
 ]

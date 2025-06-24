@@ -13,6 +13,7 @@ from .biomass import biomass
 from .config import config, get_default_db_path, get_default_engine
 from .core import FIA
 from .data_reader import FIADataReader
+from .settings import PyFIASettings, settings
 from .estimation_utils import (
     apply_domain_filter,
     calculate_adjustment_factors,
@@ -37,6 +38,8 @@ __all__ = [
     "config",
     "get_default_db_path",
     "get_default_engine",
+    "settings",
+    "PyFIASettings",
     # Estimation functions
     "tpa",
     "volume",

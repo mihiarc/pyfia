@@ -56,13 +56,13 @@ class Config:
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
-    def set_db_path(self, path: str):
+    def set_db_path(self, path: str) -> None:
         """Set the database path."""
         self.db_path = Path(path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {path}")
 
-    def set_engine(self, engine: str):
+    def set_engine(self, engine: str) -> None:
         """Set the database engine."""
         if engine.lower() not in ["sqlite", "duckdb"]:
             raise ValueError(f"Invalid engine: {engine}. Use 'sqlite' or 'duckdb'")

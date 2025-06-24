@@ -9,23 +9,17 @@ grouping configurations.
 from typing import Optional, Union, List, Dict, Literal
 import polars as pl
 
+from .constants import (
+    DiameterBreakpoints,
+    STANDARD_SIZE_CLASSES,
+    DESCRIPTIVE_SIZE_CLASSES,
+    LandStatus,
+    SiteClass,
+    ReserveStatus,
+)
 
-# Standard FIA diameter size classes
-STANDARD_SIZE_CLASSES = {
-    "1.0-4.9": (1.0, 5.0),
-    "5.0-9.9": (5.0, 10.0),
-    "10.0-19.9": (10.0, 20.0),
-    "20.0-29.9": (20.0, 30.0),
-    "30.0+": (30.0, float("inf")),
-}
 
-# Descriptive size classes (used in some contexts like mortality)
-DESCRIPTIVE_SIZE_CLASSES = {
-    "Saplings": (1.0, 5.0),
-    "Small": (5.0, 10.0),
-    "Medium": (10.0, 20.0),
-    "Large": (20.0, float("inf")),
-}
+# Size classes are now imported from constants module
 
 
 def setup_grouping_columns(
@@ -126,7 +120,7 @@ def create_size_class_expr(
     """
     if size_class_type == "standard":
         return (
-            pl.when(pl.col(dia_col) < 5.0).then(pl.lit("1.0-4.9"))
+            pl.when(pl.col(dia_col) < DiameterBreakpoints.MICROPLOT_MAX_DIA).then(pl.lit("1.0-4.9"))
             .when(pl.col(dia_col) < 10.0).then(pl.lit("5.0-9.9"))
             .when(pl.col(dia_col) < 20.0).then(pl.lit("10.0-19.9"))
             .when(pl.col(dia_col) < 30.0).then(pl.lit("20.0-29.9"))
@@ -135,7 +129,7 @@ def create_size_class_expr(
         )
     elif size_class_type == "descriptive":
         return (
-            pl.when(pl.col(dia_col) < 5.0).then(pl.lit("Saplings"))
+            pl.when(pl.col(dia_col) < DiameterBreakpoints.MICROPLOT_MAX_DIA).then(pl.lit("Saplings"))
             .when(pl.col(dia_col) < 10.0).then(pl.lit("Small"))
             .when(pl.col(dia_col) < 20.0).then(pl.lit("Medium"))
             .otherwise(pl.lit("Large"))
@@ -167,17 +161,17 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
         raise ValueError(f"Missing required columns: {missing_cols}")
     
     land_type_expr = (
-        pl.when(pl.col("COND_STATUS_CD") != 1)
+        pl.when(pl.col("COND_STATUS_CD") != LandStatus.FOREST)
         .then(
-            pl.when(pl.col("COND_STATUS_CD") == 2).then(pl.lit("Non-forest"))
-            .when(pl.col("COND_STATUS_CD") == 3).then(pl.lit("Water"))
+            pl.when(pl.col("COND_STATUS_CD") == LandStatus.NONFOREST).then(pl.lit("Non-forest"))
+            .when(pl.col("COND_STATUS_CD") == LandStatus.WATER).then(pl.lit("Water"))
             .otherwise(pl.lit("Other"))
         )
         .otherwise(
             # Forest land - check if timber
             pl.when(
-                (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
-                & (pl.col("RESERVCD") == 0)
+                (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))
+                & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
             )
             .then(pl.lit("Timber"))
             .otherwise(pl.lit("Non-timber forest"))

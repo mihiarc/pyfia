@@ -8,6 +8,11 @@ FIA estimators to reduce code duplication and ensure consistency.
 from typing import Optional, List, Union, Tuple
 import polars as pl
 
+from .constants import (
+    PlotBasis,
+    DiameterBreakpoints,
+)
+
 
 def join_tree_condition(
     tree_df: pl.DataFrame,
@@ -151,23 +156,23 @@ def assign_tree_basis(
         tree_basis_expr = (
             pl.when(pl.col("DIA").is_null())
             .then(None)
-            .when(pl.col("DIA") < 5.0)
-            .then(pl.lit("MICR"))
+            .when(pl.col("DIA") < DiameterBreakpoints.MICROPLOT_MAX_DIA)
+            .then(pl.lit(PlotBasis.MICROPLOT))
             .when(pl.col("MACRO_BREAKPOINT_DIA") <= 0)
-            .then(pl.lit("SUBP"))
+            .then(pl.lit(PlotBasis.SUBPLOT))
             .when(pl.col("MACRO_BREAKPOINT_DIA").is_null())
-            .then(pl.lit("SUBP"))
+            .then(pl.lit(PlotBasis.SUBPLOT))
             .when(pl.col("DIA") < pl.col("MACRO_BREAKPOINT_DIA"))
-            .then(pl.lit("SUBP"))
-            .otherwise(pl.lit("MACR"))
+            .then(pl.lit(PlotBasis.SUBPLOT))
+            .otherwise(pl.lit(PlotBasis.MACROPLOT))
             .alias("TREE_BASIS")
         )
     else:
         # Simplified assignment (just MICR/SUBP)
         tree_basis_expr = (
-            pl.when(pl.col("DIA") < 5.0)
-            .then(pl.lit("MICR"))
-            .otherwise(pl.lit("SUBP"))
+            pl.when(pl.col("DIA") < DiameterBreakpoints.MICROPLOT_MAX_DIA)
+            .then(pl.lit(PlotBasis.MICROPLOT))
+            .otherwise(pl.lit(PlotBasis.SUBPLOT))
             .alias("TREE_BASIS")
         )
     
@@ -209,9 +214,9 @@ def apply_adjustment_factors(
     # Default adjustment factor mapping
     if adj_factor_columns is None:
         adj_factor_columns = {
-            "MICR": "ADJ_FACTOR_MICR",
-            "SUBP": "ADJ_FACTOR_SUBP", 
-            "MACR": "ADJ_FACTOR_MACR",
+            PlotBasis.MICROPLOT: "ADJ_FACTOR_MICR",
+            PlotBasis.SUBPLOT: "ADJ_FACTOR_SUBP", 
+            PlotBasis.MACROPLOT: "ADJ_FACTOR_MACR",
         }
     
     # Create adjusted columns

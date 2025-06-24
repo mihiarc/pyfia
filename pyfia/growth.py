@@ -12,6 +12,7 @@ from typing import List, Optional, Union
 import polars as pl
 
 from .core import FIA
+from .constants import PlotBasis
 
 
 def growth(
@@ -171,8 +172,8 @@ def _calculate_recruitment(
     # Assign tree basis
     ingrowth = ingrowth.with_columns(
         pl.when(pl.col("DIA") < 5.0)
-        .then(pl.lit("MICR"))
-        .otherwise(pl.lit("SUBP"))
+        .then(pl.lit(PlotBasis.MICROPLOT))
+        .otherwise(pl.lit(PlotBasis.SUBPLOT))
         .alias("TREE_BASIS")
     )
 
@@ -188,7 +189,7 @@ def _calculate_recruitment(
 
     # Calculate adjusted recruitment
     ingrowth = ingrowth.with_columns(
-        pl.when(pl.col("TREE_BASIS") == "MICR")
+        pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
         .then(pl.col(micr_grow_col) * pl.col("ADJ_FACTOR_MICR"))
         .otherwise(pl.col(subp_grow_col) * pl.col("ADJ_FACTOR_SUBP"))
         .alias("RECR_TPA_ADJ")

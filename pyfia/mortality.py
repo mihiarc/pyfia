@@ -10,6 +10,13 @@ from typing import Any, Dict, List, Optional, Union
 import polars as pl
 
 from .core import FIA
+from .constants import (
+    TreeClass,
+    LandStatus,
+    PlotBasis,
+    DiameterBreakpoints,
+    MathConstants,
+)
 
 
 def mortality(
@@ -173,7 +180,7 @@ def mortality(
 
     # Apply land type filter
     if land_type == "forest":
-        tree_plot_cond = tree_plot_cond.filter(pl.col("COND_STATUS_CD") == 1)
+        tree_plot_cond = tree_plot_cond.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
 
     # Apply domain filters
     if tree_domain:
@@ -185,8 +192,8 @@ def mortality(
     # Calculate tree basis based on diameter
     tree_plot_cond = tree_plot_cond.with_columns(
         pl.when(pl.col("DIA") < 5.0)
-        .then(pl.lit("MICR"))
-        .otherwise(pl.lit("SUBP"))
+        .then(pl.lit(PlotBasis.MICROPLOT))
+        .otherwise(pl.lit(PlotBasis.SUBPLOT))
         .alias("TREE_BASIS")
     )
 
@@ -195,12 +202,12 @@ def mortality(
     tree_plot_cond = tree_plot_cond.with_columns(
         [
             # Annual mortality TPA (already annualized in FIA database)
-            pl.when(pl.col("TREE_BASIS") == "MICR")
+            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
             .then(pl.col(micr_mort_col) * pl.col("ADJ_FACTOR_MICR"))
             .otherwise(pl.col(subp_mort_col) * pl.col("ADJ_FACTOR_SUBP"))
             .alias("MORT_TPA_YR"),
             # Volume mortality (mortality rate * beginning volume)
-            pl.when(pl.col("TREE_BASIS") == "MICR")
+            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
             .then(
                 pl.col(micr_mort_col)
                 * pl.col("VOLCFNET").fill_null(0)
@@ -213,16 +220,16 @@ def mortality(
             )
             .alias("MORT_VOL_YR"),
             # Biomass mortality (mortality rate * beginning biomass)
-            # Note: DRYBIO_AG is in pounds, convert to tons by dividing by 2000
-            pl.when(pl.col("TREE_BASIS") == "MICR")
+            # Note: DRYBIO_AG is in pounds, convert to tons by dividing by LBS_TO_TONS
+            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
             .then(
                 pl.col(micr_mort_col)
-                * (pl.col("DRYBIO_AG").fill_null(0) / 2000.0)
+                * (pl.col("DRYBIO_AG").fill_null(0) / MathConstants.LBS_TO_TONS)
                 * pl.col("ADJ_FACTOR_MICR")
             )
             .otherwise(
                 pl.col(subp_mort_col)
-                * (pl.col("DRYBIO_AG").fill_null(0) / 2000.0)
+                * (pl.col("DRYBIO_AG").fill_null(0) / MathConstants.LBS_TO_TONS)
                 * pl.col("ADJ_FACTOR_SUBP")
             )
             .alias("MORT_BIO_YR"),
@@ -476,7 +483,7 @@ def _calculate_forest_area(
 
     # Filter conditions
     if land_type == "forest":
-        cond_data = cond_data.filter(pl.col("COND_STATUS_CD") == 1)
+        cond_data = cond_data.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
 
     if area_domain:
         cond_data = cond_data.filter(pl.Expr.from_json(area_domain))

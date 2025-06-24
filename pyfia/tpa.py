@@ -10,6 +10,16 @@ from typing import List, Optional
 import polars as pl
 
 from pyfia.estimation_utils import ratio_var
+from pyfia.constants import (
+    TreeStatus,
+    TreeClass,
+    LandStatus,
+    SiteClass,
+    ReserveStatus,
+    DiameterBreakpoints,
+    MathConstants,
+    PlotBasis,
+)
 
 
 def tpa(
@@ -155,21 +165,21 @@ def _apply_tree_filters(
     # Tree type domain
     if tree_type == "live":
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 1)
+            (pl.col("STATUSCD") == TreeStatus.LIVE)
             & (pl.col("DIA").is_not_null())
-            & (pl.col("DIA") >= 1.0)
+            & (pl.col("DIA") >= DiameterBreakpoints.MIN_DBH)
         )
     elif tree_type == "dead":
         tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == 2)
+            (pl.col("STATUSCD") == TreeStatus.DEAD)
             & (pl.col("DIA").is_not_null())
-            & (pl.col("DIA") >= 5.0)
+            & (pl.col("DIA") >= DiameterBreakpoints.SUBPLOT_MIN_DIA)
         )
     elif tree_type == "gs":
         tree_df = tree_df.filter(
-            (pl.col("TREECLCD") == 2)
+            (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
             & (pl.col("DIA").is_not_null())
-            & (pl.col("DIA") >= 1.0)
+            & (pl.col("DIA") >= DiameterBreakpoints.MIN_DBH)
         )
     # "all" includes everything with valid DIA
 
@@ -189,12 +199,12 @@ def _apply_cond_filters(
     """Apply land type and area domain filters."""
     # Land type domain
     if land_type == "forest":
-        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == 1)
+        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
     elif land_type == "timber":
         cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == 1)
-            & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
-            & (pl.col("RESERVCD") == 0)
+            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)
+            & (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))
+            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
         )
 
     # User-defined area domain
@@ -217,21 +227,21 @@ def _assign_tree_basis(tree_df: pl.DataFrame, plot_df: pl.DataFrame) -> pl.DataF
     tree_df = tree_df.with_columns(
         pl.when(pl.col("DIA").is_null())
         .then(None)
-        .when(pl.col("DIA") < 5.0)
-        .then(pl.lit("MICR"))
+        .when(pl.col("DIA") < DiameterBreakpoints.MICROPLOT_MAX_DIA)
+        .then(pl.lit(PlotBasis.MICROPLOT))
         .when(pl.col("MACRO_BREAKPOINT_DIA") <= 0)
-        .then(pl.lit("SUBP"))
+        .then(pl.lit(PlotBasis.SUBPLOT))
         .when(pl.col("MACRO_BREAKPOINT_DIA").is_null())
-        .then(pl.lit("SUBP"))
+        .then(pl.lit(PlotBasis.SUBPLOT))
         .when(pl.col("DIA") < pl.col("MACRO_BREAKPOINT_DIA"))
-        .then(pl.lit("SUBP"))
-        .otherwise(pl.lit("MACR"))
+        .then(pl.lit(PlotBasis.SUBPLOT))
+        .otherwise(pl.lit(PlotBasis.MACROPLOT))
         .alias("TREE_BASIS")
     )
 
     # Calculate basal area for each tree
     tree_df = tree_df.with_columns(
-        (0.005454154 * pl.col("DIA") ** 2).alias("BASAL_AREA")
+        (MathConstants.BASAL_AREA_FACTOR * pl.col("DIA") ** 2).alias("BASAL_AREA")
     )
 
     return tree_df
@@ -342,19 +352,19 @@ def _calculate_plot_estimates(
     # Apply adjustment factors based on TREE_BASIS
     tree_est = tree_est.with_columns(
         [
-            pl.when(pl.col("TREE_BASIS") == "MICR")
+            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
             .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MICR"))
-            .when(pl.col("TREE_BASIS") == "SUBP")
+            .when(pl.col("TREE_BASIS") == PlotBasis.SUBPLOT)
             .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_SUBP"))
-            .when(pl.col("TREE_BASIS") == "MACR")
+            .when(pl.col("TREE_BASIS") == PlotBasis.MACROPLOT)
             .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MACR"))
             .otherwise(pl.col("TPA_UNADJ_SUM"))
             .alias("TPA_ADJ"),
-            pl.when(pl.col("TREE_BASIS") == "MICR")
+            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
             .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MICR"))
-            .when(pl.col("TREE_BASIS") == "SUBP")
+            .when(pl.col("TREE_BASIS") == PlotBasis.SUBPLOT)
             .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_SUBP"))
-            .when(pl.col("TREE_BASIS") == "MACR")
+            .when(pl.col("TREE_BASIS") == PlotBasis.MACROPLOT)
             .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MACR"))
             .otherwise(pl.col("BAA_UNADJ_SUM"))
             .alias("BAA_ADJ"),

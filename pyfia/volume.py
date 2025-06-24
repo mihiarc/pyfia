@@ -10,6 +10,12 @@ from typing import List, Optional, Union
 import polars as pl
 
 from .core import FIA
+from .constants import (
+    TreeStatus,
+    LandStatus,
+    SiteClass,
+    ReserveStatus,
+)
 
 
 def volume(
@@ -246,11 +252,11 @@ def _apply_tree_filters(
     """Apply tree type and domain filters following rFIA methodology."""
     # Tree type filters
     if tree_type == "live":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == 1)
+        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.LIVE)
     elif tree_type == "dead":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == 2)
+        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.DEAD)
     elif tree_type == "gs":  # Growing stock
-        tree_df = tree_df.filter(pl.col("STATUSCD").is_in([1, 2]))
+        tree_df = tree_df.filter(pl.col("STATUSCD").is_in([TreeStatus.LIVE, TreeStatus.DEAD]))
     # "all" includes everything
 
     # Filter for valid volume data (following rFIA)
@@ -273,12 +279,12 @@ def _apply_area_filters(
     """Apply land type and area domain filters."""
     # Land type domain
     if land_type == "forest":
-        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == 1)
+        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
     elif land_type == "timber":
         cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == 1)
-            & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
-            & (pl.col("RESERVCD") == 0)
+            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)
+            & (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))
+            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
         )
 
     # User-defined area domain

@@ -30,7 +30,8 @@
       "Bash(cp:*)",
       "Bash(git checkout:*)",
       "Bash(cat:*)",
-      "Bash(git commit:*)"
+      "Bash(git commit:*)",
+      "Bash(git merge:*)"
     ],
     "deny": []
   }

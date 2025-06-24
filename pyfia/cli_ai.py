@@ -9,19 +9,9 @@ This module provides an AI-powered command-line interface for:
 - Rich formatting for results and AI responses
 """
 
-import atexit
-import cmd
 import os
 import sys
 from pathlib import Path
-
-# Optional readline import for Windows compatibility
-try:
-    import readline
-
-    HAS_READLINE = True
-except ImportError:
-    HAS_READLINE = False
 from typing import Optional
 
 # Load environment variables
@@ -34,7 +24,6 @@ except ImportError:
 
 import polars as pl
 from rich import box
-from rich.console import Console
 from rich.markdown import Markdown
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
@@ -42,26 +31,22 @@ from rich.prompt import Confirm
 from rich.syntax import Syntax
 from rich.table import Table
 
-from pyfia.cli_config import CLIConfig
+from pyfia.cli_base import BaseCLI
 from pyfia.duckdb_query_interface import DuckDBQueryInterface
 from pyfia.fia_domain_knowledge import fia_knowledge
 
 
-class FIAAICli(cmd.Cmd):
+class FIAAICli(BaseCLI):
     """AI-enhanced CLI for natural language FIA queries."""
 
     intro = None
     prompt = "fia-ai> "
 
     def __init__(self, db_path: Optional[str] = None, agent_type: str = "basic"):
-        super().__init__()
-        self.console = Console()
+        super().__init__(history_filename=".fia_ai_history")
         self.db_path: Optional[Path] = None
         self.query_interface: Optional[DuckDBQueryInterface] = None
-        self.last_result: Optional[pl.DataFrame] = None
         self.query_history = []
-        self.history_file = Path.home() / ".fia_ai_history"
-        self.config = CLIConfig()
         self.agent_type = agent_type
         self.agent = None
 
@@ -72,42 +57,15 @@ class FIAAICli(cmd.Cmd):
                 "[yellow]Warning: OPENAI_API_KEY not set. Some features will be limited.[/yellow]"
             )
 
-        # Setup command history
-        self._setup_history()
-
         # Display welcome
         self._show_welcome()
 
         # Auto-connect if provided
         if db_path:
             self.do_connect(db_path)
-        elif self.config.default_database:
-            self.console.print("[cyan]Auto-connecting to default database...[/cyan]")
-            self.do_connect(self.config.default_database)
+        else:
+            self._auto_connect_database()
 
-    def _setup_history(self):
-        """Setup command history with readline."""
-        if not HAS_READLINE:
-            return
-
-        if self.history_file.exists():
-            try:
-                readline.read_history_file(self.history_file)
-            except:
-                pass
-
-        readline.set_history_length(1000)
-        atexit.register(self._save_history)
-
-    def _save_history(self):
-        """Save command history."""
-        if not HAS_READLINE:
-            return
-
-        try:
-            readline.write_history_file(self.history_file)
-        except:
-            pass
 
     def _show_welcome(self):
         """Display welcome message."""
@@ -174,22 +132,17 @@ Show forest area trends over time
         """Connect to FIA database.
         Usage: connect <database_path>
         """
-        if not arg:
-            self.console.print("[red]Error: Please provide a database path[/red]")
-            return
+        self._connect_to_database(arg.strip())
 
-        db_path = Path(arg.strip())
-        if not db_path.exists():
-            self.console.print(f"[red]Error: Database not found: {db_path}[/red]")
-            return
+    def _connect_to_database(self, db_path_str: str) -> bool:
+        """Connect to database with validation and progress display."""
+        db_path = self._validate_database_path(db_path_str)
+        if not db_path:
+            return False
 
         try:
-            with Progress(
-                SpinnerColumn(),
-                TextColumn("[progress.description]{task.description}"),
-                console=self.console,
-            ) as progress:
-                task = progress.add_task("Connecting to database...", total=None)
+            with self._create_progress_bar("Connecting to database...") as progress:
+                task = progress.add_task("Connecting...", total=None)
 
                 # Initialize query interface
                 self.query_interface = DuckDBQueryInterface(str(db_path))
@@ -201,16 +154,19 @@ Show forest area trends over time
 
                 progress.update(task, completed=True)
 
-            self.console.print(f"[green]✓ Connected to: {db_path.name}[/green]")
+            self._show_connection_status(db_path, success=True)
 
             # Save to recent
             self.config.add_recent_database(str(db_path))
 
             # Show database info
             self._show_db_info()
+            return True
 
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
+            self._show_connection_status(db_path, success=False)
+            return False
 
     def _initialize_agent(self):
         """Initialize the appropriate AI agent."""
@@ -638,23 +594,7 @@ Show forest area trends over time
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
 
-    def do_show(self, arg: str):
-        """Show last query results.
-        Usage:
-            show        - Show last results
-            show 50     - Show more rows
-        """
-        if not self.last_result:
-            self.console.print(
-                "[yellow]No results to show. Run a query first.[/yellow]"
-            )
-            return
-
-        try:
-            max_rows = int(arg) if arg.isdigit() else 20
-            self._display_dataframe(self.last_result, "Last Query Results", max_rows)
-        except Exception as e:
-            self.console.print(f"[red]Error: {e}[/red]")
+    # Use inherited do_last from BaseCLI instead of do_show
 
     def do_concepts(self, arg: str):
         """Show FIA concepts and terminology.
@@ -808,7 +748,7 @@ Use `sql:` prefix for direct SQL:
 • **concepts** [term] - Explore FIA terminology
 • **history** - View query history
 • **export** <file> - Export results
-• **show** [n] - Show last results
+• **last** [n] - Show last results
 • **agent** [type] - Switch AI agent
 • **clear** - Clear screen
 • **exit** - Exit the CLI
@@ -825,10 +765,6 @@ Use `sql:` prefix for direct SQL:
                     border_style="blue",
                 )
             )
-
-    def do_clear(self, arg: str):
-        """Clear the screen."""
-        os.system("clear" if os.name == "posix" else "cls")
 
     def do_exit(self, arg: str):
         """Exit the AI CLI."""
@@ -848,45 +784,6 @@ Use `sql:` prefix for direct SQL:
             return False
         return True
 
-    def _display_dataframe(self, df: pl.DataFrame, title: str = "", max_rows: int = 20):
-        """Display a Polars DataFrame as a rich table."""
-        if df.is_empty():
-            self.console.print("[yellow]No data to display[/yellow]")
-            return
-
-        # Create table
-        table = Table(title=title, show_lines=True, box=box.ROUNDED)
-
-        # Add columns
-        for col in df.columns:
-            if df[col].dtype in [pl.Float32, pl.Float64]:
-                table.add_column(col, style="cyan", justify="right")
-            elif df[col].dtype in [pl.Int32, pl.Int64]:
-                table.add_column(col, style="green", justify="right")
-            else:
-                table.add_column(col, style="white")
-
-        # Add rows
-        for row in df.head(max_rows).iter_rows():
-            formatted_row = []
-            for val in row:
-                if val is None:
-                    formatted_row.append("NULL")
-                elif isinstance(val, float):
-                    if abs(val) < 0.01 and val != 0:
-                        formatted_row.append(f"{val:.2e}")
-                    else:
-                        formatted_row.append(f"{val:.2f}")
-                else:
-                    formatted_row.append(str(val))
-            table.add_row(*formatted_row)
-
-        self.console.print(table)
-
-        if len(df) > max_rows:
-            self.console.print(
-                f"[dim]Showing {max_rows} of {len(df)} rows. Use 'export' to save all.[/dim]"
-            )
 
 
 def main():

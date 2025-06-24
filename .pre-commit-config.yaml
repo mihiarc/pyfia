@@ -1,0 +1,87 @@
+# Pre-commit hooks for pyFIA
+# See https://pre-commit.com for more information
+
+default_language_version:
+  python: python3.11
+
+repos:
+  # Standard hooks
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v4.5.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: check-yaml
+      - id: check-added-large-files
+        args: ['--maxkb=1000']
+      - id: check-json
+      - id: check-toml
+      - id: check-merge-conflict
+      - id: check-case-conflict
+      - id: check-docstring-first
+      - id: detect-private-key
+      - id: fix-byte-order-marker
+      - id: mixed-line-ending
+        args: ['--fix=lf']
+
+  # Python code formatting with ruff
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.1.15
+    hooks:
+      # Run the formatter
+      - id: ruff-format
+        types_or: [python, pyi]
+      # Run the linter
+      - id: ruff
+        types_or: [python, pyi]
+        args: [--fix, --exit-non-zero-on-fix]
+
+  # Type checking with mypy
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.8.0
+    hooks:
+      - id: mypy
+        additional_dependencies:
+          - polars>=1.31.0
+          - numpy>=2.3.0
+          - pydantic>=2.0.0
+          - types-requests
+        args: [--config-file=pyproject.toml]
+        files: ^pyfia/
+        pass_filenames: false
+
+  # Security checks
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.7
+    hooks:
+      - id: bandit
+        args: ['-c', '.bandit', '-r', 'pyfia/']
+        exclude: ^tests/
+
+  # Docstring coverage
+  - repo: https://github.com/PyCQA/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        additional_dependencies: [toml]
+        args: [--config=pyproject.toml]
+        files: ^pyfia/
+
+  # Check for common security issues
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.4.0
+    hooks:
+      - id: detect-secrets
+        args: ['--baseline', '.secrets.baseline']
+
+  # Markdown formatting
+  - repo: https://github.com/pre-commit/mirrors-prettier
+    rev: v3.1.0
+    hooks:
+      - id: prettier
+        types_or: [markdown, yaml, json]
+        exclude: ^(docs/queries/.*\.sql|.*\.duckdb.*|.*\.db.*)$
+
+# Configuration for specific hooks
+files: ^(pyfia/|tests/|scripts/|docs/)
+exclude: ^(\.git/|\.mypy_cache/|\.pytest_cache/|\.ruff_cache/|build/|dist/|.*\.egg-info/|htmlcov/|\.ty_cache/)

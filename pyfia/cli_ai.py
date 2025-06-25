@@ -42,7 +42,7 @@ class FIAAICli(BaseCLI):
     intro = None
     prompt = "fia-ai> "
 
-    def __init__(self, db_path: Optional[str] = None, agent_type: str = "basic"):
+    def __init__(self, db_path: Optional[str] = None, agent_type: str = "modern"):
         super().__init__(history_filename=".fia_ai_history")
         self.db_path: Optional[Path] = None
         self.query_interface: Optional[DuckDBQueryInterface] = None
@@ -183,6 +183,22 @@ Show forest area trends over time
                 config = EnhancedFIAAgentConfig()
                 self.agent = EnhancedFIAAgent(self.db_path, config, self.api_key)
                 self.console.print("[green]✓ Enhanced AI agent initialized[/green]")
+
+            elif self.agent_type == "modern":
+                from pyfia.ai_agent_modern import FIAAgentModern
+                
+                # Create checkpoint directory in user's home
+                checkpoint_dir = Path.home() / ".pyfia" / "checkpoints"
+                checkpoint_dir.mkdir(parents=True, exist_ok=True)
+                
+                self.agent = FIAAgentModern(
+                    db_path=self.db_path,
+                    api_key=self.api_key,
+                    verbose=True,
+                    checkpoint_dir=str(checkpoint_dir),
+                )
+                self.console.print("[green]✓ Modern AI agent initialized (2025 patterns)[/green]")
+                self.console.print("[dim]Using LangGraph with memory persistence[/dim]")
 
             else:  # basic
                 from pyfia.ai_agent import FIAAgent, FIAAgentConfig
@@ -692,15 +708,16 @@ Show forest area trends over time
             agent basic         - Use basic agent
             agent enhanced      - Use enhanced agent (with RAG)
             agent cognee        - Use Cognee agent (with memory)
+            agent modern        - Use modern agent (2025 patterns)
         """
         if not arg:
             self.console.print(f"[cyan]Current agent: {self.agent_type}[/cyan]")
             return
 
         agent_type = arg.strip().lower()
-        if agent_type not in ["basic", "enhanced", "cognee"]:
+        if agent_type not in ["basic", "enhanced", "cognee", "modern"]:
             self.console.print(
-                "[red]Invalid agent type. Choose: basic, enhanced, or cognee[/red]"
+                "[red]Invalid agent type. Choose: basic, enhanced, cognee, or modern[/red]"
             )
             return
 
@@ -796,9 +813,9 @@ def main():
     parser.add_argument("database", nargs="?", help="Path to FIA database")
     parser.add_argument(
         "--agent",
-        choices=["basic", "enhanced", "cognee"],
-        default="basic",
-        help="AI agent type to use",
+        choices=["basic", "enhanced", "cognee", "modern"],
+        default="modern",
+        help="AI agent type to use (default: modern)",
     )
     parser.add_argument(
         "--api-key", help="OpenAI API key (or set OPENAI_API_KEY env var)"

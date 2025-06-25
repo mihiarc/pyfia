@@ -1,0 +1,49 @@
+#!/bin/bash
+
+# pyFIA Query Agent Startup Script
+
+# Set default database path (update this to your actual database location)
+DEFAULT_DB_PATH="./fia.duckdb"
+
+# Load environment variables from .env file if it exists
+if [ -f ".env" ]; then
+    export $(grep -v '^#' .env | xargs)
+    echo "✓ Loaded environment variables from .env"
+fi
+
+# Check if OpenAI API key is set
+if [ -z "$OPENAI_API_KEY" ]; then
+    echo "⚠️  Warning: OPENAI_API_KEY not set"
+    echo "Set it with: export OPENAI_API_KEY='your-api-key'"
+    echo "Or add it to your .env file"
+    echo ""
+fi
+
+# Activate virtual environment if it exists
+if [ -f ".venv/bin/activate" ]; then
+    source .venv/bin/activate
+    echo "✓ Virtual environment activated"
+fi
+
+# Check if database path is provided as argument, otherwise use default
+DB_PATH="${1:-$DEFAULT_DB_PATH}"
+
+# Check if database exists
+if [ ! -f "$DB_PATH" ]; then
+    echo "❌ Database not found at: $DB_PATH"
+    echo ""
+    echo "Usage: ./qa [database_path]"
+    echo "Example: ./qa /path/to/fia.duckdb"
+    echo ""
+    echo "Starting without database connection..."
+    echo "You can connect later with: connect /path/to/database.duckdb"
+    echo ""
+    pyfia-ai --agent modern
+else
+    echo "✓ Using database: $DB_PATH"
+    echo ""
+    echo "Starting pyFIA Query Agent..."
+    echo "Type 'help' for available commands"
+    echo ""
+    pyfia-ai --agent modern "$DB_PATH"
+fi

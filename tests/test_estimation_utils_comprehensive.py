@@ -13,7 +13,7 @@ import polars as pl
 import numpy as np
 import math
 
-from pyfia.estimation_utils import ratio_var, cv
+from pyfia.estimation.utils import ratio_var, cv
 
 
 class TestRatioVarianceCalculation:

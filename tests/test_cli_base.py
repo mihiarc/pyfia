@@ -13,7 +13,7 @@ from unittest.mock import MagicMock, patch, mock_open
 import pytest
 import polars as pl
 
-from pyfia.cli_base import BaseCLI
+from pyfia.cli.base import BaseCLI
 
 
 class BaseCLITestHelper(BaseCLI):
@@ -70,7 +70,7 @@ class TestBaseCLIInitialization:
         assert cli.config is not None
         assert cli.history_file.name == ".test_history"
     
-    @patch('pyfia.cli_base.HAS_READLINE', False)
+    @patch('pyfia.cli.base.HAS_READLINE', False)
     def test_initialization_without_readline(self):
         """Test initialization when readline is not available."""
         # This should not raise any errors
@@ -82,8 +82,8 @@ class TestBaseCLIInitialization:
 class TestHistoryManagement:
     """Test command history functionality."""
     
-    @patch('pyfia.cli_base.HAS_READLINE', True)
-    @patch('pyfia.cli_base.readline')
+    @patch('pyfia.cli.base.HAS_READLINE', True)
+    @patch('pyfia.cli.base.readline')
     def test_setup_history_with_existing_file(self, mock_readline, cli):
         """Test history setup when history file exists."""
         # Create a mock history file
@@ -95,14 +95,14 @@ class TestHistoryManagement:
         mock_readline.read_history_file.assert_called_with(cli.history_file)
         mock_readline.set_history_length.assert_called_with(1000)
     
-    @patch('pyfia.cli_base.HAS_READLINE', True)
-    @patch('pyfia.cli_base.readline')
+    @patch('pyfia.cli.base.HAS_READLINE', True)
+    @patch('pyfia.cli.base.readline')
     def test_save_history(self, mock_readline, cli):
         """Test saving command history."""
         cli._save_history()
         mock_readline.write_history_file.assert_called_with(cli.history_file)
     
-    @patch('pyfia.cli_base.HAS_READLINE', False)
+    @patch('pyfia.cli.base.HAS_READLINE', False)
     def test_history_operations_without_readline(self, cli):
         """Test history operations when readline is not available."""
         # These should not raise errors
@@ -148,7 +148,7 @@ class TestDatabaseOperations:
         result = cli._auto_connect_database()
         assert result is False
     
-    @patch('pyfia.cli_base.BaseCLI._validate_database_path')
+    @patch('pyfia.cli.base.BaseCLI._validate_database_path')
     def test_connect_to_database_not_implemented(self, mock_validate, cli):
         """Test that base _connect_to_database raises NotImplementedError."""
         # Create a proper BaseCLI instance (not our test subclass)

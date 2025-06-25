@@ -2,7 +2,7 @@
 
 import pytest
 import polars as pl
-from pyfia.common_joins import (
+from pyfia.filters.joins import (
     join_tree_condition,
     join_plot_stratum,
     assign_tree_basis,

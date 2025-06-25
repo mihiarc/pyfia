@@ -9,7 +9,7 @@ grouping configurations.
 from typing import Optional, Union, List, Dict, Literal
 import polars as pl
 
-from .constants import (
+from ..constants.constants import (
     DiameterBreakpoints,
     STANDARD_SIZE_CLASSES,
     DESCRIPTIVE_SIZE_CLASSES,

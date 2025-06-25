@@ -8,9 +8,8 @@ FIA estimators to reduce code duplication and ensure consistency.
 from typing import Optional, List, Union, Tuple
 import polars as pl
 
-from .constants import (
+from ..constants.constants import (
     PlotBasis,
-    DiameterBreakpoints,
 )
 
 
@@ -116,67 +115,7 @@ def join_plot_stratum(
     )
 
 
-def assign_tree_basis(
-    tree_df: pl.DataFrame,
-    plot_df: Optional[pl.DataFrame] = None,
-    include_macro: bool = True,
-) -> pl.DataFrame:
-    """
-    Assign TREE_BASIS based on tree diameter and plot design.
-    
-    Trees are assigned to measurement plots based on their diameter:
-    - MICR: Trees 1.0-4.9" DBH (microplot)
-    - SUBP: Trees 5.0"+ DBH (subplot) 
-    - MACR: Large trees based on MACRO_BREAKPOINT_DIA (macroplot)
-    
-    Parameters
-    ----------
-    tree_df : pl.DataFrame
-        Tree dataframe with DIA column
-    plot_df : pl.DataFrame, optional
-        Plot dataframe with MACRO_BREAKPOINT_DIA. Required if include_macro=True
-    include_macro : bool, default True
-        Whether to check for macroplot assignment
-    
-    Returns
-    -------
-    pl.DataFrame
-        Tree dataframe with TREE_BASIS column added
-    """
-    if include_macro and plot_df is not None:
-        # Join with plot to get MACRO_BREAKPOINT_DIA
-        if "MACRO_BREAKPOINT_DIA" not in tree_df.columns:
-            tree_df = tree_df.join(
-                plot_df.select(["PLT_CN", "MACRO_BREAKPOINT_DIA"]),
-                on="PLT_CN",
-                how="left",
-            )
-        
-        # Full tree basis assignment with macroplot logic
-        tree_basis_expr = (
-            pl.when(pl.col("DIA").is_null())
-            .then(None)
-            .when(pl.col("DIA") < DiameterBreakpoints.MICROPLOT_MAX_DIA)
-            .then(pl.lit(PlotBasis.MICROPLOT))
-            .when(pl.col("MACRO_BREAKPOINT_DIA") <= 0)
-            .then(pl.lit(PlotBasis.SUBPLOT))
-            .when(pl.col("MACRO_BREAKPOINT_DIA").is_null())
-            .then(pl.lit(PlotBasis.SUBPLOT))
-            .when(pl.col("DIA") < pl.col("MACRO_BREAKPOINT_DIA"))
-            .then(pl.lit(PlotBasis.SUBPLOT))
-            .otherwise(pl.lit(PlotBasis.MACROPLOT))
-            .alias("TREE_BASIS")
-        )
-    else:
-        # Simplified assignment (just MICR/SUBP)
-        tree_basis_expr = (
-            pl.when(pl.col("DIA") < DiameterBreakpoints.MICROPLOT_MAX_DIA)
-            .then(pl.lit(PlotBasis.MICROPLOT))
-            .otherwise(pl.lit(PlotBasis.SUBPLOT))
-            .alias("TREE_BASIS")
-        )
-    
-    return tree_df.with_columns(tree_basis_expr)
+# assign_tree_basis moved to classification.py module
 
 
 def apply_adjustment_factors(

@@ -14,7 +14,8 @@ import polars as pl
 import numpy as np
 from unittest.mock import patch, MagicMock
 
-from pyfia import tpa, FIA
+from pyfia import FIA
+from pyfia.estimation import tpa
 from pyfia.models import EvaluationInfo
 
 

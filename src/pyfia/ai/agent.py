@@ -7,19 +7,19 @@ pattern with built-in memory, tool calling, and human-in-the-loop capabilities.
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Union, Literal
+from typing import Dict, List, Optional, Union
 from datetime import datetime
 
 # LangChain imports
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, SystemMessage, HumanMessage, AIMessage
+from langchain_core.messages import BaseMessage, HumanMessage
 from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
 # Removed unused import
 
 # Local imports
-from .duckdb_query_interface import DuckDBQueryInterface
-from .core import FIA
+from ..database.query_interface import DuckDBQueryInterface
+from ..core import FIA
 
 # Load environment variables
 try:
@@ -187,56 +187,18 @@ class FIAAgent:
         
         def get_evalid_info(state_code: Optional[int] = None, eval_type: Optional[str] = None) -> str:
             """
-            Get FIA evaluation information.
+            Get FIA evaluation information with intelligent prioritization.
             
             Args:
                 state_code: Optional state FIPS code to filter by
-                eval_type: Optional evaluation type (VOL, GRM, etc.)
+                eval_type: Optional evaluation type (EXPVOL, EXPCURR, etc.)
                 
             Returns:
-                Evaluation information with IDs and descriptions
+                Evaluation information with IDs and descriptions, prioritizing statewide over regional evaluations
             """
             try:
-                query = """
-                SELECT 
-                    pe.EVALID,
-                    pe.EVAL_DESCR,
-                    pe.STATECD,
-                    pe.START_INVYR,
-                    pe.END_INVYR,
-                    pet.EVAL_TYP,
-                    COUNT(DISTINCT ppsa.PLT_CN) as plot_count
-                FROM POP_EVAL pe
-                LEFT JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
-                LEFT JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
-                WHERE 1=1
-                """
-                
-                if state_code:
-                    query += f" AND pe.STATECD = {state_code}"
-                if eval_type:
-                    query += f" AND pet.EVAL_TYP = '{eval_type}'"
-                    
-                query += """
-                GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
-                         pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
-                ORDER BY pe.END_INVYR DESC
-                LIMIT 20
-                """
-                
-                result = self.query_interface.execute_query(query)
-                
-                if len(result) == 0:
-                    return "No evaluations found matching criteria"
-                
-                formatted = "FIA Evaluations:\n"
-                for row in result.iter_rows(named=True):
-                    formatted += f"\n- EVALID {row['EVALID']}: {row['EVAL_DESCR']}"
-                    formatted += f"\n  State: {row['STATECD']}, Type: {row['EVAL_TYP']}"
-                    formatted += f"\n  Years: {row['START_INVYR']}-{row['END_INVYR']}"
-                    formatted += f"\n  Plots: {row['plot_count']:,}\n"
-                
-                return formatted
+                from ..filters.evalid import get_evalid_info as get_evalid_info_impl
+                return get_evalid_info_impl(self.query_interface, state_code, eval_type)
             except Exception as e:
                 return f"Error getting EVALID info: {str(e)}"
         
@@ -265,157 +227,126 @@ class FIAAgent:
             except Exception as e:
                 return f"Error getting state codes: {str(e)}"
         
-        def count_trees_by_criteria(
-            species_code: Optional[int] = None,
-            state_code: Optional[int] = None,
-            tree_status: int = 1,
-            use_recent_evalid: bool = True
-        ) -> str:
+        def get_recommended_evalid(state_code: int, analysis_type: str = "tree_count") -> str:
             """
-            Count trees using the pyFIA tree_count module.
+            Get recommended EVALID for a specific state and analysis type.
             
             Args:
-                species_code: Species code (SPCD) to filter by
-                state_code: State FIPS code to filter by  
-                tree_status: Tree status (1=live, 2=dead, etc.)
-                use_recent_evalid: Use most recent evaluation for the state
+                state_code: FIPS state code (e.g., 48 for Texas)
+                analysis_type: Type of analysis (tree_count, volume, biomass, etc.)
                 
             Returns:
-                Tree count with context information
+                Recommended EVALID with explanation
             """
             try:
-                # Use direct SQL query for best performance - bypass pyFIA framework for now
-                import duckdb
+                from ..filters.evalid import get_recommended_evalid as get_rec_evalid
+                evalid, explanation = get_rec_evalid(self.query_interface, state_code, analysis_type)
                 
-                # Oklahoma is state code 40, need to map to rscd
-                # Texas=48->33, need to find Oklahoma mapping
-                state_rscd_map = {48: 33, 40: 23}  # Add Oklahoma mapping
-                
-                if state_code and state_code in state_rscd_map:
-                    rscd = state_rscd_map[state_code]
-                    
-                    # Use the working EVALIDator query pattern
-                    query = """
-                    SELECT 
-                        SUM(ESTIMATED_VALUE * EXPNS) AS total_trees_expanded,
-                        rs.COMMON_NAME,
-                        rs.SCIENTIFIC_NAME
-                    FROM (
-                        SELECT 
-                            ps.EXPNS,
-                            SUM(
-                                t.TPA_UNADJ * 
-                                CASE 
-                                    WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
-                                    ELSE 
-                                        CASE LEAST(t.DIA, 5.0 - 0.001) 
-                                            WHEN t.DIA THEN ps.ADJ_FACTOR_MICR
-                                            ELSE 
-                                                CASE LEAST(t.DIA, COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) - 0.001)
-                                                    WHEN t.DIA THEN ps.ADJ_FACTOR_SUBP
-                                                    ELSE ps.ADJ_FACTOR_MACR
-                                                END
-                                        END
-                                END
-                            ) AS ESTIMATED_VALUE,
-                            t.SPCD
-                        FROM POP_STRATUM ps
-                        JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
-                        JOIN PLOT p ON ppsa.PLT_CN = p.CN
-                        JOIN COND c ON c.PLT_CN = p.CN
-                        JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
-                        WHERE t.STATUSCD = 1
-                          AND c.COND_STATUS_CD = 1
-                          AND ps.rscd = ?
-                    """
-                    
-                    params = [rscd]
-                    
-                    # Add species filter if specified
-                    if species_code:
-                        query += " AND t.SPCD = ?"
-                        params.append(species_code)
-                    
-                    # For now, get most recent evaluation - could be made more specific
-                    query += """
-                        GROUP BY ps.EXPNS, ps.cn, p.cn, c.cn, t.SPCD
-                    ) subquery
-                    LEFT JOIN REF_SPECIES rs ON subquery.SPCD = rs.SPCD
-                    GROUP BY rs.COMMON_NAME, rs.SCIENTIFIC_NAME
-                    """
-                    
-                    # Execute with timeout
-                    conn = duckdb.connect(str(self.db_path), read_only=True)
-                    result = conn.execute(query, params).fetchall()
-                    conn.close()
-                    
-                    if result:
-                        row = result[0]
-                        total_trees, common_name, scientific_name = row
-                        
-                        # Create a simple result structure
-                        class SimpleResult:
-                            def __init__(self, tree_count, common_name, scientific_name):
-                                self.tree_count = tree_count
-                                self.common_name = common_name
-                                self.scientific_name = scientific_name
-                        
-                        simple_result = SimpleResult(total_trees, common_name, scientific_name)
-                        
-                        # Format for return
-                        result_data = [simple_result]
-                    else:
-                        result_data = []
+                if evalid:
+                    return f"Recommended EVALID: {evalid}\n\n{explanation}"
                 else:
-                    # Fallback for other states - return no data for now
-                    result_data = []
+                    return explanation
+            except Exception as e:
+                return f"Error getting recommended EVALID: {str(e)}"
+
+        def execute_tree_command(command_args: str) -> str:
+            """
+            Execute tree count commands using the CLI interface.
+            
+            Args:
+                command_args: CLI-style arguments (e.g., "bySpecies treeType=live")
                 
-                # Convert to expected format
-                result = type('MockResult', (), {
-                    '__len__': lambda self: len(result_data),
-                    'row': lambda self, i, named=True: {
-                        'TREE_COUNT': result_data[i].tree_count if result_data else 0,
-                        'COMMON_NAME': result_data[i].common_name if result_data else '',
-                        'SCIENTIFIC_NAME': result_data[i].scientific_name if result_data else '',
-                    } if named else [result_data[i].tree_count if result_data else 0]
-                })()
+            Returns:
+                Formatted tree count results
+            """
+            try:
+                # Parse CLI arguments into kwargs
+                kwargs = {}
+                
+                # Handle boolean flags
+                if "bySpecies" in command_args:
+                    kwargs["by_species"] = True
+                if "bySizeClass" in command_args:
+                    kwargs["by_size_class"] = True
+                
+                # Parse key=value pairs
+                import shlex
+                try:
+                    parts = shlex.split(command_args)
+                except ValueError:
+                    parts = command_args.split()
+                
+                for part in parts:
+                    if "=" in part:
+                        key, value = part.split("=", 1)
+                        # Convert camelCase to snake_case for consistency
+                        if key == "treeDomain":
+                            key = "tree_domain"
+                        elif key == "areaDomain":
+                            key = "area_domain"
+                        elif key == "treeType":
+                            key = "tree_type"
+                        elif key == "landType":
+                            key = "land_type"
+                        elif key == "grpBy":
+                            key = "grp_by"
+                        
+                        # Handle quoted strings
+                        if value.startswith('"') and value.endswith('"'):
+                            value = value[1:-1]
+                        elif value.startswith("'") and value.endswith("'"):
+                            value = value[1:-1]
+                        else:
+                            # Try to convert to appropriate type
+                            try:
+                                value = int(value)
+                            except ValueError:
+                                try:
+                                    value = float(value)
+                                except ValueError:
+                                    pass  # Keep as string
+                        kwargs[key] = value
+                
+                # Always include totals for population estimates
+                kwargs["totals"] = True
+                
+                # Execute tree count through the estimation module
+                from ..estimation.tree import tree_count
+                result = tree_count(self.fia, **kwargs)
                 
                 if len(result) == 0:
                     return "No trees found matching the specified criteria."
                 
                 # Format results for LLM consumption
-                row = result.row(0, named=True)
+                formatted = "Tree Count Results:\n\n"
                 
-                formatted = f"FIA Population Estimate Results:\n\n"
-                
-                if species_code and 'COMMON_NAME' in row:
-                    formatted += f"Species: {row['COMMON_NAME']}"
-                    if 'SCIENTIFIC_NAME' in row:
-                        formatted += f" ({row['SCIENTIFIC_NAME']})"
+                for row in result.iter_rows(named=True):
+                    if 'COMMON_NAME' in row and row['COMMON_NAME']:
+                        formatted += f"Species: {row['COMMON_NAME']}"
+                        if 'SCIENTIFIC_NAME' in row and row['SCIENTIFIC_NAME']:
+                            formatted += f" ({row['SCIENTIFIC_NAME']})"
+                        formatted += "\n"
+                    
+                    if 'SIZE_CLASS' in row and row['SIZE_CLASS']:
+                        formatted += f"Size Class: {row['SIZE_CLASS']}\n"
+                    
+                    if 'TREE_COUNT' in row:
+                        formatted += f"Total Population: {row['TREE_COUNT']:,.0f} trees\n"
+                    
+                    if 'SE' in row:
+                        formatted += f"Standard Error: {row['SE']:,.0f}\n"
+                        
+                    if 'SE_PERCENT' in row:
+                        formatted += f"Standard Error %: {row['SE_PERCENT']:.1f}%\n"
+                    
                     formatted += "\n"
                 
-                if 'TREE_COUNT_TOTAL' in row:
-                    formatted += f"Total Population: {row['TREE_COUNT_TOTAL']:,.0f} trees\n"
-                elif 'TREE_COUNT' in row:
-                    formatted += f"Total Population: {row['TREE_COUNT']:,.0f} trees\n"
-                
-                if 'EVALID' in row:
-                    formatted += f"Evaluation ID: {row['EVALID']}\n"
-                
-                if 'SE_PERCENT' in row:
-                    formatted += f"Standard Error: {row['SE_PERCENT']:.1f}%\n"
-                
-                formatted += f"\n(This is a statistically valid population estimate using FIA methodology)\n"
-                
-                if tree_status == 1:
-                    formatted += f"Status: Live trees only\n"
-                elif tree_status == 2:
-                    formatted += f"Status: Dead trees only\n"
+                formatted += "(Statistically valid population estimate using FIA methodology)\n"
                 
                 return formatted
                 
             except Exception as e:
-                return f"Error counting trees: {str(e)}"
+                return f"Error executing tree command: {str(e)}"
         
         # Create system prompt
         system_prompt = """You are an expert Forest Inventory Analysis (FIA) assistant.
@@ -425,15 +356,21 @@ Your role is to help users query and analyze FIA data using natural language.
 Key concepts:
 - EVALID: Evaluation ID groups statistically valid plot measurements
 - Always use EVALID for population estimates, not raw year filtering
+- EVALID selection prioritizes statewide evaluations over regional ones
 - Species are identified by SPCD (species code)
 - States are identified by STATECD (FIPS code)
 
 When users ask questions:
 1. First identify what they're looking for (species, location, metric)
-2. Find appropriate EVALIDs using get_evalid_info
+2. Find appropriate EVALIDs using get_evalid_info (prioritizes statewide evaluations)
 3. Look up species codes with find_species_codes if needed
-4. Use count_trees_by_criteria for tree counts or execute_fia_query for complex queries
+4. Use execute_tree_command for tree counts or execute_fia_query for complex queries
 5. Provide clear, concise answers with appropriate context
+
+Tree counting examples:
+- "bySpecies treeType=live" - Live trees by species
+- "bySizeClass landType=timber" - Trees by size class on timber land
+- "treeDomain=\"SPCD == 131\" treeType=live" - Live loblolly pine trees
 
 Always explain what EVALID you're using and why."""
         
@@ -446,8 +383,9 @@ Always explain what EVALID you're using and why."""
             get_database_schema,
             find_species_codes,
             get_evalid_info,
+            get_recommended_evalid,
             get_state_codes,
-            count_trees_by_criteria,
+            execute_tree_command,
         ]
         
         agent = create_react_agent(

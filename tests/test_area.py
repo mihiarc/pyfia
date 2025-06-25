@@ -15,7 +15,7 @@ from unittest.mock import Mock
 import polars as pl
 import pytest
 
-from pyfia.area import (
+from pyfia.estimation.area import (
     _add_land_type_categories,
     _apply_area_filters,
     _apply_tree_domain_to_conditions,

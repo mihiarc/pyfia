@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any, Dict, Optional
 
 import polars as pl
+from rich import box
 from rich.panel import Panel
 from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
@@ -693,6 +694,50 @@ class FIADirectCLI(BaseCLI):
         except Exception as e:
             self.console.print(f"[red]Error: {e}[/red]")
 
+    def do_tree(self, arg: str):
+        """Calculate tree count estimates.
+        Usage:
+            tree                        - Total tree count
+            tree bySpecies              - Count by species
+            tree bySizeClass            - Count by size class
+            tree treeType=live          - Tree type (live, dead, gs, all)
+            tree treeDomain="DIA >= 5"  - Custom tree filter
+            tree landType=timber        - Land type filter
+
+        Examples:
+            tree bySpecies treeType=live
+            tree bySizeClass landType=timber
+            tree treeDomain="SPCD == 131" treeType=live
+        """
+        # Handle 'tree help' syntax
+        if arg.strip().lower() == "help":
+            self.do_help("tree")
+            return
+
+        if not self._check_connection():
+            return
+
+        try:
+            kwargs = self._parse_kwargs(arg)
+            
+            # Import tree_count function directly
+            from ..estimation.tree import tree_count
+
+            with Progress(
+                SpinnerColumn(),
+                TextColumn("[progress.description]{task.description}"),
+                console=self.console,
+            ) as progress:
+                task = progress.add_task("Counting trees...", total=None)
+                result = tree_count(self.fia, **kwargs)
+                progress.update(task, completed=True)
+
+            self.last_result = result
+            self._display_results(result, "Tree Count Estimates")
+
+        except Exception as e:
+            self.console.print(f"[red]Error: {e}[/red]")
+
     def do_show(self, arg: str):
         """Show details of last result.
         Usage:
@@ -1001,6 +1046,7 @@ class FIADirectCLI(BaseCLI):
             self.console.print("  biomass            - Calculate tree biomass")
             self.console.print("  volume             - Calculate wood volume")
             self.console.print("  tpa                - Calculate trees per acre")
+            self.console.print("  tree               - Calculate tree counts")
             self.console.print("  mortality          - Calculate mortality")
             self.console.print()
 

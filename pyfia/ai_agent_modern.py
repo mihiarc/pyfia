@@ -369,7 +369,7 @@ Always explain what EVALID you're using and why."""
             model=self.llm,
             tools=tools,
             checkpointer=self.checkpointer,
-            state_modifier=system_prompt,
+            prompt=system_prompt,
             interrupt_before=interrupt_before,
         )
         

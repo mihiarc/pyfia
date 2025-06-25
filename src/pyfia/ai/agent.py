@@ -257,7 +257,7 @@ class FIAAgent:
                 command_args: CLI-style arguments (e.g., "bySpecies treeType=live")
                 
             Returns:
-                Formatted tree count results
+                Formatted tree count results with enhanced statistical context
             """
             try:
                 # Parse CLI arguments into kwargs
@@ -317,36 +317,81 @@ class FIAAgent:
                 if len(result) == 0:
                     return "No trees found matching the specified criteria."
                 
-                # Format results for LLM consumption
-                formatted = "Tree Count Results:\n\n"
-                
-                for row in result.iter_rows(named=True):
-                    if 'COMMON_NAME' in row and row['COMMON_NAME']:
-                        formatted += f"Species: {row['COMMON_NAME']}"
-                        if 'SCIENTIFIC_NAME' in row and row['SCIENTIFIC_NAME']:
-                            formatted += f" ({row['SCIENTIFIC_NAME']})"
-                        formatted += "\n"
-                    
-                    if 'SIZE_CLASS' in row and row['SIZE_CLASS']:
-                        formatted += f"Size Class: {row['SIZE_CLASS']}\n"
-                    
-                    if 'TREE_COUNT' in row:
-                        formatted += f"Total Population: {row['TREE_COUNT']:,.0f} trees\n"
-                    
-                    if 'SE' in row:
-                        formatted += f"Standard Error: {row['SE']:,.0f}\n"
-                        
-                    if 'SE_PERCENT' in row:
-                        formatted += f"Standard Error %: {row['SE_PERCENT']:.1f}%\n"
-                    
-                    formatted += "\n"
-                
-                formatted += "(Statistically valid population estimate using FIA methodology)\n"
-                
-                return formatted
+                # Enhanced result formatting
+                return self._format_tree_results_enhanced(result, kwargs)
                 
             except Exception as e:
                 return f"Error executing tree command: {str(e)}"
+        
+        def _format_tree_results_enhanced(self, result: 'pl.DataFrame', query_params: dict) -> str:
+            """
+            Enhanced formatting for tree count results using the new result formatter.
+            
+            Args:
+                result: Polars DataFrame with tree count results
+                query_params: Original query parameters for context
+                
+            Returns:
+                Formatted string with comprehensive result presentation
+            """
+            try:
+                from .result_formatter import create_result_formatter
+                
+                # Create formatter instance
+                formatter = create_result_formatter("enhanced")
+                
+                # Gather EVALID info if available
+                evalid_info = None
+                if hasattr(self.fia, 'evalid') and self.fia.evalid:
+                    evalid = self.fia.evalid if isinstance(self.fia.evalid, (int, str)) else self.fia.evalid[0]
+                    evalid_info = {
+                        'evalid': evalid,
+                        'description': f"FIA Evaluation {evalid}"
+                    }
+                
+                # Use the enhanced formatter
+                return formatter.format_tree_count_results(result, query_params, evalid_info)
+                
+            except ImportError:
+                # Fallback to simple formatting if formatter not available
+                return self._format_tree_results_simple(result, query_params)
+        
+        def _format_tree_results_simple(self, result: 'pl.DataFrame', query_params: dict) -> str:
+            """
+            Simple fallback formatting for tree count results.
+            
+            Args:
+                result: Polars DataFrame with tree count results
+                query_params: Original query parameters for context
+                
+            Returns:
+                Basic formatted string
+            """
+            formatted = "Tree Count Results:\n\n"
+            
+            for row in result.iter_rows(named=True):
+                if 'COMMON_NAME' in row and row['COMMON_NAME']:
+                    formatted += f"Species: {row['COMMON_NAME']}"
+                    if 'SCIENTIFIC_NAME' in row and row['SCIENTIFIC_NAME']:
+                        formatted += f" ({row['SCIENTIFIC_NAME']})"
+                    formatted += "\n"
+                
+                if 'SIZE_CLASS' in row and row['SIZE_CLASS']:
+                    formatted += f"Size Class: {row['SIZE_CLASS']}\n"
+                
+                if 'TREE_COUNT' in row:
+                    formatted += f"Total Population: {row['TREE_COUNT']:,.0f} trees\n"
+                
+                if 'SE' in row and row['SE']:
+                    formatted += f"Standard Error: {row['SE']:,.0f}\n"
+                    
+                if 'SE_PERCENT' in row:
+                    formatted += f"Standard Error %: {row['SE_PERCENT']:.1f}%\n"
+                
+                formatted += "\n"
+            
+            formatted += "(Statistically valid population estimate using FIA methodology)\n"
+            return formatted
         
         # Create system prompt
         system_prompt = """You are an expert Forest Inventory Analysis (FIA) assistant.

@@ -272,7 +272,7 @@ class FIAAgentModern:
             use_recent_evalid: bool = True
         ) -> str:
             """
-            Count trees matching specific criteria using SQL.
+            Count trees using the pyFIA tree_count module.
             
             Args:
                 species_code: Species code (SPCD) to filter by
@@ -284,90 +284,61 @@ class FIAAgentModern:
                 Tree count with context information
             """
             try:
-                # Build query following exact EVALIDator methodology
-                query = """
-                SELECT 
-                    SUM(ESTIMATED_VALUE * EXPNS) AS total_trees_expanded,
-                    rs.COMMON_NAME,
-                    rs.SCIENTIFIC_NAME,
-                    pe.EVALID,
-                    pe.EVAL_DESCR,
-                    pe.START_INVYR,
-                    pe.END_INVYR
-                FROM (
-                    SELECT 
-                        ps.EXPNS,
-                        SUM(
-                            t.TPA_UNADJ * 
-                            CASE 
-                                WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
-                                ELSE 
-                                    CASE LEAST(t.DIA, 5.0 - 0.001) 
-                                        WHEN t.DIA THEN ps.ADJ_FACTOR_MICR
-                                        ELSE 
-                                            CASE LEAST(t.DIA, COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) - 0.001)
-                                                WHEN t.DIA THEN ps.ADJ_FACTOR_SUBP
-                                                ELSE ps.ADJ_FACTOR_MACR
-                                            END
-                                    END
-                            END
-                        ) AS ESTIMATED_VALUE,
-                        t.SPCD
-                    FROM POP_STRATUM ps
-                    JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
-                    JOIN PLOT p ON ppsa.PLT_CN = p.CN
-                    JOIN COND c ON c.PLT_CN = p.CN
-                    JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
-                    WHERE t.STATUSCD = ?
-                      AND c.COND_STATUS_CD = 1
-                """
+                # Import the tree_count function
+                from . import tree_count
                 
-                params = [tree_status]
+                # Build tree domain filter
+                tree_domain_filters = []
                 
+                if tree_status == 1:
+                    tree_domain_filters.append("STATUSCD == 1")
+                elif tree_status == 2:
+                    tree_domain_filters.append("STATUSCD == 2")
+                    
                 if species_code:
-                    query += " AND t.SPCD = ?"
-                    params.append(species_code)
+                    tree_domain_filters.append(f"SPCD == {species_code}")
                 
-                # Use rscd for state filtering (Texas = 33)
-                if state_code:
-                    # Convert STATECD to rscd (Texas: STATECD=48 -> rscd=33)
-                    rscd_map = {48: 33}  # Add more as needed
-                    rscd = rscd_map.get(state_code, state_code)
-                    query += " AND ps.rscd = ?"
-                    params.append(rscd)
+                tree_domain = " AND ".join(tree_domain_filters) if tree_domain_filters else None
                 
-                # Always use specific EVALID for accuracy
-                if use_recent_evalid and state_code == 48:  # Texas specific
-                    query += " AND ps.EVALID = 482201"  # Texas 2022 evaluation
+                # Build area domain filter for state
+                area_domain = f"STATECD == {state_code}" if state_code else None
                 
-                query += """
-                    GROUP BY ps.EXPNS, ps.cn, p.cn, c.cn, t.SPCD
-                ) subquery
-                LEFT JOIN REF_SPECIES rs ON subquery.SPCD = rs.SPCD
-                LEFT JOIN POP_EVAL pe ON pe.EVALID = 482201
-                GROUP BY rs.COMMON_NAME, rs.SCIENTIFIC_NAME, pe.EVALID, 
-                         pe.EVAL_DESCR, pe.START_INVYR, pe.END_INVYR
-                """
+                # Call the tree_count function
+                result = tree_count(
+                    self.fia,
+                    tree_domain=tree_domain,
+                    area_domain=area_domain,
+                    by_species=bool(species_code),
+                    totals=True,
+                    mr=use_recent_evalid,
+                )
                 
-                # Execute query using DuckDB's parameterized queries
-                import duckdb
-                conn = duckdb.connect(str(self.db_path), read_only=True)
-                result = conn.execute(query, params).fetchall()
-                conn.close()
-                
-                if not result:
+                if len(result) == 0:
                     return "No trees found matching the specified criteria."
                 
-                # Format results
-                row = result[0]
-                total_trees, common_name, scientific_name, evalid, eval_descr, start_yr, end_yr = row
+                # Format results for LLM consumption
+                row = result.row(0, named=True)
                 
                 formatted = f"FIA Population Estimate Results:\n\n"
-                formatted += f"Species: {common_name} ({scientific_name})\n"
-                formatted += f"Total Population: {total_trees:,.0f} trees\n"
-                formatted += f"Evaluation: {evalid} - {eval_descr}\n"
-                formatted += f"Time Period: {start_yr}-{end_yr}\n"
-                formatted += f"\n(This is a statistically valid population estimate using FIA expansion factors)\n"
+                
+                if species_code and 'COMMON_NAME' in row:
+                    formatted += f"Species: {row['COMMON_NAME']}"
+                    if 'SCIENTIFIC_NAME' in row:
+                        formatted += f" ({row['SCIENTIFIC_NAME']})"
+                    formatted += "\n"
+                
+                if 'TREE_COUNT_TOTAL' in row:
+                    formatted += f"Total Population: {row['TREE_COUNT_TOTAL']:,.0f} trees\n"
+                elif 'TREE_COUNT' in row:
+                    formatted += f"Total Population: {row['TREE_COUNT']:,.0f} trees\n"
+                
+                if 'EVALID' in row:
+                    formatted += f"Evaluation ID: {row['EVALID']}\n"
+                
+                if 'SE_PERCENT' in row:
+                    formatted += f"Standard Error: {row['SE_PERCENT']:.1f}%\n"
+                
+                formatted += f"\n(This is a statistically valid population estimate using FIA methodology)\n"
                 
                 if tree_status == 1:
                     formatted += f"Status: Live trees only\n"

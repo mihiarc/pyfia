@@ -265,72 +265,99 @@ class FIAAgentModern:
             except Exception as e:
                 return f"Error getting state codes: {str(e)}"
         
-        def calculate_forest_statistics(
-            evalid: int,
-            statistic: Literal["area", "biomass", "volume", "tpa", "mortality"] = "area",
-            by_species: bool = False,
-            tree_domain: Optional[str] = None,
-            area_domain: Optional[str] = None
+        def count_trees_by_criteria(
+            species_code: Optional[int] = None,
+            state_code: Optional[int] = None,
+            tree_status: int = 1,
+            use_recent_evalid: bool = True
         ) -> str:
             """
-            Calculate forest statistics using pyFIA estimation functions.
+            Count trees matching specific criteria using SQL.
             
             Args:
-                evalid: Evaluation ID to use
-                statistic: Type of statistic to calculate
-                by_species: Group results by species
-                tree_domain: SQL WHERE clause for tree filtering
-                area_domain: SQL WHERE clause for area filtering
+                species_code: Species code (SPCD) to filter by
+                state_code: State FIPS code to filter by  
+                tree_status: Tree status (1=live, 2=dead, etc.)
+                use_recent_evalid: Use most recent evaluation for the state
                 
             Returns:
-                Calculated statistics with standard errors
+                Tree count with context information
             """
             try:
-                # Use pyFIA's estimation functions
-                from . import area, biomass, volume, tpa, mortality
+                # Build the query
+                query = """
+                SELECT 
+                    COUNT(*) as tree_count,
+                    rs.COMMON_NAME,
+                    rs.SCIENTIFIC_NAME,
+                    pe.EVALID,
+                    pe.EVAL_DESCR,
+                    pe.START_INVYR,
+                    pe.END_INVYR
+                FROM TREE t
+                JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
+                JOIN POP_PLOT_STRATUM_ASSGN ppsa ON t.PLT_CN = ppsa.PLT_CN
+                JOIN PLOT p ON t.PLT_CN = p.CN
+                JOIN POP_EVAL pe ON ppsa.EVALID = pe.EVALID
+                WHERE t.STATUSCD = ?
+                """
                 
-                # Map statistic to function
-                stat_functions = {
-                    "area": area,
-                    "biomass": biomass,
-                    "volume": volume,
-                    "tpa": tpa,
-                    "mortality": mortality
-                }
+                params = [tree_status]
                 
-                if statistic not in stat_functions:
-                    return f"Unknown statistic: {statistic}"
+                if species_code:
+                    query += " AND t.SPCD = ?"
+                    params.append(species_code)
                 
-                # Call the appropriate function
-                func = stat_functions[statistic]
-                result = func(
-                    self.fia,
-                    evalid=evalid,
-                    bySpecies=by_species,
-                    treeDomain=tree_domain,
-                    areaDomain=area_domain
-                )
+                if state_code:
+                    query += " AND p.STATECD = ?"
+                    params.append(state_code)
+                
+                if use_recent_evalid and state_code:
+                    query += """
+                    AND pe.EVALID = (
+                        SELECT pe2.EVALID 
+                        FROM POP_EVAL pe2 
+                        JOIN POP_EVAL_TYP pet2 ON pe2.CN = pet2.EVAL_CN
+                        WHERE pe2.STATECD = ? AND pet2.EVAL_TYP = 'VOL'
+                        ORDER BY pe2.END_INVYR DESC 
+                        LIMIT 1
+                    )
+                    """
+                    params.append(state_code)
+                
+                query += """
+                GROUP BY rs.COMMON_NAME, rs.SCIENTIFIC_NAME, pe.EVALID, 
+                         pe.EVAL_DESCR, pe.START_INVYR, pe.END_INVYR
+                """
+                
+                # Execute query using DuckDB's parameterized queries
+                import duckdb
+                conn = duckdb.connect(str(self.db_path), read_only=True)
+                result = conn.execute(query, params).fetchall()
+                conn.close()
+                
+                if not result:
+                    return "No trees found matching the specified criteria."
                 
                 # Format results
-                formatted = f"{statistic.upper()} Statistics (EVALID: {evalid}):\n\n"
+                row = result[0]
+                tree_count, common_name, scientific_name, evalid, eval_descr, start_yr, end_yr = row
                 
-                if by_species and 'COMMON_NAME' in result.columns:
-                    formatted += "By Species:\n"
-                    for row in result.head(20).iter_rows(named=True):
-                        formatted += f"- {row['COMMON_NAME']}: {row['ESTIMATE']:,.2f}"
-                        if 'SE_PERCENT' in row:
-                            formatted += f" (SE: {row['SE_PERCENT']:.1f}%)"
-                        formatted += "\n"
-                else:
-                    row = result.row(0, named=True)
-                    formatted += f"Total: {row['ESTIMATE']:,.2f}"
-                    if 'SE_PERCENT' in row:
-                        formatted += f" (SE: {row['SE_PERCENT']:.1f}%)"
-                    formatted += "\n"
+                formatted = f"Tree Count Results:\n\n"
+                formatted += f"Species: {common_name} ({scientific_name})\n"
+                formatted += f"Count: {tree_count:,} trees\n"
+                formatted += f"Evaluation: {evalid} - {eval_descr}\n"
+                formatted += f"Time Period: {start_yr}-{end_yr}\n"
+                
+                if tree_status == 1:
+                    formatted += f"Status: Live trees only\n"
+                elif tree_status == 2:
+                    formatted += f"Status: Dead trees only\n"
                 
                 return formatted
+                
             except Exception as e:
-                return f"Error calculating statistics: {str(e)}"
+                return f"Error counting trees: {str(e)}"
         
         # Create system prompt
         system_prompt = """You are an expert Forest Inventory Analysis (FIA) assistant.
@@ -347,13 +374,13 @@ When users ask questions:
 1. First identify what they're looking for (species, location, metric)
 2. Find appropriate EVALIDs using get_evalid_info
 3. Look up species codes with find_species_codes if needed
-4. Execute SQL queries or use calculate_forest_statistics for estimates
+4. Use count_trees_by_criteria for tree counts or execute_fia_query for complex queries
 5. Provide clear, concise answers with appropriate context
 
 Always explain what EVALID you're using and why."""
         
         # Define interrupt points if human approval is enabled
-        interrupt_before = ["execute_fia_query", "calculate_forest_statistics"] if self.enable_human_approval else None
+        interrupt_before = ["execute_fia_query", "count_trees_by_criteria"] if self.enable_human_approval else None
         
         # Create the agent
         tools = [
@@ -362,7 +389,7 @@ Always explain what EVALID you're using and why."""
             find_species_codes,
             get_evalid_info,
             get_state_codes,
-            calculate_forest_statistics,
+            count_trees_by_criteria,
         ]
         
         agent = create_react_agent(

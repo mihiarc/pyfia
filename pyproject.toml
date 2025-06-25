@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0", "wheel"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyfia"
-version = "0.1.0"
+version = "0.2.0"
 description = "High-performance Python implementation for Forest Inventory Analysis"
 readme = "README.md"
 authors = [
@@ -62,13 +62,21 @@ Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 
 [project.scripts]
-pyfia = "pyfia.cli:main"
-pyfia-ai = "pyfia.cli_ai:main"
+pyfia = "pyfia.cli.direct:main"
+pyfia-ai = "pyfia.cli.ai_interface:main"
 pyfia-typecheck = "scripts.typecheck:main"
 pyfia-setup-precommit = "scripts.setup_precommit:main"
 
 [tool.setuptools]
-packages = ["pyfia", "scripts"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["pyfia*"]
+
+[tool.setuptools.package-data]
+"pyfia.database.memory_docs" = ["*.md"]
+"pyfia.ai.prompts" = ["*.txt"]
 
 [tool.ruff]
 line-length = 88

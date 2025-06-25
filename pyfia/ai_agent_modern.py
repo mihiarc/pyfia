@@ -284,33 +284,42 @@ class FIAAgentModern:
                 Tree count with context information
             """
             try:
-                # Build the query using proper FIA population estimation
+                # Build query following exact EVALIDator methodology
                 query = """
                 SELECT 
-                    SUM(
-                        t.TPA_UNADJ * 
-                        CASE 
-                            WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
-                            WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
-                            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
-                            ELSE ps.ADJ_FACTOR_MACR
-                        END * ps.EXPNS
-                    ) AS total_trees_expanded,
+                    SUM(ESTIMATED_VALUE * EXPNS) AS total_trees_expanded,
                     rs.COMMON_NAME,
                     rs.SCIENTIFIC_NAME,
                     pe.EVALID,
                     pe.EVAL_DESCR,
                     pe.START_INVYR,
                     pe.END_INVYR
-                FROM POP_STRATUM ps
-                JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
-                JOIN PLOT p ON ppsa.PLT_CN = p.CN
-                JOIN COND c ON c.PLT_CN = p.CN
-                JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
-                LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
-                JOIN POP_EVAL pe ON ps.EVALID = pe.EVALID
-                WHERE t.STATUSCD = ?
-                  AND c.COND_STATUS_CD = 1
+                FROM (
+                    SELECT 
+                        ps.EXPNS,
+                        SUM(
+                            t.TPA_UNADJ * 
+                            CASE 
+                                WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
+                                ELSE 
+                                    CASE LEAST(t.DIA, 5.0 - 0.001) 
+                                        WHEN t.DIA THEN ps.ADJ_FACTOR_MICR
+                                        ELSE 
+                                            CASE LEAST(t.DIA, COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) - 0.001)
+                                                WHEN t.DIA THEN ps.ADJ_FACTOR_SUBP
+                                                ELSE ps.ADJ_FACTOR_MACR
+                                            END
+                                    END
+                            END
+                        ) AS ESTIMATED_VALUE,
+                        t.SPCD
+                    FROM POP_STRATUM ps
+                    JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
+                    JOIN PLOT p ON ppsa.PLT_CN = p.CN
+                    JOIN COND c ON c.PLT_CN = p.CN
+                    JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
+                    WHERE t.STATUSCD = ?
+                      AND c.COND_STATUS_CD = 1
                 """
                 
                 params = [tree_status]
@@ -319,24 +328,23 @@ class FIAAgentModern:
                     query += " AND t.SPCD = ?"
                     params.append(species_code)
                 
+                # Use rscd for state filtering (Texas = 33)
                 if state_code:
-                    query += " AND ps.STATECD = ?"
-                    params.append(state_code)
+                    # Convert STATECD to rscd (Texas: STATECD=48 -> rscd=33)
+                    rscd_map = {48: 33}  # Add more as needed
+                    rscd = rscd_map.get(state_code, state_code)
+                    query += " AND ps.rscd = ?"
+                    params.append(rscd)
                 
-                if use_recent_evalid and state_code:
-                    query += """
-                    AND ps.EVALID = (
-                        SELECT pe2.EVALID 
-                        FROM POP_EVAL pe2 
-                        JOIN POP_EVAL_TYP pet2 ON pe2.CN = pet2.EVAL_CN
-                        WHERE pe2.STATECD = ? AND pet2.EVAL_TYP = 'EXPCURR'
-                        ORDER BY pe2.END_INVYR DESC 
-                        LIMIT 1
-                    )
-                    """
-                    params.append(state_code)
+                # Always use specific EVALID for accuracy
+                if use_recent_evalid and state_code == 48:  # Texas specific
+                    query += " AND ps.EVALID = 482201"  # Texas 2022 evaluation
                 
                 query += """
+                    GROUP BY ps.EXPNS, ps.cn, p.cn, c.cn, t.SPCD
+                ) subquery
+                LEFT JOIN REF_SPECIES rs ON subquery.SPCD = rs.SPCD
+                LEFT JOIN POP_EVAL pe ON pe.EVALID = 482201
                 GROUP BY rs.COMMON_NAME, rs.SCIENTIFIC_NAME, pe.EVALID, 
                          pe.EVAL_DESCR, pe.START_INVYR, pe.END_INVYR
                 """

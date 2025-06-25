@@ -284,22 +284,33 @@ class FIAAgentModern:
                 Tree count with context information
             """
             try:
-                # Build the query
+                # Build the query using proper FIA population estimation
                 query = """
                 SELECT 
-                    COUNT(*) as tree_count,
+                    SUM(
+                        t.TPA_UNADJ * 
+                        CASE 
+                            WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
+                            WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
+                            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
+                            ELSE ps.ADJ_FACTOR_MACR
+                        END * ps.EXPNS
+                    ) AS total_trees_expanded,
                     rs.COMMON_NAME,
                     rs.SCIENTIFIC_NAME,
                     pe.EVALID,
                     pe.EVAL_DESCR,
                     pe.START_INVYR,
                     pe.END_INVYR
-                FROM TREE t
-                JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
-                JOIN POP_PLOT_STRATUM_ASSGN ppsa ON t.PLT_CN = ppsa.PLT_CN
-                JOIN PLOT p ON t.PLT_CN = p.CN
-                JOIN POP_EVAL pe ON ppsa.EVALID = pe.EVALID
+                FROM POP_STRATUM ps
+                JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
+                JOIN PLOT p ON ppsa.PLT_CN = p.CN
+                JOIN COND c ON c.PLT_CN = p.CN
+                JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
+                LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
+                JOIN POP_EVAL pe ON ps.EVALID = pe.EVALID
                 WHERE t.STATUSCD = ?
+                  AND c.COND_STATUS_CD = 1
                 """
                 
                 params = [tree_status]
@@ -309,12 +320,12 @@ class FIAAgentModern:
                     params.append(species_code)
                 
                 if state_code:
-                    query += " AND p.STATECD = ?"
+                    query += " AND ps.STATECD = ?"
                     params.append(state_code)
                 
                 if use_recent_evalid and state_code:
                     query += """
-                    AND pe.EVALID = (
+                    AND ps.EVALID = (
                         SELECT pe2.EVALID 
                         FROM POP_EVAL pe2 
                         JOIN POP_EVAL_TYP pet2 ON pe2.CN = pet2.EVAL_CN
@@ -341,13 +352,14 @@ class FIAAgentModern:
                 
                 # Format results
                 row = result[0]
-                tree_count, common_name, scientific_name, evalid, eval_descr, start_yr, end_yr = row
+                total_trees, common_name, scientific_name, evalid, eval_descr, start_yr, end_yr = row
                 
-                formatted = f"Tree Count Results:\n\n"
+                formatted = f"FIA Population Estimate Results:\n\n"
                 formatted += f"Species: {common_name} ({scientific_name})\n"
-                formatted += f"Count: {tree_count:,} trees\n"
+                formatted += f"Total Population: {total_trees:,.0f} trees\n"
                 formatted += f"Evaluation: {evalid} - {eval_descr}\n"
                 formatted += f"Time Period: {start_yr}-{end_yr}\n"
+                formatted += f"\n(This is a statistically valid population estimate using FIA expansion factors)\n"
                 
                 if tree_status == 1:
                     formatted += f"Status: Live trees only\n"

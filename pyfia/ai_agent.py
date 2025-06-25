@@ -849,6 +849,13 @@ class FIAAgent:
                 try:
                     # Clean the SQL query
                     sql_query = state.sql_query.strip()
+                    
+                    # Remove markdown code block markers
+                    if sql_query.startswith('```sql'):
+                        sql_query = sql_query[6:].strip()
+                    elif sql_query.startswith('```'):
+                        sql_query = sql_query[3:].strip()
+                    
                     if sql_query.endswith('```'):
                         sql_query = sql_query[:-3].strip()
                     

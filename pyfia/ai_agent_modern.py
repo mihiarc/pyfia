@@ -284,33 +284,15 @@ class FIAAgentModern:
                 Tree count with context information
             """
             try:
-                # Import the tree_count function
-                from . import tree_count
+                # Import the simplified tree_count function
+                from .tree import tree_count_simple
                 
-                # Build tree domain filter
-                tree_domain_filters = []
-                
-                if tree_status == 1:
-                    tree_domain_filters.append("STATUSCD == 1")
-                elif tree_status == 2:
-                    tree_domain_filters.append("STATUSCD == 2")
-                    
-                if species_code:
-                    tree_domain_filters.append(f"SPCD == {species_code}")
-                
-                tree_domain = " AND ".join(tree_domain_filters) if tree_domain_filters else None
-                
-                # Build area domain filter for state
-                area_domain = f"STATECD == {state_code}" if state_code else None
-                
-                # Call the tree_count function
-                result = tree_count(
+                # Call the optimized tree_count_simple function
+                result = tree_count_simple(
                     self.fia,
-                    tree_domain=tree_domain,
-                    area_domain=area_domain,
-                    by_species=bool(species_code),
-                    totals=True,
-                    mr=use_recent_evalid,
+                    species_code=species_code,
+                    state_code=state_code,
+                    tree_status=tree_status,
                 )
                 
                 if len(result) == 0:

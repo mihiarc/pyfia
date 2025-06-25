@@ -28,6 +28,7 @@ from .mortality import mortality
 # Import estimation functions
 from .tpa import tpa
 from .volume import volume
+from .tree import tree_count
 
 # Define what's available when using "from pyfia import *"
 __all__ = [
@@ -43,6 +44,7 @@ __all__ = [
     # Estimation functions
     "tpa",
     "volume",
+    "tree_count",
     "mortality",
     "biomass",
     "area",

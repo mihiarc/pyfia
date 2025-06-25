@@ -2,7 +2,7 @@
 
 import pytest
 import polars as pl
-from pyfia.grouping import (
+from pyfia.filters.grouping import (
     setup_grouping_columns,
     create_size_class_expr,
     add_land_type_column,

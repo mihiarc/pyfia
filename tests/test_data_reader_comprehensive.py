@@ -15,7 +15,7 @@ import duckdb
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
-from pyfia.data_reader import FIADataReader
+from pyfia.core import FIADataReader
 
 
 class TestFIADataReaderInitialization:

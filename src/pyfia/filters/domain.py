@@ -6,10 +6,11 @@ different FIA estimators to reduce code duplication and ensure
 consistent filtering methodology.
 """
 
-from typing import Optional, Union, List, Tuple
+from typing import Optional, Tuple
+
 import polars as pl
 
-from .constants import (
+from ..constants.constants import (
     TreeStatus,
     TreeClass,
     LandStatus,

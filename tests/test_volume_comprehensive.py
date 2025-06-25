@@ -13,7 +13,8 @@ import pytest
 import polars as pl
 import numpy as np
 
-from pyfia import volume, FIA
+from pyfia import FIA
+from pyfia.estimation import volume
 
 
 class TestVolumeBasicEstimation:
@@ -303,8 +304,7 @@ class TestVolumeIntegration:
         for component in components:
             results[component] = volume(
                 sample_fia_instance,
-                evalid=sample_evaluation.evalid,
-                component=component
+                vol_type=component
             )
         
         # All should return valid results

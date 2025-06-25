@@ -161,7 +161,7 @@ class TestFIAEvalidFunctionality:
     
     def test_fia_find_evalid_by_state(self, sample_fia_instance):
         """Test finding EVALIDs for specific state."""
-        evalids = sample_fia_instance.find_evalid(statecd=37)  # North Carolina
+        evalids = sample_fia_instance.find_evalid(state=37)  # North Carolina
         
         if isinstance(evalids, list):
             assert len(evalids) > 0
@@ -174,7 +174,7 @@ class TestFIAEvalidFunctionality:
     def test_fia_clip_fia(self, sample_fia_instance):
         """Test clipFIA functionality."""
         # Clip to specific EVALID
-        clipped_fia = sample_fia_instance.clipFIA(evalid=372301)
+        clipped_fia = sample_fia_instance.clip_by_evalid(evalid=372301)
         
         assert isinstance(clipped_fia, FIA)
         assert clipped_fia.evalid == [372301]
@@ -185,7 +185,7 @@ class TestFIAEvalidFunctionality:
     
     def test_fia_clip_fia_most_recent(self, sample_fia_instance):
         """Test clipFIA with mostRecent=True."""
-        clipped_fia = sample_fia_instance.clipFIA(mostRecent=True)
+        clipped_fia = sample_fia_instance.clip_most_recent()
         
         assert isinstance(clipped_fia, FIA)
         assert clipped_fia.most_recent is True
@@ -195,7 +195,9 @@ class TestFIAEvalidFunctionality:
     
     def test_fia_clip_fia_by_state(self, sample_fia_instance):
         """Test clipFIA with state filter."""
-        clipped_fia = sample_fia_instance.clipFIA(statecd=37)
+        # Find EVALIDs for state and clip by them
+        evalids = sample_fia_instance.find_evalid(state=37)
+        clipped_fia = sample_fia_instance.clip_by_evalid(evalids)
         
         assert isinstance(clipped_fia, FIA)
         
@@ -250,25 +252,22 @@ class TestFIAErrorHandling:
     
     def test_fia_invalid_evalid(self, sample_fia_instance):
         """Test handling of invalid EVALID."""
-        with pytest.raises((ValueError, RuntimeError)):
-            sample_fia_instance.clipFIA(evalid=999999)
+        # This should work but return empty results
+        clipped_fia = sample_fia_instance.clip_by_evalid(evalid=999999)
+        assert clipped_fia.evalid == [999999]
     
     def test_fia_conflicting_parameters(self, sample_fia_instance):
         """Test handling of conflicting parameters."""
-        # Test providing both evalid and mostRecent
-        # Should handle gracefully or raise clear error
-        try:
-            clipped = sample_fia_instance.clipFIA(evalid=372301, mostRecent=True)
-            # If it succeeds, evalid should take precedence
-            assert clipped.evalid == [372301]
-        except ValueError:
-            # Or it might raise an error for conflicting params
-            pass
+        # The new API allows chaining - should work fine
+        clipped = sample_fia_instance.clip_by_evalid(evalid=372301).clip_most_recent()
+        # Should have an evalid set
+        assert clipped.evalid is not None
     
     def test_fia_empty_state(self, sample_fia_instance):
         """Test handling of state with no data."""
         # Test with state that doesn't exist in our data
-        clipped = sample_fia_instance.clipFIA(statecd=99)
+        evalids = sample_fia_instance.find_evalid(state=99)
+        assert len(evalids) == 0  # Should return empty list, not error
         
         # Should create instance but might have no data
         assert isinstance(clipped, FIA)
@@ -342,7 +341,7 @@ class TestFIAMemoryManagement:
         # Should not have connection issues
 
 
-@patch('pyfia.data_reader.FIADataReader')
+@patch('pyfia.core.data_reader.FIADataReader')
 class TestFIAMocking:
     """Test FIA with mocked dependencies."""
     

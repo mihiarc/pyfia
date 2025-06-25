@@ -12,7 +12,7 @@ from unittest.mock import MagicMock
 import polars as pl
 from rich.console import Console
 
-from pyfia.cli_utils import (
+from pyfia.cli.utils import (
     STATE_ABBR_TO_CODE,
     STATE_NAME_TO_CODE,
     STATE_CODE_TO_NAME,

@@ -119,7 +119,13 @@ def tpa(
     cond_df = _apply_cond_filters(data["COND"], land_type, area_domain)
 
     # Calculate TREE_BASIS for each tree
-    tree_df = _assign_tree_basis(tree_df, data["PLOT"])
+    from ..filters.classification import assign_tree_basis
+    tree_df = assign_tree_basis(tree_df, data["PLOT"])
+    
+    # Calculate basal area for each tree
+    tree_df = tree_df.with_columns(
+        (MathConstants.BASAL_AREA_FACTOR * pl.col("DIA") ** 2).alias("BASAL_AREA")
+    )
 
     # Add species information if requested
     if by_species:
@@ -130,7 +136,8 @@ def tpa(
 
     # Add size class if requested
     if by_size_class:
-        tree_df = _add_size_class(tree_df)
+        from ..filters.classification import assign_size_class
+        tree_df = assign_size_class(tree_df)
         if grp_by is None:
             grp_by = []
         grp_by.append("SIZE_CLASS")
@@ -214,37 +221,7 @@ def _apply_cond_filters(
     return cond_df
 
 
-def _assign_tree_basis(tree_df: pl.DataFrame, plot_df: pl.DataFrame) -> pl.DataFrame:
-    """Assign TREE_BASIS based on tree diameter and plot configuration."""
-    # Join with plot to get MACRO_BREAKPOINT_DIA
-    tree_df = tree_df.join(
-        plot_df.select(["CN", "MACRO_BREAKPOINT_DIA"]).rename({"CN": "PLT_CN"}),
-        on="PLT_CN",
-        how="left",
-    )
-
-    # Assign TREE_BASIS following rFIA logic
-    tree_df = tree_df.with_columns(
-        pl.when(pl.col("DIA").is_null())
-        .then(None)
-        .when(pl.col("DIA") < DiameterBreakpoints.MICROPLOT_MAX_DIA)
-        .then(pl.lit(PlotBasis.MICROPLOT))
-        .when(pl.col("MACRO_BREAKPOINT_DIA") <= 0)
-        .then(pl.lit(PlotBasis.SUBPLOT))
-        .when(pl.col("MACRO_BREAKPOINT_DIA").is_null())
-        .then(pl.lit(PlotBasis.SUBPLOT))
-        .when(pl.col("DIA") < pl.col("MACRO_BREAKPOINT_DIA"))
-        .then(pl.lit(PlotBasis.SUBPLOT))
-        .otherwise(pl.lit(PlotBasis.MACROPLOT))
-        .alias("TREE_BASIS")
-    )
-
-    # Calculate basal area for each tree
-    tree_df = tree_df.with_columns(
-        (MathConstants.BASAL_AREA_FACTOR * pl.col("DIA") ** 2).alias("BASAL_AREA")
-    )
-
-    return tree_df
+# _assign_tree_basis moved to classification.py module
 
 
 def _add_species_info(tree_df: pl.DataFrame, db) -> pl.DataFrame:
@@ -265,12 +242,7 @@ def _add_species_info(tree_df: pl.DataFrame, db) -> pl.DataFrame:
     return tree_df
 
 
-def _add_size_class(tree_df: pl.DataFrame) -> pl.DataFrame:
-    """Add 2-inch diameter size classes."""
-    tree_df = tree_df.with_columns(
-        ((pl.col("DIA") // 2) * 2).cast(pl.Int32).alias("SIZE_CLASS")
-    )
-    return tree_df
+# _add_size_class moved to classification.py module
 
 
 def _prepare_stratification(
@@ -349,27 +321,22 @@ def _calculate_plot_estimates(
         how="left",
     )
 
-    # Apply adjustment factors based on TREE_BASIS
-    tree_est = tree_est.with_columns(
-        [
-            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
-            .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MICR"))
-            .when(pl.col("TREE_BASIS") == PlotBasis.SUBPLOT)
-            .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_SUBP"))
-            .when(pl.col("TREE_BASIS") == PlotBasis.MACROPLOT)
-            .then(pl.col("TPA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MACR"))
-            .otherwise(pl.col("TPA_UNADJ_SUM"))
-            .alias("TPA_ADJ"),
-            pl.when(pl.col("TREE_BASIS") == PlotBasis.MICROPLOT)
-            .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MICR"))
-            .when(pl.col("TREE_BASIS") == PlotBasis.SUBPLOT)
-            .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_SUBP"))
-            .when(pl.col("TREE_BASIS") == PlotBasis.MACROPLOT)
-            .then(pl.col("BAA_UNADJ_SUM") * pl.col("ADJ_FACTOR_MACR"))
-            .otherwise(pl.col("BAA_UNADJ_SUM"))
-            .alias("BAA_ADJ"),
-        ]
-    )
+    # Apply adjustment factors using the new adjustment module
+    from ..filters.adjustment import apply_adjustment_factors
+    
+    tree_est = apply_adjustment_factors(
+        tree_est,
+        value_columns=["TPA_UNADJ_SUM", "BAA_UNADJ_SUM"],
+        basis_column="TREE_BASIS",
+        adj_factor_columns={
+            PlotBasis.MICROPLOT: "ADJ_FACTOR_MICR",
+            PlotBasis.SUBPLOT: "ADJ_FACTOR_SUBP", 
+            PlotBasis.MACROPLOT: "ADJ_FACTOR_MACR",
+        }
+    ).rename({
+        "TPA_UNADJ_SUM_ADJ": "TPA_ADJ",
+        "BAA_UNADJ_SUM_ADJ": "BAA_ADJ"
+    })
 
     # Sum across TREE_BASIS within plot
     if grp_by:

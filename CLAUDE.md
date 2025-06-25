@@ -74,11 +74,8 @@ graph TB
     FIA["FIA Core Class"]:::coreComponent
     
     %% AI Components
-    AIAgent["FIAAgent - Base"]:::aiComponent
-    AIEnhanced["FIAAgentEnhanced"]:::aiComponent
-    AICognee["CogneeFIAAgent"]:::aiComponent
+    AIAgent["FIAAgent - Modern"]:::aiComponent
     DuckDBInterface["DuckDB Query Interface"]:::aiComponent
-    CogneeSetup["Cognee Setup"]:::utility
 
     %% Data Layer
     DataReader["FIA Data Reader"]:::dataLayer
@@ -108,18 +105,11 @@ graph TB
     %% Connections - User Layer
     CLI --> FIA
     CLIAI --> AIAgent
-    CLIAI --> AIEnhanced
-    CLIAI --> AICognee
     API --> FIA
 
     %% Connections - AI Layer
-    AIEnhanced -.->|inherits| AIAgent
     AIAgent --> DuckDBInterface
-    AIEnhanced --> DuckDBInterface
-    AICognee --> DuckDBInterface
-    AICognee --> CogneeSetup
     AIAgent --> LangChain
-    AIEnhanced --> LangChain
     LangChain --> OpenAI
     DuckDBInterface --> DuckDB
 
@@ -163,8 +153,6 @@ graph TB
 
     subgraph AI["AI Components"]
         AIAgent
-        AIEnhanced
-        AICognee
         DuckDBInterface
     end
 
@@ -192,7 +180,6 @@ graph TB
         CLIConfig
         Models
         SchemaMapper
-        CogneeSetup
         ratio_var
         cv
     end
@@ -244,11 +231,8 @@ pyFIA provides two distinct interfaces:
   - `mortality.py`: Standard mortality estimation
   - `growth.py`: Growth estimation
 - AI components:
-  - `ai_agent.py`: Base FIAAgent class with LangGraph
-  - `ai_agent_enhanced.py`: Enhanced agent (extends FIAAgent)
-  - `cognee_fia_agent.py`: Cognee-based agent implementation
+  - `ai_agent.py`: Modern FIAAgent using 2025 LangChain patterns
   - `duckdb_query_interface.py`: Direct SQL interface for AI agents
-  - `cognee_setup.py`: Cognee configuration utilities
 - Utilities:
   - `models.py`: Pydantic data models
   - `db_schema_mapper.py`: Database schema utilities

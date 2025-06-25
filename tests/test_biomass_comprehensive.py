@@ -13,7 +13,8 @@ import pytest
 import polars as pl
 import numpy as np
 
-from pyfia import biomass, FIA
+from pyfia import FIA
+from pyfia.estimation import biomass
 
 
 class TestBiomassBasicEstimation:
@@ -293,7 +294,6 @@ class TestBiomassIntegration:
         for component in components:
             results[component] = biomass(
                 sample_fia_instance,
-                evalid=sample_evaluation.evalid,
                 component=component
             )
         

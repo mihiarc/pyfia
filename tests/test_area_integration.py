@@ -11,7 +11,7 @@ import numpy as np
 import polars as pl
 import pytest
 
-from pyfia.area import area
+from pyfia.estimation.area import area
 
 
 class TestAreaIntegrationEVALIDator:

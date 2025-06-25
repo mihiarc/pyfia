@@ -2,7 +2,7 @@
 
 import pytest
 import polars as pl
-from pyfia.filters import (
+from pyfia.filters.domain import (
     apply_tree_filters,
     apply_area_filters,
     apply_growing_stock_filter,

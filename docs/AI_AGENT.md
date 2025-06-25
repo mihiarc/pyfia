@@ -2,7 +2,7 @@
 
 ## Overview
 
-The FIA AI Agent is a cutting-edge natural language interface for querying Forest Inventory Analysis (FIA) databases. Built with LangGraph and modern AI technologies, it allows users to interact with complex forest inventory data using plain English questions.
+The FIA AI Agent is a modern natural language interface for querying Forest Inventory Analysis (FIA) databases. Built with LangGraph and 2025 AI best practices, it allows users to interact with complex forest inventory data using plain English questions.
 
 ## Features
 
@@ -10,7 +10,7 @@ The FIA AI Agent is a cutting-edge natural language interface for querying Fores
 - **Conversational Interface**: Ask questions in natural language
 - **Domain Expertise**: Deep understanding of forest inventory terminology
 - **Context Awareness**: Maintains conversation context for follow-up questions
-- **Query Intent Recognition**: Automatically identifies what type of forest data you need
+- **Memory Persistence**: Remembers conversation history across sessions
 
 ### 🌲 Forest Inventory Expertise
 - **FIA Data Structures**: Deep knowledge of PLOT, TREE, COND, and population tables
@@ -58,88 +58,62 @@ export OPENAI_API_KEY="your-api-key-here"
 ### Command Line Interface
 
 ```bash
-# Start the interactive AI agent
-fia-ai /path/to/your/fia_database.duckdb
+# Start the AI assistant
+pyfia-ai database.duckdb
 
-# Use different model
-fia-ai --model gpt-4o-mini /path/to/database.duckdb
-
-# Adjust temperature for more/less creative responses
-fia-ai --temperature 0.2 /path/to/database.duckdb
+# Or use the qa script
+./qa
 ```
 
 ### Python API
 
 ```python
-from pyfia.ai_agent import create_fia_agent
+from pyfia.ai_agent import FIAAgent
 
-# Create agent
-agent = create_fia_agent("/path/to/fia_database.duckdb")
+# Initialize the agent
+agent = FIAAgent("path/to/fia_database.duckdb")
 
-# Ask questions
-response = agent.query("How many live oak trees are in the database?")
+# Ask natural language questions
+response = agent.query("How many oak trees are there in California?")
 print(response)
 
-# Get available evaluations
-evaluations = agent.get_available_evaluations()
-print(evaluations)
+# Use conversation memory
+response = agent.query("What about pine trees?", thread_id="my_session")
 ```
 
 ## Usage Examples
 
-### Basic Tree Queries
+### Natural Language Queries
 
-```
-"How many live trees are in the database?"
-"What are the top 10 most common tree species?"
-"Show me trees with diameter greater than 20 inches"
-"Find all oak species in the database"
-```
-
-### Forest Area Analysis
-
-```
-"What's the total forest area by state?"
-"Show forest area by ownership type"
-"How much area is in different forest types?"
-"Find the largest forest plots"
+```bash
+fia-ai> How many live trees are there by species?
+fia-ai> What's the total forest area in North Carolina?
+fia-ai> Show me plots with high biomass in the Pacific Northwest
+fia-ai> Compare oak volume between 2010 and 2020
 ```
 
-### Volume and Biomass
+### Follow-up Questions
 
-```
-"What's the total volume by species?"
-"Show aboveground biomass for hardwood species"
-"Calculate volume per acre by forest type"
-"Which species has the highest biomass per tree?"
-```
+The agent maintains conversation context:
 
-### Statistical Queries
-
-```
-"Estimate trees per acre by species for California"
-"Calculate forest area for the most recent evaluation"
-"Show population estimates for oak volume"
-"What's the sampling error for pine volume estimates?"
-```
-
-### Species-Specific Analysis
-
-```
-"Show diameter distribution for white oak"
-"Find plots with high pine density"
-"What's the average height of Douglas fir trees?"
-"Compare growth rates between hardwood and softwood species"
+```bash
+fia-ai> How many oak trees are in Texas?
+fia-ai> What about pine trees?
+fia-ai> Show me the largest diameter trees from those results
 ```
 
 ## CLI Commands
 
-### Information Commands
-- `help` - Show available commands and usage tips
-- `schema` - Display database table structure
-- `evalids [state_code]` - List available evaluation IDs
-- `examples` - Show common query patterns
-- `species <name>` - Find species codes by name
+### Database Commands
+- `connect <path>` - Connect to FIA database
+- `schema [table]` - View database schema
+- `evalid [search]` - Show available evaluations
+
+### Analysis Commands  
+- `concepts [term]` - Explore FIA terminology
+- `history` - View query history
+- `export <file>` - Export results
+- `last [n]` - Show last n results
 
 ### Utility Commands
 - `clear` - Clear the screen
@@ -155,42 +129,29 @@ print(evaluations)
 ### Agent Configuration
 
 ```python
-from pyfia.ai_agent import FIAAgent, FIAAgentConfig
+from pyfia.ai_agent import FIAAgent
 
-config = FIAAgentConfig(
-    model_name="gpt-4o",           # OpenAI model
-    temperature=0.1,               # Response creativity (0-1)
-    max_tokens=2000,              # Maximum response length
-    result_limit=100,             # Query result limit
-    enable_query_validation=True,  # Validate SQL before execution
-    enable_safety_checks=True,     # Enable safety features
-    verbose=False                 # Detailed logging
+agent = FIAAgent(
+    db_path="/path/to/database.duckdb",
+    model_name="gpt-4o",              # OpenAI model
+    temperature=0.1,                  # Response creativity (0-1)
+    verbose=False,                    # Detailed logging
+    enable_human_approval=False,      # Human-in-the-loop
+    checkpoint_dir=None               # Conversation persistence directory
 )
-
-agent = FIAAgent("/path/to/database.duckdb", config)
-```
-
-### CLI Options
-
-```bash
-fia-ai --help                    # Show all options
-fia-ai --model gpt-4o-mini      # Use different model
-fia-ai --temperature 0.2        # Adjust creativity
-fia-ai --limit 50               # Limit query results
-fia-ai --verbose               # Enable detailed output
 ```
 
 ## Technical Architecture
 
-### LangGraph Workflow
+### Modern LangGraph Design
 
-The AI agent uses a sophisticated LangGraph workflow:
+The AI agent uses LangGraph's `create_react_agent` pattern with:
 
-1. **Query Planner**: Analyzes user input and determines intent
-2. **Tool User**: Gathers database schema and contextual information
-3. **Query Generator**: Creates safe, validated SQL queries
-4. **Query Executor**: Executes queries with safety checks
-5. **Response Formatter**: Formats results with explanations
+1. **ReAct Pattern**: Reasoning and Acting in interleaved steps
+2. **Built-in Memory**: Automatic conversation history management
+3. **Tool Selection**: LLM automatically chooses appropriate tools
+4. **Error Recovery**: Graceful handling of failed operations
+5. **Human-in-the-Loop**: Optional approval for sensitive operations
 
 ### Specialized Tools
 
@@ -198,7 +159,8 @@ The AI agent uses a sophisticated LangGraph workflow:
 - **get_database_schema**: Schema information for query planning
 - **get_evalid_info**: Evaluation metadata for statistical queries
 - **find_species_codes**: Species name to code resolution
-- **get_estimation_examples**: Common query patterns
+- **get_state_codes**: State code lookups
+- **count_trees_by_criteria**: Optimized tree counting
 
 ### Safety Features
 
@@ -350,23 +312,170 @@ def create_fia_agent(db_path, api_key=None, **config_kwargs) -> FIAAgent
 
 ## Contributing
 
+## Best Practices
+
+### Writing Effective Queries
+
+1. **Be Specific**: "Show oak volume in California" vs "Show volume"
+2. **Include Context**: Mention time periods, geographic scope
+3. **Use Forest Terms**: DBH, basal area, forest type, etc.
+4. **Ask Follow-ups**: Build on previous queries for deeper analysis
+
+### Statistical Considerations
+
+1. **EVALID Awareness**: Statistical estimates require proper EVALID filtering
+2. **Sampling Errors**: Ask about confidence intervals for population estimates
+3. **Temporal Consistency**: Use consistent time periods for comparisons
+4. **Geographic Scope**: Understand estimation unit boundaries
+
+### Performance Tips
+
+1. **Limit Results**: Use reasonable limits for large datasets
+2. **Specific Filters**: Add geographic or temporal filters
+3. **Incremental Queries**: Start broad, then narrow down
+4. **Cache Results**: Save important query results
+
+## Troubleshooting
+
+### Common Issues
+
+**"No results found"**
+- Check if your filters are too restrictive
+- Verify species names and codes
+- Ensure geographic scope is valid
+
+**"Query validation failed"**
+- Rephrase your question more clearly
+- Try breaking complex questions into parts
+- Check for typos in species names
+
+**"EVALID required for estimates"**
+- Use `evalid` command to see available evaluations
+- Specify time period or geographic scope
+- Ask for help with statistical methodology
+
+### Error Messages
+
+**"OpenAI API key not found"**
+```bash
+export OPENAI_API_KEY="your-key-here"
+```
+
+**"Database not found"**
+- Verify the database file path
+- Ensure you have read permissions
+- Check if the file is a valid DuckDB database
+
+**"LangChain dependencies not available"**
+```bash
+pip install pyfia[langchain]
+```
+
+## Advanced Usage
+
+### Conversation Memory
+
+```python
+from pyfia.ai_agent import FIAAgent
+
+agent = FIAAgent("database.duckdb")
+
+# Use thread IDs for separate conversations
+session1 = agent.query("How many oak trees?", thread_id="session1")
+session2 = agent.query("Show pine volume", thread_id="session2")
+
+# Continue conversations
+followup1 = agent.query("What about maple?", thread_id="session1")
+
+# Get conversation history
+history = agent.get_conversation_history("session1")
+```
+
+### Batch Processing
+
+```python
+questions = [
+    "How many plots are there by state?",
+    "What's the average tree density per acre?",
+    "Show volume estimates by forest type",
+    "Calculate biomass for the top 5 species"
+]
+
+results = []
+for question in questions:
+    response = agent.query(question)
+    results.append({"question": question, "response": response})
+```
+
+### Integration with Analysis Workflows
+
+```python
+# Get raw data for further analysis
+agent = FIAAgent("database.duckdb")
+
+# Use agent to identify interesting patterns
+response = agent.query("Find states with highest oak density")
+
+# Extract specific data for detailed analysis
+oak_data = agent.query("Show oak tree measurements for top 3 states")
+
+# Continue with statistical analysis in pandas/polars
+```
+
+## API Reference
+
+### FIAAgent Class
+
+```python
+class FIAAgent:
+    def __init__(
+        self, 
+        db_path: str,
+        api_key: Optional[str] = None,
+        model_name: str = "gpt-4-turbo-preview",
+        temperature: float = 0,
+        verbose: bool = False,
+        enable_human_approval: bool = False,
+        checkpoint_dir: Optional[str] = None
+    )
+    
+    def query(
+        self, 
+        question: str, 
+        thread_id: Optional[str] = None,
+        config: Optional[Dict] = None
+    ) -> str
+    
+    def get_conversation_history(self, thread_id: str) -> List[BaseMessage]
+    
+    def clear_memory(self, thread_id: Optional[str] = None)
+```
+
+### Utility Functions
+
+```python
+def create_fia_agent(db_path, api_key=None, **kwargs) -> FIAAgent
+```
+
+## Contributing
+
 ### Adding New Tools
 
-1. Create tool function in `ai_agent.py`
-2. Add to `_create_tools()` method
-3. Update workflow if needed
-4. Add tests and documentation
+1. Create tool function with clear docstring in `ai_agent.py`
+2. Add to tools list in `_create_agent()` method
+3. Test with various query types
+4. Update documentation
 
 ### Improving Query Understanding
 
 1. Enhance system prompt with domain knowledge
-2. Add more example patterns
+2. Add more example patterns in tool descriptions
 3. Improve query validation logic
 4. Test with diverse query types
 
 ### Extending CLI Features
 
-1. Add new commands to `cli_ai_agent.py`
+1. Add new commands to `cli_ai.py`
 2. Implement command handlers
 3. Update help documentation
 4. Test interactive features
@@ -382,4 +491,4 @@ For questions, issues, or contributions:
 
 ## License
 
-This project is licensed under the MIT License. See the LICENSE file for details. 
+This project is licensed under the MIT License. See the LICENSE file for details.

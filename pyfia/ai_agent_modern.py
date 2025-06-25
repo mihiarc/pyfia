@@ -318,7 +318,7 @@ class FIAAgentModern:
                         SELECT pe2.EVALID 
                         FROM POP_EVAL pe2 
                         JOIN POP_EVAL_TYP pet2 ON pe2.CN = pet2.EVAL_CN
-                        WHERE pe2.STATECD = ? AND pet2.EVAL_TYP = 'VOL'
+                        WHERE pe2.STATECD = ? AND pet2.EVAL_TYP = 'EXPCURR'
                         ORDER BY pe2.END_INVYR DESC 
                         LIMIT 1
                     )

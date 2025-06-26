@@ -370,7 +370,7 @@ class FIA:
 
         See tpa() function for full parameter documentation.
         """
-        from .tpa import tpa
+        from pyfia.estimation.tpa import tpa
 
         return tpa(self, **kwargs)
 
@@ -380,7 +380,7 @@ class FIA:
 
         See biomass() function for full parameter documentation.
         """
-        from .biomass import biomass
+        from pyfia.estimation.biomass import biomass
 
         return biomass(self, **kwargs)
 
@@ -390,7 +390,7 @@ class FIA:
 
         See volume() function for full parameter documentation.
         """
-        from .volume import volume
+        from pyfia.estimation.volume import volume
 
         return volume(self, **kwargs)
 
@@ -400,7 +400,7 @@ class FIA:
 
         See mortality() function for full parameter documentation.
         """
-        from .mortality import mortality
+        from pyfia.estimation.mortality import mortality
 
         return mortality(self, **kwargs)
 
@@ -410,6 +410,6 @@ class FIA:
 
         See area() function for full parameter documentation.
         """
-        from .area import area
+        from pyfia.estimation.area import area
 
         return area(self, **kwargs)

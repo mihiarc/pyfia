@@ -38,12 +38,12 @@ if [ ! -f "$DB_PATH" ]; then
     echo "Starting without database connection..."
     echo "You can connect later with: connect /path/to/database.duckdb"
     echo ""
-    pyfia-ai --agent modern
+    pyfia-ai
 else
     echo "✓ Using database: $DB_PATH"
     echo ""
     echo "Starting pyFIA Query Agent..."
     echo "Type 'help' for available commands"
     echo ""
-    pyfia-ai --agent modern "$DB_PATH"
+    pyfia-ai "$DB_PATH"
 fi

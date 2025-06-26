@@ -1,15 +1,16 @@
 """
-Advanced LangGraph workflow for forest area estimation.
+Advanced LangGraph workflow for area estimation.
 
-This module implements a sophisticated area estimation workflow using LangGraph's
-2025 patterns including state management, conditional logic, validation loops,
-and multi-step processing with error recovery.
+This module provides sophisticated area estimation with validation,
+error handling, quality control, and metadata tracking while
+leveraging the core area() function for calculations.
 """
 
 from typing import Dict, List, Optional, TypedDict, Literal, Annotated
 from datetime import datetime
 import operator
 import polars as pl
+from uuid import uuid4
 
 from langgraph.graph import StateGraph, END
 from langgraph.checkpoint.memory import MemorySaver
@@ -18,6 +19,9 @@ from langgraph.prebuilt import ToolNode
 from ..core import FIA
 from ..constants.constants import LandStatus, SiteClass, ReserveStatus, PlotBasis
 from .utils import ratio_var
+
+# Import the core calculation function
+from .area import area
 
 
 class AreaEstimationState(TypedDict):
@@ -75,15 +79,11 @@ class AreaWorkflow:
         
         # Add nodes
         workflow.add_node("validate_inputs", self.validate_inputs)
-        workflow.add_node("load_data", self.load_data)
-        workflow.add_node("apply_filters", self.apply_filters)
-        workflow.add_node("calculate_plot_estimates", self.calculate_plot_estimates)
-        workflow.add_node("calculate_stratum_estimates", self.calculate_stratum_estimates)
-        workflow.add_node("calculate_population_estimates", self.calculate_population_estimates)
+        workflow.add_node("optimize_query", self.optimize_query)
+        workflow.add_node("calculate_area", self.calculate_area)
         workflow.add_node("validate_results", self.validate_results)
         workflow.add_node("format_output", self.format_output)
         workflow.add_node("handle_errors", self.handle_errors)
-        workflow.add_node("optimize_query", self.optimize_query)
         
         # Set entry point
         workflow.set_entry_point("validate_inputs")
@@ -93,29 +93,16 @@ class AreaWorkflow:
             "validate_inputs",
             self.route_after_validation,
             {
-                "proceed": "load_data",
+                "proceed": "calculate_area",
                 "error": "handle_errors",
                 "optimize": "optimize_query"
             }
         )
         
-        workflow.add_conditional_edges(
-            "load_data",
-            self.route_after_data_load,
-            {
-                "proceed": "apply_filters",
-                "retry": "load_data",
-                "error": "handle_errors"
-            }
-        )
-        
-        workflow.add_edge("optimize_query", "load_data")
-        workflow.add_edge("apply_filters", "calculate_plot_estimates")
-        workflow.add_edge("calculate_plot_estimates", "calculate_stratum_estimates")
-        workflow.add_edge("calculate_stratum_estimates", "calculate_population_estimates")
+        workflow.add_edge("optimize_query", "calculate_area")
         
         workflow.add_conditional_edges(
-            "calculate_population_estimates",
+            "calculate_area",
             self.route_after_calculation,
             {
                 "validate": "validate_results",
@@ -128,7 +115,7 @@ class AreaWorkflow:
             self.route_after_validation_check,
             {
                 "format": "format_output",
-                "retry": "apply_filters",
+                "retry": "calculate_area",
                 "error": "handle_errors"
             }
         )
@@ -340,83 +327,41 @@ class AreaWorkflow:
                 "step": "filtering_error"
             }
     
-    def calculate_plot_estimates(self, state: AreaEstimationState) -> Dict:
-        """Calculate plot-level estimates."""
+    def calculate_area(self, state: AreaEstimationState) -> Dict:
+        """Calculate area estimates using the proven core area() function."""
         try:
-            filtered_data = state["filtered_data"]
-            
-            # Prepare stratification data
-            strat_df = self._prepare_area_stratification(
-                filtered_data["POP_STRATUM"], 
-                filtered_data["POP_PLOT_STRATUM_ASSGN"]
-            )
-            
-            # Calculate plot estimates
-            plot_est = self._calculate_plot_area_estimates(
-                plot_df=filtered_data["PLOT"],
-                cond_df=filtered_data["COND"],
-                strat_df=strat_df,
-                grp_by=state["grp_by"]
+            # Use the core area() function - this ensures consistency and eliminates code duplication
+            result = area(
+                db=state["db"],
+                grp_by=state["grp_by"],
+                by_land_type=state["by_land_type"],
+                land_type=state["land_type"],
+                tree_domain=state["tree_domain"],
+                area_domain=state["area_domain"],
+                method=state["method"],
+                lambda_=state["lambda_"],
+                totals=state["totals"],
+                variance=state["variance"],
+                most_recent=state["most_recent"]
             )
             
             return {
-                "plot_estimates": plot_est,
-                "step": "plot_calculation",
+                "final_results": result,
+                "step": "area_calculation_complete",
+                "needs_validation": True,
                 "metadata": {
                     **state["metadata"],
-                    "n_plot_estimates": len(plot_est)
+                    "calculation_timestamp": datetime.now().isoformat(),
+                    "result_shape": result.shape,
+                    "calculation_engine": "core_area_function",
+                    "n_results": len(result)
                 }
             }
             
         except Exception as e:
             return {
-                "validation_errors": [f"Plot calculation failed: {str(e)}"],
-                "step": "plot_calculation_error"
-            }
-    
-    def calculate_stratum_estimates(self, state: AreaEstimationState) -> Dict:
-        """Calculate stratum-level estimates."""
-        try:
-            plot_est = state["plot_estimates"]
-            
-            stratum_est = self._calculate_stratum_area_estimates(
-                plot_est, state["grp_by"]
-            )
-            
-            return {
-                "stratum_estimates": stratum_est,
-                "step": "stratum_calculation",
-                "metadata": {
-                    **state["metadata"],
-                    "n_stratum_estimates": len(stratum_est)
-                }
-            }
-            
-        except Exception as e:
-            return {
-                "validation_errors": [f"Stratum calculation failed: {str(e)}"],
-                "step": "stratum_calculation_error"
-            }
-    
-    def calculate_population_estimates(self, state: AreaEstimationState) -> Dict:
-        """Calculate population-level estimates."""
-        try:
-            stratum_est = state["stratum_estimates"]
-            
-            pop_est = self._calculate_population_area_estimates(
-                stratum_est, state["grp_by"], state["totals"], state["variance"]
-            )
-            
-            return {
-                "final_results": pop_est,
-                "step": "population_calculation",
-                "needs_validation": True
-            }
-            
-        except Exception as e:
-            return {
-                "validation_errors": [f"Population calculation failed: {str(e)}"],
-                "step": "population_calculation_error"
+                "validation_errors": [f"Area calculation failed: {str(e)}"],
+                "step": "area_calculation_error"
             }
     
     def route_after_calculation(self, state: AreaEstimationState) -> Literal["validate", "error"]:
@@ -645,7 +590,7 @@ class AreaWorkflow:
         
         return strat_df
     
-    def _calculate_plot_area_estimates(self, plot_df: pl.DataFrame, cond_df: pl.DataFrame, 
+    def _calculate_plot_area_estimates_DEPRECATED(self, plot_df: pl.DataFrame, cond_df: pl.DataFrame, 
                                      strat_df: pl.DataFrame, grp_by: Optional[List[str]]) -> pl.DataFrame:
         """Calculate plot-level area estimates."""
         if "PLT_CN" not in plot_df.columns:
@@ -711,7 +656,7 @@ class AreaWorkflow:
         
         return plot_est
     
-    def _calculate_stratum_area_estimates(self, plot_est: pl.DataFrame, grp_by: Optional[List[str]]) -> pl.DataFrame:
+    def _calculate_stratum_area_estimates_DEPRECATED(self, plot_est: pl.DataFrame, grp_by: Optional[List[str]]) -> pl.DataFrame:
         """Calculate stratum-level area estimates."""
         if grp_by:
             strat_groups = ["STRATUM_CN"] + grp_by
@@ -742,7 +687,7 @@ class AreaWorkflow:
         
         return stratum_est
     
-    def _calculate_population_area_estimates(self, stratum_est: pl.DataFrame, grp_by: Optional[List[str]], 
+    def _calculate_population_area_estimates_DEPRECATED(self, stratum_est: pl.DataFrame, grp_by: Optional[List[str]], 
                                            totals: bool, variance: bool) -> pl.DataFrame:
         """Calculate population-level area estimates using direct expansion."""
         if grp_by:

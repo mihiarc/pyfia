@@ -426,6 +426,30 @@ class FIAResultFormatter:
         else:
             return self._format_plain_text(result, query_params, evalid_info, "area", calculation_method)
     
+    def format_mortality_estimation_results(
+        self, 
+        result: 'pl.DataFrame', 
+        query_params: Dict[str, Any],
+        evalid_info: Optional[Dict[str, Any]] = None,
+        calculation_method: str = "Core Function"
+    ) -> str:
+        """
+        Format mortality estimation results with enhanced presentation.
+        
+        Args:
+            result: Polars DataFrame with mortality estimation results
+            query_params: Original query parameters for context
+            evalid_info: Optional EVALID information for context
+            calculation_method: Which calculation method was used
+            
+        Returns:
+            Formatted string with comprehensive result presentation
+        """
+        if self.use_rich:
+            return self._format_with_rich(result, query_params, evalid_info, "mortality", calculation_method)
+        else:
+            return self._format_plain_text(result, query_params, evalid_info, "mortality", calculation_method)
+    
     def _format_with_rich(
         self, 
         result: 'pl.DataFrame', 
@@ -445,6 +469,9 @@ class FIAResultFormatter:
         if analysis_type == "tree":
             is_grouped = any(col in result.columns for col in ['COMMON_NAME', 'SIZE_CLASS'])
             title = "🌳 Tree Population Analysis"
+        elif analysis_type == "mortality":
+            is_grouped = any(col in result.columns for col in ['COMMON_NAME', 'SIZE_CLASS', 'TREE_CLASS'])
+            title = "💀 Forest Mortality Analysis"
         else:  # area
             is_grouped = any(col in result.columns for col in ['LAND_TYPE', 'FORTYPCD', 'OWNGRPCD'])
             title = "🌍 Area Estimation Analysis"
@@ -506,6 +533,56 @@ class FIAResultFormatter:
 • Average Trees per Plot: {avg_trees_per_plot:,.1f}"""
             
             title = "📊 Population Analysis Results"
+        
+        elif analysis_type == "mortality":
+            # Mortality analysis panel
+            mort_tpa = data.get('MORT_TPA_AC', data.get('MORT_TPA_TOTAL', 0))
+            mort_vol = data.get('MORT_VOL_AC', data.get('MORT_VOL_TOTAL', 0))
+            mort_bio = data.get('MORT_BIO_AC', data.get('MORT_BIO_TOTAL', 0))
+            
+            se_tpa = data.get('MORT_TPA_SE', 0)
+            cv_tpa = data.get('MORT_TPA_CV', 0)
+            nplots = data.get('nPlots', 0)
+            forest_area = data.get('AREA_TOTAL', 0)
+            
+            # Determine units
+            is_per_acre = 'MORT_TPA_AC' in data
+            unit_suffix = "/acre/year" if is_per_acre else "/year"
+            
+            result_text = f"""[bold red]Annual Mortality Estimates:[/bold red]
+• Trees: {mort_tpa:,.3f} trees{unit_suffix}"""
+            
+            if mort_vol > 0:
+                vol_unit = "cu.ft." + unit_suffix
+                result_text += f"\n• Volume: {mort_vol:,.2f} {vol_unit}"
+            
+            if mort_bio > 0:
+                bio_unit = "tons" + unit_suffix
+                result_text += f"\n• Biomass: {mort_bio:,.3f} {bio_unit}"
+            
+            if se_tpa > 0 and cv_tpa > 0:
+                ci = self._calculate_confidence_interval(mort_tpa, se_tpa)
+                reliability = self._assess_reliability(cv_tpa)
+                
+                result_text += f"""
+
+[bold yellow]Statistical Precision:[/bold yellow]
+• Standard Error: ±{se_tpa:,.3f} trees{unit_suffix} ({cv_tpa:.1f}%)
+• {int(self.confidence_level * 100)}% Confidence Interval: {ci['lower']:,.3f} - {ci['upper']:,.3f}
+• Reliability: {reliability['emoji']} {reliability['level']} ({reliability['interpretation']})"""
+            
+            if nplots > 0:
+                result_text += f"""
+
+[bold cyan]Sample Information:[/bold cyan]
+• Field Plots Used: {nplots:,}"""
+                
+                if forest_area > 0:
+                    result_text += f"\n• Forest Area: {forest_area:,.0f} acres"
+                    total_mortality = mort_tpa * forest_area if is_per_acre else mort_tpa
+                    result_text += f"\n• Total Annual Mortality: {total_mortality:,.0f} trees/year"
+            
+            title = "💀 Annual Mortality Analysis"
             
         else:  # area analysis
             area = data.get('AREA', 0)
@@ -568,6 +645,9 @@ class FIAResultFormatter:
         if analysis_type == "area":
             header_emoji = self._get_emoji("chart")
             formatted = f"{header_emoji} **FIA Area Estimation Results**\n"
+        elif analysis_type == "mortality":
+            skull_emoji = self._get_emoji("warning")  # Use warning emoji for mortality
+            formatted = f"{skull_emoji} **FIA Mortality Analysis Results**\n"
         else:
             tree_emoji = self._get_emoji("tree")
             formatted = f"{tree_emoji} **FIA Tree Count Analysis Results**\n"
@@ -611,6 +691,13 @@ class FIAResultFormatter:
         # Results section
         if analysis_type == "tree":
             is_grouped = any(col in result.columns for col in ['COMMON_NAME', 'SIZE_CLASS'])
+            
+            if is_grouped:
+                formatted += self._format_grouped_results(result, analysis_type)
+            else:
+                formatted += self._format_single_result(result, analysis_type)
+        elif analysis_type == "mortality":
+            is_grouped = any(col in result.columns for col in ['COMMON_NAME', 'SIZE_CLASS', 'TREE_CLASS'])
             
             if is_grouped:
                 formatted += self._format_grouped_results(result, analysis_type)
@@ -754,6 +841,84 @@ class FIAResultFormatter:
                     formatted += f"   • Plot Sample Size: {total_plots:,} plots\n"
                 formatted += "\n"
         
+        elif analysis_type == "mortality":
+            total_mort_tpa = 0
+            total_mort_vol = 0  
+            total_mort_bio = 0
+            total_plots = 0
+            
+            for i, row in enumerate(result.iter_rows(named=True)):
+                # Tree class or species information
+                if 'TREE_CLASS' in row and row['TREE_CLASS']:
+                    formatted += f"**{i+1}. {row['TREE_CLASS']} Trees**\n"
+                elif 'COMMON_NAME' in row and row['COMMON_NAME']:
+                    formatted += f"**{i+1}. {row['COMMON_NAME']}**\n"
+                    if 'SCIENTIFIC_NAME' in row and row['SCIENTIFIC_NAME']:
+                        formatted += f"   *{row['SCIENTIFIC_NAME']}*\n"
+                else:
+                    formatted += f"**{i+1}. Annual Mortality**\n"
+                
+                # Main mortality estimates
+                mort_tpa = row.get('MORT_TPA_AC', row.get('MORT_TPA_TOTAL', 0))
+                mort_vol = row.get('MORT_VOL_AC', row.get('MORT_VOL_TOTAL', 0))
+                mort_bio = row.get('MORT_BIO_AC', row.get('MORT_BIO_TOTAL', 0))
+                
+                total_mort_tpa += mort_tpa
+                total_mort_vol += mort_vol
+                total_mort_bio += mort_bio
+                
+                # Determine units
+                is_per_acre = 'MORT_TPA_AC' in row
+                unit_suffix = "/acre/year" if is_per_acre else "/year"
+                
+                number_emoji = self._get_emoji("number")
+                formatted += f"   {number_emoji} **Tree Mortality:** {mort_tpa:,.3f} trees{unit_suffix}\n"
+                
+                if mort_vol > 0:
+                    formatted += f"   {number_emoji} **Volume Mortality:** {mort_vol:,.2f} cu.ft.{unit_suffix}\n"
+                
+                if mort_bio > 0:
+                    formatted += f"   {number_emoji} **Biomass Mortality:** {mort_bio:,.3f} tons{unit_suffix}\n"
+                
+                # Statistical precision for trees
+                se_tpa = row.get('MORT_TPA_SE', 0)
+                cv_tpa = row.get('MORT_TPA_CV', 0)
+                
+                if se_tpa > 0 and cv_tpa > 0:
+                    ci = self._calculate_confidence_interval(mort_tpa, se_tpa)
+                    
+                    chart_emoji = self._get_emoji("chart")
+                    target_emoji = self._get_emoji("target")
+                    formatted += f"   {chart_emoji} **Standard Error:** ±{se_tpa:,.3f} trees{unit_suffix} ({cv_tpa:.1f}%)\n"
+                    formatted += f"   {target_emoji} **{int(self.confidence_level*100)}% Confidence Interval:** {ci['lower']:,.3f} - {ci['upper']:,.3f} trees{unit_suffix}\n"
+                    
+                    # Reliability assessment
+                    reliability = self._assess_reliability(cv_tpa)
+                    formatted += f"   {reliability['emoji']} **Reliability:** {reliability['level']} ({reliability['range']})\n"
+                
+                # Sample size
+                if 'nPlots' in row and row['nPlots']:
+                    plots = row['nPlots']
+                    total_plots = max(total_plots, plots)
+                    location_emoji = self._get_emoji("location")
+                    formatted += f"   {location_emoji} **Sample Size:** {plots:,} plots\n"
+                
+                formatted += "\n"
+            
+            # Summary statistics for grouped mortality results
+            if len(result) > 1:
+                summary_emoji = self._get_emoji("summary")
+                formatted += f"{summary_emoji} **Summary Statistics:**\n"
+                formatted += f"   • Total Categories: {len(result):,}\n"
+                formatted += f"   • Combined Tree Mortality: {total_mort_tpa:,.3f} trees/acre/year\n"
+                if total_mort_vol > 0:
+                    formatted += f"   • Combined Volume Mortality: {total_mort_vol:,.2f} cu.ft./acre/year\n"
+                if total_mort_bio > 0:
+                    formatted += f"   • Combined Biomass Mortality: {total_mort_bio:,.3f} tons/acre/year\n"
+                if total_plots > 0:
+                    formatted += f"   • Plot Sample Size: {total_plots:,} plots\n"
+                formatted += "\n"
+        
         return formatted
     
     def _format_single_result(self, result: 'pl.DataFrame', analysis_type: str = "tree") -> str:
@@ -798,6 +963,63 @@ class FIAResultFormatter:
                 if 'TREE_COUNT' in row and row['TREE_COUNT'] and plots:
                     trees_per_plot = row['TREE_COUNT'] / plots
                     formatted += f"   • Average Trees per Plot: {trees_per_plot:,.1f}\n"
+                formatted += "\n"
+        
+        elif analysis_type == "mortality":
+            formatted = f"{trend_emoji} **Annual Mortality Analysis:**\n\n"
+            
+            # Main mortality estimates
+            mort_tpa = row.get('MORT_TPA_AC', row.get('MORT_TPA_TOTAL', 0))
+            mort_vol = row.get('MORT_VOL_AC', row.get('MORT_VOL_TOTAL', 0))
+            mort_bio = row.get('MORT_BIO_AC', row.get('MORT_BIO_TOTAL', 0))
+            
+            # Determine units
+            is_per_acre = 'MORT_TPA_AC' in row
+            unit_suffix = "/acre/year" if is_per_acre else "/year"
+            
+            number_emoji = self._get_emoji("number")
+            formatted += f"{number_emoji} **Tree Mortality:** {mort_tpa:,.3f} trees{unit_suffix}\n"
+            
+            if mort_vol > 0:
+                formatted += f"{number_emoji} **Volume Mortality:** {mort_vol:,.2f} cu.ft.{unit_suffix}\n"
+                
+            if mort_bio > 0:
+                formatted += f"{number_emoji} **Biomass Mortality:** {mort_bio:,.3f} tons{unit_suffix}\n"
+            
+            formatted += "\n"
+            
+            # Statistical precision for trees
+            se_tpa = row.get('MORT_TPA_SE', 0)
+            cv_tpa = row.get('MORT_TPA_CV', 0)
+            
+            if se_tpa > 0 and cv_tpa > 0:
+                ci = self._calculate_confidence_interval(mort_tpa, se_tpa)
+                
+                chart_emoji = self._get_emoji("chart")
+                formatted += f"{chart_emoji} **Statistical Precision:**\n"
+                formatted += f"   • Standard Error: ±{se_tpa:,.3f} trees{unit_suffix} ({cv_tpa:.1f}%)\n"
+                formatted += f"   • {int(self.confidence_level*100)}% Confidence Interval: {ci['lower']:,.3f} - {ci['upper']:,.3f}\n"
+                
+                # Reliability assessment
+                reliability = self._assess_reliability(cv_tpa)
+                formatted += f"   • Reliability: {reliability['emoji']} {reliability['level']} ({reliability['interpretation']})\n\n"
+            
+            # Sample information
+            if 'nPlots' in row and row['nPlots']:
+                plots = row['nPlots']
+                location_emoji = self._get_emoji("location")
+                formatted += f"{location_emoji} **Sample Information:**\n"
+                formatted += f"   • Field Plots Used: {plots:,}\n"
+                
+                # Forest area and total mortality if available
+                if 'AREA_TOTAL' in row and row['AREA_TOTAL']:
+                    forest_area = row['AREA_TOTAL']
+                    formatted += f"   • Forest Area: {forest_area:,.0f} acres\n"
+                    
+                    if is_per_acre:
+                        total_mortality = mort_tpa * forest_area
+                        formatted += f"   • Total Annual Mortality: {total_mortality:,.0f} trees/year\n"
+                
                 formatted += "\n"
         
         else:  # area analysis
@@ -871,6 +1093,19 @@ class FIAResultFormatter:
             formatted += "   • Lower SE% = more precise estimate\n"
             formatted += "   • Confidence intervals show plausible range of true values\n"
             formatted += "   • Reliability ratings help assess estimate quality\n"
+        elif analysis_type == "mortality":
+            formatted += "   • Mortality estimates use FIA GRM (Growth/Removal/Mortality) methodology\n"
+            formatted += "   • Annual rates calculated from remeasurement periods\n"
+            formatted += "   • Values represent trees dying per year\n"
+            formatted += "   • Standard errors reflect sampling uncertainty\n"
+            formatted += f"   • {int(self.confidence_level*100)}% confidence intervals assume normal distribution\n"
+            
+            formatted += f"\n{bulb_emoji} **Interpretation Guide:**\n"
+            formatted += "   • Mortality rates show annual tree loss per unit area\n"
+            formatted += "   • Volume mortality represents merchantable wood loss\n"
+            formatted += "   • Biomass mortality includes above-ground dry weight\n"
+            formatted += "   • Growing stock focuses on merchantable timber\n"
+            formatted += "   • Rates are annualized from multi-year remeasurement periods\n"
         else:  # area analysis
             formatted += "   • Area estimates use FIA EVALIDator methodology\n"
             formatted += "   • Plot-level expansion factors scale to population level\n"

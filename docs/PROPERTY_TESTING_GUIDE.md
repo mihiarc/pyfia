@@ -119,7 +119,7 @@ def test_property(data):
 def test_with_edge_cases(values):
     assume(len(values) > 0)  # Skip empty lists
     assume(not any(math.isnan(v) for v in values))  # Skip NaN
-    
+
     result = calculate(values)
     assert result >= 0
 ```
@@ -160,7 +160,7 @@ def test_estimator_unbiased(true_value, n_samples):
     for _ in range(100):
         sample = generate_sample(true_value, n_samples)
         estimates.append(calculate_estimate(sample))
-    
+
     # Mean of estimates should be close to true value
     assert abs(np.mean(estimates) - true_value) < true_value * 0.1
 ```

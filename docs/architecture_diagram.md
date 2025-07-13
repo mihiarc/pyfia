@@ -1,232 +1,223 @@
-# pyFIA Architecture Diagram
+# pyFIA Architecture
 
 ## System Overview
 
-```
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                   USER INTERFACES                                 │
-├─────────────────────────────────┬───────────────────────────────────────────────┤
-│         DIRECT ACCESS           │               AI-POWERED ACCESS               │
-├─────────────────────────────────┼───────────────────────────────────────────────┤
-│         cli.py                  │               cli_ai.py                       │
-│  - Direct pyFIA API calls       │  - Natural language queries                   │
-│  - area(), biomass(), volume()  │  - SQL generation & execution                 │
-│  - No SQL or AI needed          │  - Multiple agent types (basic/enhanced/cognee)│
-│  - Rich formatting              │  - Schema exploration                         │
-│  - EVALID management            │  - Query history & export                     │
-├─────────────────────────────────┼───────────────────────────────────────────────┤
-│         OTHER INTERFACES        │                                               │
-├─────────────────────────────────┼───────────────────────────────────────────────┤
-│  - Jupyter notebooks            │                                               │
-│  - Python scripts               │                                               │
-│  - Direct module imports        │                                               │
-└─────────────────────────────────┴───────────────────────────────────────────────┘
-                     │                                   │
-                     ▼                                   ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                                AI/ML LAYER                                        │
-├─────────────────────┬────────────────────────┬──────────────────────────────────┤
-│   ai_agent.py       │  ai_agent_enhanced.py  │     cognee_fia_agent.py          │
-│ - Basic LLM queries │  - Vector store RAG    │  - Cognee memory integration     │
-│ - SQL generation    │  - Enhanced context    │  - Knowledge persistence         │
-│ - 850 lines         │  - 1200 lines          │  - 350 lines (cleanest)         │
-└─────────────────────┴────────────────────────┴──────────────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                            ESTIMATION LAYER                                       │
-├──────────────┬──────────────┬──────────────┬──────────────┬───────────────────┤
-│   area.py    │  biomass.py  │  volume.py   │    tpa.py    │   mortality.py    │
-│ - Land area  │ - Tree bio   │ - Wood vol   │ - Trees/acre │ - Tree death      │
-│ - 450 lines  │ - 400 lines  │ - 380 lines  │ - 500 lines  │ - 376 lines       │
-├──────────────┴──────────────┴──────────────┴──────────────┼───────────────────┤
-│                    growth.py / growth_direct.py             │ estimation_utils  │
-│                    - Tree growth calculations               │ - Common funcs    │
-│                    - 350 + 280 lines                        │ - 371 lines       │
-└─────────────────────────────────────────────────────────────┴───────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                               CORE LAYER                                          │
-├────────────────────────────┬──────────────────────────┬─────────────────────────┤
-│         core.py            │    data_reader.py        │ duckdb_query_interface  │
-│  - FIA class (main API)    │ - Database abstraction   │ - Query execution       │
-│  - EVALID filtering        │ - SQLite/DuckDB support  │ - Schema inspection     │
-│  - Table management        │ - Optimized reading      │ - Result formatting     │
-│  - 580 lines               │ - 650 lines              │ - 420 lines             │
-└────────────────────────────┴──────────────────────────┴─────────────────────────┘
-                                 │
-                                 ▼
-┌─────────────────────────────────────────────────────────────────────────────────┐
-│                            DATABASE LAYER                                         │
-├─────────────────────────────────┬───────────────────────────────────────────────┤
-│         SQLite Support          │              DuckDB Support                    │
-│    - Legacy compatibility       │         - High performance                    │
-│    - Smaller datasets           │         - Large scale analysis               │
-│    - Batch processing           │         - Better SQL support                 │
-└─────────────────────────────────┴───────────────────────────────────────────────┘
-```
+```mermaid
+graph TB
+    %% Define styles
+    classDef userInterface fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+    classDef aiLayer fill:#9b59b6,stroke:#fff,stroke-width:2px,color:#fff
+    classDef estimationLayer fill:#2ecc71,stroke:#fff,stroke-width:2px,color:#fff
+    classDef coreLayer fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
+    classDef databaseLayer fill:#34495e,stroke:#fff,stroke-width:2px,color:#fff
 
-## Data Flow Diagram
+    %% User Interfaces
+    subgraph UI["User Interfaces"]
+        DirectCLI["cli/direct.py<br/>Direct pyFIA API calls<br/>- area(), biomass(), volume()<br/>- No SQL or AI needed<br/>- Rich formatting<br/>1210 lines"]:::userInterface
+        AICLI["cli/ai_interface.py<br/>Natural language queries<br/>- SQL generation & execution<br/>- Multiple agent types<br/>- Query history & export<br/>773 lines"]:::userInterface
+        Other["Other Interfaces<br/>- Jupyter notebooks<br/>- Python scripts<br/>- Direct imports"]:::userInterface
+    end
 
-```
-┌──────────────────────────────────────────────────────────────────────────────┐
-│                           TWO DISTINCT PATHS                                  │
-└──────────────────────────────────────────────────────────────────────────────┘
+    %% AI/ML Layer
+    subgraph AI["AI/ML Layer"]
+        BasicAgent["ai/agent.py<br/>Modern FIA Agent<br/>SQL generation<br/>1163 lines"]:::aiLayer
+        ResultFormatter["ai/result_formatter.py<br/>Result formatting<br/>Table generation<br/>1205 lines"]:::aiLayer
+        DomainKnowledge["ai/domain_knowledge.py<br/>FIA domain expertise<br/>547 lines"]:::aiLayer
+    end
 
-Path 1: Direct Programmatic Access
-─────────────────────────────────
-User Input
-    │
-    ▼
-┌─────────────┐
-│   cli.py    │
-└─────────────┘
-    │
-    ▼
-┌─────────────────────────────────┐
-│      FIA Core (core.py)         │
-│  - fia.area(bySpecies=True)    │
-│  - fia.biomass(component='AG')  │
-│  - fia.volume(volType='NET')    │
-└─────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────┐
-│   Estimation Modules            │
-│  - area.py, biomass.py, etc.   │
-│  - Direct statistical methods   │
-└─────────────────────────────────┘
+    %% Estimation Layer
+    subgraph Estimation["Estimation Layer"]
+        Area["estimation/area.py<br/>Land area<br/>552 lines"]:::estimationLayer
+        AreaWorkflow["estimation/area_workflow.py<br/>Advanced area workflows<br/>869 lines"]:::estimationLayer
+        Volume["estimation/volume.py<br/>Wood volume<br/>392 lines"]:::estimationLayer
+        TPA["estimation/tpa.py<br/>Trees/acre<br/>510 lines"]:::estimationLayer
+        Mortality["estimation/mortality.py<br/>Tree death<br/>~380 lines"]:::estimationLayer
+        Utils["estimation/utils.py<br/>Common functions<br/>~350 lines"]:::estimationLayer
+    end
 
-Path 2: AI-Enhanced Query Access
-────────────────────────────────
-User Query
-    │
-    ▼
-┌─────────────┐     ┌─────────────┐
-│  cli_ai.py  │────▶│  AI Agent   │
-└─────────────┘     └─────────────┘
-    │                      │
-    │                      ▼
-    │              ┌─────────────┐
-    │              │ SQL Query   │
-    │              │ Generation  │
-    │              └─────────────┘
-    │                      │
-    ▼                      ▼
-┌─────────────────────────────────┐
-│  DuckDB Query Interface         │
-│  - Direct SQL execution         │
-│  - Schema inspection            │
-└─────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────┐
-│   Data Reader (data_reader.py)  │
-│  - Database connection          │
-│  - Optimized queries            │
-└─────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────┐
-│    Estimation Module            │
-│  - Domain filtering             │
-│  - Statistical calculations     │
-└─────────────────────────────────┘
-    │
-    ▼
-┌─────────────────────────────────┐
-│      Results & Formatting       │
-│  - Tables, plots, exports       │
-└─────────────────────────────────┘
+    %% Core Layer
+    subgraph Core["Core Layer"]
+        FIACore["core/fia.py<br/>FIA class (main API)<br/>EVALID filtering<br/>Table management<br/>415 lines"]:::coreLayer
+        DataReader["core/data_reader.py<br/>Database abstraction<br/>SQLite/DuckDB support<br/>~300 lines"]:::coreLayer
+        QueryInterface["database/query_interface.py<br/>Query execution<br/>Schema inspection<br/>~250 lines"]:::coreLayer
+    end
+
+    %% Database Layer
+    subgraph Database["Database Layer"]
+        SQLite["SQLite Support<br/>- Legacy compatibility<br/>- Smaller datasets<br/>- Batch processing"]:::databaseLayer
+        DuckDB["DuckDB Support<br/>- High performance<br/>- Large scale analysis<br/>- Better SQL support"]:::databaseLayer
+    end
+
+    %% Connections
+    DirectCLI --> FIACore
+    Other --> FIACore
+    AICLI --> BasicAgent
+    AICLI --> ResultFormatter
+    AICLI --> DomainKnowledge
+
+    BasicAgent --> QueryInterface
+    BasicAgent --> DomainKnowledge
+    ResultFormatter --> BasicAgent
+
+    FIACore --> Area
+    FIACore --> AreaWorkflow
+    FIACore --> Volume
+    FIACore --> TPA
+    FIACore --> Mortality
+
+    Area --> Utils
+    AreaWorkflow --> Area
+    Volume --> Utils
+    TPA --> Utils
+    Mortality --> Utils
+
+    FIACore --> DataReader
+    QueryInterface --> DataReader
+    DataReader --> SQLite
+    DataReader --> DuckDB
 ```
 
-## Code Duplication Heat Map
+## Data Flow - Two Distinct Paths
 
-```
-High Duplication (RED):
-┌────────────────────────────────────────┐
-│ Tree/Area Filtering (5x duplication)  │
-│ - _apply_tree_filters()                │
-│ - _apply_area_filters()                │
-│ Files: area, biomass, volume, tpa,    │
-│        mortality                       │
-└────────────────────────────────────────┘
-    │
-    ▼
-┌────────────────────────────────────────┐
-│ Grouping Logic (4x duplication)       │
-│ - Size class creation                  │
-│ - Species grouping                     │
-│ Files: biomass, volume, tpa, growth   │
-└────────────────────────────────────────┘
-    │
-    ▼
-┌────────────────────────────────────────┐
-│ Stratification (4x duplication)       │
-│ - Plot-stratum-EU calculations         │
-│ - Adjustment factors                   │
-│ Files: area, biomass, volume, tpa     │
-└────────────────────────────────────────┘
+### Path 1: Direct Programmatic Access
 
-Medium Duplication (YELLOW):
-┌────────────────────────────────────────┐
-│ CLI Connection Handling (3x)           │
-│ Database Schema Display (3x)           │
-│ Progress Indicators (3x)               │
-└────────────────────────────────────────┘
+```mermaid
+graph TD
+    User[User Input] --> CLI[cli.py]
+    CLI --> FIA[FIA Core<br/>- fia.area&#40;bySpecies=True&#41;<br/>- fia.biomass&#40;component='AG'&#41;<br/>- fia.volume&#40;volType='NET'&#41;]
+    FIA --> Est[Estimation Modules<br/>- area.py, biomass.py, etc.<br/>- Direct statistical methods]
+    Est --> DB[Database Layer]
+    DB --> Results[Results & Formatting]
 
-Low/No Duplication (GREEN):
-┌────────────────────────────────────────┐
-│ Core FIA logic (unique)                │
-│ Cognee integration (unique)            │
-│ Statistical formulas (mostly unique)   │
-└────────────────────────────────────────┘
+    style User fill:#f9f,stroke:#333,stroke-width:2px
+    style Results fill:#9f9,stroke:#333,stroke-width:2px
 ```
 
-## Dependency Graph - Two-CLI Architecture
+### Path 2: AI-Enhanced Query Access
 
+```mermaid
+graph TD
+    Query[User Query] --> CLIAI[cli_ai.py]
+    CLIAI --> Agent[AI Agent]
+    Agent --> SQL[SQL Query Generation]
+    SQL --> QI[DuckDB Query Interface<br/>- Direct SQL execution<br/>- Schema inspection]
+    QI --> DR[Data Reader<br/>- Database connection<br/>- Optimized queries]
+    DR --> EstMod[Estimation Module<br/>- Domain filtering<br/>- Statistical calculations]
+    EstMod --> Format[Results & Formatting<br/>- Tables, plots, exports]
+
+    style Query fill:#f9f,stroke:#333,stroke-width:2px
+    style Format fill:#9f9,stroke:#333,stroke-width:2px
 ```
-Direct Path Dependencies:
-┌─────────────┬─────────────┬─────────────┐
-│   polars    │   duckdb    │    rich     │
-│  (dataframes)│ (database)  │    (CLI)    │
-└──────┬──────┴──────┬──────┴──────┬──────┘
-       │             │             │
-       ▼             ▼             ▼
-    Estimation    data_reader    cli.py
-    modules       core.py        (direct)
 
-AI Path Dependencies:
-┌─────────────┬─────────────┬─────────────┬─────────────┬─────────────┐
-│   polars    │   duckdb    │    rich     │  langchain  │   cognee    │
-│  (dataframes)│ (database)  │    (CLI)    │    (AI)     │  (memory)   │
-└──────┬──────┴──────┬──────┴──────┬──────┴──────┬──────┴──────┬──────┘
-       │             │             │             │             │
-       ▼             ▼             ▼             ▼             ▼
-  Query results  duckdb_query   cli_ai.py   AI agents    cognee_fia
-                 _interface                  ai_*.py      _agent.py
+## Code Duplication Analysis
 
-Shared Core:
-┌─────────────────────┐
-│   estimation_utils  │ ◀── Used by all estimation modules
-└─────────────────────┘
-           │
-┌─────────────────────┐
-│      core.py        │ ◀── Used by cli.py and estimation modules
-└─────────────────────┘
-           │
-┌─────────────────────┐
-│   data_reader.py    │ ◀── Used by core.py
-└─────────────────────┘
+```mermaid
+graph LR
+    subgraph "High Duplication (5x)"
+        TF[Tree/Area Filtering<br/>_apply_tree_filters&#40;&#41;<br/>_apply_area_filters&#40;&#41;]
+        style TF fill:#ff6b6b,stroke:#333,stroke-width:2px
+    end
 
-Note: cli.py has NO dependency on AI/LangChain/SQL generation
-      cli_ai.py has NO dependency on core.py or estimation modules
+    subgraph "Medium Duplication (4x)"
+        GL[Grouping Logic<br/>Size class creation<br/>Species grouping]
+        ST[Stratification<br/>Plot-stratum-EU calculations<br/>Adjustment factors]
+        style GL fill:#ffd93d,stroke:#333,stroke-width:2px
+        style ST fill:#ffd93d,stroke:#333,stroke-width:2px
+    end
+
+    subgraph "Low Duplication (3x)"
+        CH[CLI Connection Handling]
+        DS[Database Schema Display]
+        PI[Progress Indicators]
+        style CH fill:#95e1d3,stroke:#333,stroke-width:2px
+        style DS fill:#95e1d3,stroke:#333,stroke-width:2px
+        style PI fill:#95e1d3,stroke:#333,stroke-width:2px
+    end
+
+    subgraph "Unique Code"
+        CF[Core FIA logic]
+        CI[Cognee integration]
+        SF[Statistical formulas]
+        style CF fill:#6bcf7f,stroke:#333,stroke-width:2px
+        style CI fill:#6bcf7f,stroke:#333,stroke-width:2px
+        style SF fill:#6bcf7f,stroke:#333,stroke-width:2px
+    end
+```
+
+## Dependency Graph
+
+```mermaid
+graph TB
+    %% External Dependencies
+    subgraph External["External Dependencies"]
+        Polars[Polars<br/>DataFrames]
+        DuckDB[DuckDB<br/>Database]
+        Rich[Rich<br/>CLI Formatting]
+        LangChain[LangChain<br/>AI Framework]
+        Cognee[Cognee<br/>Memory]
+    end
+
+    %% Direct Path
+    subgraph DirectPath["Direct Path Dependencies"]
+        Polars --> EstModules[Estimation<br/>Modules]
+        DuckDB --> DataReaderDirect[data_reader.py]
+        Rich --> CLIDirect[cli.py<br/>&#40;direct&#41;]
+        DataReaderDirect --> CorePy[core.py]
+        EstModules --> CorePy
+        CorePy --> CLIDirect
+    end
+
+    %% AI Path
+    subgraph AIPath["AI Path Dependencies"]
+        DuckDB --> QueryInt[duckdb_query<br/>_interface.py]
+        Rich --> CLIAI[cli_ai.py]
+        LangChain --> AIAgents[AI agents<br/>ai_*.py]
+        Cognee --> CogneeAgent[cognee_fia<br/>_agent.py]
+        QueryInt --> CLIAI
+        AIAgents --> CLIAI
+        CogneeAgent --> CLIAI
+    end
+
+    %% Shared Core
+    subgraph SharedCore["Shared Core"]
+        EstUtils[estimation_utils.py<br/>Used by all estimation modules]
+        CoreShared[core.py<br/>Used by cli.py and estimation modules]
+        DataReaderShared[data_reader.py<br/>Used by core.py]
+    end
+
+    EstModules --> EstUtils
+    CorePy --> CoreShared
+    CoreShared --> DataReaderShared
+
+    style Polars fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+    style DuckDB fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+    style Rich fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+    style LangChain fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+    style Cognee fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
+```
+
+## Module Size Analysis
+
+```mermaid
+pie title Module Size Distribution (Lines of Code)
+    "cli/direct.py" : 1210
+    "ai/result_formatter.py" : 1205
+    "ai/agent.py" : 1163
+    "estimation/area_workflow.py" : 869
+    "cli/ai_interface.py" : 773
+    "filters/domain.py" : 681
+    "estimation/area.py" : 552
+    "ai/domain_knowledge.py" : 547
+    "estimation/tpa.py" : 510
+    "core/fia.py" : 415
+    "estimation/volume.py" : 392
+    "Other modules" : 2883
 ```
 
 ## Refactoring Opportunities
 
 ### 1. Create Base Classes
+
 ```python
 # estimation_base.py
 class EstimationBase:
@@ -241,6 +232,7 @@ class AreaEstimation(EstimationBase):
 ```
 
 ### 2. Consolidate AI Agents
+
 ```python
 # Single flexible agent
 class FIAAgent:
@@ -248,59 +240,42 @@ class FIAAgent:
         # Support basic, enhanced, cognee
 ```
 
-### 3. Two-CLI Architecture (IMPLEMENTED)
-```python
-# cli.py - Direct programmatic access
-class FIADirectCLI:
-    def do_area()      # Calls fia.area()
-    def do_biomass()   # Calls fia.biomass()
-    def do_volume()    # Calls fia.volume()
-    # No SQL, No AI
+### 3. Two-CLI Architecture Benefits
 
-# cli_ai.py - AI-enhanced queries  
-class FIAAICli:
-    def _execute_natural_language()  # AI → SQL
-    def _execute_sql()              # Direct SQL
-    def do_agent()                  # Switch agents
-    # Full AI/SQL capabilities
+```mermaid
+graph LR
+    subgraph Benefits
+        A[Clear Separation<br/>of Concerns]
+        B[User Choice<br/>Direct vs AI]
+        C[Reduced<br/>Complexity]
+        D[Better<br/>Performance]
+    end
+
+    A --> E[cli.py: Pure pyFIA API<br/>cli_ai.py: AI/NL/SQL]
+    B --> F[Power users: Direct CLI<br/>Exploratory: AI CLI]
+    C --> G[No mixed modes<br/>Optimized for use case]
+    D --> H[Direct avoids AI overhead<br/>AI can be sophisticated]
+
+    style A fill:#2ecc71,stroke:#fff,stroke-width:2px,color:#fff
+    style B fill:#3498db,stroke:#fff,stroke-width:2px,color:#fff
+    style C fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
+    style D fill:#f39c12,stroke:#fff,stroke-width:2px,color:#fff
 ```
 
 ### 4. Extract Common Patterns
-- Move all filter functions to estimation_utils
-- Create GroupingMixin for size/species grouping
-- Create StratificationMixin for common calculations
 
-## Module Size Analysis
+- Move all filter functions to `estimation_utils`
+- Create `GroupingMixin` for size/species grouping
+- Create `StratificationMixin` for common calculations
 
-```
-Largest Modules:
-1. ai_agent_enhanced.py    - 1200 lines (could be 600)
-2. cli.py                 - 886 lines  (direct API access - well organized)
-3. ai_agent.py            - 850 lines  (could be 400)
-4. cli_ai.py              - 765 lines  (AI-enhanced CLI - clean design)
-5. data_reader.py         - 650 lines  (well organized)
-6. core.py                - 580 lines  (well organized)
-7. tpa.py                 - 500 lines  (could be 300)
+## Summary
 
-Total Lines: ~10,200 (after removing deprecated files)
-Potential After Refactor: ~8,000-8,500 (20% reduction)
-```
+The pyFIA architecture implements a clean separation between:
 
-## New Two-CLI Design Benefits
+1. **Direct API Access** - Fast, programmatic access to FIA statistical methods
+2. **AI-Enhanced Access** - Natural language queries with SQL generation
 
-1. **Clear Separation of Concerns**
-   - `cli.py`: Pure pyFIA API access, no external dependencies
-   - `cli_ai.py`: All AI/NL/SQL functionality isolated
+This dual-path architecture allows users to choose the appropriate interface for their needs while maintaining code organization and performance.
 
-2. **User Choice**
-   - Power users: Use `cli.py` for fast, direct statistical analysis
-   - Exploratory users: Use `cli_ai.py` for natural language queries
-
-3. **Reduced Complexity**
-   - No mixed modes or confusing command prefixes
-   - Each CLI optimized for its specific use case
-   - Easier to maintain and test
-
-4. **Performance**
-   - Direct CLI avoids AI overhead entirely
-   - AI CLI can use more sophisticated agents without impacting direct users
+**Total Lines**: ~10,200 (after removing deprecated files)
+**Potential After Refactor**: ~8,000-8,500 (20% reduction)

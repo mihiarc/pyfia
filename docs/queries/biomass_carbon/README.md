@@ -5,7 +5,7 @@ This section contains queries for calculating forest biomass and carbon storage 
 ## Queries in this Section
 
 ### 1. [Colorado Above-Ground Dry Biomass by Species Group](./colorado_biomass_by_species_group.md)
-**EVALID: 82101 (Colorado 2021)**  
+**EVALID: 82101 (Colorado 2021)**
 **Result: 1.096 billion tons total above-ground dry biomass, 10 species groups**
 
 A comprehensive biomass calculation that demonstrates:
@@ -22,7 +22,7 @@ A comprehensive biomass calculation that demonstrates:
 - **23**: Woodland softwoods - 114,570,440 tons (10.5%)
 
 ### 2. [North Carolina Merchantable Bole Biomass](./north_carolina_merchantable_biomass.md)
-**EVALID: 372301 (North Carolina 2023)**  
+**EVALID: 372301 (North Carolina 2023)**
 **Result: 1.56 billion green short tons merchantable bole biomass**
 
 Calculates merchantable bole bark and wood biomass for timber species ≥5" DBH:
@@ -69,4 +69,4 @@ These queries follow Oracle EVALIDator biomass methodology:
 - Biomass calculations are computationally intensive due to species-specific formulas
 - Results represent dry weight biomass (moisture removed)
 - Carbon content typically estimated as ~50% of dry biomass
-- Query demonstrates balance between accuracy and maintainability 
+- Query demonstrates balance between accuracy and maintainability

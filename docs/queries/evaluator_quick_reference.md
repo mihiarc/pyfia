@@ -6,13 +6,13 @@ This quick reference provides the most common patterns for translating Oracle EV
 
 ### Basic Tree Count Query
 ```sql
-SELECT 
+SELECT
     SUM(
-        t.TPA_UNADJ * 
-        CASE 
+        t.TPA_UNADJ *
+        CASE
             WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
             WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
-            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) 
+            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0)
                 THEN ps.ADJ_FACTOR_SUBP
             ELSE ps.ADJ_FACTOR_MACR
         END * ps.EXPNS
@@ -22,26 +22,26 @@ JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
 JOIN PLOT p ON ppsa.PLT_CN = p.CN
 JOIN COND c ON c.PLT_CN = p.CN
 JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
-WHERE t.STATUSCD = 1 
-    AND c.COND_STATUS_CD = 1 
+WHERE t.STATUSCD = 1
+    AND c.COND_STATUS_CD = 1
     AND ps.EVALID = [YOUR_EVALID];
 ```
 
 ### Basic Area Query
 ```sql
-SELECT 
+SELECT
     SUM(
-        c.CONDPROP_UNADJ * 
-        CASE c.PROP_BASIS 
-            WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR 
-            ELSE ps.ADJ_FACTOR_SUBP 
+        c.CONDPROP_UNADJ *
+        CASE c.PROP_BASIS
+            WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR
+            ELSE ps.ADJ_FACTOR_SUBP
         END * ps.EXPNS
     ) AS total_area_acres
 FROM POP_STRATUM ps
 JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
 JOIN PLOT p ON ppsa.PLT_CN = p.CN
 JOIN COND c ON c.PLT_CN = p.CN
-WHERE c.COND_STATUS_CD = 1 
+WHERE c.COND_STATUS_CD = 1
     AND ps.EVALID = [YOUR_EVALID];
 ```
 
@@ -77,13 +77,13 @@ WHERE ps.EVALID = [STATE][YEAR]00
 
 ### Live Trees on Forest Land
 ```sql
-WHERE t.STATUSCD = 1 
+WHERE t.STATUSCD = 1
     AND c.COND_STATUS_CD = 1
 ```
 
 ### Merchantable Timber
 ```sql
-WHERE t.STATUSCD = 1 
+WHERE t.STATUSCD = 1
     AND c.COND_STATUS_CD = 1
     AND t.DIA >= 5.0
     AND rs.WOODLAND = 'N'
@@ -128,9 +128,9 @@ GROUP BY c.FORTYPCD, rft.MEANING
 ### Net Cubic Foot Volume
 ```sql
 SUM(
-    t.TPA_UNADJ * 
-    t.VOLCFNET * 
-    [ADJUSTMENT_FACTOR] * 
+    t.TPA_UNADJ *
+    t.VOLCFNET *
+    [ADJUSTMENT_FACTOR] *
     ps.EXPNS
 ) AS total_volume_cuft
 ```
@@ -138,8 +138,8 @@ SUM(
 ### Above-Ground Dry Biomass
 ```sql
 SUM(
-    t.TPA_UNADJ * 
-    [ADJUSTMENT_FACTOR] * 
+    t.TPA_UNADJ *
+    [ADJUSTMENT_FACTOR] *
     COALESCE(t.DRYBIO_AG / 2000, 0) *  -- Convert pounds to tons
     ps.EXPNS
 ) AS total_biomass_tons
@@ -152,24 +152,24 @@ SUM(
 -- Complex GRM joins required
 LEFT OUTER JOIN TREE_GRM_MIDPT TRE_MIDPT ON (TREE.CN = TRE_MIDPT.TRE_CN)
 LEFT OUTER JOIN (
-    SELECT 
-        TRE_CN, 
-        SUBP_COMPONENT_GS_TIMBER AS COMPONENT, 
-        SUBP_SUBPTYP_GRM_GS_TIMBER AS SUBPTYP_GRM, 
-        SUBP_TPAMORT_UNADJ_GS_TIMBER AS TPAMORT_UNADJ 
+    SELECT
+        TRE_CN,
+        SUBP_COMPONENT_GS_TIMBER AS COMPONENT,
+        SUBP_SUBPTYP_GRM_GS_TIMBER AS SUBPTYP_GRM,
+        SUBP_TPAMORT_UNADJ_GS_TIMBER AS TPAMORT_UNADJ
     FROM TREE_GRM_COMPONENT
 ) GRM ON (TREE.CN = GRM.TRE_CN)
 
 -- Mortality calculation
 SUM(
-    GRM.TPAMORT_UNADJ * 
+    GRM.TPAMORT_UNADJ *
     CASE GRM.SUBPTYP_GRM
-        WHEN 1 THEN ps.ADJ_FACTOR_SUBP 
-        WHEN 2 THEN ps.ADJ_FACTOR_MICR 
-        WHEN 3 THEN ps.ADJ_FACTOR_MACR 
-        ELSE 0 
-    END * 
-    CASE WHEN GRM.COMPONENT LIKE 'MORTALITY%' 
+        WHEN 1 THEN ps.ADJ_FACTOR_SUBP
+        WHEN 2 THEN ps.ADJ_FACTOR_MICR
+        WHEN 3 THEN ps.ADJ_FACTOR_MACR
+        ELSE 0
+    END *
+    CASE WHEN GRM.COMPONENT LIKE 'MORTALITY%'
         THEN TRE_MIDPT.VOLCFNET ELSE 0 END *
     ps.EXPNS
 ) AS annual_mortality_cuft
@@ -179,10 +179,10 @@ SUM(
 ```sql
 -- Same GRM joins but different fields
 LEFT OUTER JOIN (
-    SELECT 
-        TRE_CN, 
-        SUBP_COMPONENT_GS_TIMBER AS COMPONENT, 
-        SUBP_SUBPTYP_GRM_GS_TIMBER AS SUBPTYP_GRM, 
+    SELECT
+        TRE_CN,
+        SUBP_COMPONENT_GS_TIMBER AS COMPONENT,
+        SUBP_SUBPTYP_GRM_GS_TIMBER AS SUBPTYP_GRM,
         SUBP_TPAREMV_UNADJ_GS_TIMBER AS TPAREMV_UNADJ  -- Note: REMV not MORT
     FROM TREE_GRM_COMPONENT
 ) GRM ON (TREE.CN = GRM.TRE_CN)
@@ -210,10 +210,10 @@ CREATE INDEX idx_cond_status ON COND(COND_STATUS_CD);
 ### Leverage CTEs for Complex Logic
 ```sql
 WITH tree_expansion AS (
-    SELECT 
+    SELECT
         t.CN,
-        t.TPA_UNADJ * 
-        CASE 
+        t.TPA_UNADJ *
+        CASE
             WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
             -- ... rest of logic
         END * ps.EXPNS AS expanded_tpa
@@ -272,4 +272,4 @@ WHERE t.STATUSCD = 1 AND c.COND_STATUS_CD = 1
 
 ---
 
-For detailed methodology and advanced topics, see the [EVALIDator Methodology Guide](./evaluator_methodology.md). 
+For detailed methodology and advanced topics, see the [EVALIDator Methodology Guide](./evaluator_methodology.md).

@@ -7,7 +7,7 @@
 For each major development task, create focused commits that represent logical progress stages:
 
 1. **Feature Implementation**: Add core functionality
-2. **Validation**: Compare with rFIA ground truth  
+2. **Validation**: Compare with rFIA ground truth
 3. **Documentation**: Update CLAUDE.md with results
 4. **Cleanup**: Remove temporary files and artifacts
 
@@ -47,7 +47,7 @@ git commit -m "feat: add mortality estimation module
 git add validation_results.md
 git commit -m "validate: mortality estimator against rFIA ground truth
 
-✅ Mortality rate: 1.23% - EXACT MATCH with rFIA (1.23%)  
+✅ Mortality rate: 1.23% - EXACT MATCH with rFIA (1.23%)
 ✅ Dead tree volume: 45.6 cu ft/acre - EXACT MATCH
 Production-ready implementation validated"
 
@@ -73,15 +73,15 @@ Each estimator must achieve:
 
 ### Current Validated Estimators
 
-✅ **Area**: EXACT MATCH (0.0% difference)  
-✅ **Biomass**: EXACT MATCH (0.0% difference)  
-✅ **Volume**: EXACT MATCH (<0.1% difference)  
-⚠️ **TPA**: 3.8% difference (acceptable range)  
+✅ **Area**: EXACT MATCH (0.0% difference)
+✅ **Biomass**: EXACT MATCH (0.0% difference)
+✅ **Volume**: EXACT MATCH (<0.1% difference)
+⚠️ **TPA**: 3.8% difference (acceptable range)
 
 ### Next Priorities
 
 1. **Test suite**: Add comprehensive Python tests
-2. **CI/CD**: Automated validation pipeline  
+2. **CI/CD**: Automated validation pipeline
 3. **Mortality**: Complete mortality estimator
 4. **Growth**: Implement growth/removal/mortality
 5. **Performance**: Benchmark against rFIA speed

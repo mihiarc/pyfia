@@ -34,8 +34,8 @@ Change evaluations (ending in 03) specifically support temporal analysis:
 ```sql
 -- Link current and previous conditions
 JOIN COND pcond ON pcond.PLT_CN = plot.PREV_PLT_CN
-JOIN SUBP_COND_CHNG_MTRX sccm ON 
-    sccm.PLT_CN = cond.PLT_CN 
+JOIN SUBP_COND_CHNG_MTRX sccm ON
+    sccm.PLT_CN = cond.PLT_CN
     AND sccm.PREV_PLT_CN = pcond.PLT_CN
 ```
 

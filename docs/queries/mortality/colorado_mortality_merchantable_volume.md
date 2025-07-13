@@ -18,21 +18,21 @@ This query demonstrates mortality estimation using EVALIDator methodology, calcu
 ## Query
 
 ```sql
-SELECT 
+SELECT
     ps.evalid,
     SUM(
-        tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET * 
-        CASE 
+        tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET *
+        CASE
             WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
             WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
             ELSE ps.ADJ_FACTOR_MACR
         END * ps.EXPNS
     ) as annual_mortality_cuft,
-    
+
     COUNT(DISTINCT p.CN) as plot_count,
     MIN(p.REMPER) as min_remper,
     MAX(p.REMPER) as max_remper
-    
+
 FROM POP_STRATUM ps
 JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
 JOIN PLOT p ON ppsa.PLT_CN = p.CN
@@ -40,7 +40,7 @@ JOIN COND c ON c.PLT_CN = p.CN
 JOIN TREE_GRM_COMPONENT tgc ON tgc.PLT_CN = p.CN
 JOIN TREE_GRM_BEGIN t ON t.TRE_CN = tgc.TRE_CN
 
-WHERE 
+WHERE
     -- Forest land only
     c.COND_STATUS_CD = 1
     -- Mortality components only
@@ -52,7 +52,7 @@ WHERE
     AND ps.rscd = 8
     -- GRM evaluation for mortality
     AND ps.evalid = 82003
-    
+
 GROUP BY ps.evalid;
 ```
 
@@ -60,11 +60,11 @@ GROUP BY ps.evalid;
 
 ```sql
 WITH mortality_totals AS (
-    SELECT 
+    SELECT
         ps.evalid,
         SUM(
-            tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET * 
-            CASE 
+            tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET *
+            CASE
                 WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
                 WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
                 ELSE ps.ADJ_FACTOR_MACR
@@ -77,7 +77,7 @@ WITH mortality_totals AS (
     JOIN COND c ON c.PLT_CN = p.CN
     JOIN TREE_GRM_COMPONENT tgc ON tgc.PLT_CN = p.CN
     JOIN TREE_GRM_BEGIN t ON t.TRE_CN = tgc.TRE_CN
-    WHERE 
+    WHERE
         c.COND_STATUS_CD = 1
         AND tgc.COMPONENT LIKE 'MORTALITY%'
         AND t.VOLCFNET IS NOT NULL
@@ -87,26 +87,26 @@ WITH mortality_totals AS (
     GROUP BY ps.evalid
 ),
 forest_area AS (
-    SELECT 
+    SELECT
         ps.evalid,
         SUM(
-            c.CONDPROP_UNADJ * 
-            CASE c.PROP_BASIS 
-                WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR 
-                ELSE ps.ADJ_FACTOR_SUBP 
+            c.CONDPROP_UNADJ *
+            CASE c.PROP_BASIS
+                WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR
+                ELSE ps.ADJ_FACTOR_SUBP
             END * ps.EXPNS
         ) as total_forest_acres
     FROM POP_STRATUM ps
     JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
     JOIN PLOT p ON ppsa.PLT_CN = p.CN
     JOIN COND c ON c.PLT_CN = p.CN
-    WHERE 
+    WHERE
         c.COND_STATUS_CD = 1
         AND ps.rscd = 8
         AND ps.evalid = 82003
     GROUP BY ps.evalid
 )
-SELECT 
+SELECT
     m.evalid,
     m.annual_mortality_cuft as total_annual_mortality_cuft,
     f.total_forest_acres,

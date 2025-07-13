@@ -7,7 +7,7 @@ default_language_version:
 repos:
   # Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: trailing-whitespace
       - id: end-of-file-fixer
@@ -26,7 +26,7 @@ repos:
 
   # Python code formatting with ruff
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.15
+    rev: v0.12.3
     hooks:
       # Run the formatter
       - id: ruff-format
@@ -38,7 +38,7 @@ repos:
 
   # Type checking with mypy
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.8.0
+    rev: v1.16.1
     hooks:
       - id: mypy
         additional_dependencies:
@@ -52,7 +52,7 @@ repos:
 
   # Security checks
   - repo: https://github.com/PyCQA/bandit
-    rev: 1.7.7
+    rev: 1.8.6
     hooks:
       - id: bandit
         args: ['-c', '.bandit', '-r', 'pyfia/']
@@ -69,14 +69,14 @@ repos:
 
   # Check for common security issues
   - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.4.0
+    rev: v1.5.0
     hooks:
       - id: detect-secrets
         args: ['--baseline', '.secrets.baseline']
 
   # Markdown formatting
   - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v3.1.0
+    rev: v4.0.0-alpha.8
     hooks:
       - id: prettier
         types_or: [markdown, yaml, json]

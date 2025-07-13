@@ -1,190 +1,145 @@
-# Pre-commit Hooks Guide for pyFIA
+# Pre-commit Quick Reference for pyFIA
 
-## Overview
+## 🚀 Essential Commands
 
-Pre-commit hooks ensure code quality by automatically checking and fixing issues before commits. This guide covers our pre-commit setup for pyFIA.
+| Command | Purpose |
+|---------|---------|
+| `uv run pyfia-setup-precommit` | Install pre-commit hooks |
+| `uv run pre-commit run --all-files` | Run all hooks on all files |
+| `uv run pre-commit run ruff` | Run specific hook |
+| `git commit --no-verify` | Skip hooks (emergency only!) |
+| `SKIP=mypy git commit` | Skip specific hooks |
 
-## Quick Start
+## 🔧 Hook Categories
 
-### Installation
+### 🧹 Formatting & Cleanup
+- **ruff-format**: Auto-formats Python code
+- **trailing-whitespace**: Removes trailing spaces
+- **end-of-file-fixer**: Adds missing newlines
+- **mixed-line-ending**: Converts to LF line endings
 
-```bash
-# Install pre-commit hooks
-uv run python scripts/setup_precommit.py
-# or
-uv run pyfia-setup-precommit
-```
+### 🔍 Linting & Validation
+- **ruff**: Python linting with auto-fixes
+- **check-yaml/json/toml**: Syntax validation
+- **check-merge-conflict**: Detects merge markers
+- **check-case-conflict**: Prevents case conflicts
 
-### Manual Usage
-
-```bash
-# Run all hooks on all files
-uv run pre-commit run --all-files
-
-# Run specific hook
-uv run pre-commit run mypy
-
-# Update hooks to latest versions
-uv run pre-commit autoupdate
-```
-
-## Configured Hooks
-
-### 1. **Standard Checks** (pre-commit-hooks)
-- `trailing-whitespace`: Remove trailing whitespace
-- `end-of-file-fixer`: Ensure files end with newline
-- `check-yaml`: Validate YAML syntax
-- `check-added-large-files`: Prevent large files (>1MB)
-- `check-json`: Validate JSON syntax
-- `check-toml`: Validate TOML syntax
-- `check-merge-conflict`: Check for merge conflict markers
-- `check-case-conflict`: Check for case conflicts
-- `check-docstring-first`: Ensure docstring comes first
-- `detect-private-key`: Detect private keys
-- `mixed-line-ending`: Normalize line endings to LF
-
-### 2. **Python Formatting** (ruff)
-- `ruff-format`: Format code according to project style
-- `ruff`: Lint code and auto-fix issues
-
-### 3. **Type Checking** (mypy)
-- Runs mypy with project configuration
-- Checks all files in `pyfia/` directory
-- Uses type stubs for dependencies
-
-### 4. **Security** (bandit)
-- Scans for common security issues
-- Configured via `.bandit` file
-- Excludes test files
-
-### 5. **Documentation** (pydocstyle)
-- Checks docstring conventions
+### 🎯 Type Checking
+- **mypy**: Static type checking for Python
 - Configured in `pyproject.toml`
-- Ignores specific rules for project style
+- Checks `pyfia/` directory only
 
-### 6. **Secrets Detection** (detect-secrets)
-- Prevents accidental commit of secrets
-- Uses `.secrets.baseline` for known false positives
+### 🛡️ Security
+- **bandit**: Security vulnerability scanner
+- **detect-secrets**: Prevents credential commits
+- **detect-private-key**: Blocks private keys
 
-### 7. **Markdown/YAML/JSON** (prettier)
-- Formats documentation files
-- Ensures consistent style
+### 📝 Documentation
+- **pydocstyle**: Docstring convention checker
+- **check-docstring-first**: Docstring placement
+- **prettier**: Markdown/YAML/JSON formatting
 
-## Handling Hook Failures
+## 🔥 Quick Fixes
 
-### Common Issues and Fixes
+| Error Type | Fix Command |
+|------------|-------------|
+| Formatting | `uv run ruff format pyfia/` |
+| Linting | `uv run ruff check --fix pyfia/` |
+| Type errors | `uv run mypy pyfia/specific_file.py` |
+| Large files | Add to `.gitignore` or use Git LFS |
+| Docstrings | Add `"""Description."""` at top |
 
-1. **Formatting Issues**
-   ```bash
-   # Auto-fix with ruff
-   uv run ruff format pyfia/
-   uv run ruff check --fix pyfia/
-   ```
+## 🚨 Common Error Patterns
 
-2. **Type Errors**
-   ```bash
-   # Check specific file
-   uv run mypy pyfia/specific_file.py
-   ```
+### Ruff Formatting
+```
+Would reformat: pyfia/core/fia.py
+```
+**Fix**: `uv run ruff format pyfia/core/fia.py`
 
-3. **Large Files**
-   - Add to `.gitignore` if appropriate
-   - Use Git LFS for necessary large files
-   - Compress or split large data files
+### Mypy Type Errors
+```
+error: Argument 1 to "func" has incompatible type "str"; expected "int"
+```
+**Fix**: Update type annotations or fix the code
 
-4. **Security Issues**
-   - Review bandit warnings carefully
-   - Add false positives to `.bandit` skips
-   - Refactor code to avoid security issues
+### Bandit Security
+```
+B101 assert_used
+```
+**Fix**: Replace `assert` with proper error handling
 
-5. **Missing Docstrings**
-   ```python
-   # Add module docstring at top of file
-   """Module description."""
-   
-   # Add function docstring
-   def function():
-       """Function description."""
-       pass
-   ```
+### Missing Docstring
+```
+D100 Missing docstring in public module
+```
+**Fix**: Add module docstring at file top
 
-## Bypassing Hooks (Emergency Only)
+## ⚙️ Configuration Files
 
+| File | Purpose |
+|------|---------|
+| `.pre-commit-config.yaml` | Hook definitions and versions |
+| `pyproject.toml` | Tool configs (ruff, mypy, pydocstyle) |
+| `.bandit` | Security scan exclusions |
+| `.secrets.baseline` | Known false positive secrets |
+
+## 🎯 When to Use Pre-commit
+
+1. **ALWAYS before commits** - Catches issues early
+2. **After major changes** - Ensures consistency
+3. **Before PR submission** - Avoids CI failures
+4. **Weekly maintenance** - Run `autoupdate`
+
+## 🛠️ Advanced Usage
+
+### Update All Hooks
 ```bash
-# Skip all hooks (use sparingly!)
-git commit --no-verify -m "Emergency fix"
-
-# Skip specific hooks
-SKIP=mypy,bandit git commit -m "Fix with known type issues"
+uv run pre-commit autoupdate
+uv run pre-commit run --all-files
 ```
 
-## Updating Baseline Files
-
-### Secrets Baseline
+### Debug Specific Hook
 ```bash
-# Update after reviewing new detections
-uv run detect-secrets scan --baseline .secrets.baseline
+uv run pre-commit run mypy --verbose --all-files
 ```
 
-## CI/CD Integration
+### Performance Mode
+```bash
+# Skip slow hooks during development
+SKIP=mypy,bandit uv run pre-commit run --all-files
+```
 
-Pre-commit can be integrated with CI:
-
+### CI Integration
 ```yaml
-# .github/workflows/pre-commit.yml
+# Already configured in .github/workflows/
 name: pre-commit
 on: [push, pull_request]
-jobs:
-  pre-commit:
-    runs-on: ubuntu-latest
-    steps:
-    - uses: actions/checkout@v3
-    - uses: actions/setup-python@v4
-    - uses: pre-commit/action@v3.0.0
 ```
 
-## Best Practices
+## 📋 Hook Reference
 
-1. **Run hooks before pushing**: Saves CI time
-2. **Keep hooks updated**: Run `pre-commit autoupdate` monthly
-3. **Don't skip habitually**: Fix issues properly
-4. **Add project-specific hooks**: Customize for your needs
-5. **Document exceptions**: Explain any disabled checks
+| Hook | Auto-fix | Speed | Importance |
+|------|----------|-------|------------|
+| ruff-format | ✅ | Fast | High |
+| ruff | ✅ | Fast | High |
+| trailing-whitespace | ✅ | Fast | Medium |
+| mypy | ❌ | Slow | High |
+| bandit | ❌ | Medium | High |
+| detect-secrets | ❌ | Medium | Critical |
+| prettier | ✅ | Fast | Low |
 
-## Troubleshooting
+## 🔧 Troubleshooting
 
-### Hook Installation Issues
 ```bash
-# Reinstall hooks
+# Reset everything
+uv run pre-commit clean
 uv run pre-commit uninstall
 uv run pre-commit install
-```
 
-### Cache Issues
-```bash
-# Clear pre-commit cache
-uv run pre-commit clean
-```
+# Update baseline for secrets
+uv run detect-secrets scan --baseline .secrets.baseline
 
-### Slow Performance
-```bash
-# Run hooks in parallel
-uv run pre-commit run --all-files --show-diff-on-failure
-```
-
-## Adding New Hooks
-
-Edit `.pre-commit-config.yaml`:
-```yaml
-- repo: https://github.com/owner/repo
-  rev: vX.Y.Z
-  hooks:
-    - id: hook-id
-      args: [--arg1, --arg2]
-```
-
-Then update:
-```bash
-uv run pre-commit autoupdate
-uv run pre-commit run --all-files
+# Check hook versions
+uv run pre-commit autoupdate --freeze
 ```

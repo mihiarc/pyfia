@@ -21,7 +21,7 @@ console = Console()
 def run_type_checker(command: List[str], name: str) -> Tuple[int, str]:
     """Run a type checker and return exit code and output."""
     console.print(f"\n[bold blue]Running {name}...[/bold blue]")
-    
+
     try:
         result = subprocess.run(
             command,
@@ -46,7 +46,7 @@ def parse_ty_output(output: str) -> Tuple[int, int, int]:
     """Parse ty output for error, warning, and note counts."""
     # Ty output format may differ, adjust as needed
     errors = output.count("error:")
-    warnings = output.count("warning:") 
+    warnings = output.count("warning:")
     notes = output.count("note:")
     return errors, warnings, notes
 
@@ -58,23 +58,23 @@ def main():
         "Running both mypy and ty for comprehensive type analysis",
         border_style="green"
     ))
-    
+
     # Run mypy
     mypy_code, mypy_output = run_type_checker(
         ["uv", "run", "mypy", "pyfia/", "--show-error-codes"],
         "mypy"
     )
-    
+
     # Run ty
     ty_code, ty_output = run_type_checker(
         ["uv", "run", "ty", "check", "pyfia/"],
         "ty (alpha)"
     )
-    
+
     # Parse results
     mypy_errors, mypy_warnings, mypy_notes = parse_mypy_output(mypy_output)
     ty_errors, ty_warnings, ty_notes = parse_ty_output(ty_output)
-    
+
     # Create summary table
     table = Table(title="Type Checking Summary")
     table.add_column("Checker", style="cyan")
@@ -82,25 +82,25 @@ def main():
     table.add_column("Errors", style="red")
     table.add_column("Warnings", style="yellow")
     table.add_column("Notes", style="blue")
-    
+
     mypy_status = "[green]PASSED[/green]" if mypy_code == 0 else "[red]FAILED[/red]"
     ty_status = "[green]PASSED[/green]" if ty_code == 0 else "[red]FAILED[/red]"
-    
+
     table.add_row("mypy", mypy_status, str(mypy_errors), str(mypy_warnings), str(mypy_notes))
     table.add_row("ty", ty_status, str(ty_errors), str(ty_warnings), str(ty_notes))
-    
+
     console.print("\n")
     console.print(table)
-    
+
     # Show detailed output if there are errors
     if mypy_code != 0:
         console.print("\n[bold red]mypy output:[/bold red]")
         console.print(mypy_output)
-    
+
     if ty_code != 0:
         console.print("\n[bold red]ty output:[/bold red]")
         console.print(ty_output)
-    
+
     # Exit with failure if either checker failed
     if mypy_code != 0 or ty_code != 0:
         console.print("\n[bold red]Type checking failed![/bold red]")

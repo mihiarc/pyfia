@@ -79,10 +79,10 @@ pyFIA includes a cutting-edge AI agent that allows you to query forest inventory
 ### Python API
 
 ```python
-from pyfia.ai_agent import create_fia_agent
+from pyfia.ai.agent import FIAAgent
 
 # Create AI agent (requires OpenAI API key)
-agent = create_fia_agent("path/to/FIA_database.duckdb")
+agent = FIAAgent("path/to/FIA_database.duckdb")
 
 # Ask questions in natural language
 response = agent.query("How many live oak trees are in North Carolina?")
@@ -103,7 +103,7 @@ Use the beautiful interactive command-line interface:
 
 ```bash
 # Start the AI agent CLI
-fia-ai path/to/database.duckdb
+pyfia-ai path/to/database.duckdb
 
 # Example natural language queries:
 🌲 FIA AI: How many live trees are in the database?

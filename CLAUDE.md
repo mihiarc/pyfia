@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+**MAINTAIN DETAILED DOCSTRINGS**
+
 ## Project Overview
 
 pyFIA is a Python implementation for analyzing USDA Forest Inventory and Analysis (FIA) data using Polars for high performance and DuckDB for handling large-scale national datasets.
@@ -15,6 +17,10 @@ pyFIA is a Python implementation for analyzing USDA Forest Inventory and Analysi
 uv venv
 source .venv/bin/activate     # Unix/Mac
 uv pip install -e .[dev]
+
+# IMPORTANT: Install in editable mode to make CLI commands available
+# This makes the pyfia and pyfia-ai commands available in your PATH
+uv pip install -e .
 
 # Install with different feature sets
 uv pip install -e .                # Basic installation
@@ -61,40 +67,53 @@ graph TB
     classDef dataLayer fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
     classDef aiComponent fill:#9b59b6,stroke:#fff,stroke-width:2px,color:#fff
     classDef estimator fill:#f39c12,stroke:#fff,stroke-width:2px,color:#fff
-    classDef altEstimator fill:#e67e22,stroke:#fff,stroke-width:2px,color:#fff
+    classDef filterComponent fill:#e67e22,stroke:#fff,stroke-width:2px,color:#fff
     classDef utility fill:#34495e,stroke:#fff,stroke-width:2px,color:#fff
     classDef external fill:#95a5a6,stroke:#fff,stroke-width:2px,color:#fff
 
     %% User Interfaces
-    CLI["CLI - Direct API"]:::userInterface
-    CLIAI["CLI-AI - Natural Language"]:::userInterface
+    CLI["cli.direct - Direct API"]:::userInterface
+    CLIAI["cli.ai_interface - Natural Language"]:::userInterface
     API["Python API"]:::userInterface
 
     %% Core Components
-    FIA["FIA Core Class"]:::coreComponent
+    FIA["core.fia - FIA Class"]:::coreComponent
+    Settings["core.settings - Pydantic Settings"]:::coreComponent
     
     %% AI Components
-    AIAgent["FIAAgent - Modern"]:::aiComponent
-    DuckDBInterface["DuckDB Query Interface"]:::aiComponent
+    AIAgent["ai.agent - FIAAgent"]:::aiComponent
+    DomainKnowledge["ai.domain_knowledge"]:::aiComponent
+    ResultFormatter["ai.result_formatter"]:::aiComponent
+    DuckDBInterface["database.query_interface"]:::aiComponent
 
     %% Data Layer
-    DataReader["FIA Data Reader"]:::dataLayer
+    DataReader["core.data_reader"]:::dataLayer
+    SchemaMapper["database.schema_mapper"]:::dataLayer
     DuckDB[("DuckDB")]:::external
 
     %% Estimation Modules
-    Area["Area Estimator"]:::estimator
-    Biomass["Biomass Estimator"]:::estimator
-    Volume["Volume Estimator"]:::estimator
-    TPA["TPA Estimator"]:::estimator
-    Mortality["Mortality Estimator"]:::estimator
-    Growth["Growth Estimator"]:::estimator
+    Area["estimation.area"]:::estimator
+    Biomass["estimation.biomass"]:::estimator
+    Volume["estimation.volume"]:::estimator
+    TPA["estimation.tpa"]:::estimator
+    Mortality["estimation.mortality"]:::estimator
+    Growth["estimation.growth"]:::estimator
+    Tree["estimation.tree"]:::estimator
+    AreaWorkflow["estimation.area_workflow"]:::estimator
+
+    %% Filter Modules
+    EVALIDFilter["filters.evalid"]:::filterComponent
+    DomainFilter["filters.domain"]:::filterComponent
+    GroupingFilter["filters.grouping"]:::filterComponent
+    JoinsFilter["filters.joins"]:::filterComponent
 
     %% Utilities
-    EstUtils["Estimation Utils"]:::utility
-    Config["Config"]:::utility
-    CLIConfig["CLI Config"]:::utility
-    Models["Data Models"]:::utility
-    SchemaMapper["DB Schema Mapper"]:::utility
+    EstUtils["estimation.utils"]:::utility
+    Config["core.config"]:::utility
+    CLIConfig["cli.config"]:::utility
+    Models["models.models"]:::utility
+    LocationParser["locations.parser"]:::utility
+    LocationResolver["locations.resolver"]:::utility
 
     %% External Dependencies
     Polars["Polars DataFrames"]:::external
@@ -109,22 +128,30 @@ graph TB
 
     %% Connections - AI Layer
     AIAgent --> DuckDBInterface
+    AIAgent --> DomainKnowledge
+    AIAgent --> ResultFormatter
     AIAgent --> LangChain
     LangChain --> OpenAI
     DuckDBInterface --> DuckDB
+    DuckDBInterface --> SchemaMapper
 
     %% Connections - Core Layer
     FIA --> DataReader
+    FIA --> Settings
+    FIA --> EVALIDFilter
     Area --> FIA
     Biomass --> FIA
     Volume --> FIA
     TPA --> FIA
     Mortality --> FIA
     Growth --> FIA
+    Tree --> FIA
+    AreaWorkflow --> Area
 
     %% Connections - Data Layer
     DataReader --> DuckDB
     DataReader --> Polars
+    DataReader --> SchemaMapper
 
     %% Connections - Estimators to Utils
     Area --> EstUtils
@@ -133,55 +160,70 @@ graph TB
     TPA --> EstUtils
     Mortality --> EstUtils
     Growth --> EstUtils
-    EstUtils --> ratio_var["ratio_var()"]:::utility
-    EstUtils --> cv["cv()"]:::utility
+    Tree --> EstUtils
+    EstUtils --> DomainFilter
+    EstUtils --> GroupingFilter
+    EstUtils --> JoinsFilter
+    EstUtils --> Polars
 
     %% Connections - Utilities
     FIA --> Config
     CLI --> CLIConfig
     CLIAI --> CLIConfig
-    EstUtils --> Polars
+    CLIAI --> LocationParser
+    LocationParser --> LocationResolver
     Area --> GeoPandas
-    DuckDBInterface --> SchemaMapper
 
     %% Add labels for clarity
-    subgraph UI["User Interfaces"]
+    subgraph UI["User Interfaces (pyfia.cli)"]
         CLI
         CLIAI
         API
     end
 
-    subgraph AI["AI Components"]
+    subgraph AI["AI Components (pyfia.ai + pyfia.database)"]
         AIAgent
+        DomainKnowledge
+        ResultFormatter
         DuckDBInterface
     end
 
-    subgraph Core["Core System"]
+    subgraph Core["Core System (pyfia.core)"]
         FIA
+        DataReader
+        Config
+        Settings
     end
 
-    subgraph Est["Estimation Modules"]
+    subgraph Est["Estimation Modules (pyfia.estimation)"]
         Area
         Biomass
         Volume
         TPA
         Mortality
         Growth
+        Tree
+        AreaWorkflow
+        EstUtils
+    end
+
+    subgraph Filters["Filter Components (pyfia.filters)"]
+        EVALIDFilter
+        DomainFilter
+        GroupingFilter
+        JoinsFilter
     end
 
     subgraph Data["Data Access"]
-        DataReader
         DuckDB
+        SchemaMapper
     end
 
-    subgraph Utils["Utilities"]
-        EstUtils
-        Config
-        CLIConfig
+    subgraph Utils["Utilities (pyfia.models + pyfia.locations)"]
         Models
-        SchemaMapper
-        ratio_var
-        cv
+        CLIConfig
+        LocationParser
+        LocationResolver
     end
 ```
 
@@ -216,28 +258,48 @@ sequenceDiagram
 
 ### Dual-Interface Design
 pyFIA provides two distinct interfaces:
-1. **Direct CLI (`cli.py`)**: Pure pyFIA API access for statistical analysis
-2. **AI CLI (`cli_ai.py`)**: Natural language queries with SQL generation via LangChain/GPT-4
+1. **Direct CLI (`pyfia`)**: Pure pyFIA API access for statistical analysis
+2. **AI CLI (`pyfia-ai`)**: Natural language queries with SQL generation via LangChain/GPT-4
 
 ### Python Package Structure  
-- `pyfia/core.py`: Main FIA class and common functionality
-- `pyfia/data_reader.py`: Database interface for SQLite/DuckDB
-- `pyfia/estimation_utils.py`: Shared estimation procedures and utilities
-- Individual estimation modules for different metrics:
+- `pyfia/core/`: Core functionality
+  - `fia.py`: Main FIA class and EVALID handling
+  - `data_reader.py`: Database interface for SQLite/DuckDB
+  - `config.py`: Configuration settings
+  - `settings.py`: Pydantic-based settings management
+- `pyfia/estimation/`: Estimation modules
+  - `utils.py`: Shared estimation procedures and utilities
   - `area.py`: Forest area estimation
   - `biomass.py`: Biomass calculations
   - `volume.py`: Volume estimation
   - `tpa.py`: Trees per acre
   - `mortality.py`: Standard mortality estimation
   - `growth.py`: Growth estimation
-- AI components:
-  - `ai_agent.py`: Modern FIAAgent using 2025 LangChain patterns
-  - `duckdb_query_interface.py`: Direct SQL interface for AI agents
-- Utilities:
+  - `tree.py`: Tree count estimations
+  - `area_workflow.py`: Advanced area estimation workflows
+- `pyfia/ai/`: AI components
+  - `agent.py`: Modern FIAAgent using 2025 LangChain patterns
+  - `domain_knowledge.py`: FIA domain expertise
+  - `result_formatter.py`: Result formatting utilities
+- `pyfia/database/`:
+  - `query_interface.py`: Direct SQL interface for AI agents
+  - `schema_mapper.py`: Database schema utilities
+- `pyfia/cli/`: Command-line interfaces
+  - `direct.py`: Direct API CLI
+  - `ai_interface.py`: AI-enhanced CLI
+  - `config.py`: CLI configuration
+  - `base.py`: Base CLI functionality
+  - `utils.py`: CLI utilities
+- `pyfia/filters/`: Data filtering utilities
+  - `evalid.py`: EVALID-based filtering
+  - `domain.py`: Domain filtering
+  - `grouping.py`: Grouping operations
+  - `joins.py`: Table joining utilities
+- `pyfia/models/`:
   - `models.py`: Pydantic data models
-  - `db_schema_mapper.py`: Database schema utilities
-  - `cli_config.py`: CLI configuration
-  - `config.py`: General configuration
+- `pyfia/locations/`:
+  - `parser.py`: Location parsing from natural language
+  - `resolver.py`: Location to database ID resolution
 
 ### Key Design Patterns
 
@@ -415,7 +477,7 @@ Filtering by year 2023 alone would incorrectly use all plots from all evaluation
 
 #### Mortality Estimation - NC EVALID 372303 
 - **Status**: Complete Implementation with Growing Stock Support
-- **File**: `pyfia/mortality.py` (updated with treeClass parameter)
+- **File**: `pyfia/estimation/mortality.py` (updated with treeClass parameter)
 - **Current Results**: 
   - EVALID 372303 (NC 2023 EXPMORT evaluation, 2009-2019 growth period)
   - Annual Mortality: **0.080 trees/acre/year** (3.37% CV)

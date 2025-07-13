@@ -7,102 +7,165 @@ repo_url: https://github.com/your-username/pyfia
 repo_name: pyfia
 edit_uri: edit/main/docs/
 
+copyright: Copyright &copy; 2025 PyFIA Contributors
+
 theme:
   name: material
+  # custom_dir: overrides
+  # logo: assets/logo.svg
+  favicon: assets/favicon.png
+  icon:
+    repo: fontawesome/brands/github
+    edit: material/pencil
+    view: material/eye
   palette:
-    - scheme: default
+    # Light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
       primary: green
       accent: light green
       toggle:
-        icon: material/brightness-7
+        icon: material/weather-night
         name: Switch to dark mode
-    - scheme: slate
+    # Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
       primary: green
       accent: light green
       toggle:
-        icon: material/brightness-4
+        icon: material/weather-sunny
         name: Switch to light mode
   features:
-    # Navigation enhancements
+    # Navigation
     - navigation.tabs
     - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
     - navigation.path
+    - navigation.prune
+    - navigation.indexes
     - navigation.top
+    - navigation.footer
+    # Table of contents
+    - toc.follow
+    - toc.integrate
+    # Search
+    - search.suggest
+    - search.highlight
+    - search.share
+    # Header
+    - header.autohide
+    # Content
+    - content.code.copy
+    - content.code.select
+    - content.code.annotate
+    - content.action.edit
+    - content.action.view
+    - content.tooltips
+    - content.tabs.link
+    # Instant loading
     - navigation.instant
     - navigation.instant.prefetch
     - navigation.instant.progress
-    - navigation.tracking
-    - navigation.indexes
-    # Search enhancements
-    - search.highlight
-    - search.share
-    - search.suggest
-    # Content features
-    - content.code.copy
-    - content.code.annotate
-    - content.tabs.link
-    - toc.follow
 
 markdown_extensions:
+  # Python Markdown
+  - abbr
   - admonition
   - attr_list
+  - def_list
+  - footnotes
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+      toc_depth: 3
+  # Python Markdown Extensions
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem:
+      smart_enable: all
+  - pymdownx.caret
+  - pymdownx.critic
   - pymdownx.details
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
+  - pymdownx.keys
+  - pymdownx.magiclink:
+      normalize_issue_symbols: true
+      repo_url_shorthand: true
+      user: mihiarc
+      repo: pyfia
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.snippets
   - pymdownx.superfences:
       custom_fences:
         - name: mermaid
           class: mermaid
           format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.highlight:
-      anchor_linenums: true
-  - pymdownx.inlinehilite
-  - pymdownx.snippets
   - pymdownx.tabbed:
       alternate_style: true
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.arithmatex:
-      generic: true
-  - pymdownx.betterem
-  - pymdownx.caret
-  - pymdownx.keys
-  - pymdownx.mark
-  - pymdownx.smartsymbols
+      combine_header_slug: true
+      slugify: !!python/object/apply:pymdownx.slugs.slugify
+        kwds:
+          case: lower
   - pymdownx.tasklist:
       custom_checkbox: true
   - pymdownx.tilde
-  - tables
-  - toc:
-      permalink: true
 
 plugins:
   - search:
-      separator: '[\s\-\_\.]+'
+      separator: '[\s\u200b\-._]+'  
+      lang:
+        - en
   - minify:
       minify_html: true
+      minify_js: true
+      minify_css: true
+      htmlmin_opts:
+        remove_comments: true
+  # Modern plugins
+  - git-revision-date-localized:
+      enable_creation_date: true
+      type: iso_datetime
+  # - tags:
+  #     tags_file: tags.md
+  # - social:
+  #     cards: true
+  #     cards_layout_options:
+  #       background_color: "#2e7d32"
+  #       color: "#ffffff"
+  # - offline
 
 nav:
   - Home: README.md
   
   - Getting Started:
+    - Overview: README.md
     - Installation: README.md#installation
     - Quick Start: README.md#quick-start
-    - Development Setup: DEVELOPMENT.md
   
-  - User Guide:
-    - Core Concepts:
-      - Architecture Overview: architecture_diagram.md
-      - Domain Filtering: INTELLIGENT_DOMAIN_FILTERING.md
-    
-    - Estimation Workflows:
-      - Area Estimation: ADVANCED_AREA_WORKFLOW.md
-      - Mortality Analysis: MORTALITY_WORKFLOW.md
-    
-    - AI Agent:
-      - Overview: AI_AGENT.md
-      - Migration Guide: MODERN_AGENT_MIGRATION.md
+  - AI Agent:
+    - Getting Started: ai_agent/README.md
+    - User Guide: ai_agent/USER_GUIDE.md
+    - Examples: ai_agent/EXAMPLES.md
+    - Features:
+      - Result Formatting: ai_agent/FORMATTING.md
+      - Domain Filtering: ai_agent/DOMAIN_FILTERING.md
+    - Reference:
+      - Architecture: ai_agent/ARCHITECTURE.md
+      - Tools Reference: ai_agent/TOOLS_REFERENCE.md
+      - Troubleshooting: ai_agent/TROUBLESHOOTING.md
+    - Development:
+      - Developer Guide: ai_agent/DEVELOPER_GUIDE.md
+      - Migration History: ai_agent/MODERN_AGENT_MIGRATION.md
   
   - Query Library:
     - Overview: queries/README.md
@@ -110,34 +173,34 @@ nav:
     - Methodology Guide: queries/evaluator_methodology.md
     - Working Query Bank: queries/FIA_WORKING_QUERY_BANK.md
     
-    - Examples by Category:
+    - Examples:
       - Basic Tree Queries:
-        - queries/basic_tree/README.md
+        - Overview: queries/basic_tree/README.md
         - Oregon Live Trees: queries/basic_tree/oregon_total_live_trees.md
         - NC Trees by Species: queries/basic_tree/north_carolina_trees_by_species.md
       
       - Biomass & Carbon:
-        - queries/biomass_carbon/README.md
+        - Overview: queries/biomass_carbon/README.md
         - Colorado Biomass: queries/biomass_carbon/colorado_biomass_by_species_group.md
         - NC Merchantable Biomass: queries/biomass_carbon/north_carolina_merchantable_biomass.md
       
       - Forest Area:
-        - queries/forest_area/README.md
+        - Overview: queries/forest_area/README.md
         - Minnesota Forest Types: queries/forest_area/minnesota_forest_type_groups.md
       
       - Forest Change:
-        - queries/forest_change/README.md
+        - Overview: queries/forest_change/README.md
         - Missouri Type Change: queries/forest_change/missouri_forest_type_change.md
       
       - Mortality:
-        - queries/mortality/README.md
+        - Overview: queries/mortality/README.md
         - Colorado Volume: queries/mortality/colorado_mortality_merchantable_volume.md
         - Georgia by Agent: queries/mortality/georgia_growing_stock_mortality_by_agent.md
         - Georgia by Disturbance: queries/mortality/georgia_growing_stock_mortality_by_disturbance.md
         - NC Trees per Acre: queries/mortality/north_carolina_mortality_trees_per_acre.md
       
       - Volume:
-        - queries/volume/README.md
+        - Overview: queries/volume/README.md
         - California by Diameter: queries/volume/california_volume_by_diameter.md
       
       - Advanced Topics:
@@ -145,19 +208,11 @@ nav:
         - Tree Density: queries/tree_density/README.md
   
   - Developer Guide:
-    - Development Guidelines: DEVELOPMENT.md
+    - System Architecture: ARCHITECTURE_DIAGRAMS.md
     - Code Quality:
       - Pre-commit Hooks: PRE_COMMIT_GUIDE.md
       - Property Testing: PROPERTY_TESTING_GUIDE.md
-      - Type Safety Roadmap: TYPE_SAFETY_ROADMAP.md
-    
-    - Migration Guides:
-      - Pydantic v2: PYDANTIC_V2_GUIDE.md
-      - Modern Agent: MODERN_AGENT_MIGRATION.md
-    
-    - Standards:
-      - Enhanced Formatting: ENHANCED_FORMATTING.md
-      - Claude Integration: CLAUDE.md
+      - Type Safety: PYDANTIC_V2_GUIDE.md
   
   - About:
     - Project Overview: README.md
@@ -165,10 +220,56 @@ nav:
     - License: README.md#license
 
 extra:
+  # Version provider
+  version:
+    provider: mike
+    default: stable
+  # Social links
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/your-username/pyfia
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/pyfia/
+    - icon: fontawesome/brands/discord
+      link: https://discord.gg/pyfia
+  # Analytics
+  analytics:
+    provider: google
+    property: G-XXXXXXXXXX
+    feedback:
+      title: Was this page helpful?
+      ratings:
+        - icon: material/emoticon-happy-outline
+          name: This page was helpful
+          data: 1
+          note: >-
+            Thanks for your feedback!
+        - icon: material/emoticon-sad-outline
+          name: This page could be improved
+          data: 0
+          note: >-
+            Thanks for your feedback! Help us improve this page by
+            using our <a href="..." target="_blank" rel="noopener">feedback form</a>.
+  # Page status indicators
+  status:
+    new: Recently added
+    deprecated: Deprecated
+  # Consent
+  consent:
+    title: Cookie consent
+    description: >-
+      We use cookies to recognize your repeated visits and preferences, as well
+      as to measure the effectiveness of our documentation and whether users
+      find what they're searching for. With your consent, you're helping us to
+      make our documentation better.
+  # Generator notice
+  generator: false
 
-copyright: Copyright &copy; 2025 PyFIA Contributors
+# Extra CSS
+extra_css:
+  - stylesheets/extra.css
+
+# Extra JavaScript
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js

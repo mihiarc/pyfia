@@ -1,0 +1,117 @@
+{% extends "main.html" %}
+
+<!-- Render landing page -->
+{% block tabs %}
+  {{ super() }}
+
+  <!-- Hero section -->
+  <section class="mdx-container">
+    <div class="md-grid md-typeset">
+      <div class="mdx-hero">
+        <!-- Hero content -->
+        <div class="mdx-hero__content">
+          <h1>🌲 PyFIA</h1>
+          <p>
+            <strong>High-performance Python toolkit for Forest Inventory Analysis</strong>
+          </p>
+          <p>
+            Analyze USDA Forest Service FIA data with modern Python tools, 
+            powered by DuckDB and enhanced with AI capabilities.
+          </p>
+          <p>
+            <a href="{{ 'README/#quick-start' | url }}" class="md-button md-button--primary">
+              Get Started
+            </a>
+            <a href="{{ 'ai_agent/' | url }}" class="md-button">
+              AI Agent
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Features section -->
+  <section class="mdx-container">
+    <div class="md-grid md-typeset">
+      <h2>Key Features</h2>
+      <div class="grid">
+        <div class="card feature-card">
+          <div class="feature-icon">🚀</div>
+          <h3>Lightning Fast</h3>
+          <p>Powered by DuckDB for blazing-fast analytical queries on large datasets</p>
+        </div>
+        <div class="card feature-card">
+          <div class="feature-icon">📊</div>
+          <h3>Statistically Accurate</h3>
+          <p>Implements official EVALIDator methodology for valid population estimates</p>
+        </div>
+        <div class="card feature-card">
+          <div class="feature-icon">🤖</div>
+          <h3>AI-Powered</h3>
+          <p>Natural language queries with intelligent domain understanding</p>
+        </div>
+        <div class="card feature-card">
+          <div class="feature-icon">🐍</div>
+          <h3>Pythonic</h3>
+          <p>Clean, intuitive API designed for the modern Python ecosystem</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- Code example -->
+  <section class="mdx-container">
+    <div class="md-grid md-typeset">
+      <h2>Simple to Use</h2>
+      <div class="highlight">
+        <pre><code class="language-python">import pyfia
+
+# Connect to FIA database
+fia = pyfia.FIA("path/to/fia.duckdb")
+
+# Get forest area by species
+area_by_species = fia.area(
+    evalid=372301,  # North Carolina 2023
+    bySpecies=True
+)
+
+# Natural language queries with AI
+from pyfia.ai.agent import FIAAgent
+agent = FIAAgent("path/to/fia.duckdb")
+result = agent.query("What's the total biomass in Oregon?")</code></pre>
+      </div>
+    </div>
+  </section>
+{% endblock %}
+
+<!-- Custom styles for homepage -->
+{% block styles %}
+  {{ super() }}
+  <style>
+    .mdx-hero {
+      margin: 0 0 2rem;
+      text-align: center;
+    }
+    
+    .mdx-hero h1 {
+      font-size: 3rem;
+      font-weight: 700;
+      margin: 0 0 1rem;
+    }
+    
+    .mdx-hero__content {
+      padding: 3rem 0;
+    }
+    
+    .mdx-container {
+      padding: 2rem 0;
+    }
+    
+    @media screen and (min-width: 60em) {
+      .mdx-hero h1 {
+        font-size: 4rem;
+      }
+    }
+  </style>
+{% endblock %}

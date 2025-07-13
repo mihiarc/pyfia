@@ -123,7 +123,7 @@ pyfia-ai path/to/database.duckdb
 - **🎨 Rich Interface**: Beautiful CLI with progress indicators and formatting
 - **📖 Interactive Help**: Built-in examples and schema exploration
 
-See [AI_AGENT.md](AI_AGENT.md) for comprehensive documentation.
+See the [AI Agent documentation](docs/ai_agent/README.md) for comprehensive documentation.
 
 ## Validation Results
 

@@ -63,9 +63,20 @@ This documentation is organized into several key sections:
 
 ### 🏁 Getting Started
 - **[Development Guide](DEVELOPMENT.md)** - Setup, testing, and contribution guidelines
-- **[AI Agent Overview](AI_AGENT.md)** - Understanding the integrated AI assistance
+- **[AI Agent Documentation](ai_agent/README.md)** - Natural language interface for FIA queries
 - **[Architecture](architecture_diagram.md)** - System design and components
-- **[Claude Integration](CLAUDE.md)** - AI-powered query assistance
+
+### 🤖 AI Agent
+Complete documentation for the natural language AI interface:
+- **[Quick Start](ai_agent/README.md)** - Get started with AI-powered queries
+- **[User Guide](ai_agent/USER_GUIDE.md)** - Comprehensive feature guide
+- **[Examples](ai_agent/EXAMPLES.md)** - Real-world usage scenarios
+- **[Architecture](ai_agent/ARCHITECTURE.md)** - Technical architecture details
+- **[Developer Guide](ai_agent/DEVELOPER_GUIDE.md)** - Extend and customize the agent
+- **[Tools Reference](ai_agent/TOOLS_REFERENCE.md)** - Available tools and functions
+- **[Result Formatting](ai_agent/FORMATTING.md)** - Rich output formatting with statistics
+- **[Domain Filtering](ai_agent/DOMAIN_FILTERING.md)** - Intelligent query filtering
+- **[Troubleshooting](ai_agent/TROUBLESHOOTING.md)** - Common issues and solutions
 
 ### 🔍 Query Library
 - **[Query Overview](queries/README.md)** - Complete guide to the query system

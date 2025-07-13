@@ -1,0 +1,201 @@
+/* Custom styles for PyFIA documentation */
+
+/* Forest-themed color adjustments */
+:root {
+  --md-primary-fg-color: #2e7d32;
+  --md-primary-fg-color--light: #4caf50;
+  --md-primary-fg-color--dark: #1b5e20;
+  --md-accent-fg-color: #7cb342;
+  --md-accent-fg-color--transparent: rgba(124, 179, 66, 0.1);
+}
+
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #4caf50;
+  --md-primary-fg-color--light: #66bb6a;
+  --md-primary-fg-color--dark: #2e7d32;
+  --md-accent-fg-color: #8bc34a;
+}
+
+/* Enhanced code blocks */
+.highlight pre {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Better admonition styling */
+.admonition {
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Forest-themed icons for custom admonitions */
+.admonition.forest {
+  border-color: var(--md-primary-fg-color);
+}
+
+.admonition.forest > .admonition-title::before {
+  content: "🌲";
+  margin-right: .5rem;
+}
+
+/* AI Agent specific styling */
+.admonition.ai-agent {
+  border-color: var(--md-accent-fg-color);
+  background-color: var(--md-accent-fg-color--transparent);
+}
+
+.admonition.ai-agent > .admonition-title::before {
+  content: "🤖";
+  margin-right: .5rem;
+}
+
+/* SQL query blocks */
+.language-sql {
+  background-color: #f5f5f5;
+}
+
+[data-md-color-scheme="slate"] .language-sql {
+  background-color: #1e1e1e;
+}
+
+/* Enhanced tables */
+.md-typeset table:not([class]) {
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+}
+
+/* Better navigation tabs */
+.md-tabs__link {
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+/* Enhanced search */
+.md-search__inner {
+  border-radius: 8px;
+}
+
+/* Card-like sections */
+.md-typeset .grid {
+  display: grid;
+  grid-gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  margin: 1em 0;
+}
+
+.md-typeset .card {
+  background: var(--md-default-bg-color);
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+  transition: box-shadow 0.25s;
+}
+
+.md-typeset .card:hover {
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+/* Feature cards */
+.feature-card {
+  text-align: center;
+  padding: 2rem;
+}
+
+.feature-card .feature-icon {
+  font-size: 3rem;
+  margin-bottom: 1rem;
+}
+
+/* Version badge */
+.md-version__current {
+  background-color: var(--md-primary-fg-color);
+  color: white;
+  padding: 0.2rem 0.6rem;
+  border-radius: 4px;
+}
+
+/* Enhanced tooltips */
+.md-tooltip {
+  border-radius: 4px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+}
+
+/* API reference styling */
+.doc-class {
+  border-left: 4px solid var(--md-primary-fg-color);
+  padding-left: 1rem;
+  margin: 1rem 0;
+}
+
+.doc-method {
+  border-left: 4px solid var(--md-accent-fg-color);
+  padding-left: 1rem;
+  margin: 0.5rem 0;
+}
+
+/* Parameter tables */
+.parameter-table td:first-child {
+  font-family: var(--md-code-font-family);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Mermaid diagram enhancements */
+.mermaid {
+  text-align: center;
+  margin: 2rem 0;
+}
+
+/* Social cards preview */
+.social-preview {
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 1rem 0;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Terminal/CLI examples */
+.terminal {
+  background-color: #1e1e1e;
+  color: #d4d4d4;
+  padding: 1rem;
+  border-radius: 8px;
+  font-family: var(--md-code-font-family);
+  overflow-x: auto;
+}
+
+.terminal .prompt {
+  color: #569cd6;
+  user-select: none;
+}
+
+.terminal .output {
+  color: #ce9178;
+}
+
+/* PyFIA specific icons */
+.pyfia-icon::before {
+  content: "🌲";
+  margin-right: 0.5rem;
+}
+
+/* Responsive adjustments */
+@media screen and (max-width: 768px) {
+  .md-typeset .grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Print styles */
+@media print {
+  .md-sidebar,
+  .md-header,
+  .md-footer,
+  .md-tabs {
+    display: none;
+  }
+}

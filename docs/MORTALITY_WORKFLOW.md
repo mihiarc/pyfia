@@ -13,7 +13,7 @@ Mortality estimation uses FIA's Growth/Removal/Mortality (GRM) methodology to ca
 The AI agent includes an `execute_mortality_command` tool that:
 
 1. **Automatically selects GRM EVALIDs** - Uses `get_recommended_evalid` with `"mortality"` analysis type
-2. **Parses CLI arguments** - Converts natural language to function parameters  
+2. **Parses CLI arguments** - Converts natural language to function parameters
 3. **Handles state filtering** - Extracts state codes from area_domain for EVALID selection
 4. **Enhanced formatting** - Uses the result formatter for comprehensive output
 
@@ -73,12 +73,12 @@ Agent CLI args → Core function parameters:
 Based on documented EVALIDator queries:
 
 ### North Carolina (EVALID 372303)
-- **Annual mortality rate**: ~0.080 trees/acre/year  
+- **Annual mortality rate**: ~0.080 trees/acre/year
 - **Total annual mortality**: ~1,485,000 trees/year
 - **Forest area**: ~18,560,000 acres
 - **Plot count**: ~5,673 plots
 
-### Colorado (EVALID 82003) 
+### Colorado (EVALID 82003)
 - **Merchantable volume mortality**: ~9.7 million cu.ft./year
 - **Growing stock focus**: Only trees with VOLCFNET > 0
 
@@ -87,7 +87,7 @@ Based on documented EVALIDator queries:
 The `test_north_carolina_mortality_real_validation.py` test validates:
 
 1. **Database requirements** - GRM tables and mortality components exist
-2. **EVALID selection** - Returns valid GRM evaluation for North Carolina  
+2. **EVALID selection** - Returns valid GRM evaluation for North Carolina
 3. **Accuracy verification** - Results match expected values within tolerance
 4. **Tree class comparison** - Growing stock < all trees mortality
 
@@ -109,7 +109,7 @@ pytest tests/test_north_carolina_mortality_real_validation.py::TestNorthCarolina
 ### Mortality-Specific Features
 
 - **GRM requirement**: Must use Growth/Removal/Mortality evaluations
-- **Component filtering**: Uses `COMPONENT LIKE 'MORTALITY%'` 
+- **Component filtering**: Uses `COMPONENT LIKE 'MORTALITY%'`
 - **Annual rates**: Pre-calculated in TREE_GRM_COMPONENT tables
 - **Tree basis adjustment**: Proper factors based on subplot design
 
@@ -128,7 +128,7 @@ The agent handles common mortality estimation errors:
 "Annual tree mortality rate for North Carolina forest land"
 ```
 
-### Species-Specific  
+### Species-Specific
 ```text
 "Loblolly pine mortality in Texas by tree class"
 ```
@@ -152,4 +152,4 @@ All mortality queries should be validated against:
 3. **Statistical quality** - CV < 30% for reliable estimates
 4. **Plot counts** - Sufficient sample size (>1000 plots ideal)
 
-The integration test provides the validation framework for ensuring accuracy and reliability of mortality estimates through the AI agent interface. 
+The integration test provides the validation framework for ensuring accuracy and reliability of mortality estimates through the AI agent interface.

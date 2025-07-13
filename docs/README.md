@@ -99,7 +99,7 @@ species_comp = fia.species_composition(evalid=412101, unit="trees_per_acre")
 
 # Diameter distribution
 diameter_dist = fia.diameter_distribution(
-    evalid=412101, 
+    evalid=412101,
     species_code=131,  # Loblolly pine
     diameter_classes=[5, 10, 15, 20, 25, 30]
 )

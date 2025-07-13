@@ -218,7 +218,7 @@ When Rich is enabled, single results are displayed in beautiful bordered panels:
 Multiple species are displayed in professional tables:
 
 ```
-                      🌳 Tree Population Analysis                      
+                      🌳 Tree Population Analysis
 ┏━━━━━━━━━━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━━━┳━━━━━━━━━━━━━━┓
 ┃ Species               ┃    Population ┃ Standard Error ┃ Reliability  ┃
 ┡━━━━━━━━━━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━━━╇━━━━━━━━━━━━━━┩
@@ -321,7 +321,7 @@ Standard Error %: 5.0%
 
 ### Biomass Estimates
 ```
-🌿 Biomass Analysis Results  
+🌿 Biomass Analysis Results
 • Aboveground: 69.7 tons/acre (±1.05, 1.5% SE)
 • Carbon Content: 32.8 tons/acre (±0.49, 1.5% SE)
 • 🟢 Excellent reliability - suitable for carbon accounting
@@ -335,4 +335,4 @@ Standard Error %: 5.0%
 • 🟢 Excellent reliability - meets FIA accuracy standards
 ```
 
-This enhanced formatting system transforms raw statistical output into user-friendly, scientifically rigorous presentations that help users understand both the results and their reliability. 
+This enhanced formatting system transforms raw statistical output into user-friendly, scientifically rigorous presentations that help users understand both the results and their reliability.

@@ -25,7 +25,7 @@ This query calculates average annual mortality of growing-stock trees (at least 
 ### Damage Agent Categories
 - **0**: No serious damage
 - **1-19**: Insect
-- **20-29**: Disease  
+- **20-29**: Disease
 - **30-39**: Fire
 - **40-49**: Animal
 - **50-59**: Weather

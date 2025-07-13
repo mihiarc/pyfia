@@ -3,12 +3,12 @@
 -- Results in green short tons
 -- EVALID: 372301 (North Carolina 2023 Volume evaluation)
 
-SELECT 
+SELECT
     GRP1 as diameter_class,
     GRP2 as species,
     SUM(ESTIMATED_VALUE * EXPNS) as ESTIMATE
 FROM (
-    SELECT 
+    SELECT
         pop_stratum.estn_unit_cn,
         pop_stratum.cn as STRATACN,
         plot.cn as plot_cn,
@@ -17,9 +17,9 @@ FROM (
         plot.lat,
         plot.lon,
         pop_stratum.expns as EXPNS,
-        
+
         -- Diameter class grouping
-        CASE 
+        CASE
             WHEN COALESCE(tree.dia, -1) = -1 THEN '`0022 Not available'
             WHEN tree.dia = 0 OR tree.dia IS NULL THEN '`0022 not measured'
             WHEN tree.dia <= 2.99 THEN '`0001 1.0-2.9'
@@ -44,27 +44,27 @@ FROM (
             WHEN tree.dia <= 40.99 THEN '`0020 39.0-40.9'
             ELSE '`0021 41.0+'
         END as GRP1,
-        
+
         -- Species grouping with formatting
-        '`' || 
-        CASE 
+        '`' ||
+        CASE
             WHEN REF_SPECIES_SPP.SPCD IS NULL THEN '9999'
             ELSE printf('%04d', REF_SPECIES_SPP.SPCD)
-        END || 
-        CASE 
+        END ||
+        CASE
             WHEN REF_SPECIES_SPP.SPCD IS NULL THEN 'Other or Unknown'
-            ELSE ' SPCD ' || printf('%04d', REF_SPECIES_SPP.SPCD) || ' - ' || 
-                 REF_SPECIES_SPP.COMMON_NAME || ' (' || 
-                 REF_SPECIES_SPP.GENUS || ' ' || REF_SPECIES_SPP.SPECIES || 
-                 CASE 
+            ELSE ' SPCD ' || printf('%04d', REF_SPECIES_SPP.SPCD) || ' - ' ||
+                 REF_SPECIES_SPP.COMMON_NAME || ' (' ||
+                 REF_SPECIES_SPP.GENUS || ' ' || REF_SPECIES_SPP.SPECIES ||
+                 CASE
                      WHEN REF_SPECIES_SPP.VARIETY IS NULL THEN ')'
                      ELSE ' ' || REF_SPECIES_SPP.VARIETY || ')'
                  END
         END as GRP2,
-        
+
         -- Merchantable bole biomass calculation (bark + wood)
         SUM(
-            TREE.TPA_UNADJ * 
+            TREE.TPA_UNADJ *
             -- Green weight conversion factor
             COALESCE(
                 (
@@ -90,42 +90,42 @@ FROM (
                     (1.0 + REF_SPECIES.MC_PCT_GREEN_BARK * 0.01)
                 ),
                 1.76  -- Default when species data unavailable
-            ) * 
+            ) *
             -- Adjustment factor based on plot design
-            CASE 
+            CASE
                 WHEN TREE.DIA IS NULL THEN POP_STRATUM.ADJ_FACTOR_SUBP
                 WHEN TREE.DIA < 5.0 THEN POP_STRATUM.ADJ_FACTOR_MICR
                 WHEN TREE.DIA < COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN POP_STRATUM.ADJ_FACTOR_SUBP
                 ELSE POP_STRATUM.ADJ_FACTOR_MACR
-            END * 
+            END *
             -- Merchantable bole biomass (using DRYBIO_BOLE + DRYBIO_BOLE_BARK)
             COALESCE((TREE.DRYBIO_BOLE + TREE.DRYBIO_BOLE_BARK) / 2000, 0)  -- Convert pounds to tons
         ) AS ESTIMATED_VALUE
-        
+
     FROM POP_STRATUM pop_stratum
-    JOIN POP_PLOT_STRATUM_ASSGN pop_plot_stratum_assgn 
+    JOIN POP_PLOT_STRATUM_ASSGN pop_plot_stratum_assgn
         ON pop_plot_stratum_assgn.STRATUM_CN = pop_stratum.CN
-    JOIN PLOT plot 
+    JOIN PLOT plot
         ON pop_plot_stratum_assgn.PLT_CN = plot.CN
-    JOIN PLOTGEOM plotgeom 
+    JOIN PLOTGEOM plotgeom
         ON plot.CN = plotgeom.CN
-    JOIN COND cond 
+    JOIN COND cond
         ON cond.PLT_CN = plot.CN
-    JOIN TREE tree 
+    JOIN TREE tree
         ON tree.PLT_CN = cond.PLT_CN AND tree.CONDID = cond.CONDID
-    JOIN REF_SPECIES ref_species 
+    JOIN REF_SPECIES ref_species
         ON tree.SPCD = ref_species.SPCD
-    LEFT OUTER JOIN REF_SPECIES ref_species_spp 
+    LEFT OUTER JOIN REF_SPECIES ref_species_spp
         ON tree.SPCD = ref_species_spp.SPCD
-        
-    WHERE 
+
+    WHERE
         tree.STATUSCD = 1  -- Live trees
         AND cond.COND_STATUS_CD = 1  -- Forest land
         AND tree.DIA >= 5.0  -- At least 5 inches DBH
         AND pop_stratum.rscd = 33  -- North Carolina
         AND pop_stratum.evalid = 372301  -- 2023 evaluation
-        
-    GROUP BY 
+
+    GROUP BY
         pop_stratum.estn_unit_cn,
         pop_stratum.cn,
         plot.cn,

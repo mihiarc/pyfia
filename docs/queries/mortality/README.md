@@ -44,16 +44,16 @@ Unlike volume or area estimates, growth and mortality calculations require speci
 ### Basic Mortality Query Structure
 
 ```sql
-SELECT 
+SELECT
     SUM(
-        tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET * 
+        tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET *
         [adjustment_factors] * ps.EXPNS
     ) as annual_mortality
 FROM POP_STRATUM ps
 JOIN [standard FIA joins]
 JOIN TREE_GRM_COMPONENT tgc ON tgc.PLT_CN = p.CN
 JOIN TREE_GRM_BEGIN t ON t.TRE_CN = tgc.TRE_CN
-WHERE 
+WHERE
     tgc.COMPONENT LIKE 'MORTALITY%'
     AND [other filters]
 ```

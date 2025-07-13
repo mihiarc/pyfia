@@ -5,7 +5,7 @@ This section contains fundamental tree enumeration and counting queries that for
 ## Queries in this Section
 
 ### 1. [Oregon Total Live Trees](./oregon_total_live_trees.md)
-**EVALID: 412101 (Oregon 2021)**  
+**EVALID: 412101 (Oregon 2021)**
 **Result: 10,481,113,490 live trees (357.8 trees/acre)**
 
 A comprehensive example of EVALIDator-style tree counting that demonstrates:
@@ -34,4 +34,4 @@ These queries follow Oracle EVALIDator methodology exactly:
 - Always verify EVALID values match your analysis needs
 - Understand that different EVALIDs represent different time periods and methodologies
 - Results represent statistical estimates, not exact counts
-- Plot counts provide context for sample size and reliability 
+- Plot counts provide context for sample size and reliability

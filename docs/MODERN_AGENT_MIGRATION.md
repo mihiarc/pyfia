@@ -2,7 +2,7 @@
 
 ## Migration Status: ✅ COMPLETE
 
-**The migration to the modern agent architecture is now complete!** 
+**The migration to the modern agent architecture is now complete!**
 
 As of this update, pyFIA uses a single, streamlined AI agent based on 2025 LangChain patterns. The old complex architectures have been removed.
 
@@ -56,7 +56,7 @@ response = agent.query("What about pine trees?", thread_id="session1")
 - **Better caching**: Built-in LangGraph optimizations
 - **Efficient memory**: Automatic conversation management
 
-### 🧹 **Maintainability** 
+### 🧹 **Maintainability**
 - **50% less code**: Removed 3 agent implementations
 - **Single pattern**: Only ReAct workflow to maintain
 - **Clear tools**: Function-based tool definitions
@@ -77,10 +77,10 @@ Tools are now simple Python functions:
 def my_new_tool(param: str) -> str:
     """
     Clear docstring describing the tool.
-    
+
     Args:
         param: Description of parameter
-        
+
     Returns:
         Formatted result string
     """
@@ -107,7 +107,7 @@ Memory is handled automatically:
 
 ### For Developers
 - **Cleaner codebase** to work with
-- **Easier tool development** 
+- **Easier tool development**
 - **Single test target** for agent functionality
 - **Modern patterns** to follow
 

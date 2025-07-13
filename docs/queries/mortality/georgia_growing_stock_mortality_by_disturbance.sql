@@ -2,12 +2,12 @@
 -- Trees at least 5 inches d.b.h. on timberland
 -- EVALID: 132303 (Georgia 2023 Growth/Removal/Mortality evaluation)
 
-SELECT 
+SELECT
     GRP1 as disturbance_type,
     GRP2 as species,
     SUM(ESTIMATED_VALUE * EXPNS) as ESTIMATE
 FROM (
-    SELECT 
+    SELECT
         pop_stratum.estn_unit_cn,
         pop_stratum.cn as STRATACN,
         plot.cn as plot_cn,
@@ -16,7 +16,7 @@ FROM (
         plot.lat,
         plot.lon,
         pop_stratum.expns as EXPNS,
-        
+
         -- Disturbance type grouping (condition-level)
         CASE COALESCE(cond.dstrbcd1, -1)
             WHEN 0 THEN '`0001 No visible disturbance'
@@ -53,71 +53,71 @@ FROM (
             WHEN -1 THEN '`0032 Not available'
             ELSE '`0032 Other'
         END as GRP1,
-        
+
         -- Species grouping with formatting
-        '`' || 
-        CASE 
+        '`' ||
+        CASE
             WHEN REF_SPECIES_SPP.SPCD IS NULL THEN '9999'
             ELSE printf('%04d', REF_SPECIES_SPP.SPCD)
-        END || 
-        CASE 
+        END ||
+        CASE
             WHEN REF_SPECIES_SPP.SPCD IS NULL THEN 'Other or Unknown'
-            ELSE ' SPCD ' || printf('%04d', REF_SPECIES_SPP.SPCD) || ' - ' || 
-                 REF_SPECIES_SPP.COMMON_NAME || ' (' || 
-                 REF_SPECIES_SPP.GENUS || ' ' || REF_SPECIES_SPP.SPECIES || 
-                 CASE 
+            ELSE ' SPCD ' || printf('%04d', REF_SPECIES_SPP.SPCD) || ' - ' ||
+                 REF_SPECIES_SPP.COMMON_NAME || ' (' ||
+                 REF_SPECIES_SPP.GENUS || ' ' || REF_SPECIES_SPP.SPECIES ||
+                 CASE
                      WHEN REF_SPECIES_SPP.VARIETY IS NULL THEN ')'
                      ELSE ' ' || REF_SPECIES_SPP.VARIETY || ')'
                  END
         END as GRP2,
-        
+
         -- Growing stock mortality calculation
         SUM(
-            GRM.TPAMORT_UNADJ * 
+            GRM.TPAMORT_UNADJ *
             -- Adjustment factor based on subplot type
-            CASE 
+            CASE
                 WHEN COALESCE(GRM.SUBPTYP_GRM, 0) = 0 THEN 0
                 WHEN GRM.SUBPTYP_GRM = 1 THEN POP_STRATUM.ADJ_FACTOR_SUBP
                 WHEN GRM.SUBPTYP_GRM = 2 THEN POP_STRATUM.ADJ_FACTOR_MICR
                 WHEN GRM.SUBPTYP_GRM = 3 THEN POP_STRATUM.ADJ_FACTOR_MACR
                 ELSE 0
-            END * 
+            END *
             -- Only mortality components
-            CASE 
+            CASE
                 WHEN GRM.COMPONENT LIKE 'MORTALITY%' THEN 1
                 ELSE 0
             END
         ) AS ESTIMATED_VALUE
-        
+
     FROM POP_STRATUM pop_stratum
-    JOIN POP_PLOT_STRATUM_ASSGN pop_plot_stratum_assgn 
+    JOIN POP_PLOT_STRATUM_ASSGN pop_plot_stratum_assgn
         ON pop_stratum.CN = pop_plot_stratum_assgn.STRATUM_CN
-    JOIN PLOT plot 
+    JOIN PLOT plot
         ON pop_plot_stratum_assgn.PLT_CN = plot.CN
-    JOIN PLOTGEOM plotgeom 
+    JOIN PLOTGEOM plotgeom
         ON plot.CN = plotgeom.CN
-    JOIN COND cond 
+    JOIN COND cond
         ON plot.CN = cond.PLT_CN
     JOIN (
         -- Join current plot to tree with previous plot info
-        SELECT p.PREV_PLT_CN, t.* 
-        FROM PLOT p 
+        SELECT p.PREV_PLT_CN, t.*
+        FROM PLOT p
         JOIN TREE t ON p.CN = t.PLT_CN
-    ) tree 
+    ) tree
         ON tree.CONDID = cond.CONDID AND tree.PLT_CN = cond.PLT_CN
-    LEFT OUTER JOIN PLOT pplot 
+    LEFT OUTER JOIN PLOT pplot
         ON plot.PREV_PLT_CN = pplot.CN
-    LEFT OUTER JOIN COND pcond 
+    LEFT OUTER JOIN COND pcond
         ON tree.PREVCOND = pcond.CONDID AND tree.PREV_PLT_CN = pcond.PLT_CN
-    LEFT OUTER JOIN TREE ptree 
+    LEFT OUTER JOIN TREE ptree
         ON tree.PREV_TRE_CN = ptree.CN
-    LEFT OUTER JOIN TREE_GRM_BEGIN tre_begin 
+    LEFT OUTER JOIN TREE_GRM_BEGIN tre_begin
         ON tree.CN = tre_begin.TRE_CN
-    LEFT OUTER JOIN TREE_GRM_MIDPT tre_midpt 
+    LEFT OUTER JOIN TREE_GRM_MIDPT tre_midpt
         ON tree.CN = tre_midpt.TRE_CN
     LEFT OUTER JOIN (
         -- Growing stock mortality components
-        SELECT 
+        SELECT
             TRE_CN,
             DIA_BEGIN,
             DIA_MIDPT,
@@ -126,17 +126,17 @@ FROM (
             SUBP_SUBPTYP_GRM_GS_TIMBER AS SUBPTYP_GRM,
             SUBP_TPAMORT_UNADJ_GS_TIMBER AS TPAMORT_UNADJ
         FROM TREE_GRM_COMPONENT
-    ) grm 
+    ) grm
         ON tree.CN = grm.TRE_CN
-    LEFT OUTER JOIN REF_SPECIES ref_species_spp 
+    LEFT OUTER JOIN REF_SPECIES ref_species_spp
         ON tree.SPCD = ref_species_spp.SPCD
-        
-    WHERE 
+
+    WHERE
         -- Georgia GRM evaluation
         pop_stratum.rscd = 33
         AND pop_stratum.evalid = 132303
-        
-    GROUP BY 
+
+    GROUP BY
         pop_stratum.estn_unit_cn,
         pop_stratum.cn,
         plot.cn,

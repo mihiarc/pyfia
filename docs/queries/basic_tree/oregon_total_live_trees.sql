@@ -22,24 +22,24 @@ Key Concepts:
 - EVALID: Statistical evaluation identifier for proper grouping
 */
 
-SELECT 
+SELECT
     SUM(
-        TREE.TPA_UNADJ * 
-        CASE 
+        TREE.TPA_UNADJ *
+        CASE
             WHEN TREE.DIA IS NULL THEN POP_STRATUM.ADJ_FACTOR_SUBP
             WHEN TREE.DIA < 5.0 THEN POP_STRATUM.ADJ_FACTOR_MICR
             WHEN TREE.DIA < COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN POP_STRATUM.ADJ_FACTOR_SUBP
             ELSE POP_STRATUM.ADJ_FACTOR_MACR
         END * POP_STRATUM.EXPNS
     ) AS total_live_trees
-    
-FROM POP_STRATUM 
+
+FROM POP_STRATUM
 JOIN POP_PLOT_STRATUM_ASSGN ON (POP_PLOT_STRATUM_ASSGN.STRATUM_CN = POP_STRATUM.CN)
 JOIN PLOT ON (POP_PLOT_STRATUM_ASSGN.PLT_CN = PLOT.CN)
 JOIN COND ON (COND.PLT_CN = PLOT.CN)
 JOIN TREE ON (TREE.PLT_CN = COND.PLT_CN AND TREE.CONDID = COND.CONDID)
 
-WHERE 
+WHERE
     TREE.STATUSCD = 1  -- Live trees
     AND COND.COND_STATUS_CD = 1  -- Forest conditions
     AND POP_STRATUM.EVALID = 412101;  -- Oregon 2021
@@ -55,4 +55,4 @@ Validation Notes:
 - Demonstrates proper use of adjustment factors
 - Shows correct application of expansion factors
 - Template for other state/EVALID combinations
-*/ 
+*/

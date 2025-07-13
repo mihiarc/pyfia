@@ -77,4 +77,4 @@ All queries in this library follow these standards:
 - **[EVALIDator Quick Reference](./evaluator_quick_reference.md)** - Essential patterns and templates for EVALIDator translation
 - **[EVALIDator Methodology Guide](./evaluator_methodology.md)** - Comprehensive guide for Oracle to DuckDB translation
 - **[Query Best Practices](./best_practices.md)** - Guidelines for effective FIA query development
-- **[Common Pitfalls](./common_pitfalls.md)** - Critical mistakes to avoid when writing FIA queries 
+- **[Common Pitfalls](./common_pitfalls.md)** - Critical mistakes to avoid when writing FIA queries

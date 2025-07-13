@@ -18,20 +18,20 @@ This query demonstrates species-level analysis using EVALIDator methodology, sho
 ## Query
 
 ```sql
-SELECT 
+SELECT
     t.SPCD,
     rs.COMMON_NAME,
     rs.SCIENTIFIC_NAME,
     SUM(
-        t.TPA_UNADJ * 
-        CASE 
+        t.TPA_UNADJ *
+        CASE
             WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
             WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
             WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
             ELSE ps.ADJ_FACTOR_MACR
         END * ps.EXPNS
     ) AS total_trees_expanded
-    
+
 FROM POP_STRATUM ps
 JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
 JOIN PLOT p ON ppsa.PLT_CN = p.CN
@@ -39,7 +39,7 @@ JOIN COND c ON c.PLT_CN = p.CN
 JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
 LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
 
-WHERE 
+WHERE
     t.STATUSCD = 1  -- Live trees
     AND c.COND_STATUS_CD = 1  -- Forest conditions
     AND ps.rscd = 33  -- North Carolina
@@ -55,7 +55,7 @@ LIMIT 10;
 **Top 10 Species by Tree Count:**
 
 1. **131**: loblolly pine (Pinus taeda) - 2,112,569,195 trees
-2. **316**: red maple (Acer rubrum) - 1,933,632,940 trees  
+2. **316**: red maple (Acer rubrum) - 1,933,632,940 trees
 3. **611**: sweetgum (Liquidambar styraciflua) - 1,678,200,744 trees
 4. **621**: yellow-poplar (Liriodendron tulipifera) - 971,141,798 trees
 5. **591**: American holly (Ilex opaca) - 573,763,842 trees
@@ -76,4 +76,4 @@ LIMIT 10;
 
 <a href="north_carolina_trees_by_species.sql" download class="md-button md-button--primary">
   :material-download: Download SQL File
-</a> 
+</a>

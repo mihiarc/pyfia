@@ -29,7 +29,7 @@ defaults = get_intelligent_defaults(
 )
 # Returns: {"tree_type": "live", "land_type": "forest"}
 
-# Analysis-specific defaults  
+# Analysis-specific defaults
 defaults = get_intelligent_defaults(
     query_context="Volume analysis",
     analysis_type="volume"
@@ -48,7 +48,7 @@ from pyfia.filters.domain import apply_standard_filters
 filtered_trees, filtered_conds, assumptions = apply_standard_filters(
     tree_df, cond_df,
     tree_type="live",
-    land_type="timber", 
+    land_type="timber",
     track_assumptions=True
 )
 
@@ -87,7 +87,7 @@ filtered_trees, filtered_conds, assumptions = apply_standard_filters(
 
 The system will:
 - Detect "mortality" → set tree_type to "dead"
-- Default land_type to "forest" 
+- Default land_type to "forest"
 - Track that these defaults were applied
 
 ### 4. Domain Suggestions
@@ -137,12 +137,12 @@ Based on your query about "live trees in Minnesota", I'm using these filters:
 • Including all forest land
 
 Key assumptions:
-• Live trees defined as STATUSCD == 1 
+• Live trees defined as STATUSCD == 1
 • Forest land defined as COND_STATUS_CD == 1
 
 Results: 2.1 billion live trees on 16.7 million acres of forest land.
 
-If you'd like to adjust these filters (e.g., include only timberland, or add 
+If you'd like to adjust these filters (e.g., include only timberland, or add
 diameter restrictions), please let me know!
 ```
 
@@ -172,7 +172,7 @@ The system uses these rules for intelligent defaults:
 - "dead", "mortality", "died" → `tree_type="dead"`
 - "growing stock", "merchantable", "commercial" → `tree_type="gs"`
 
-#### Land Type Intelligence  
+#### Land Type Intelligence
 - "timber", "commercial", "productive" → `land_type="timber"`
 - "all land", "any land" → `land_type="all"`
 
@@ -186,7 +186,7 @@ The system uses these rules for intelligent defaults:
 All filters include clear explanations:
 
 - **Live trees**: "STATUSCD == 1"
-- **Dead trees**: "STATUSCD == 2" 
+- **Dead trees**: "STATUSCD == 2"
 - **Growing stock**: "STATUSCD == 1, TREECLCD == 2, AGENTCD < 30"
 - **Forest land**: "COND_STATUS_CD == 1"
 - **Timberland**: "Forest + productive + unreserved"
@@ -227,12 +227,12 @@ suggestions = suggest_common_domains(analysis_type)
 User: "How many trees are in Texas?"
 
 System:
-- Detects general question → tree_type="all", land_type="forest" 
+- Detects general question → tree_type="all", land_type="forest"
 - Explains: "Including all tree types on forest land"
 - Suggests: "Would you like to filter by live trees only, or include specific diameter classes?"
 ```
 
-### 2. Expert User Query  
+### 2. Expert User Query
 ```
 User: "Board foot volume of loblolly pine on private timberland"
 
@@ -287,15 +287,15 @@ Add assumption tracking to existing estimation functions:
 def my_estimation_function(..., track_assumptions=False):
     # Apply domain filters with tracking
     filtered_data, assumptions = apply_tree_filters(
-        data, tree_type, tree_domain, 
+        data, tree_type, tree_domain,
         track_assumptions=track_assumptions
     )
-    
+
     # ... estimation logic ...
-    
+
     if track_assumptions and assumptions:
         result.attrs['assumptions'] = assumptions.to_explanation()
-    
+
     return result
 ```
 
@@ -309,4 +309,4 @@ Planned improvements include:
 4. **Filter validation** - warn about unusual filter combinations
 5. **Performance hints** - suggest more efficient filter approaches
 
-This system represents a significant step toward making FIA data analysis more accessible while maintaining scientific rigor and transparency. 
+This system represents a significant step toward making FIA data analysis more accessible while maintaining scientific rigor and transparency.

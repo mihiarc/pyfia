@@ -109,7 +109,7 @@ fia-ai> Show me the largest diameter trees from those results
 - `schema [table]` - View database schema
 - `evalid [search]` - Show available evaluations
 
-### Analysis Commands  
+### Analysis Commands
 - `concepts [term]` - Explore FIA terminology
 - `history` - View query history
 - `export <file>` - Export results
@@ -429,7 +429,7 @@ oak_data = agent.query("Show oak tree measurements for top 3 states")
 ```python
 class FIAAgent:
     def __init__(
-        self, 
+        self,
         db_path: str,
         api_key: Optional[str] = None,
         model_name: str = "gpt-4-turbo-preview",
@@ -438,16 +438,16 @@ class FIAAgent:
         enable_human_approval: bool = False,
         checkpoint_dir: Optional[str] = None
     )
-    
+
     def query(
-        self, 
-        question: str, 
+        self,
+        question: str,
         thread_id: Optional[str] = None,
         config: Optional[Dict] = None
     ) -> str
-    
+
     def get_conversation_history(self, thread_id: str) -> List[BaseMessage]
-    
+
     def clear_memory(self, thread_id: Optional[str] = None)
 ```
 

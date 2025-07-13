@@ -70,10 +70,10 @@ Trees are measured on different subplot sizes based on diameter:
 
 ```sql
 -- Standard Adjustment Factor Logic
-CASE 
+CASE
     WHEN TREE.DIA IS NULL THEN POP_STRATUM.ADJ_FACTOR_SUBP
     WHEN TREE.DIA < 5.0 THEN POP_STRATUM.ADJ_FACTOR_MICR
-    WHEN TREE.DIA < COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) 
+    WHEN TREE.DIA < COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0)
         THEN POP_STRATUM.ADJ_FACTOR_SUBP
     ELSE POP_STRATUM.ADJ_FACTOR_MACR
 END
@@ -129,7 +129,7 @@ JOIN TREE t ON (t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID)
 LEFT JOIN REF_SPECIES rs ON (t.SPCD = rs.SPCD)
 LEFT JOIN REF_SPECIES_GROUP rsg ON (t.SPGRPCD = rsg.SPGRPCD)
 
--- Forest Type Information  
+-- Forest Type Information
 LEFT JOIN REF_FOREST_TYPE rft ON (c.FORTYPCD = rft.VALUE)
 LEFT JOIN REF_FOREST_TYPE_GROUP rftg ON (rft.TYPGRPCD = rftg.VALUE)
 ```
@@ -139,8 +139,8 @@ LEFT JOIN REF_FOREST_TYPE_GROUP rftg ON (rft.TYPGRPCD = rftg.VALUE)
 -- Complex GRM Joins (Most Challenging)
 -- Tree join with previous plot connection
 JOIN (
-    SELECT P.PREV_PLT_CN, T.* 
-    FROM PLOT P 
+    SELECT P.PREV_PLT_CN, T.*
+    FROM PLOT P
     JOIN TREE T ON (P.CN = T.PLT_CN)
 ) TREE ON ((TREE.CONDID = COND.CONDID) AND (TREE.PLT_CN = COND.PLT_CN))
 
@@ -161,8 +161,8 @@ LEFT OUTER JOIN TREE_GRM_COMPONENT GRM ON (TREE.CN = GRM.TRE_CN)
 ```sql
 -- Basic Tree Count/Volume Expansion
 SUM(
-    TREE.TPA_UNADJ * 
-    [ADJUSTMENT_FACTOR] * 
+    TREE.TPA_UNADJ *
+    [ADJUSTMENT_FACTOR] *
     POP_STRATUM.EXPNS
 ) AS expanded_estimate
 ```
@@ -171,10 +171,10 @@ SUM(
 ```sql
 -- Condition/Area Expansion
 SUM(
-    COND.CONDPROP_UNADJ * 
-    CASE COND.PROP_BASIS 
-        WHEN 'MACR' THEN POP_STRATUM.ADJ_FACTOR_MACR 
-        ELSE POP_STRATUM.ADJ_FACTOR_SUBP 
+    COND.CONDPROP_UNADJ *
+    CASE COND.PROP_BASIS
+        WHEN 'MACR' THEN POP_STRATUM.ADJ_FACTOR_MACR
+        ELSE POP_STRATUM.ADJ_FACTOR_SUBP
     END * POP_STRATUM.EXPNS
 ) AS expanded_area
 ```
@@ -183,19 +183,19 @@ SUM(
 ```sql
 -- Mortality Expansion
 SUM(
-    GRM.TPAMORT_UNADJ * 
+    GRM.TPAMORT_UNADJ *
     CASE GRM.SUBPTYP_GRM
-        WHEN 1 THEN POP_STRATUM.ADJ_FACTOR_SUBP 
-        WHEN 2 THEN POP_STRATUM.ADJ_FACTOR_MICR 
-        WHEN 3 THEN POP_STRATUM.ADJ_FACTOR_MACR 
-        ELSE 0 
+        WHEN 1 THEN POP_STRATUM.ADJ_FACTOR_SUBP
+        WHEN 2 THEN POP_STRATUM.ADJ_FACTOR_MICR
+        WHEN 3 THEN POP_STRATUM.ADJ_FACTOR_MACR
+        ELSE 0
     END * POP_STRATUM.EXPNS
 ) AS expanded_mortality
 
--- Harvest Removal Expansion  
+-- Harvest Removal Expansion
 SUM(
-    GRM.TPAREMV_UNADJ * 
-    [SAME_ADJUSTMENT_LOGIC] * 
+    GRM.TPAREMV_UNADJ *
+    [SAME_ADJUSTMENT_LOGIC] *
     POP_STRATUM.EXPNS
 ) AS expanded_removals
 ```
@@ -216,9 +216,9 @@ WHERE TREE.STATUSCD = 1 AND COND.COND_STATUS_CD = 1 AND EVALID = [TARGET]
 ```sql
 -- Template
 SELECT SUM(
-    TPA_UNADJ * 
-    [COMPLEX_BIOMASS_CALCULATION] * 
-    ADJ_FACTOR * 
+    TPA_UNADJ *
+    [COMPLEX_BIOMASS_CALCULATION] *
+    ADJ_FACTOR *
     DRYBIO_AG / 2000  -- Pounds to tons
 ) AS total_biomass_tons
 ```
@@ -242,9 +242,9 @@ WHERE GRM.COMPONENT LIKE '[MORTALITY%|CUT%]'
 ```sql
 -- Template
 SELECT SUM(
-    TPA_UNADJ * 
-    VOLCFNET * 
-    ADJ_FACTOR * 
+    TPA_UNADJ *
+    VOLCFNET *
+    ADJ_FACTOR *
     EXPNS
 ) AS total_volume
 WHERE TREE.DIA >= 5.0 AND REF_SPECIES.WOODLAND = 'N'
@@ -286,17 +286,17 @@ COALESCE(field, default_value)
 **Oracle Challenge**: Deeply nested diameter-based logic
 ```sql
 -- Oracle Pattern (Preserve exactly)
-CASE 
-    WHEN TREE.DIA IS NULL THEN POP_STRATUM.ADJ_FACTOR_SUBP 
-    ELSE 
-        CASE LEAST(TREE.DIA, 5 - 0.001) 
-            WHEN TREE.DIA THEN POP_STRATUM.ADJ_FACTOR_MICR 
-            ELSE 
-                CASE LEAST(TREE.DIA, COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DECIMAL), 9999) - 0.001) 
-                    WHEN TREE.DIA THEN POP_STRATUM.ADJ_FACTOR_SUBP 
-                    ELSE POP_STRATUM.ADJ_FACTOR_MACR 
-                END 
-        END 
+CASE
+    WHEN TREE.DIA IS NULL THEN POP_STRATUM.ADJ_FACTOR_SUBP
+    ELSE
+        CASE LEAST(TREE.DIA, 5 - 0.001)
+            WHEN TREE.DIA THEN POP_STRATUM.ADJ_FACTOR_MICR
+            ELSE
+                CASE LEAST(TREE.DIA, COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DECIMAL), 9999) - 0.001)
+                    WHEN TREE.DIA THEN POP_STRATUM.ADJ_FACTOR_SUBP
+                    ELSE POP_STRATUM.ADJ_FACTOR_MACR
+                END
+        END
 END
 ```
 
@@ -316,7 +316,7 @@ Expected Results:
 ### 2. Sample Size Validation
 ```sql
 -- Include plot counts for validation
-SELECT 
+SELECT
     COUNT(DISTINCT p.CN) as plot_count,
     SUM([MAIN_CALCULATION]) as estimate
 ```
@@ -333,10 +333,10 @@ WHERE ABS(s.simple_total - c.complex_total) > 0.01  -- Flag differences
 ### 4. Reasonableness Checks
 ```sql
 -- Validate against known ranges
-SELECT 
+SELECT
     estimate,
     estimate / total_area as per_acre_rate,
-    CASE 
+    CASE
         WHEN per_acre_rate > [REASONABLE_MAX] THEN 'SUSPECT HIGH'
         WHEN per_acre_rate < [REASONABLE_MIN] THEN 'SUSPECT LOW'
         ELSE 'REASONABLE'
@@ -390,9 +390,9 @@ WHERE TREE.TPA_UNADJ IS NOT NULL
 ### Special Species Mappings
 ```sql
 -- Handle special cases (e.g., eastern redcedar state variations)
-REF_SPECIES_GROUP_TREE.SPGRPCD = CASE 
-    WHEN TREE.STATECD IN (46, 38, 31, 20) AND TREE.SPCD = 122 THEN 11 
-    ELSE TREE.SPGRPCD 
+REF_SPECIES_GROUP_TREE.SPGRPCD = CASE
+    WHEN TREE.STATECD IN (46, 38, 31, 20) AND TREE.SPCD = 122 THEN 11
+    ELSE TREE.SPGRPCD
 END
 ```
 
@@ -406,7 +406,7 @@ COALESCE(
         [COMPLEX_DENOMINATOR] *
         (1.0 + REF_SPECIES.MC_PCT_GREEN_WOOD * 0.01) +
         [BARK_CALCULATION]
-    ), 
+    ),
     1.76  -- Default specific gravity
 )
 ```
@@ -414,16 +414,16 @@ COALESCE(
 ### GRM Component Logic
 ```sql
 -- Mortality vs Harvest component separation
-CASE 
-    WHEN GRM.COMPONENT LIKE 'MORTALITY%' THEN TRE_MIDPT.VOLCFNET 
-    ELSE 0 
+CASE
+    WHEN GRM.COMPONENT LIKE 'MORTALITY%' THEN TRE_MIDPT.VOLCFNET
+    ELSE 0
 END
 
 -- vs
 
-CASE 
-    WHEN GRM.COMPONENT LIKE 'CUT%' THEN TRE_MIDPT.VOLCFNET 
-    ELSE 0 
+CASE
+    WHEN GRM.COMPONENT LIKE 'CUT%' THEN TRE_MIDPT.VOLCFNET
+    ELSE 0
 END
 ```
 
@@ -446,4 +446,4 @@ END
 
 ---
 
-This guide provides the foundation for accurate EVALIDator translation while maintaining the statistical rigor required for official FIA analysis. Always validate results against known benchmarks and document any deviations from Oracle methodology. 
+This guide provides the foundation for accurate EVALIDator translation while maintaining the statistical rigor required for official FIA analysis. Always validate results against known benchmarks and document any deviations from Oracle methodology.

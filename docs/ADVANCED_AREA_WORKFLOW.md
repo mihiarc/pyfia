@@ -8,7 +8,7 @@ The Advanced LangGraph Area Estimation Workflow represents a cutting-edge implem
 
 ### **Modern LangGraph Architecture**
 - **State Management**: Comprehensive state tracking throughout the workflow
-- **Conditional Logic**: Smart routing based on data conditions and user parameters  
+- **Conditional Logic**: Smart routing based on data conditions and user parameters
 - **Error Recovery**: Automatic retry mechanisms and graceful error handling
 - **Time Travel**: Checkpointing enables workflow debugging and resumption
 - **Quality Control**: Built-in data quality scoring and result validation
@@ -65,18 +65,18 @@ class AreaEstimationState(TypedDict):
     totals: bool
     variance: bool
     most_recent: bool
-    
+
     # Workflow state
     step: str
     validation_errors: List[str]
     warnings: List[str]
-    
+
     # Data processing state
     raw_data: Optional[Dict[str, pl.DataFrame]]
     filtered_data: Optional[Dict[str, pl.DataFrame]]
     plot_estimates: Optional[pl.DataFrame]
     stratum_estimates: Optional[pl.DataFrame]
-    
+
     # Results and quality control
     final_results: Optional[pl.DataFrame]
     metadata: Dict[str, any]
@@ -369,4 +369,4 @@ The workflow architecture supports:
 
 ---
 
-*This advanced workflow represents the cutting edge of forest inventory analysis, combining modern software engineering practices with rigorous statistical methodology. It provides a robust, scalable, and maintainable foundation for forest area estimation that will serve the community well into the future.* 
+*This advanced workflow represents the cutting edge of forest inventory analysis, combining modern software engineering practices with rigorous statistical methodology. It provides a robust, scalable, and maintainable foundation for forest area estimation that will serve the community well into the future.*

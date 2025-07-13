@@ -18,19 +18,19 @@ This query demonstrates forest area estimation using EVALIDator methodology, sho
 ## Query
 
 ```sql
-SELECT 
-    CASE 
-        WHEN rftg.VALUE IS NULL THEN '0999 Nonstocked' 
+SELECT
+    CASE
+        WHEN rftg.VALUE IS NULL THEN '0999 Nonstocked'
         ELSE LPAD(CAST(rftg.VALUE AS VARCHAR), 4, '0') || ' ' || COALESCE(rftg.MEANING, 'Unknown')
     END as forest_type_group,
     SUM(
-        c.CONDPROP_UNADJ * 
-        CASE c.PROP_BASIS 
-            WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR 
-            ELSE ps.ADJ_FACTOR_SUBP 
+        c.CONDPROP_UNADJ *
+        CASE c.PROP_BASIS
+            WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR
+            ELSE ps.ADJ_FACTOR_SUBP
         END * ps.EXPNS
     ) as total_area_acres
-    
+
 FROM POP_STRATUM ps
 JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
 JOIN PLOT p ON ppsa.PLT_CN = p.CN
@@ -38,7 +38,7 @@ JOIN COND c ON c.PLT_CN = p.CN
 LEFT JOIN REF_FOREST_TYPE rft ON rft.VALUE = c.FORTYPCD
 LEFT JOIN REF_FOREST_TYPE_GROUP rftg ON rft.TYPGRPCD = rftg.VALUE
 
-WHERE 
+WHERE
     c.COND_STATUS_CD = 1  -- Forest conditions only
     AND c.CONDPROP_UNADJ IS NOT NULL
     AND ps.rscd = 23  -- Minnesota
@@ -82,4 +82,4 @@ LIMIT 10;
 
 <a href="minnesota_forest_type_groups.sql" download class="md-button md-button--primary">
   :material-download: Download SQL File
-</a> 
+</a>

@@ -10,12 +10,6 @@ from typing import List, Optional, Union
 import polars as pl
 
 from ..core import FIA
-from ..constants.constants import (
-    TreeStatus,
-    LandStatus,
-    SiteClass,
-    ReserveStatus,
-)
 
 
 def tree_count(
@@ -69,30 +63,30 @@ def tree_count(
         fia = FIA(db)
     else:
         fia = db
-    
+
     # Use DuckDB's efficient query optimization with memory management
     try:
         from ..database.query_interface import DuckDBQueryInterface
         from ..filters.evalid import get_recommended_evalid
-        
+
         query_interface = DuckDBQueryInterface(fia.db_path)
-        
+
         # Apply DuckDB optimization settings for large queries
         optimization_settings = [
             "SET memory_limit = '4GB'",  # Conservative memory limit
             "SET threads = 4",           # Avoid too many threads
             "SET preserve_insertion_order = false",  # Allow reordering for memory efficiency
         ]
-        
+
         for setting in optimization_settings:
             try:
                 query_interface.execute_query(setting)
             except Exception:
                 pass  # Settings may not be available in all DuckDB versions
-        
+
         # Build WHERE conditions for filter pushdown
         where_conditions = ["1=1"]  # Base condition
-        
+
         # Tree status filters (push down early)
         if tree_type == "live":
             where_conditions.append("t.STATUSCD = 1")
@@ -100,13 +94,13 @@ def tree_count(
             where_conditions.append("t.STATUSCD = 2")
         elif tree_type == "gs":
             where_conditions.append("t.STATUSCD = 1")  # Growing stock = live
-        
+
         # Land type filters (push down early)
         if land_type == "forest":
             where_conditions.append("c.COND_STATUS_CD = 1")
         elif land_type == "timber":
             where_conditions.append("(c.COND_STATUS_CD = 1 AND c.RESERVCD = 0)")
-        
+
         # Tree domain filter (push down early) - qualify column names
         if tree_domain:
             # Replace common unqualified column names with qualified ones
@@ -115,7 +109,7 @@ def tree_count(
             qualified_domain = qualified_domain.replace("DIA", "t.DIA")
             qualified_domain = qualified_domain.replace("STATUSCD", "t.STATUSCD")
             where_conditions.append(f"({qualified_domain})")
-            
+
         # Area domain filter (extract state code efficiently)
         if area_domain and "STATECD" in area_domain:
             import re
@@ -123,7 +117,7 @@ def tree_count(
             if state_match:
                 state_code = int(state_match.group(1))
                 where_conditions.append(f"ps.STATECD = {state_code}")
-        
+
         # EVALID filter (push down early) - use intelligent EVALID selection
         if fia.evalid:
             if isinstance(fia.evalid, list):
@@ -145,15 +139,15 @@ def tree_count(
                         where_conditions.append(f"ps.EVALID = {recommended_evalid}")
                         # Store for future reference
                         fia.evalid = recommended_evalid
-        
+
         # Build SELECT columns and corresponding GROUP BY columns
         select_cols = []
         group_cols = []
-        
+
         if by_species:
             select_cols.extend(["t.SPCD", "rs.COMMON_NAME", "rs.SCIENTIFIC_NAME"])
             group_cols.extend(["t.SPCD", "rs.COMMON_NAME", "rs.SCIENTIFIC_NAME"])
-            
+
         if by_size_class:
             size_class_expr = """
             CASE 
@@ -173,7 +167,7 @@ def tree_count(
                 ELSE 'Large'
             END
             """)
-        
+
         # Add grouping columns from grp_by parameter
         if grp_by:
             if isinstance(grp_by, str):
@@ -182,14 +176,14 @@ def tree_count(
             else:
                 group_cols.extend(grp_by)
                 select_cols.extend(grp_by)
-        
+
         # Build the optimized SQL query with proper join order
         select_clause = ", ".join(select_cols) + ", " if select_cols else ""
         group_clause = f"GROUP BY {', '.join(group_cols)}" if group_cols else ""
-        
+
         # Species join only if needed
         species_join = "LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD" if by_species else ""
-        
+
         # Use the exact EVALIDator formula with optimized join order
         # Start from smallest table (POP_STRATUM) and join outward
         query = f"""
@@ -218,19 +212,19 @@ def tree_count(
         {group_clause}
         ORDER BY TREE_COUNT DESC
         """
-        
+
         # Execute the optimized query with streaming
         result = query_interface.execute_query(query, limit=None)
-        
+
         # Add basic SE approximation
         result = result.with_columns([
             # Rough SE approximation - proper calculation would need plot-level variance
             (pl.col("TREE_COUNT") * 0.05).alias("SE"),  # Assume 5% SE for now
             pl.lit(5.0).alias("SE_PERCENT")  # Placeholder
         ])
-        
+
         return result
-        
+
     except Exception as e:
         raise RuntimeError(f"Tree count estimation failed: {str(e)}")
 
@@ -266,20 +260,20 @@ def tree_count_simple(
     # Build domain filters
     tree_domain = None
     area_domain = None
-    
+
     if tree_status == 1:
         tree_type = "live"
     elif tree_status == 2:
-        tree_type = "dead" 
+        tree_type = "dead"
     else:
         tree_type = "all"
-    
+
     if species_code:
         tree_domain = f"SPCD == {species_code}"
-    
+
     if state_code:
         area_domain = f"STATECD == {state_code}"
-    
+
     # Use the full tree_count function with species grouping for metadata
     return tree_count(
         db=db,

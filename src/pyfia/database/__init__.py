@@ -12,4 +12,4 @@ from .schema_mapper import *
 
 __all__ = [
     "DuckDBQueryInterface",
-] 
+]

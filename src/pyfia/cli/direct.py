@@ -19,19 +19,12 @@ from rich.progress import Progress, SpinnerColumn, TextColumn
 from rich.prompt import Confirm, Prompt
 from rich.table import Table
 
+from ..core import FIA
 from .base import BaseCLI
 from .utils import (
-    create_database_info_panel,
-    create_help_table,
-    format_estimation_results_help,
     get_state_abbreviation,
-    parse_area_arguments,
-    parse_biomass_arguments,
     parse_state_identifier,
-    parse_tpa_arguments,
-    parse_volume_arguments,
 )
-from ..core import FIA
 
 
 class FIADirectCLI(BaseCLI):
@@ -61,25 +54,25 @@ class FIADirectCLI(BaseCLI):
         db_path = self._validate_database_path(db_path_str)
         if not db_path:
             return False
-        
+
         try:
             with self._create_progress_bar("Connecting to database...") as progress:
                 task = progress.add_task("Connecting...", total=None)
-                
+
                 # Always use DuckDB engine
                 self.fia = FIA(str(db_path), engine="duckdb")
                 self.db_path = db_path
                 progress.update(task, completed=True)
-            
+
             self._show_connection_status(db_path, success=True)
-            
+
             # Save to recent databases
             self.config.add_recent_database(str(db_path))
-            
+
             # Show basic info
             self._show_db_summary()
             return True
-            
+
         except Exception as e:
             self.console.print(f"[red]Error connecting to database: {e}[/red]")
             self._show_connection_status(db_path, success=False)
@@ -719,7 +712,7 @@ class FIADirectCLI(BaseCLI):
 
         try:
             kwargs = self._parse_kwargs(arg)
-            
+
             # Import tree_count function directly
             from ..estimation.tree import tree_count
 

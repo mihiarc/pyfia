@@ -6,18 +6,18 @@ FIA estimators, including size classes, species grouping, and custom
 grouping configurations.
 """
 
-from typing import Optional, Union, List, Dict, Literal
+from typing import Dict, List, Literal, Optional, Union
+
 import polars as pl
 
 from ..constants.constants import (
-    DiameterBreakpoints,
-    STANDARD_SIZE_CLASSES,
     DESCRIPTIVE_SIZE_CLASSES,
+    STANDARD_SIZE_CLASSES,
+    DiameterBreakpoints,
     LandStatus,
-    SiteClass,
     ReserveStatus,
+    SiteClass,
 )
-
 
 # Size classes are now imported from constants module
 
@@ -60,40 +60,40 @@ def setup_grouping_columns(
         Modified dataframe with grouping columns added, and list of column names to group by
     """
     group_cols = []
-    
+
     # Handle custom grouping columns
     if grp_by is not None:
         if isinstance(grp_by, str):
             group_cols = [grp_by]
         else:
             group_cols = list(grp_by)
-    
+
     # Add species grouping
     if by_species:
         if "SPCD" not in df.columns:
             raise ValueError("SPCD column not found in dataframe for species grouping")
         group_cols.append("SPCD")
-    
+
     # Add size class grouping
     if by_size_class:
         if dia_col not in df.columns:
             raise ValueError(f"{dia_col} column not found in dataframe for size class grouping")
-        
+
         # Add size class column
         size_class_expr = create_size_class_expr(dia_col, size_class_type)
         df = df.with_columns(size_class_expr)
         group_cols.append("sizeClass")
-    
+
     # Add land type grouping (for area estimation)
     if by_land_type:
         if "landType" not in df.columns:
             raise ValueError("landType column not found. Run add_land_type_column() first")
         group_cols.append("landType")
-    
+
     # Remove duplicates while preserving order
     seen = set()
     group_cols = [x for x in group_cols if not (x in seen or seen.add(x))]
-    
+
     return df, group_cols
 
 
@@ -159,7 +159,7 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
     missing_cols = [col for col in required_cols if col not in df.columns]
     if missing_cols:
         raise ValueError(f"Missing required columns: {missing_cols}")
-    
+
     land_type_expr = (
         pl.when(pl.col("COND_STATUS_CD") != LandStatus.FOREST)
         .then(
@@ -178,7 +178,7 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
         )
         .alias("landType")
     )
-    
+
     return df.with_columns(land_type_expr)
 
 
@@ -209,21 +209,21 @@ def prepare_plot_groups(
     """
     if always_include is None:
         always_include = ["PLT_CN"]
-    
+
     # Start with always_include columns
     final_groups = list(always_include)
-    
+
     # Add base groups
     final_groups.extend(base_groups)
-    
+
     # Add additional groups if provided
     if additional_groups:
         final_groups.extend(additional_groups)
-    
+
     # Remove duplicates while preserving order
     seen = set()
     final_groups = [x for x in final_groups if not (x in seen or seen.add(x))]
-    
+
     return final_groups
 
 
@@ -254,17 +254,17 @@ def add_species_info(
     """
     if "SPCD" not in df.columns:
         raise ValueError("SPCD column not found in dataframe")
-    
+
     if species_df is None:
         return df
-    
+
     # Select columns to join
     join_cols = ["SPCD"]
     if include_common_name:
         join_cols.append("COMMON_NAME")
     if include_genus:
         join_cols.append("GENUS")
-    
+
     # Join species info
     return df.join(
         species_df.select(join_cols),

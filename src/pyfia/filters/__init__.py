@@ -10,11 +10,11 @@ This module provides:
 - EVALID selection and filtering
 """
 
-from .domain import *
-from .grouping import *
-from .joins import *
 from .adjustment import *
 from .classification import *
+from .domain import *
 from .evalid import *
+from .grouping import *
+from .joins import *
 
-__all__ = []  # Individual modules define their own exports 
+__all__ = []  # Individual modules define their own exports

@@ -9,24 +9,23 @@ USDA Forest Service FIA Database User Guide.
 
 from typing import Dict, Tuple
 
-
 # =============================================================================
 # Plot Design Constants
 # =============================================================================
 
 class PlotDesign:
     """FIA plot design parameters."""
-    
+
     # Plot radii in feet
     MICROPLOT_RADIUS_FT = 6.8
     SUBPLOT_RADIUS_FT = 24.0
     MACROPLOT_RADIUS_FT = 58.9
-    
+
     # Plot areas as fraction of acre
     MICROPLOT_AREA_ACRES = 1/300  # 0.00333 acres
     SUBPLOT_AREA_ACRES = 1/24     # 0.04167 acres
     MACROPLOT_AREA_ACRES = 1/4     # 0.25 acres
-    
+
     # Standard plot design code
     STANDARD_DESIGN_CD = 1
 
@@ -37,18 +36,18 @@ class PlotDesign:
 
 class DiameterBreakpoints:
     """Standard diameter breakpoints in inches."""
-    
+
     # Minimum measurable diameter
     MIN_DBH = 1.0
-    
+
     # Microplot/Subplot boundary
     MICROPLOT_MAX_DIA = 5.0
     SUBPLOT_MIN_DIA = 5.0
-    
+
     # Volume thresholds
     BOARD_FOOT_MIN_DIA = 9.0
     SAWLOG_MIN_DIA = 9.0
-    
+
     # Size class boundaries for grouping
     SIZE_CLASS_BOUNDARIES = [1.0, 5.0, 10.0, 20.0, 30.0]
 
@@ -142,14 +141,14 @@ class OwnershipGroup:
 
 class MathConstants:
     """Mathematical conversion factors."""
-    
+
     # Basal area factor: converts square inches to square feet
     # (π/4) / 144 = 0.005454154
     BASAL_AREA_FACTOR = 0.005454154
-    
+
     # Biomass conversion: pounds to tons
     LBS_TO_TONS = 2000.0
-    
+
     # Default temporal weighting parameter
     DEFAULT_LAMBDA = 0.5
 
@@ -200,19 +199,19 @@ class EvaluationType:
 
 class Defaults:
     """Default values for various parameters."""
-    
+
     # Default adjustment factors when not specified
     ADJ_FACTOR_DEFAULT = 1.0
-    
+
     # Default expansion factor
     EXPNS_DEFAULT = 1.0
-    
+
     # Default number of cores for parallel processing
     N_CORES_DEFAULT = 1
-    
+
     # Default variance calculations
     INCLUDE_VARIANCE = False
-    
+
     # Default totals calculation
     INCLUDE_TOTALS = False
 
@@ -223,19 +222,19 @@ class Defaults:
 
 class ValidationRanges:
     """Valid ranges for various FIA values."""
-    
+
     # Valid state codes (FIPS)
     MIN_STATE_CODE = 1
     MAX_STATE_CODE = 78  # Includes territories
-    
+
     # Valid diameter range (inches)
     MIN_DIAMETER = 0.1
     MAX_DIAMETER = 999.9
-    
+
     # Valid year range
     MIN_INVENTORY_YEAR = 1999
     MAX_INVENTORY_YEAR = 2099
-    
+
     # Valid plot counts
     MIN_PLOTS = 1
     MAX_PLOTS = 1_000_000
@@ -247,7 +246,7 @@ class ValidationRanges:
 
 class ErrorMessages:
     """Standard error messages."""
-    
+
     NO_EVALID = "No EVALID specified. Use find_evalid() or clip_by_evalid() first."
     INVALID_TREE_TYPE = "Invalid tree_type. Valid options: 'all', 'live', 'dead', 'gs'"
     INVALID_LAND_TYPE = "Invalid land_type. Valid options: 'all', 'forest', 'timber'"
@@ -263,25 +262,25 @@ class ErrorMessages:
 
 class TableNames:
     """Standard FIA table names."""
-    
+
     # Core tables
     PLOT = "PLOT"
     TREE = "TREE"
     COND = "COND"
     SUBPLOT = "SUBPLOT"
-    
+
     # Population estimation tables
     POP_EVAL = "POP_EVAL"
     POP_EVAL_TYP = "POP_EVAL_TYP"
     POP_STRATUM = "POP_STRATUM"
     POP_PLOT_STRATUM_ASSGN = "POP_PLOT_STRATUM_ASSGN"
     POP_ESTN_UNIT = "POP_ESTN_UNIT"
-    
+
     # GRM tables for growth/mortality
     TREE_GRM_BEGIN = "TREE_GRM_BEGIN"
     TREE_GRM_MIDPT = "TREE_GRM_MIDPT"
     TREE_GRM_COMPONENT = "TREE_GRM_COMPONENT"
-    
+
     # Reference tables
     REF_SPECIES = "REF_SPECIES"
     REF_FOREST_TYPE = "REF_FOREST_TYPE"

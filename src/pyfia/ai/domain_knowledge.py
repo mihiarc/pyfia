@@ -7,13 +7,13 @@ and query patterns.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set
 
 
 @dataclass
 class FIAConcept:
     """Represents a FIA domain concept with synonyms and relationships."""
-    
+
     name: str
     description: str
     synonyms: List[str]
@@ -33,18 +33,18 @@ class FIADomainKnowledge:
     - Common query patterns
     - Statistical methodology guidance
     """
-    
+
     def __init__(self):
         """Initialize the FIA domain knowledge base."""
         self.concepts = self._build_concept_database()
         self.synonym_map = self._build_synonym_map()
         self.query_patterns = self._build_query_patterns()
         self.statistical_rules = self._build_statistical_rules()
-        
+
     def _build_concept_database(self) -> Dict[str, FIAConcept]:
         """Build comprehensive FIA concept database."""
         concepts = {}
-        
+
         # Tree-related concepts
         concepts["trees_per_acre"] = FIAConcept(
             name="trees_per_acre",
@@ -58,7 +58,7 @@ class FIADomainKnowledge:
             ],
             category="tree_metrics"
         )
-        
+
         concepts["basal_area"] = FIAConcept(
             name="basal_area",
             description="Cross-sectional area of trees at breast height per unit area",
@@ -71,7 +71,7 @@ class FIADomainKnowledge:
             ],
             category="tree_metrics"
         )
-        
+
         concepts["biomass"] = FIAConcept(
             name="biomass",
             description="Total tree biomass including above and belowground components",
@@ -84,7 +84,7 @@ class FIADomainKnowledge:
             ],
             category="biomass_carbon"
         )
-        
+
         concepts["volume"] = FIAConcept(
             name="volume",
             description="Tree stem volume measurements",
@@ -97,7 +97,7 @@ class FIADomainKnowledge:
             ],
             category="volume"
         )
-        
+
         # Forest condition concepts
         concepts["forest_area"] = FIAConcept(
             name="forest_area",
@@ -111,7 +111,7 @@ class FIADomainKnowledge:
             ],
             category="area"
         )
-        
+
         concepts["forest_type"] = FIAConcept(
             name="forest_type",
             description="Forest type classification based on dominant species",
@@ -124,7 +124,7 @@ class FIADomainKnowledge:
             ],
             category="classification"
         )
-        
+
         # Species concepts
         concepts["species"] = FIAConcept(
             name="species",
@@ -138,7 +138,7 @@ class FIADomainKnowledge:
             ],
             category="classification"
         )
-        
+
         # Growth and mortality
         concepts["mortality"] = FIAConcept(
             name="mortality",
@@ -152,7 +152,7 @@ class FIADomainKnowledge:
             ],
             category="change"
         )
-        
+
         concepts["growth"] = FIAConcept(
             name="growth",
             description="Tree and forest growth rates",
@@ -165,7 +165,7 @@ class FIADomainKnowledge:
             ],
             category="change"
         )
-        
+
         # Evaluation and stratification
         concepts["evalid"] = FIAConcept(
             name="evalid",
@@ -179,7 +179,7 @@ class FIADomainKnowledge:
             ],
             category="statistical"
         )
-        
+
         concepts["stratum"] = FIAConcept(
             name="stratum",
             description="Stratification unit for post-stratified estimation",
@@ -192,7 +192,7 @@ class FIADomainKnowledge:
             ],
             category="statistical"
         )
-        
+
         # Plot and measurement concepts
         concepts["plot"] = FIAConcept(
             name="plot",
@@ -206,7 +206,7 @@ class FIADomainKnowledge:
             ],
             category="sampling"
         )
-        
+
         concepts["dbh"] = FIAConcept(
             name="dbh",
             description="Diameter at breast height (4.5 feet)",
@@ -219,7 +219,7 @@ class FIADomainKnowledge:
             ],
             category="tree_metrics"
         )
-        
+
         # Ownership and land use
         concepts["ownership"] = FIAConcept(
             name="ownership",
@@ -233,7 +233,7 @@ class FIADomainKnowledge:
             ],
             category="classification"
         )
-        
+
         # Tree status
         concepts["live_trees"] = FIAConcept(
             name="live_trees",
@@ -247,7 +247,7 @@ class FIADomainKnowledge:
             ],
             category="tree_status"
         )
-        
+
         concepts["dead_trees"] = FIAConcept(
             name="dead_trees",
             description="Standing dead trees",
@@ -260,7 +260,7 @@ class FIADomainKnowledge:
             ],
             category="tree_status"
         )
-        
+
         # Seedlings and regeneration
         concepts["seedlings"] = FIAConcept(
             name="seedlings",
@@ -274,21 +274,21 @@ class FIADomainKnowledge:
             ],
             category="regeneration"
         )
-        
+
         return concepts
-    
+
     def _build_synonym_map(self) -> Dict[str, str]:
         """Build synonym to concept mapping."""
         synonym_map = {}
-        
+
         for concept_name, concept in self.concepts.items():
             # Map concept name to itself
             synonym_map[concept_name.lower()] = concept_name
-            
+
             # Map all synonyms
             for synonym in concept.synonyms:
                 synonym_map[synonym.lower()] = concept_name
-                
+
         # Add common abbreviations and variations
         additional_mappings = {
             "sq ft": "basal_area",
@@ -311,11 +311,11 @@ class FIADomainKnowledge:
             "eval": "evalid",
             "evaluation": "evalid",
         }
-        
+
         synonym_map.update(additional_mappings)
-        
+
         return synonym_map
-    
+
     def _build_query_patterns(self) -> Dict[str, List[Dict[str, str]]]:
         """Build common query patterns for different analysis types."""
         patterns = {
@@ -385,9 +385,9 @@ class FIADomainKnowledge:
                 }
             ]
         }
-        
+
         return patterns
-    
+
     def _build_statistical_rules(self) -> List[Dict[str, str]]:
         """Build FIA statistical methodology rules."""
         rules = [
@@ -417,26 +417,26 @@ class FIADomainKnowledge:
                 "sql_hint": "Use string comparisons for CN fields in joins"
             }
         ]
-        
+
         return rules
-    
+
     def normalize_term(self, term: str) -> Optional[str]:
         """Normalize a term to its canonical concept name."""
         return self.synonym_map.get(term.lower())
-    
+
     def get_concept(self, term: str) -> Optional[FIAConcept]:
         """Get concept information for a term."""
         normalized = self.normalize_term(term)
         if normalized:
             return self.concepts.get(normalized)
         return None
-    
+
     def extract_concepts(self, text: str) -> List[FIAConcept]:
         """Extract FIA concepts from natural language text."""
         text_lower = text.lower()
         found_concepts = []
         seen = set()
-        
+
         # Check each synonym
         for synonym, concept_name in self.synonym_map.items():
             if synonym in text_lower and concept_name not in seen:
@@ -444,87 +444,87 @@ class FIADomainKnowledge:
                 if concept:
                     found_concepts.append(concept)
                     seen.add(concept_name)
-        
+
         return found_concepts
-    
+
     def suggest_tables(self, concepts: List[FIAConcept]) -> Set[str]:
         """Suggest relevant tables based on extracted concepts."""
         tables = set()
         for concept in concepts:
             tables.update(concept.related_tables)
-        
+
         # Always include core tables for FIA queries
         if tables:
             tables.update(["PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"])
-        
+
         return tables
-    
+
     def suggest_columns(self, concepts: List[FIAConcept]) -> Set[str]:
         """Suggest relevant columns based on extracted concepts."""
         columns = set()
         for concept in concepts:
             columns.update(concept.related_columns)
         return columns
-    
+
     def get_query_hints(self, query: str) -> List[str]:
         """Get SQL hints based on the natural language query."""
         hints = []
         concepts = self.extract_concepts(query)
-        
+
         # Add concept-specific hints
         for concept in concepts:
             hints.extend(concept.sql_patterns)
-        
+
         # Add general statistical rules
         hints.append("Remember to filter by EVALID for valid estimates")
-        
+
         # Check for specific patterns
         if "by species" in query.lower():
             hints.append("GROUP BY t.SPCD, rs.COMMON_NAME")
             hints.append("JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD")
-        
+
         if "by state" in query.lower():
             hints.append("GROUP BY p.STATECD")
             hints.append("Consider using REF_STATE for state names")
-        
+
         if any(word in query.lower() for word in ["total", "sum", "all"]):
             hints.append("Use SUM() aggregation with proper expansion factors")
-        
+
         if "average" in query.lower() or "mean" in query.lower():
             hints.append("For per-acre values, divide totals by area")
-        
+
         return hints
-    
+
     def validate_query_semantics(self, query: str, sql: str) -> List[str]:
         """Validate that generated SQL matches the semantic intent."""
         warnings = []
         concepts = self.extract_concepts(query)
         sql_upper = sql.upper()
-        
+
         # Check for EVALID
         if "EVALID" not in sql_upper and any(c.category != "classification" for c in concepts):
             warnings.append("Query should filter by EVALID for statistical validity")
-        
+
         # Check for live/dead trees
         if any(c.name == "live_trees" for c in concepts) and "STATUSCD = 1" not in sql:
             warnings.append("Query asks for live trees but doesn't filter STATUSCD = 1")
-        
+
         # Check for proper joins
         if "TREE" in sql_upper and "POP_STRATUM" not in sql_upper:
             warnings.append("Tree queries usually need POP_STRATUM for expansion factors")
-        
+
         # Check for species names
         if "species" in query.lower() and "REF_SPECIES" not in sql_upper:
             warnings.append("Consider joining REF_SPECIES for species names")
-        
+
         return warnings
-    
+
     def format_concept_help(self, concept_name: str) -> str:
         """Format help text for a specific concept."""
         concept = self.concepts.get(concept_name)
         if not concept:
             return f"No information found for concept: {concept_name}"
-        
+
         help_text = f"""
 **{concept.name.replace('_', ' ').title()}**
 
@@ -540,7 +540,7 @@ class FIADomainKnowledge:
 """
         for pattern in concept.sql_patterns[:2]:
             help_text += f"- {pattern}\n"
-        
+
         return help_text
 
 

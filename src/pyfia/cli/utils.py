@@ -8,11 +8,9 @@ including state parsing, validation helpers, and display formatting functions.
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import polars as pl
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
-
 
 # State code mappings for CLI parsing
 STATE_ABBR_TO_CODE = {
@@ -55,9 +53,9 @@ def parse_state_identifier(identifier: str) -> Optional[int]:
     """
     if not identifier:
         return None
-    
+
     identifier = identifier.strip()
-    
+
     # Try as direct state code
     try:
         code = int(identifier)
@@ -65,17 +63,17 @@ def parse_state_identifier(identifier: str) -> Optional[int]:
             return code
     except ValueError:
         pass
-    
+
     # Try as abbreviation
     abbr = identifier.upper()
     if abbr in STATE_ABBR_TO_CODE:
         return STATE_ABBR_TO_CODE[abbr]
-    
+
     # Try as full name
     name = identifier.lower()
     if name in STATE_NAME_TO_CODE:
         return STATE_NAME_TO_CODE[name]
-    
+
     return None
 
 
@@ -93,7 +91,7 @@ def validate_evalid(evalid: str) -> bool:
     """Validate EVALID format (6-digit code: SSYYTT)."""
     if not evalid or len(evalid) != 6:
         return False
-    
+
     try:
         code = int(evalid)
         return True
@@ -119,7 +117,7 @@ def create_database_info_panel(db_path: Path, console: Console) -> Panel:
             f"📊 **Size:** {size}\n"
             f"🔗 **Type:** DuckDB Database"
         )
-        
+
         return Panel(
             content,
             title=f"🗄️ {db_path.name}",
@@ -138,10 +136,10 @@ def create_help_table(commands: Dict[str, str], title: str = "Available Commands
     table = Table(title=title, show_header=True, header_style="bold magenta")
     table.add_column("Command", style="cyan", no_wrap=True)
     table.add_column("Description", style="white")
-    
+
     for command, description in commands.items():
         table.add_row(command, description)
-    
+
     return table
 
 
@@ -154,11 +152,11 @@ def parse_area_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         "tree_domain": None,
         "area_domain": None,
     }
-    
+
     i = 0
     while i < len(args):
         arg = args[i].lower()
-        
+
         if arg in ["forest", "timber", "all"]:
             parsed["land_type"] = arg
         elif arg == "by_land_type":
@@ -171,9 +169,9 @@ def parse_area_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         elif arg == "area_domain" and i + 1 < len(args):
             parsed["area_domain"] = args[i + 1]
             i += 1
-        
+
         i += 1
-    
+
     return parsed
 
 
@@ -189,11 +187,11 @@ def parse_biomass_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         "tree_domain": None,
         "area_domain": None,
     }
-    
+
     i = 0
     while i < len(args):
         arg = args[i].upper() if args[i].upper() in ["AG", "BG", "TOTAL"] else args[i].lower()
-        
+
         if arg in ["AG", "BG", "TOTAL"]:
             parsed["component"] = arg
         elif arg in ["live", "dead", "gs", "all"]:
@@ -212,9 +210,9 @@ def parse_biomass_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         elif arg == "area_domain" and i + 1 < len(args):
             parsed["area_domain"] = args[i + 1]
             i += 1
-        
+
         i += 1
-    
+
     return parsed
 
 
@@ -230,11 +228,11 @@ def parse_volume_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         "tree_domain": None,
         "area_domain": None,
     }
-    
+
     i = 0
     while i < len(args):
         arg = args[i].lower()
-        
+
         if arg in ["net", "gross", "sound", "sawlog"]:
             parsed["vol_type"] = arg
         elif arg in ["live", "dead", "gs", "all"]:
@@ -253,9 +251,9 @@ def parse_volume_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         elif arg == "area_domain" and i + 1 < len(args):
             parsed["area_domain"] = args[i + 1]
             i += 1
-        
+
         i += 1
-    
+
     return parsed
 
 
@@ -270,11 +268,11 @@ def parse_tpa_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         "tree_domain": None,
         "area_domain": None,
     }
-    
+
     i = 0
     while i < len(args):
         arg = args[i].lower()
-        
+
         if arg in ["live", "dead", "gs", "all"]:
             parsed["tree_type"] = arg
         elif arg in ["forest", "timber"]:
@@ -291,9 +289,9 @@ def parse_tpa_arguments(args: List[str]) -> Dict[str, Union[str, bool]]:
         elif arg == "area_domain" and i + 1 < len(args):
             parsed["area_domain"] = args[i + 1]
             i += 1
-        
+
         i += 1
-    
+
     return parsed
 
 
@@ -320,18 +318,18 @@ def create_estimation_help_text() -> str:
 def format_estimation_results_help(result_type: str) -> List[str]:
     """Format help text for estimation result columns."""
     explanations = []
-    
+
     if result_type == "area":
         explanations.extend([
             "AREA = Total acres",
-            "AREA_PERC = Percentage of total area", 
+            "AREA_PERC = Percentage of total area",
             "SE = Standard Error",
             "N_PLOTS = Number of plots used"
         ])
     elif result_type == "biomass":
         explanations.extend([
             "BIO_ACRE = Biomass per acre (tons/acre)",
-            "SE = Standard Error", 
+            "SE = Standard Error",
             "SE_PERCENT = Standard Error as % of estimate",
             "N_PLOTS = Number of plots used"
         ])
@@ -339,7 +337,7 @@ def format_estimation_results_help(result_type: str) -> List[str]:
         explanations.extend([
             "VOL_ACRE = Volume per acre (cubic feet/acre)",
             "SE = Standard Error",
-            "SE_PERCENT = Standard Error as % of estimate", 
+            "SE_PERCENT = Standard Error as % of estimate",
             "N_PLOTS = Number of plots used"
         ])
     elif result_type == "tpa":
@@ -349,5 +347,5 @@ def format_estimation_results_help(result_type: str) -> List[str]:
             "SE = Standard Error",
             "N_PLOTS = Number of plots used"
         ])
-    
+
     return explanations

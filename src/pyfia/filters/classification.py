@@ -6,12 +6,13 @@ FIA specifications such as tree basis assignment, size classes, and
 forest type groupings.
 """
 
-from typing import Optional, List, Union
+from typing import List, Optional
+
 import polars as pl
 
 from ..constants.constants import (
-    PlotBasis,
     DiameterBreakpoints,
+    PlotBasis,
 )
 
 
@@ -67,7 +68,7 @@ def assign_tree_basis(
                 on="PLT_CN",
                 how="left",
             )
-        
+
         # Full tree basis assignment with macroplot logic
         tree_basis_expr = (
             pl.when(pl.col(dia_column).is_null())
@@ -91,7 +92,7 @@ def assign_tree_basis(
             .otherwise(pl.lit(PlotBasis.SUBPLOT))
             .alias(output_column)
         )
-    
+
     return tree_df.with_columns(tree_basis_expr)
 
 
@@ -166,7 +167,7 @@ def assign_size_class(
         )
     else:
         raise ValueError(f"Unknown class_system: {class_system}")
-    
+
     return tree_df.with_columns(size_expr)
 
 
@@ -201,7 +202,7 @@ def assign_prop_basis(
         .otherwise(pl.lit(PlotBasis.SUBPLOT))
         .alias(output_column)
     )
-    
+
     return cond_df.with_columns(prop_basis_expr)
 
 
@@ -257,7 +258,7 @@ def assign_forest_type_group(
         .otherwise(pl.lit("Other/Unknown"))
         .alias(output_column)
     )
-    
+
     return cond_df.with_columns(forest_type_expr)
 
 
@@ -300,7 +301,7 @@ def assign_land_use_class(
         .otherwise(pl.lit("Other/Unknown"))
         .alias(output_column)
     )
-    
+
     return cond_df.with_columns(land_use_expr)
 
 
@@ -359,7 +360,7 @@ def assign_species_group(
         species_groups = species_df.select([spcd_column, pl.col("FAMILY").alias(output_column)])
     else:
         raise ValueError(f"Unknown grouping_system: {grouping_system}")
-    
+
     return tree_df.join(
         species_groups.select([spcd_column, output_column]),
         on=spcd_column,
@@ -409,10 +410,10 @@ def validate_classification_columns(
             required_columns = ["SPCD"]
         else:
             raise ValueError(f"Unknown classification_type: {classification_type}")
-    
+
     missing_columns = [col for col in required_columns if col not in df.columns]
-    
+
     if missing_columns:
         raise ValueError(f"Missing required columns for {classification_type}: {missing_columns}")
-    
-    return True 
+
+    return True

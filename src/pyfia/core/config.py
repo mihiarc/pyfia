@@ -9,7 +9,6 @@ import os
 from pathlib import Path
 
 # Import new settings for migration path
-from .settings import settings as pydantic_settings
 
 # Default database paths (kept for backwards compatibility)
 DEFAULT_DUCKDB_PATH = "fia.duckdb"

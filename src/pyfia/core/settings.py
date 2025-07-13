@@ -18,7 +18,7 @@ class PyFIASettings(BaseSettings):
     Environment variables are prefixed with PYFIA_.
     For example: PYFIA_DATABASE_PATH, PYFIA_LOG_LEVEL
     """
-    
+
     model_config = SettingsConfigDict(
         env_prefix="PYFIA_",
         env_file=".env",
@@ -26,7 +26,7 @@ class PyFIASettings(BaseSettings):
         case_sensitive=False,
         extra="ignore",
     )
-    
+
     # Database settings
     database_path: Path = Field(
         default=Path("fia.duckdb"),
@@ -36,7 +36,7 @@ class PyFIASettings(BaseSettings):
         default="duckdb",
         description="Database engine (duckdb or sqlite)"
     )
-    
+
     # API settings
     openai_api_key: Optional[str] = Field(
         default=None,
@@ -46,7 +46,7 @@ class PyFIASettings(BaseSettings):
         default="gpt-4o",
         description="OpenAI model to use"
     )
-    
+
     # Performance settings
     max_threads: int = Field(
         default=4,
@@ -59,7 +59,7 @@ class PyFIASettings(BaseSettings):
         ge=1000,
         description="Chunk size for batch processing"
     )
-    
+
     # Cache settings
     cache_enabled: bool = Field(
         default=True,
@@ -69,7 +69,7 @@ class PyFIASettings(BaseSettings):
         default=Path.home() / ".pyfia" / "cache",
         description="Cache directory"
     )
-    
+
     # Logging settings
     log_level: str = Field(
         default="INFO",
@@ -79,7 +79,7 @@ class PyFIASettings(BaseSettings):
         default=Path.home() / ".pyfia" / "logs",
         description="Log directory"
     )
-    
+
     # CLI settings
     cli_page_size: int = Field(
         default=20,
@@ -92,13 +92,13 @@ class PyFIASettings(BaseSettings):
         ge=80,
         description="Maximum width for CLI output"
     )
-    
+
     # Type checking settings
     type_check_on_load: bool = Field(
         default=False,
         description="Run type checks when loading data"
     )
-    
+
     @field_validator("database_engine")
     @classmethod
     def validate_engine(cls, v: str) -> str:
@@ -107,7 +107,7 @@ class PyFIASettings(BaseSettings):
         if v.lower() not in valid_engines:
             raise ValueError(f"Engine must be one of {valid_engines}")
         return v.lower()
-    
+
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
@@ -116,7 +116,7 @@ class PyFIASettings(BaseSettings):
         if v.upper() not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}")
         return v.upper()
-    
+
     @field_validator("database_path")
     @classmethod
     def validate_database_path(cls, v: Path) -> Path:
@@ -124,12 +124,12 @@ class PyFIASettings(BaseSettings):
         if v.exists() and not v.is_file():
             raise ValueError(f"Database path {v} exists but is not a file")
         return v
-    
+
     def create_directories(self) -> None:
         """Create necessary directories if they don't exist."""
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
-    
+
     def get_connection_string(self) -> str:
         """Get database connection string."""
         if self.database_engine == "duckdb":

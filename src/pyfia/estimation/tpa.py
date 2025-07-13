@@ -9,17 +9,17 @@ from typing import List, Optional
 
 import polars as pl
 
-from .utils import ratio_var
 from ..constants.constants import (
-    TreeStatus,
-    TreeClass,
-    LandStatus,
-    SiteClass,
-    ReserveStatus,
     DiameterBreakpoints,
+    LandStatus,
     MathConstants,
     PlotBasis,
+    ReserveStatus,
+    SiteClass,
+    TreeClass,
+    TreeStatus,
 )
+from .utils import ratio_var
 
 
 def tpa(
@@ -121,7 +121,7 @@ def tpa(
     # Calculate TREE_BASIS for each tree
     from ..filters.classification import assign_tree_basis
     tree_df = assign_tree_basis(tree_df, data["PLOT"])
-    
+
     # Calculate basal area for each tree
     tree_df = tree_df.with_columns(
         (MathConstants.BASAL_AREA_FACTOR * pl.col("DIA") ** 2).alias("BASAL_AREA")
@@ -323,14 +323,14 @@ def _calculate_plot_estimates(
 
     # Apply adjustment factors using the new adjustment module
     from ..filters.adjustment import apply_adjustment_factors
-    
+
     tree_est = apply_adjustment_factors(
         tree_est,
         value_columns=["TPA_UNADJ_SUM", "BAA_UNADJ_SUM"],
         basis_column="TREE_BASIS",
         adj_factor_columns={
             PlotBasis.MICROPLOT: "ADJ_FACTOR_MICR",
-            PlotBasis.SUBPLOT: "ADJ_FACTOR_SUBP", 
+            PlotBasis.SUBPLOT: "ADJ_FACTOR_SUBP",
             PlotBasis.MACROPLOT: "ADJ_FACTOR_MACR",
         }
     ).rename({

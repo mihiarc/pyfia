@@ -13,21 +13,21 @@ Install with: pip install pyfia[ai]
 try:
     from .agent import FIAAgent
     from .domain_knowledge import *
-    
+
     __all__ = [
         "FIAAgent",
     ]
-    
-except ImportError as e:
+
+except ImportError:
     # AI dependencies not installed
     def _create_import_error(name):
         def _missing(*args, **kwargs):
             raise ImportError(
-                f"AI functionality requires optional dependencies. "
-                f"Install with: pip install pyfia[ai]"
+                "AI functionality requires optional dependencies. "
+                "Install with: pip install pyfia[ai]"
             ) from e
         return _missing
-    
+
     FIAAgent = _create_import_error("FIAAgent")
-    
-    __all__ = ["FIAAgent"] 
+
+    __all__ = ["FIAAgent"]

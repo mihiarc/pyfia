@@ -5,6 +5,7 @@ site_url: https://pyfia.readthedocs.io
 
 repo_url: https://github.com/your-username/pyfia
 repo_name: pyfia
+edit_uri: edit/main/docs/
 
 theme:
   name: material
@@ -22,20 +23,37 @@ theme:
         icon: material/brightness-4
         name: Switch to light mode
   features:
+    # Navigation enhancements
     - navigation.tabs
+    - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
+    - navigation.path
     - navigation.top
+    - navigation.instant
+    - navigation.instant.prefetch
+    - navigation.instant.progress
+    - navigation.tracking
+    - navigation.indexes
+    # Search enhancements
     - search.highlight
     - search.share
+    - search.suggest
+    # Content features
     - content.code.copy
     - content.code.annotate
+    - content.tabs.link
+    - toc.follow
 
 markdown_extensions:
   - admonition
   - attr_list
   - pymdownx.details
-  - pymdownx.superfences
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
   - pymdownx.highlight:
       anchor_linenums: true
   - pymdownx.inlinehilite
@@ -45,101 +63,106 @@ markdown_extensions:
   - pymdownx.emoji:
       emoji_index: !!python/name:material.extensions.emoji.twemoji
       emoji_generator: !!python/name:material.extensions.emoji.to_svg
+  - pymdownx.arithmatex:
+      generic: true
+  - pymdownx.betterem
+  - pymdownx.caret
+  - pymdownx.keys
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.tilde
   - tables
   - toc:
       permalink: true
 
 plugins:
-  - search
+  - search:
+      separator: '[\s\-\_\.]+'
+  - minify:
+      minify_html: true
 
 nav:
   - Home: README.md
   
+  - Getting Started:
+    - Installation: README.md#installation
+    - Quick Start: README.md#quick-start
+    - Development Setup: DEVELOPMENT.md
+  
+  - User Guide:
+    - Core Concepts:
+      - Architecture Overview: architecture_diagram.md
+      - Domain Filtering: INTELLIGENT_DOMAIN_FILTERING.md
+    
+    - Estimation Workflows:
+      - Area Estimation: ADVANCED_AREA_WORKFLOW.md
+      - Mortality Analysis: MORTALITY_WORKFLOW.md
+    
+    - AI Agent:
+      - Overview: AI_AGENT.md
+      - Migration Guide: MODERN_AGENT_MIGRATION.md
+  
   - Query Library:
     - Overview: queries/README.md
-    - EVALIDator Quick Reference: queries/evaluator_quick_reference.md
-    - EVALIDator Methodology: queries/evaluator_methodology.md
-    - Working Query Bank: FIA_WORKING_QUERY_BANK.md
-    - Query Examples:
-      - Oregon Total Live Trees: queries/basic_tree/oregon_total_live_trees.md
-      - North Carolina Trees by Species: queries/basic_tree/north_carolina_trees_by_species.md
-      - Colorado Biomass by Species Group: queries/biomass_carbon/colorado_biomass_by_species_group.md
-      - Minnesota Forest Type Groups: queries/forest_area/minnesota_forest_type_groups.md
-      - California Volume by Diameter: queries/volume/california_volume_by_diameter.md
-  
-  - Advanced Features:
-    - AI Agent Documentation: AI_AGENT.md
+    - Quick Reference: queries/evaluator_quick_reference.md
+    - Methodology Guide: queries/evaluator_methodology.md
+    - Working Query Bank: queries/FIA_WORKING_QUERY_BANK.md
     
-  - Developer Reference:
+    - Examples by Category:
+      - Basic Tree Queries:
+        - queries/basic_tree/README.md
+        - Oregon Live Trees: queries/basic_tree/oregon_total_live_trees.md
+        - NC Trees by Species: queries/basic_tree/north_carolina_trees_by_species.md
+      
+      - Biomass & Carbon:
+        - queries/biomass_carbon/README.md
+        - Colorado Biomass: queries/biomass_carbon/colorado_biomass_by_species_group.md
+        - NC Merchantable Biomass: queries/biomass_carbon/north_carolina_merchantable_biomass.md
+      
+      - Forest Area:
+        - queries/forest_area/README.md
+        - Minnesota Forest Types: queries/forest_area/minnesota_forest_type_groups.md
+      
+      - Forest Change:
+        - queries/forest_change/README.md
+        - Missouri Type Change: queries/forest_change/missouri_forest_type_change.md
+      
+      - Mortality:
+        - queries/mortality/README.md
+        - Colorado Volume: queries/mortality/colorado_mortality_merchantable_volume.md
+        - Georgia by Agent: queries/mortality/georgia_growing_stock_mortality_by_agent.md
+        - Georgia by Disturbance: queries/mortality/georgia_growing_stock_mortality_by_disturbance.md
+        - NC Trees per Acre: queries/mortality/north_carolina_mortality_trees_per_acre.md
+      
+      - Volume:
+        - queries/volume/README.md
+        - California by Diameter: queries/volume/california_volume_by_diameter.md
+      
+      - Advanced Topics:
+        - Ratio Estimation: queries/ratio_estimation/README.md
+        - Tree Density: queries/tree_density/README.md
+  
+  - Developer Guide:
     - Development Guidelines: DEVELOPMENT.md
-    - System Architecture: architecture_diagram.md
-    - Claude AI Integration: CLAUDE.md
+    - Code Quality:
+      - Pre-commit Hooks: PRE_COMMIT_GUIDE.md
+      - Property Testing: PROPERTY_TESTING_GUIDE.md
+      - Type Safety Roadmap: TYPE_SAFETY_ROADMAP.md
+    
+    - Migration Guides:
+      - Pydantic v2: PYDANTIC_V2_GUIDE.md
+      - Modern Agent: MODERN_AGENT_MIGRATION.md
+    
+    - Standards:
+      - Enhanced Formatting: ENHANCED_FORMATTING.md
+      - Claude Integration: CLAUDE.md
   
-  - FIA Database Reference:
-    - Database Overview: memory_docs/FIA_DATABASE_TABLES.md
-    - Chapter 1 Complete: memory_docs/fia_chapter1_complete.md
-    - Expansion Factors: memory_docs/fia_expansion_factors.md
-    
-    - Survey & Project Tables:
-      - Survey: memory_docs/fia_section_2_1_survey.md
-      - Project: memory_docs/fia_section_2_2_project.md
-      - County: memory_docs/fia_section_2_3_county.md
-      - Plot: memory_docs/fia_section_2_4_plot.md
-      - Condition: memory_docs/fia_section_2_5_cond.md
-      - Subplot: memory_docs/fia_section_2_6_subplot.md
-      - Subplot Condition: memory_docs/fia_section_2_7_subp_cond.md
-      - Boundary: memory_docs/fia_section_2_8_boundary.md
-      - Condition Change Matrix: memory_docs/fia_section_2_9_subp_cond_chng_mtrx.md
-    
-    - Tree Tables:
-      - Tree: memory_docs/fia_section_3_1_tree.md
-      - Tree Woodland Stems: memory_docs/fia_section_3_2_tree_woodland_stems.md
-      - Tree GRM Component: memory_docs/fia_section_3_3_tree_grm_component.md
-      - Tree GRM Threshold: memory_docs/fia_section_3_4_tree_grm_threshold.md
-      - Tree GRM Midpoint: memory_docs/fia_section_3_5_tree_grm_midpt.md
-      - Tree GRM Begin: memory_docs/fia_section_3_6_tree_grm_begin.md
-      - Tree GRM Estimation: memory_docs/fia_section_3_7_tree_grm_estn.md
-      - Begin/End: memory_docs/fia_section_3_8_beginend.md
-      - Seedling: memory_docs/fia_section_3_9_seedling.md
-      - Site Tree: memory_docs/fia_section_3_10_sitetree.md
-    
-    - Vegetation Tables:
-      - Invasive Species: memory_docs/fia_section_4_1_invasive_subplot_spp.md
-      - P2 Vegetation Species: memory_docs/fia_section_4_2_p2veg_subplot_spp.md
-      - P2 Vegetation Structure: memory_docs/fia_section_4_3_p2veg_subp_structure.md
-    
-    - Down Woody Material:
-      - DWM Visit: memory_docs/fia_section_5_1_dwm_visit.md
-      - Coarse Woody Debris: memory_docs/fia_section_5_2_dwm_coarse_woody_debris.md
-      - Duff Litter Fuel: memory_docs/fia_section_5_3_dwm_duff_litter_fuel.md
-      - Fine Woody Debris: memory_docs/fia_section_5_4_dwm_fine_woody_debris.md
-      - Microplot Fuel: memory_docs/fia_section_5_5_dwm_microplot_fuel.md
-      - Residual Pile: memory_docs/fia_section_5_6_dwm_residual_pile.md
-      - Transect Segment: memory_docs/fia_section_5_7_dwm_transect_segment.md
-      - Condition DWM Calc: memory_docs/fia_section_5_8_cond_dwm_calc.md
-    
-    - Regeneration Tables:
-      - Plot Regeneration: memory_docs/fia_section_6_1_plot_regen.md
-      - Subplot Regeneration: memory_docs/fia_section_6_2_subplot_regen.md
-      - Seedling Regeneration: memory_docs/fia_section_6_3_seedling_regen.md
-    
-    - Ground Cover Tables:
-      - Ground Cover: memory_docs/fia_section_7_1_grnd_cvr.md
-      - Ground Layer Functional Group: memory_docs/fia_section_7_2_grnd_lyr_fnctl_grp.md
-      - Ground Layer Microquad: memory_docs/fia_section_7_3_grnd_lyr_microquad.md
-    
-    - Soil Tables:
-      - Soil Sample Location: memory_docs/fia_section_8_1_subp_soil_sample_loc.md
-      - Soil Sample Layer: memory_docs/fia_section_8_2_subp_soil_sample_layer.md
-    
-    - Population Tables:
-      - Population Estimation Unit: memory_docs/fia_section_9_1_pop_estn_unit.md
-      - Population Evaluation: memory_docs/fia_section_9_2_pop_eval.md
-      - Population Evaluation Attribute: memory_docs/fia_section_9_3_pop_eval_attribute.md
-      - Population Evaluation Group: memory_docs/fia_section_9_4_pop_eval_grp.md
-      - Population Evaluation Type: memory_docs/fia_section_9_5_pop_eval_typ.md
-      - Plot Stratum Assignment: memory_docs/fia_section_9_6_pop_plot_stratum_assgn.md
-      - Population Stratum: memory_docs/fia_section_9_7_pop_stratum.md
+  - About:
+    - Project Overview: README.md
+    - Contributing: README.md#contributing
+    - License: README.md#license
 
 extra:
   social:
@@ -148,4 +171,4 @@ extra:
     - icon: fontawesome/brands/python
       link: https://pypi.org/project/pyfia/
 
-copyright: Copyright &copy; 2024 PyFIA Contributors 
+copyright: Copyright &copy; 2025 PyFIA Contributors

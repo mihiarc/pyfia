@@ -6,20 +6,22 @@ pattern with built-in memory, tool calling, and human-in-the-loop capabilities.
 """
 
 import os
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Union
-from datetime import datetime
+
+from langchain_core.messages import BaseMessage, HumanMessage
 
 # LangChain imports
 from langchain_openai import ChatOpenAI
-from langchain_core.messages import BaseMessage, HumanMessage
-from langgraph.prebuilt import create_react_agent
 from langgraph.checkpoint.memory import MemorySaver
-# Removed unused import
+from langgraph.prebuilt import create_react_agent
 
+from ..core import FIA
+
+# Removed unused import
 # Local imports
 from ..database.query_interface import DuckDBQueryInterface
-from ..core import FIA
 
 # Load environment variables
 try:
@@ -39,7 +41,7 @@ class FIAAgent:
     - Human-in-the-loop capabilities
     - Streamlined architecture
     """
-    
+
     def __init__(
         self,
         db_path: Union[str, Path],
@@ -65,32 +67,32 @@ class FIAAgent:
         self.db_path = Path(db_path)
         self.verbose = verbose
         self.enable_human_approval = enable_human_approval
-        
+
         # Initialize database interfaces
         self.query_interface = DuckDBQueryInterface(db_path)
         self.fia = FIA(str(db_path))
-        
+
         # Initialize LLM
         api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise ValueError("OpenAI API key required")
-            
+
         self.llm = ChatOpenAI(
             model=model_name,
             temperature=temperature,
             api_key=api_key,
         )
-        
+
         # Create checkpointer for memory
         # Note: Using MemorySaver for now, can upgrade to persistent storage later
         self.checkpointer = MemorySaver()
-        
+
         # Create the agent
         self.agent = self._create_agent()
-        
+
     def _create_agent(self):
         """Create the ReAct agent with tools."""
-        
+
         # Define tools as simple functions
         def execute_fia_query(query: str, limit: int = 1000) -> str:
             """
@@ -105,7 +107,7 @@ class FIAAgent:
             """
             if self.verbose:
                 print(f"[DEBUG] Executing query: {query[:100]}...")
-                
+
             try:
                 # Clean query if it has markdown formatting
                 query = query.strip()
@@ -115,12 +117,12 @@ class FIAAgent:
                     query = query[3:].strip()
                 if query.endswith('```'):
                     query = query[:-3].strip()
-                    
+
                 result = self.query_interface.execute_query(query, limit=limit)
-                
+
                 if self.verbose:
                     print(f"[DEBUG] Query returned {len(result)} rows")
-                    
+
                 return self.query_interface.format_results_for_llm(result)
             except Exception as e:
                 import traceback
@@ -134,7 +136,7 @@ Full traceback:
 {error_details}
 
 This error occurred while trying to execute a SQL query against the FIA database. Please check the query syntax and database connection."""
-        
+
         def get_database_schema(table_name: Optional[str] = None) -> str:
             """
             Get database schema information.
@@ -152,7 +154,7 @@ This error occurred while trying to execute a SQL query against the FIA database
                     return self.query_interface.get_natural_language_context()
             except Exception as e:
                 return f"Error getting schema: {str(e)}"
-        
+
         def find_species_codes(species_name: str) -> str:
             """
             Find species codes by common or scientific name.
@@ -180,21 +182,21 @@ This error occurred while trying to execute a SQL query against the FIA database
                 LIMIT 20
                 """
                 result = self.query_interface.execute_query(query)
-                
+
                 if len(result) == 0:
                     return f"No species found matching '{species_name}'"
-                
+
                 formatted = f"Species matches for '{species_name}':\n"
                 for row in result.head(10).iter_rows(named=True):
                     formatted += f"- Code {row['SPCD']}: {row['COMMON_NAME']} ({row['SCIENTIFIC_NAME']})\n"
-                
+
                 if len(result) > 10:
                     formatted += f"\n(Showing first 10 of {len(result)} matches)"
-                    
+
                 return formatted
             except Exception as e:
                 return f"Error finding species: {str(e)}"
-        
+
         def get_evalid_info(state_code: Optional[int] = None, eval_type: Optional[str] = None) -> str:
             """
             Get FIA evaluation information with intelligent prioritization.
@@ -211,7 +213,7 @@ This error occurred while trying to execute a SQL query against the FIA database
                 return get_evalid_info_impl(self.query_interface, state_code, eval_type)
             except Exception as e:
                 return f"Error getting EVALID info: {str(e)}"
-        
+
         def get_state_codes() -> str:
             """
             Get list of state codes and names in the database.
@@ -228,15 +230,15 @@ This error occurred while trying to execute a SQL query against the FIA database
                 ORDER BY STATE_NAME
                 """
                 result = self.query_interface.execute_query(query)
-                
+
                 formatted = "State Codes in Database:\n"
                 for row in result.iter_rows(named=True):
                     formatted += f"- {row['STATE_NAME']}: {row['STATECD']}\n"
-                
+
                 return formatted
             except Exception as e:
                 return f"Error getting state codes: {str(e)}"
-        
+
         def parse_location_from_query(query_text: str) -> str:
             """
             Parse and resolve locations from natural language query text.
@@ -249,23 +251,23 @@ This error occurred while trying to execute a SQL query against the FIA database
             """
             try:
                 from ..locations import LocationParser, LocationResolver
-                
+
                 parser = LocationParser()
                 resolver = LocationResolver()
-                
+
                 # Find primary location in the query
                 primary_location = parser.find_primary_location(query_text)
-                
+
                 if not primary_location:
                     return "No locations detected in query. If you meant to specify a location, please be more explicit (e.g., 'in North Carolina', 'in Texas', etc.)"
-                
+
                 # Resolve the location to get identifiers
                 resolved_location = resolver.resolve(primary_location)
-                
+
                 if resolved_location.state_code:
                     domain_filter = resolved_location.to_domain_filter()
                     state_name = resolver.get_state_name(resolved_location.state_code)
-                    
+
                     return f"""Detected location: {resolved_location.raw_text}
 Resolved to: {state_name} (FIPS Code: {resolved_location.state_code})
 Confidence: {resolved_location.confidence:.1%}
@@ -274,12 +276,12 @@ Suggested area_domain: "{domain_filter}"
 Use this area_domain parameter in your tree count or area estimation commands."""
                 else:
                     return f"Could not resolve location '{resolved_location.raw_text}' to a valid FIPS code. Please check the spelling or try a different format."
-                    
+
             except Exception as e:
                 import traceback
                 error_details = traceback.format_exc()
                 return f"Error parsing location from query: {str(e)}\n\nFull traceback:\n{error_details}"
-        
+
         def get_recommended_evalid(state_code: int, analysis_type: str = "tree_count") -> str:
             """
             Get recommended EVALID for a specific state and analysis type.
@@ -294,14 +296,14 @@ Use this area_domain parameter in your tree count or area estimation commands.""
             try:
                 from ..filters.evalid import get_recommended_evalid as get_rec_evalid
                 evalid, explanation = get_rec_evalid(self.query_interface, state_code, analysis_type)
-                
+
                 if evalid:
                     return f"Recommended EVALID: {evalid}\n\n{explanation}"
                 else:
                     return explanation
             except Exception as e:
                 return f"Error getting recommended EVALID: {str(e)}"
-        
+
         def explain_domain_filters(
             tree_type: str = "all",
             land_type: str = "forest",
@@ -329,7 +331,7 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                 )
             except Exception as e:
                 return f"Error explaining domain filters: {str(e)}"
-        
+
         def suggest_domain_options(analysis_type: str = "general") -> str:
             """
             Suggest common domain filter options for different analysis types.
@@ -343,27 +345,27 @@ Use this area_domain parameter in your tree count or area estimation commands.""
             try:
                 from ..filters.domain import suggest_common_domains
                 suggestions = suggest_common_domains(analysis_type)
-                
+
                 formatted = f"Common domain filter suggestions for {analysis_type} analysis:\n\n"
-                
+
                 if suggestions["tree_types"]:
                     formatted += f"Recommended tree types: {', '.join(suggestions['tree_types'])}\n"
-                
+
                 if suggestions["land_types"]:
                     formatted += f"Recommended land types: {', '.join(suggestions['land_types'])}\n"
-                
+
                 if suggestions["tree_domains"]:
                     formatted += "\nCommon tree domain filters:\n"
                     for domain in suggestions["tree_domains"]:
                         formatted += f"  • {domain}\n"
-                
+
                 if suggestions["area_domains"]:
                     formatted += "\nCommon area domain filters:\n"
                     for domain in suggestions["area_domains"]:
                         formatted += f"  • {domain}\n"
-                
+
                 return formatted
-                
+
             except Exception as e:
                 return f"Error getting domain suggestions: {str(e)}"
 
@@ -382,7 +384,7 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                 kwargs = {}
                 state_code = None
                 evalid = None
-                
+
                 # Handle boolean flags
                 if "byLandType" in command_args:
                     kwargs["by_land_type"] = True
@@ -390,14 +392,14 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                     kwargs["totals"] = True
                 if "variance" in command_args:
                     kwargs["variance"] = True
-                
+
                 # Parse key=value pairs
                 import shlex
                 try:
                     parts = shlex.split(command_args)
                 except ValueError:
                     parts = command_args.split()
-                
+
                 for part in parts:
                     if "=" in part:
                         key, value = part.split("=", 1)
@@ -429,7 +431,7 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                         elif key == "evalid":
                             evalid = int(value)
                             continue  # Don't add to kwargs
-                        
+
                         # Handle quoted strings
                         if isinstance(value, str):
                             if value.startswith('"') and value.endswith('"'):
@@ -449,20 +451,22 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                                         except ValueError:
                                             pass  # Keep as string
                         kwargs[key] = value
-                
+
                 # Handle EVALID setup - get recommended EVALID if not provided
                 if evalid is None and state_code is not None:
-                    from ..filters.evalid import get_recommended_evalid as get_rec_evalid
+                    from ..filters.evalid import (
+                        get_recommended_evalid as get_rec_evalid,
+                    )
                     recommended_evalid, explanation = get_rec_evalid(self.query_interface, state_code, "area")
                     if recommended_evalid:
                         evalid = recommended_evalid
-                
+
                 # Apply EVALID filter if specified
                 if evalid is not None:
                     self.fia.clip_by_evalid(evalid)
                 elif not self.fia.evalid:
                     return "Error: No EVALID specified and unable to determine appropriate EVALID. Please specify stateCode or evalid parameter."
-                
+
                 # Determine which area function to use based on complexity
                 use_workflow = (
                     kwargs.get("variance", False) or  # Enhanced features
@@ -470,7 +474,7 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                     (kwargs.get("tree_domain") and len(kwargs.get("tree_domain", "")) > 50) or  # Complex tree domain
                     (kwargs.get("area_domain") and len(kwargs.get("area_domain", "")) > 50)     # Complex area domain
                 )
-                
+
                 if use_workflow:
                     # Use advanced workflow for complex queries
                     from ..estimation.area_workflow import area_workflow
@@ -481,13 +485,13 @@ Use this area_domain parameter in your tree count or area estimation commands.""
                     from ..estimation.area import area
                     result = area(self.fia, **kwargs)
                     calculation_method = "Core Function"
-                
+
                 if len(result) == 0:
                     return "No area found matching the specified criteria."
-                
+
                 # Enhanced result formatting
                 return self._format_area_results_enhanced(result, kwargs, calculation_method)
-                
+
             except Exception as e:
                 import traceback
                 error_details = traceback.format_exc()
@@ -504,7 +508,7 @@ Full traceback:
 {error_details}
 
 This error occurred while trying to execute an area estimation query. Please check the parameters and database connection."""
-        
+
         def execute_tree_command(command_args: str) -> str:
             """
             Execute tree count commands using the CLI interface.
@@ -523,20 +527,20 @@ This error occurred while trying to execute an area estimation query. Please che
             try:
                 # Parse CLI arguments into kwargs
                 kwargs = {}
-                
+
                 # Handle boolean flags
                 if "bySpecies" in command_args:
                     kwargs["by_species"] = True
                 if "bySizeClass" in command_args:
                     kwargs["by_size_class"] = True
-                
+
                 # Parse key=value pairs
                 import shlex
                 try:
                     parts = shlex.split(command_args)
                 except ValueError:
                     parts = command_args.split()
-                
+
                 for part in parts:
                     if "=" in part:
                         key, value = part.split("=", 1)
@@ -551,7 +555,7 @@ This error occurred while trying to execute an area estimation query. Please che
                             key = "land_type"
                         elif key == "grpBy":
                             key = "grp_by"
-                        
+
                         # Handle quoted strings
                         if value.startswith('"') and value.endswith('"'):
                             value = value[1:-1]
@@ -567,10 +571,10 @@ This error occurred while trying to execute an area estimation query. Please che
                                 except ValueError:
                                     pass  # Keep as string
                         kwargs[key] = value
-                
+
                 # Always include totals for population estimates
                 kwargs["totals"] = True
-                
+
                 # Handle EVALID selection before calling tree_count
                 if not self.fia.evalid and kwargs.get("area_domain"):
                     # Extract state code from area_domain
@@ -588,17 +592,17 @@ This error occurred while trying to execute an area estimation query. Please che
                             self.fia.clip_by_evalid(recommended_evalid)
                             if self.verbose:
                                 print(f"[DEBUG] Auto-selected EVALID {recommended_evalid}: {explanation}")
-                
+
                 # Execute tree count through the estimation module
                 from ..estimation.tree import tree_count
                 result = tree_count(self.fia, **kwargs)
-                
+
                 if len(result) == 0:
                     return "No trees found matching the specified criteria."
-                
+
                 # Enhanced result formatting
                 return self._format_tree_results_enhanced(result, kwargs)
-                
+
             except Exception as e:
                 import traceback
                 error_details = traceback.format_exc()
@@ -613,7 +617,7 @@ Full traceback:
 {error_details}
 
 This error occurred while trying to execute a tree count query. Please check the parameters and database connection."""
-        
+
         def execute_mortality_command(command_args: str) -> str:
             """
             Execute mortality estimation commands using the estimation interface.
@@ -632,7 +636,7 @@ This error occurred while trying to execute a tree count query. Please check the
             try:
                 # Parse CLI arguments into kwargs
                 kwargs = {}
-                
+
                 # Handle boolean flags
                 if "bySpecies" in command_args:
                     kwargs["by_species"] = True
@@ -642,14 +646,14 @@ This error occurred while trying to execute a tree count query. Please check the
                     kwargs["totals"] = True
                 if "variance" in command_args:
                     kwargs["variance"] = True
-                
+
                 # Parse key=value pairs
                 import shlex
                 try:
                     parts = shlex.split(command_args)
                 except ValueError:
                     parts = command_args.split()
-                
+
                 for part in parts:
                     if "=" in part:
                         key, value = part.split("=", 1)
@@ -666,7 +670,7 @@ This error occurred while trying to execute a tree count query. Please check the
                             key = "tree_class"
                         elif key == "grpBy":
                             key = "grp_by"
-                        
+
                         # Handle quoted strings
                         if value.startswith('"') and value.endswith('"'):
                             value = value[1:-1]
@@ -685,13 +689,13 @@ This error occurred while trying to execute a tree count query. Please check the
                                     except ValueError:
                                         pass  # Keep as string
                         kwargs[key] = value
-                
+
                 # Set defaults appropriate for mortality
                 kwargs.setdefault("tree_type", "all")  # Mortality can include all tree types
                 kwargs.setdefault("land_type", "forest")
                 kwargs.setdefault("tree_class", "all")  # Can be "all" or "growing_stock"
                 kwargs["totals"] = True  # Always include totals for population estimates
-                
+
                 # Handle GRM EVALID selection before calling mortality
                 if not self.fia.evalid and kwargs.get("area_domain"):
                     # Extract state code from area_domain
@@ -709,21 +713,21 @@ This error occurred while trying to execute a tree count query. Please check the
                             self.fia.evalid = recommended_evalid
                             if self.verbose:
                                 print(f"[DEBUG] Auto-selected GRM EVALID {recommended_evalid}: {explanation}")
-                
+
                 # Check if we have a valid GRM EVALID
                 if not self.fia.evalid:
                     return "Error: Mortality estimation requires GRM (Growth/Removal/Mortality) evaluation. Please specify area_domain with state code or use mr=true for most recent GRM evaluation."
-                
+
                 # Execute mortality estimation through the estimation module
                 from ..estimation.mortality import mortality
                 result = mortality(self.fia, **kwargs)
-                
+
                 if len(result) == 0:
                     return "No mortality data found matching the specified criteria."
-                
+
                 # Enhanced result formatting
                 return self._format_mortality_results_enhanced(result, kwargs)
-                
+
             except Exception as e:
                 import traceback
                 error_details = traceback.format_exc()
@@ -738,7 +742,7 @@ Full traceback:
 {error_details}
 
 This error occurred while trying to execute a mortality estimation query. Please check the parameters and database connection. Note that mortality estimation requires GRM (Growth/Removal/Mortality) evaluations, not standard volume evaluations."""
-        
+
         # Create system prompt
         system_prompt = """You are an expert Forest Inventory Analysis (FIA) assistant.
 
@@ -815,10 +819,10 @@ Always explain what filters and assumptions you're using! Use explain_domain_fil
 - What defaults were chosen and why
 
 This helps users understand your analysis and adjust filters if needed."""
-        
+
         # Define interrupt points if human approval is enabled
         interrupt_before = ["execute_fia_query", "count_trees_by_criteria"] if self.enable_human_approval else None
-        
+
         # Create the agent
         tools = [
             execute_fia_query,
@@ -834,7 +838,7 @@ This helps users understand your analysis and adjust filters if needed."""
             explain_domain_filters,
             suggest_domain_options,
         ]
-        
+
         agent = create_react_agent(
             model=self.llm,
             tools=tools,
@@ -842,9 +846,9 @@ This helps users understand your analysis and adjust filters if needed."""
             prompt=system_prompt,
             interrupt_before=interrupt_before,
         )
-        
+
         return agent
-    
+
     def _format_tree_results_enhanced(self, result: 'pl.DataFrame', query_params: dict) -> str:
         """
         Enhanced formatting for tree count results using the new result formatter.
@@ -858,10 +862,10 @@ This helps users understand your analysis and adjust filters if needed."""
         """
         try:
             from .result_formatter import create_result_formatter
-            
+
             # Create formatter instance
             formatter = create_result_formatter("enhanced")
-            
+
             # Gather EVALID info if available
             evalid_info = None
             if hasattr(self.fia, 'evalid') and self.fia.evalid:
@@ -870,14 +874,14 @@ This helps users understand your analysis and adjust filters if needed."""
                     'evalid': evalid,
                     'description': f"FIA Evaluation {evalid}"
                 }
-            
+
             # Use the enhanced formatter
             return formatter.format_tree_count_results(result, query_params, evalid_info)
-            
+
         except ImportError:
             # Fallback to simple formatting if formatter not available
             return self._format_tree_results_simple(result, query_params)
-    
+
     def _format_area_results_enhanced(self, result: 'pl.DataFrame', query_params: dict, calculation_method: str) -> str:
         """
         Enhanced formatting for area estimation results using the result formatter.
@@ -892,10 +896,10 @@ This helps users understand your analysis and adjust filters if needed."""
         """
         try:
             from .result_formatter import create_result_formatter
-            
+
             # Create formatter instance
             formatter = create_result_formatter("enhanced")
-            
+
             # Gather EVALID info if available
             evalid_info = None
             if hasattr(self.fia, 'evalid') and self.fia.evalid:
@@ -904,14 +908,14 @@ This helps users understand your analysis and adjust filters if needed."""
                     'evalid': evalid,
                     'description': f"FIA Evaluation {evalid}"
                 }
-            
+
             # Use the enhanced formatter for area results
             return formatter.format_area_estimation_results(result, query_params, evalid_info, calculation_method)
-            
+
         except ImportError:
             # Fallback to simple formatting if formatter not available
             return self._format_area_results_simple(result, query_params, calculation_method)
-    
+
     def _format_area_results_simple(self, result: 'pl.DataFrame', query_params: dict, calculation_method: str) -> str:
         """
         Simple fallback formatting for area estimation results.
@@ -925,28 +929,28 @@ This helps users understand your analysis and adjust filters if needed."""
             Basic formatted string
         """
         formatted = f"Area Estimation Results (using {calculation_method}):\n\n"
-        
+
         for row in result.iter_rows(named=True):
             if 'LAND_TYPE' in row and row['LAND_TYPE']:
                 formatted += f"Land Type: {row['LAND_TYPE']}\n"
-            
+
             if 'AREA' in row:
                 formatted += f"Total Area: {row['AREA']:,.0f} acres\n"
-            
+
             if 'AREA_PERC' in row:
                 formatted += f"Area Percentage: {row['AREA_PERC']:.2f}%\n"
-            
+
             if 'AREA_SE' in row and row['AREA_SE']:
                 formatted += f"Standard Error: ±{row['AREA_SE']:,.0f} acres\n"
-                
+
             if 'N_PLOTS' in row:
                 formatted += f"Sample Plots: {row['N_PLOTS']:,}\n"
-            
+
             formatted += "\n"
-        
+
         formatted += f"(Statistically valid area estimate using FIA methodology - {calculation_method})\n"
         return formatted
-    
+
     def _format_tree_results_simple(self, result: 'pl.DataFrame', query_params: dict) -> str:
         """
         Simple fallback formatting for tree count results.
@@ -959,28 +963,28 @@ This helps users understand your analysis and adjust filters if needed."""
             Basic formatted string
         """
         formatted = "Tree Count Results:\n\n"
-        
+
         for row in result.iter_rows(named=True):
             if 'COMMON_NAME' in row and row['COMMON_NAME']:
                 formatted += f"Species: {row['COMMON_NAME']}"
                 if 'SCIENTIFIC_NAME' in row and row['SCIENTIFIC_NAME']:
                     formatted += f" ({row['SCIENTIFIC_NAME']})"
                 formatted += "\n"
-            
+
             if 'SIZE_CLASS' in row and row['SIZE_CLASS']:
                 formatted += f"Size Class: {row['SIZE_CLASS']}\n"
-            
+
             if 'TREE_COUNT' in row:
                 formatted += f"Total Population: {row['TREE_COUNT']:,.0f} trees\n"
-            
+
             if 'SE' in row and row['SE']:
                 formatted += f"Standard Error: {row['SE']:,.0f}\n"
-                
+
             if 'SE_PERCENT' in row:
                 formatted += f"Standard Error %: {row['SE_PERCENT']:.1f}%\n"
-            
+
             formatted += "\n"
-        
+
         formatted += "(Statistically valid population estimate using FIA methodology)\n"
         return formatted
 
@@ -997,10 +1001,10 @@ This helps users understand your analysis and adjust filters if needed."""
         """
         try:
             from .result_formatter import create_result_formatter
-            
+
             # Create formatter instance
             formatter = create_result_formatter("enhanced")
-            
+
             # Gather EVALID info if available
             evalid_info = None
             if hasattr(self.fia, 'evalid') and self.fia.evalid:
@@ -1009,14 +1013,14 @@ This helps users understand your analysis and adjust filters if needed."""
                     'evalid': evalid,
                     'description': f"FIA GRM Evaluation {evalid}"
                 }
-            
+
             # Use the enhanced formatter for mortality results
             return formatter.format_mortality_estimation_results(result, query_params, evalid_info)
-            
+
         except ImportError:
             # Fallback to simple formatting if formatter not available
             return self._format_mortality_results_simple(result, query_params)
-    
+
     def _format_mortality_results_simple(self, result: 'pl.DataFrame', query_params: dict) -> str:
         """
         Simple fallback formatting for mortality estimation results.
@@ -1029,46 +1033,46 @@ This helps users understand your analysis and adjust filters if needed."""
             Basic formatted string
         """
         formatted = "Mortality Estimation Results:\n\n"
-        
+
         for row in result.iter_rows(named=True):
             if 'COMMON_NAME' in row and row['COMMON_NAME']:
                 formatted += f"Species: {row['COMMON_NAME']}"
                 if 'SCIENTIFIC_NAME' in row and row['SCIENTIFIC_NAME']:
                     formatted += f" ({row['SCIENTIFIC_NAME']})"
                 formatted += "\n"
-            
+
             if 'TREE_CLASS' in row and row['TREE_CLASS']:
                 formatted += f"Tree Class: {row['TREE_CLASS']}\n"
-            
+
             # Tree mortality
             if 'MORT_TPA_TOTAL' in row:
                 formatted += f"Annual Tree Mortality: {row['MORT_TPA_TOTAL']:,.0f} trees/year\n"
             elif 'MORT_TPA_AC' in row:
                 formatted += f"Tree Mortality Rate: {row['MORT_TPA_AC']:.3f} trees/acre/year\n"
-            
-            # Volume mortality  
+
+            # Volume mortality
             if 'MORT_VOL_TOTAL' in row:
                 formatted += f"Volume Mortality: {row['MORT_VOL_TOTAL']:,.0f} cu.ft./year\n"
             elif 'MORT_VOL_AC' in row:
                 formatted += f"Volume Mortality Rate: {row['MORT_VOL_AC']:.2f} cu.ft./acre/year\n"
-            
+
             # Biomass mortality
             if 'MORT_BIO_TOTAL' in row:
                 formatted += f"Biomass Mortality: {row['MORT_BIO_TOTAL']:,.0f} tons/year\n"
             elif 'MORT_BIO_AC' in row:
                 formatted += f"Biomass Mortality Rate: {row['MORT_BIO_AC']:.2f} tons/acre/year\n"
-            
+
             # Standard errors
             if 'MORT_TPA_SE' in row and row['MORT_TPA_SE']:
                 formatted += f"Standard Error: ±{row['MORT_TPA_SE']:,.0f}\n"
             if 'MORT_TPA_CV' in row and row['MORT_TPA_CV']:
                 formatted += f"Coefficient of Variation: {row['MORT_TPA_CV']:.1f}%\n"
-                
+
             if 'nPlots' in row:
                 formatted += f"Sample Plots: {row['nPlots']:,}\n"
-            
+
             formatted += "\n"
-        
+
         formatted += "(Annual mortality estimates using FIA GRM methodology)\n"
         return formatted
 
@@ -1091,28 +1095,28 @@ This helps users understand your analysis and adjust filters if needed."""
         """
         if not thread_id:
             thread_id = f"default_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-        
+
         # Create config with thread
         run_config = {
             "configurable": {"thread_id": thread_id}
         }
         if config:
             run_config.update(config)
-        
+
         try:
             # Invoke the agent
             response = self.agent.invoke(
                 {"messages": [HumanMessage(content=question)]},
                 config=run_config,
             )
-            
+
             # Extract the final message
             final_message = response["messages"][-1].content
             return final_message
-            
+
         except Exception as e:
             return f"Error processing query: {str(e)}"
-    
+
     def get_conversation_history(self, thread_id: str) -> List[BaseMessage]:
         """
         Get conversation history for a thread.
@@ -1125,7 +1129,7 @@ This helps users understand your analysis and adjust filters if needed."""
         """
         state = self.agent.get_state({"configurable": {"thread_id": thread_id}})
         return state.values.get("messages", [])
-    
+
     def clear_memory(self, thread_id: Optional[str] = None):
         """
         Clear conversation memory.
@@ -1142,8 +1146,8 @@ This helps users understand your analysis and adjust filters if needed."""
 # Convenience functions for backward compatibility and ease of use
 
 def create_fia_agent(
-    db_path: Union[str, Path], 
-    api_key: Optional[str] = None, 
+    db_path: Union[str, Path],
+    api_key: Optional[str] = None,
     **kwargs
 ) -> FIAAgent:
     """

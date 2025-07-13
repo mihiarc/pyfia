@@ -9,14 +9,14 @@ from typing import List, Optional, Union
 
 import polars as pl
 
-from ..core import FIA
 from ..constants.constants import (
-    TreeStatus,
     LandStatus,
-    SiteClass,
-    ReserveStatus,
     MathConstants,
+    ReserveStatus,
+    SiteClass,
+    TreeStatus,
 )
+from ..core import FIA
 
 
 def biomass(

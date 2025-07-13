@@ -9,13 +9,13 @@ from typing import List, Optional
 
 import polars as pl
 
-from .utils import ratio_var
 from ..constants.constants import (
     LandStatus,
-    SiteClass,
-    ReserveStatus,
     PlotBasis,
+    ReserveStatus,
+    SiteClass,
 )
+from .utils import ratio_var
 
 
 def area(

@@ -10,4 +10,4 @@ This module provides:
 # CLI modules are typically not imported directly
 # They are accessed via entry points in pyproject.toml
 
-__all__ = [] 
+__all__ = []

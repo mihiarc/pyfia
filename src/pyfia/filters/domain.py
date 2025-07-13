@@ -7,17 +7,17 @@ consistent filtering methodology. It also provides intelligent defaults
 and tracks filtering assumptions for transparent AI agent communication.
 """
 
-from typing import Optional, Tuple, Dict, List
 from dataclasses import dataclass
+from typing import Dict, List, Optional, Tuple
 
 import polars as pl
 
 from ..constants.constants import (
-    TreeStatus,
-    TreeClass,
     LandStatus,
-    SiteClass,
     ReserveStatus,
+    SiteClass,
+    TreeClass,
+    TreeStatus,
 )
 
 
@@ -30,11 +30,11 @@ class FilterAssumptions:
     area_domain: Optional[str]
     assumptions_made: List[str]
     defaults_applied: List[str]
-    
+
     def to_explanation(self) -> str:
         """Convert assumptions to human-readable explanation."""
         explanation = []
-        
+
         # Core filter explanations
         if self.tree_type == "all":
             explanation.append("• Including all tree types (live and dead)")
@@ -48,32 +48,32 @@ class FilterAssumptions:
             explanation.append("• Including only live growing stock trees")
         elif self.tree_type == "dead_gs":
             explanation.append("• Including only dead growing stock trees")
-            
+
         if self.land_type == "forest":
             explanation.append("• Including all forest land")
         elif self.land_type == "timber":
             explanation.append("• Including only timberland (productive, unreserved forest)")
         elif self.land_type == "all":
             explanation.append("• Including all land types")
-            
+
         # Custom domains
         if self.tree_domain:
             explanation.append(f"• Tree filter: {self.tree_domain}")
         if self.area_domain:
             explanation.append(f"• Area filter: {self.area_domain}")
-            
+
         # Defaults that were applied
         if self.defaults_applied:
             explanation.append("\nDefaults applied:")
             for default in self.defaults_applied:
                 explanation.append(f"• {default}")
-                
+
         # Additional assumptions
         if self.assumptions_made:
             explanation.append("\nKey assumptions:")
             for assumption in self.assumptions_made:
                 explanation.append(f"• {assumption}")
-                
+
         return "\n".join(explanation)
 
 
@@ -97,11 +97,11 @@ def get_intelligent_defaults(
         Dictionary with intelligent defaults for tree_type, land_type
     """
     defaults = {"tree_type": "all", "land_type": "forest"}
-    
+
     # Context-aware defaults
     if query_context:
         context_lower = query_context.lower()
-        
+
         # Tree type intelligence
         if any(word in context_lower for word in ["live", "living", "alive"]):
             defaults["tree_type"] = "live"
@@ -109,13 +109,13 @@ def get_intelligent_defaults(
             defaults["tree_type"] = "dead"
         elif any(word in context_lower for word in ["growing stock", "merchantable", "commercial"]):
             defaults["tree_type"] = "gs"
-            
+
         # Land type intelligence
         if any(word in context_lower for word in ["timber", "commercial", "productive"]):
             defaults["land_type"] = "timber"
         elif any(word in context_lower for word in ["all land", "any land"]):
             defaults["land_type"] = "all"
-    
+
     # Analysis-specific defaults
     if analysis_type == "volume":
         # Volume typically focuses on merchantable trees
@@ -129,7 +129,7 @@ def get_intelligent_defaults(
         # Biomass often focuses on live trees
         if defaults["tree_type"] == "all":
             defaults["tree_type"] = "live"
-    
+
     return defaults
 
 
@@ -171,13 +171,13 @@ def apply_tree_filters(
     assumptions_made = []
     defaults_applied = []
     original_tree_type = tree_type
-    
+
     # Apply intelligent defaults if requested
     if tree_type == "auto":
         intelligent_defaults = get_intelligent_defaults(query_context, "general")
         tree_type = intelligent_defaults["tree_type"]
         defaults_applied.append(f"Tree type defaulted to '{tree_type}' based on context")
-    
+
     # Apply tree type filters
     if tree_type == "live":
         tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.LIVE)
@@ -219,12 +219,12 @@ def apply_tree_filters(
         assumptions_made.append("Including all tree types (no STATUSCD filter)")
     else:
         raise ValueError(f"Invalid tree_type: {tree_type}")
-    
+
     # Apply custom domain filter if provided
     if tree_domain:
         tree_df = parse_domain_expression(tree_df, tree_domain, "tree")
         assumptions_made.append(f"Custom tree filter applied: {tree_domain}")
-    
+
     if track_assumptions:
         filter_assumptions = FilterAssumptions(
             tree_type=tree_type,
@@ -235,7 +235,7 @@ def apply_tree_filters(
             defaults_applied=defaults_applied,
         )
         return tree_df, filter_assumptions
-    
+
     return tree_df, None
 
 
@@ -283,15 +283,15 @@ def apply_area_filters(
             assumptions_made=[],
             defaults_applied=[],
         )
-    
+
     original_land_type = land_type
-    
+
     # Apply intelligent defaults if requested
     if land_type == "auto":
         intelligent_defaults = get_intelligent_defaults(query_context, "area")
         land_type = intelligent_defaults["land_type"]
         assumptions.defaults_applied.append(f"Land type defaulted to '{land_type}' based on context")
-    
+
     # Apply land type filters
     if land_type == "forest":
         cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
@@ -313,19 +313,19 @@ def apply_area_filters(
         assumptions.assumptions_made.append("Including all land types (no COND_STATUS_CD filter)")
     else:
         raise ValueError(f"Invalid land_type: {land_type}")
-    
+
     # Apply custom domain filter if provided
     if area_domain:
         cond_df = parse_domain_expression(cond_df, area_domain, "area")
         assumptions.assumptions_made.append(f"Custom area filter applied: {area_domain}")
-    
+
     # Update assumptions object
     assumptions.land_type = land_type
     assumptions.area_domain = area_domain
-    
+
     if track_assumptions:
         return cond_df, assumptions
-    
+
     return cond_df, None
 
 
@@ -355,10 +355,10 @@ def parse_domain_expression(
         # First try as a Polars expression
         # Replace common SQL operators with Polars equivalents
         polars_expr = domain.replace(" and ", " & ").replace(" or ", " | ")
-        
+
         # Create a namespace with column references
         namespace = {col: pl.col(col) for col in df.columns}
-        
+
         # Evaluate the expression
         filter_expr = eval(polars_expr, {"pl": pl}, namespace)
         return df.filter(filter_expr)
@@ -398,7 +398,7 @@ def apply_growing_stock_filter(
         & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)  # Growing stock class
         & (pl.col("AGENTCD") < 30)  # No severe damage
     )
-    
+
     if gs_type == "merchantable":
         # Additional filters for merchantable volume
         gs_filter = gs_filter & (pl.col("DIA") >= 5.0)
@@ -407,7 +407,7 @@ def apply_growing_stock_filter(
         gs_filter = gs_filter & (pl.col("DIA") >= 9.0)
     elif gs_type != "standard":
         raise ValueError(f"Invalid gs_type: {gs_type}")
-    
+
     return tree_df.filter(gs_filter)
 
 
@@ -434,7 +434,7 @@ def apply_mortality_filters(
     """
     # Base mortality filter - trees with mortality component
     mort_df = tree_df.filter(pl.col("COMPONENT").str.contains("MORTALITY"))
-    
+
     if tree_class == "growing_stock":
         # Apply growing stock filters to mortality trees
         mort_df = mort_df.filter(
@@ -443,7 +443,7 @@ def apply_mortality_filters(
         )
     elif tree_class != "all":
         raise ValueError(f"Invalid tree_class: {tree_class}")
-    
+
     return mort_df
 
 
@@ -492,18 +492,18 @@ def apply_standard_filters(
         filtered_trees, assumptions = apply_tree_filters(
             tree_df, tree_type, tree_domain, query_context, track_assumptions=True
         )
-        
+
         # Apply area filters with existing assumptions
         filtered_conds, assumptions = apply_area_filters(
             cond_df, land_type, area_domain, query_context, assumptions, track_assumptions=True
         )
-        
+
         return filtered_trees, filtered_conds, assumptions
     else:
         # Simple mode without assumption tracking
         filtered_trees, _ = apply_tree_filters(tree_df, tree_type, tree_domain, query_context)
         filtered_conds, _ = apply_area_filters(cond_df, land_type, area_domain, query_context)
-        
+
         return filtered_trees, filtered_conds, None
 
 
@@ -528,7 +528,7 @@ def get_size_class_expr() -> pl.Expr:
 
 def create_domain_explanation(
     tree_type: str = "all",
-    land_type: str = "forest", 
+    land_type: str = "forest",
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
     query_context: Optional[str] = None,
@@ -557,14 +557,14 @@ def create_domain_explanation(
     # Apply filters to get assumptions without actually filtering data
     dummy_tree_df = pl.DataFrame({"STATUSCD": [1], "TREECLCD": [2], "AGENTCD": [10]})
     dummy_cond_df = pl.DataFrame({"COND_STATUS_CD": [1], "SITECLCD": [1], "RESERVCD": [0]})
-    
+
     try:
         _, _, assumptions = apply_standard_filters(
-            dummy_tree_df, dummy_cond_df, 
+            dummy_tree_df, dummy_cond_df,
             tree_type, land_type, tree_domain, area_domain,
             query_context, track_assumptions=True
         )
-        
+
         if assumptions:
             explanation = assumptions.to_explanation()
             if query_context:
@@ -572,7 +572,7 @@ def create_domain_explanation(
             return explanation
         else:
             return "Standard FIA filters applied (no special assumptions tracked)"
-            
+
     except Exception as e:
         return f"Error generating explanation: {str(e)}"
 
@@ -597,7 +597,7 @@ def suggest_common_domains(analysis_type: str = "general") -> Dict[str, List[str
         "tree_types": [],
         "land_types": []
     }
-    
+
     if analysis_type == "volume":
         suggestions["tree_domains"] = [
             "DIA >= 5.0",  # Merchantable diameter
@@ -606,7 +606,7 @@ def suggest_common_domains(analysis_type: str = "general") -> Dict[str, List[str
         ]
         suggestions["tree_types"] = ["gs", "live_gs"]
         suggestions["land_types"] = ["timber", "forest"]
-        
+
     elif analysis_type == "biomass":
         suggestions["tree_domains"] = [
             "DIA >= 1.0",  # Include small trees
@@ -617,7 +617,7 @@ def suggest_common_domains(analysis_type: str = "general") -> Dict[str, List[str
             "OWNGRPCD == 40",  # Private land
         ]
         suggestions["tree_types"] = ["live", "all"]
-        
+
     elif analysis_type == "mortality":
         suggestions["tree_domains"] = [
             "AGENTCD >= 30",  # Severe damage
@@ -625,7 +625,7 @@ def suggest_common_domains(analysis_type: str = "general") -> Dict[str, List[str
             "AGENTCD == 50",  # Fire
         ]
         suggestions["tree_types"] = ["dead", "dead_gs"]
-        
+
     elif analysis_type == "area":
         suggestions["area_domains"] = [
             "FORTYPCD < 400",  # Forest types
@@ -633,7 +633,7 @@ def suggest_common_domains(analysis_type: str = "general") -> Dict[str, List[str
             "DSTRBCD1 == 0",   # No disturbance
         ]
         suggestions["land_types"] = ["forest", "timber"]
-        
+
     return suggestions
 
 
@@ -662,19 +662,19 @@ def validate_filters(
     valid_tree_types = {"all", "live", "dead", "gs", "live_gs", "dead_gs", "auto"}
     valid_land_types = {"all", "forest", "timber", "auto"}
     valid_gs_types = {"standard", "merchantable", "board_foot"}
-    
+
     if tree_type not in valid_tree_types:
         raise ValueError(
             f"Invalid tree_type: {tree_type}. "
             f"Valid options: {', '.join(valid_tree_types)}"
         )
-    
+
     if land_type not in valid_land_types:
         raise ValueError(
             f"Invalid land_type: {land_type}. "
             f"Valid options: {', '.join(valid_land_types)}"
         )
-    
+
     if gs_type not in valid_gs_types:
         raise ValueError(
             f"Invalid gs_type: {gs_type}. "

@@ -7,8 +7,8 @@ prioritization of statewide over regional evaluations and selection of the
 most appropriate evaluation type for different analysis needs.
 """
 
-from typing import Dict, List, Optional, Union, Tuple
-import polars as pl
+from typing import Dict, Optional, Tuple, Union
+
 from ..database.query_interface import DuckDBQueryInterface
 
 
@@ -66,7 +66,7 @@ def find_best_evalid(
     GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
              pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
     """
-    
+
     # Build ORDER BY clause - prioritize statewide, then most recent
     if prefer_statewide and most_recent:
         query += "ORDER BY is_regional ASC, pe.END_INVYR DESC"
@@ -76,20 +76,20 @@ def find_best_evalid(
         query += "ORDER BY pe.END_INVYR DESC, pe.EVALID DESC"
     else:
         query += "ORDER BY pe.EVALID DESC"
-    
+
     query += " LIMIT 1"
-    
+
     try:
         # Replace placeholders with actual values
         final_query = query.replace("pe.STATECD = ?", f"pe.STATECD = {state_code}")
         final_query = final_query.replace("pet.EVAL_TYP = ?", f"pet.EVAL_TYP = '{eval_type}'")
-        
+
         result = query_interface.execute_query(final_query)
-        
+
         if len(result) > 0:
             return result.row(0, named=True)["EVALID"]
         return None
-        
+
     except Exception:
         return None
 
@@ -137,12 +137,12 @@ def get_evalid_info(
     LEFT JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
     WHERE 1=1
     """
-    
+
     if state_code:
         query += f" AND pe.STATECD = {state_code}"
     if eval_type:
         query += f" AND pet.EVAL_TYP = '{eval_type}'"
-        
+
     query += """
     GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
              pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
@@ -150,25 +150,25 @@ def get_evalid_info(
              pe.END_INVYR DESC,
              CASE WHEN pe.EVAL_DESCR LIKE '%(%' THEN 1 ELSE 0 END
     """
-    
+
     if limit:
         query += f" LIMIT {limit}"
-    
+
     try:
         result = query_interface.execute_query(query)
-        
+
         if len(result) == 0:
             return "No evaluations found matching criteria"
-        
+
         formatted = "FIA Evaluations:\n"
         for row in result.iter_rows(named=True):
             formatted += f"\n- EVALID {row['EVALID']}: {row['EVAL_DESCR']}"
             formatted += f"\n  State: {row['STATECD']}, Type: {row['EVAL_TYP']}, Scope: {row['scope']}"
             formatted += f"\n  Years: {row['START_INVYR']}-{row['END_INVYR']}"
             formatted += f"\n  Plots: {row['plot_count']:,}\n"
-        
+
         return formatted
-        
+
     except Exception as e:
         return f"Error getting EVALID info: {str(e)}"
 
@@ -200,16 +200,16 @@ def get_recommended_evalid(
     # Map analysis types to evaluation types
     eval_type_map = {
         "tree_count": "EXPVOL",
-        "volume": "EXPVOL", 
+        "volume": "EXPVOL",
         "biomass": "EXPVOL",
         "area": "EXPCURR",
         "growth": "EXPGROW",
         "mortality": "EXPMORT",
         "tpa": "EXPVOL",
     }
-    
+
     eval_type = eval_type_map.get(analysis_type, "EXPVOL")
-    
+
     # Find the best EVALID - prioritize statewide evaluations
     evalid = find_best_evalid(
         query_interface=query_interface,
@@ -218,10 +218,10 @@ def get_recommended_evalid(
         prefer_statewide=True,
         most_recent=True,
     )
-    
+
     if evalid is None:
         return None, f"No suitable {eval_type} evaluation found for state {state_code}"
-    
+
     # Get details about the selected EVALID
     try:
         detail_query = f"""
@@ -243,7 +243,7 @@ def get_recommended_evalid(
           AND pet.EVAL_TYP = '{eval_type}'
         GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
         """
-        
+
         result = query_interface.execute_query(detail_query)
         if len(result) > 0:
             row = result.row(0, named=True)
@@ -255,10 +255,10 @@ def get_recommended_evalid(
             )
         else:
             explanation = f"Using EVALID {evalid} for {analysis_type} analysis"
-            
+
     except Exception:
         explanation = f"Using EVALID {evalid} for {analysis_type} analysis"
-    
+
     return evalid, explanation
 
 
@@ -298,10 +298,10 @@ def validate_evalid(
     GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
              pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
     """
-    
+
     try:
         result = query_interface.execute_query(query)
-        
+
         if len(result) == 0:
             return {
                 'valid': False,
@@ -311,7 +311,7 @@ def validate_evalid(
                 'plot_count': 0,
                 'years': None,
             }
-        
+
         row = result.row(0, named=True)
         return {
             'valid': True,
@@ -321,7 +321,7 @@ def validate_evalid(
             'plot_count': row['plot_count'],
             'years': f"{row['START_INVYR']}-{row['END_INVYR']}",
         }
-        
+
     except Exception as e:
         return {
             'valid': False,
@@ -330,4 +330,4 @@ def validate_evalid(
             'eval_type': None,
             'plot_count': 0,
             'years': None,
-        } 
+        }

@@ -9,4 +9,4 @@ This module provides:
 
 from .constants import *
 
-__all__ = []  # Constants are imported from individual files 
+__all__ = []  # Constants are imported from individual files

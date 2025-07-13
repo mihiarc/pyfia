@@ -5,7 +5,8 @@ This module consolidates frequently used join patterns across different
 FIA estimators to reduce code duplication and ensure consistency.
 """
 
-from typing import Optional, List, Union, Tuple
+from typing import List, Optional, Union
+
 import polars as pl
 
 from ..constants.constants import (
@@ -40,11 +41,11 @@ def join_tree_condition(
     """
     if cond_columns is None:
         cond_columns = ["PLT_CN", "CONDID", "CONDPROP_UNADJ"]
-    
+
     # Ensure join keys are always included
     join_keys = ["PLT_CN", "CONDID"]
     cond_columns = list(set(cond_columns) | set(join_keys))
-    
+
     return tree_df.join(
         cond_df.select(cond_columns),
         on=join_keys,
@@ -87,18 +88,18 @@ def join_plot_stratum(
     # Default adjustment factors
     if adj_factors is None:
         adj_factors = ["SUBP"]
-    
+
     # Build adjustment factor column names
     adj_cols = [f"ADJ_FACTOR_{factor}" for factor in adj_factors]
-    
+
     # Default stratum columns
     base_stratum_cols = ["CN", "EXPNS", "P2POINTCNT"] + adj_cols
-    
+
     if stratum_columns:
         stratum_cols = list(set(base_stratum_cols + stratum_columns))
     else:
         stratum_cols = base_stratum_cols
-    
+
     # Perform the three-way join
     return (
         plot_df.join(
@@ -149,30 +150,30 @@ def apply_adjustment_factors(
     """
     if isinstance(value_columns, str):
         value_columns = [value_columns]
-    
+
     # Default adjustment factor mapping
     if adj_factor_columns is None:
         adj_factor_columns = {
             PlotBasis.MICROPLOT: "ADJ_FACTOR_MICR",
-            PlotBasis.SUBPLOT: "ADJ_FACTOR_SUBP", 
+            PlotBasis.SUBPLOT: "ADJ_FACTOR_SUBP",
             PlotBasis.MACROPLOT: "ADJ_FACTOR_MACR",
         }
-    
+
     # Create adjusted columns
     adjusted_exprs = []
     for col in value_columns:
         # Build conditional expression for this column
         # Check which adjustment columns actually exist
-        existing_adj_cols = [adj_col for adj_col in adj_factor_columns.values() 
+        existing_adj_cols = [adj_col for adj_col in adj_factor_columns.values()
                             if adj_col in df.columns]
-        
+
         if not existing_adj_cols:
             # No adjustment factors found, just copy the column
             adjusted_exprs.append(pl.col(col).alias(f"{col}_ADJ"))
             continue
-        
+
         expr = None
-        
+
         # Apply each adjustment factor conditionally
         for basis, adj_col in adj_factor_columns.items():
             if adj_col in df.columns:  # Only use if column exists
@@ -184,14 +185,14 @@ def apply_adjustment_factors(
                     expr = expr.when(pl.col(basis_column) == basis).then(
                         pl.col(col) * pl.col(adj_col)
                     )
-        
+
         # Default to original value if no match
         if expr is not None:
             expr = expr.otherwise(pl.col(col))
             adjusted_exprs.append(expr.alias(f"{col}_ADJ"))
         else:
             adjusted_exprs.append(pl.col(col).alias(f"{col}_ADJ"))
-    
+
     return df.with_columns(adjusted_exprs)
 
 
@@ -257,11 +258,11 @@ def join_species_info(
     """
     if species_columns is None:
         species_columns = ["SPCD", "COMMON_NAME", "GENUS", "SPECIES"]
-    
+
     # Ensure SPCD is always included
     if "SPCD" not in species_columns:
         species_columns = ["SPCD"] + species_columns
-    
+
     return df.join(
         species_df.select(species_columns),
         on="SPCD",
@@ -300,12 +301,12 @@ def aggregate_tree_to_plot(
     # Add TREE_BASIS to grouping if adjustments needed
     if adjustment_needed and "TREE_BASIS" not in group_by:
         group_by = group_by + ["TREE_BASIS"]
-    
+
     # Perform aggregation
     plot_df = tree_df.group_by(group_by).agg(
         [expr.alias(name) for name, expr in agg_columns.items()]
     )
-    
+
     return plot_df
 
 
@@ -332,15 +333,15 @@ def join_plot_metadata(
         Dataframe with plot metadata joined
     """
     if plot_columns is None:
-        plot_columns = ["PLT_CN", "STATECD", "INVYR", "PLOT", 
+        plot_columns = ["PLT_CN", "STATECD", "INVYR", "PLOT",
                        "LAT", "LON"]
-    
+
     # Ensure PLT_CN is included
     if "PLT_CN" not in plot_columns:
         plot_columns = ["PLT_CN"] + plot_columns
-    
+
     return df.join(
         plot_df.select(plot_columns),
-        on="PLT_CN", 
+        on="PLT_CN",
         how="left",
     )

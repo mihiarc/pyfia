@@ -2,24 +2,25 @@
 Location resolution utilities for converting parsed locations to database identifiers.
 """
 
-from typing import Optional, Dict, Any
-from .parser import ParsedLocation, LocationType
+from typing import Dict, Optional
+
+from .parser import LocationType, ParsedLocation
 
 
 class LocationResolver:
     """Resolves parsed locations to database identifiers (FIPS codes, etc.)."""
-    
+
     def __init__(self):
         # Import state mappings from existing CLI utils
         try:
-            from ..cli.utils import STATE_NAME_TO_CODE, STATE_CODE_TO_NAME
+            from ..cli.utils import STATE_CODE_TO_NAME, STATE_NAME_TO_CODE
             self.state_name_to_code = STATE_NAME_TO_CODE
             self.state_code_to_name = STATE_CODE_TO_NAME
         except ImportError:
             # Fallback state mappings if CLI utils not available
             self.state_name_to_code = self._get_fallback_state_mappings()
             self.state_code_to_name = {v: k for k, v in self.state_name_to_code.items()}
-    
+
     def resolve(self, location: ParsedLocation) -> ParsedLocation:
         """
         Resolve a parsed location to include database identifiers.
@@ -37,11 +38,11 @@ class LocationResolver:
         else:
             # For now, return as-is for other location types
             return location
-    
+
     def _resolve_state(self, location: ParsedLocation) -> ParsedLocation:
         """Resolve state location to FIPS state code."""
         state_code = self.state_name_to_code.get(location.normalized_name)
-        
+
         if state_code:
             location.state_code = state_code
             location.confidence = min(location.confidence, 0.95)  # High confidence for successful resolution
@@ -51,15 +52,15 @@ class LocationResolver:
             if state_code:
                 location.state_code = state_code
                 location.confidence = min(location.confidence, 0.8)  # Lower confidence for fuzzy match
-        
+
         return location
-    
+
     def _resolve_county(self, location: ParsedLocation) -> ParsedLocation:
         """Resolve county location to FIPS codes."""
         # TODO: Implement county resolution
         # This would require county name to FIPS mappings
         return location
-    
+
     def _fuzzy_match_state(self, state_name: str) -> Optional[int]:
         """Attempt fuzzy matching for state names."""
         # Simple fuzzy matching - check if state_name is contained in any key
@@ -67,7 +68,7 @@ class LocationResolver:
             if state_name in name or name in state_name:
                 return code
         return None
-    
+
     def _get_fallback_state_mappings(self) -> Dict[str, int]:
         """Fallback state name to FIPS code mappings."""
         return {
@@ -83,11 +84,11 @@ class LocationResolver:
             "texas": 48, "utah": 49, "vermont": 50, "virginia": 51, "washington": 53,
             "west virginia": 54, "wisconsin": 55, "wyoming": 56
         }
-    
+
     def get_state_name(self, state_code: int) -> Optional[str]:
         """Get state name from FIPS code."""
         return self.state_code_to_name.get(state_code)
-    
+
     def get_state_code(self, state_identifier: str) -> Optional[int]:
         """
         Get FIPS state code from name or abbreviation.
@@ -105,12 +106,12 @@ class LocationResolver:
                 return code
         except ValueError:
             pass
-        
+
         # Try direct lookup
         normalized = state_identifier.lower().strip()
         code = self.state_name_to_code.get(normalized)
         if code:
             return code
-        
+
         # Try fuzzy matching
-        return self._fuzzy_match_state(normalized) 
+        return self._fuzzy_match_state(normalized)

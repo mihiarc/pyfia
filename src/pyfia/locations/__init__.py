@@ -11,6 +11,6 @@ from .resolver import LocationResolver
 
 __all__ = [
     "LocationParser",
-    "ParsedLocation", 
+    "ParsedLocation",
     "LocationResolver"
-] 
+]

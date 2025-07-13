@@ -5,11 +5,11 @@ This module provides standardized functions for applying FIA adjustment factors
 based on tree diameter classes and plot design specifications.
 """
 
-from typing import Optional, Union, List
+from typing import List, Optional
+
 import polars as pl
 
 from ..constants.constants import (
-    PlotBasis,
     DiameterBreakpoints,
 )
 
@@ -20,7 +20,7 @@ def apply_tree_adjustment_factors(
     dia_column: str = "DIA",
     macro_breakpoint_column: str = "MACRO_BREAKPOINT_DIA",
     micr_factor_column: str = "ADJ_FACTOR_MICR",
-    subp_factor_column: str = "ADJ_FACTOR_SUBP", 
+    subp_factor_column: str = "ADJ_FACTOR_SUBP",
     macr_factor_column: str = "ADJ_FACTOR_MACR",
     output_column: Optional[str] = None,
 ) -> pl.DataFrame:
@@ -67,7 +67,7 @@ def apply_tree_adjustment_factors(
     """
     if output_column is None:
         output_column = f"{value_column}_ADJ"
-    
+
     # EVALIDator adjustment factor logic
     adjustment_expr = (
         pl.when(pl.col(dia_column).is_null())
@@ -78,7 +78,7 @@ def apply_tree_adjustment_factors(
         .then(pl.col(subp_factor_column))
         .otherwise(pl.col(macr_factor_column))
     )
-    
+
     return df.with_columns(
         (pl.col(value_column) * adjustment_expr).alias(output_column)
     )
@@ -113,7 +113,7 @@ def calculate_expanded_estimate(
     """
     if output_column is None:
         output_column = f"{adjusted_value_column}_EXPANDED"
-    
+
     return df.with_columns(
         (pl.col(adjusted_value_column) * pl.col(expansion_column)).alias(output_column)
     )
@@ -171,10 +171,10 @@ def apply_tree_expansion_full(
     """
     if output_column is None:
         output_column = f"{value_column}_EXPANDED"
-    
+
     # Complete EVALIDator expansion formula
     expansion_expr = (
-        pl.col(value_column) * 
+        pl.col(value_column) *
         (
             pl.when(pl.col(dia_column).is_null())
             .then(pl.col(subp_factor_column))
@@ -186,7 +186,7 @@ def apply_tree_expansion_full(
         ) *
         pl.col(expansion_column)
     )
-    
+
     return df.with_columns(expansion_expr.alias(output_column))
 
 
@@ -235,7 +235,7 @@ def get_adjustment_factor_column(
         .then(pl.col(subp_factor_column))
         .otherwise(pl.col(macr_factor_column))
     )
-    
+
     return df.with_columns(adjustment_factor_expr.alias(output_column))
 
 
@@ -269,10 +269,10 @@ def validate_adjustment_columns(
             "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR",
             "EXPNS"
         ]
-    
+
     missing_columns = [col for col in required_columns if col not in df.columns]
-    
+
     if missing_columns:
         raise ValueError(f"Missing required columns for adjustment factors: {missing_columns}")
-    
-    return True 
+
+    return True

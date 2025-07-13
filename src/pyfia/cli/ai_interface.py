@@ -31,9 +31,9 @@ from rich.prompt import Confirm
 from rich.syntax import Syntax
 from rich.table import Table
 
-from .base import BaseCLI
-from ..database.query_interface import DuckDBQueryInterface
 from ..ai.domain_knowledge import fia_knowledge
+from ..database.query_interface import DuckDBQueryInterface
+from .base import BaseCLI
 
 
 class FIAAICli(BaseCLI):
@@ -50,13 +50,13 @@ class FIAAICli(BaseCLI):
         self.query_history = []
         self.agent = None
         self.api_key = os.environ.get("OPENAI_API_KEY")
-        
+
         # Check API key
         if not self.api_key:
             self.console.print(
                 "[yellow]Warning: OPENAI_API_KEY not set. Some features will be limited.[/yellow]"
             )
-        
+
         # Show welcome and try to connect if path provided
         self._show_welcome()
         if self.db_path:
@@ -161,11 +161,11 @@ Show forest area trends over time
         """Initialize the appropriate AI agent."""
         try:
             from ..ai.agent import FIAAgent
-            
+
             # Create checkpoint directory in user's home
             checkpoint_dir = Path.home() / ".pyfia" / "checkpoints"
             checkpoint_dir.mkdir(parents=True, exist_ok=True)
-            
+
             self.agent = FIAAgent(
                 db_path=self.db_path,
                 api_key=self.api_key,
@@ -589,29 +589,29 @@ Show forest area trends over time
             concepts search oak - Find concepts in a phrase
         """
         args = arg.strip().split(maxsplit=1)
-        
+
         if not args:
             # List all concepts
             concepts_table = Table(title="FIA Domain Concepts", show_lines=True)
             concepts_table.add_column("Concept", style="cyan")
             concepts_table.add_column("Category", style="green")
             concepts_table.add_column("Description", style="white")
-            
+
             for name, concept in list(fia_knowledge.concepts.items())[:20]:
                 concepts_table.add_row(
                     name.replace('_', ' ').title(),
                     concept.category.replace('_', ' ').title(),
                     concept.description[:60] + "..." if len(concept.description) > 60 else concept.description
                 )
-            
+
             self.console.print(concepts_table)
             self.console.print(f"\n[dim]Showing 20 of {len(fia_knowledge.concepts)} concepts[/dim]")
-            
+
         elif args[0] == "search" and len(args) > 1:
             # Search for concepts in a phrase
             phrase = args[1]
             concepts = fia_knowledge.extract_concepts(phrase)
-            
+
             if concepts:
                 self.console.print(f"\n[bold]Concepts found in '{phrase}':[/bold]")
                 for concept in concepts:
@@ -620,18 +620,18 @@ Show forest area trends over time
                     self.console.print(f"  [dim]Synonyms: {', '.join(concept.synonyms[:3])}[/dim]")
             else:
                 self.console.print(f"[yellow]No FIA concepts found in '{phrase}'[/yellow]")
-                
+
         else:
             # Explain specific concept
             concept_name = args[0]
             concept = fia_knowledge.get_concept(concept_name)
-            
+
             if not concept:
                 # Try to find partial match
                 concepts = fia_knowledge.extract_concepts(concept_name)
                 if concepts:
                     concept = concepts[0]
-            
+
             if concept:
                 help_text = fia_knowledge.format_concept_help(concept.name)
                 self.console.print(Panel(
@@ -654,7 +654,7 @@ Show forest area trends over time
             else:
                 self.console.print("[yellow]No agent initialized[/yellow]")
             return
-        
+
         if arg.lower() in ['on', 'true', '1']:
             if hasattr(self, 'agent') and hasattr(self.agent, 'config'):
                 self.agent.config.verbose = True

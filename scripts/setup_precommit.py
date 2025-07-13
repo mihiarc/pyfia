@@ -36,31 +36,31 @@ def main():
         "Installing and configuring code quality hooks",
         border_style="green"
     ))
-    
+
     # Change to project root
     project_root = Path(__file__).parent.parent
-    
+
     # Install pre-commit if needed
     if not run_command(
         ["uv", "pip", "install", "pre-commit"],
         "Installing pre-commit"
     ):
         sys.exit(1)
-    
+
     # Install the git hooks
     if not run_command(
         ["uv", "run", "pre-commit", "install"],
         "Installing git hooks"
     ):
         sys.exit(1)
-    
+
     # Install commit-msg hook for conventional commits
     if not run_command(
         ["uv", "run", "pre-commit", "install", "--hook-type", "commit-msg"],
         "Installing commit-msg hooks"
     ):
         console.print("[yellow]Warning:[/yellow] commit-msg hook installation failed")
-    
+
     # Run all hooks on all files to check current status
     console.print("\n[blue]Running all hooks on existing files...[/blue]")
     result = subprocess.run(
@@ -68,13 +68,13 @@ def main():
         capture_output=True,
         text=True
     )
-    
+
     if result.returncode == 0:
         console.print("[green]✓[/green] All pre-commit hooks passed!")
     else:
         console.print("[yellow]⚠[/yellow] Some hooks failed (this is normal for initial setup)")
         console.print("Run [cyan]uv run pre-commit run --all-files[/cyan] to see details")
-    
+
     # Create secrets baseline if it doesn't exist
     secrets_baseline = project_root / ".secrets.baseline"
     if not secrets_baseline.exists():
@@ -85,7 +85,7 @@ def main():
             capture_output=True
         )
         console.print("[green]✓[/green] Secrets baseline created")
-    
+
     console.print(Panel.fit(
         "[bold green]Setup complete![/bold green]\n\n"
         "Pre-commit will now run automatically on git commit.\n"

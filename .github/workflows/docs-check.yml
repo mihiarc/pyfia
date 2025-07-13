@@ -1,0 +1,69 @@
+name: Documentation Quality Check
+
+on:
+  pull_request:
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'docs/**'
+      - 'mkdocs.yml'
+
+jobs:
+  check-links:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install --upgrade pip
+          pip install mkdocs mkdocs-material
+          pip install mkdocs-minify-plugin
+          pip install mkdocs-git-revision-date-localized-plugin
+          pip install linkchecker
+
+      - name: Build documentation
+        run: mkdocs build --strict
+
+      - name: Check for broken links
+        run: |
+          # Start a local server
+          python -m http.server 8000 --directory site &
+          SERVER_PID=$!
+          sleep 5
+          
+          # Check links (allow some common false positives)
+          linkchecker http://localhost:8000 \
+            --ignore-url="^mailto:" \
+            --ignore-url="^https://github.com/.*/edit/" \
+            --ignore-url="versions.json" \
+            --no-warnings \
+            || true
+          
+          # Stop the server
+          kill $SERVER_PID
+
+  check-spelling:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Check spelling
+        uses: streetsidesoftware/cspell-action@v5
+        with:
+          config: '.cspell.json'
+          files: |
+            docs/**/*.md
+            README.md
+          strict: false

@@ -8,7 +8,6 @@ across all pyFIA modules.
 import sqlite3
 import tempfile
 from pathlib import Path
-from typing import Dict, Any
 from unittest.mock import MagicMock
 
 import polars as pl
@@ -31,7 +30,7 @@ def sample_fia_db(temp_db_path):
     """Create a sample FIA SQLite database with test data."""
     conn = sqlite3.connect(temp_db_path)
     cursor = conn.cursor()
-    
+
     # Create simplified FIA tables with essential columns
     cursor.execute("""
         CREATE TABLE PLOT (
@@ -46,7 +45,7 @@ def sample_fia_db(temp_db_path):
             MACRO_BREAKPOINT_DIA REAL
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE COND (
             CN TEXT PRIMARY KEY,
@@ -60,7 +59,7 @@ def sample_fia_db(temp_db_path):
             FOREIGN KEY (PLT_CN) REFERENCES PLOT(CN)
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE TREE (
             CN TEXT PRIMARY KEY,
@@ -83,7 +82,7 @@ def sample_fia_db(temp_db_path):
             FOREIGN KEY (PLT_CN) REFERENCES PLOT(CN)
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE POP_EVAL (
             CN TEXT PRIMARY KEY,
@@ -96,7 +95,7 @@ def sample_fia_db(temp_db_path):
             STATECD INTEGER
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE POP_PLOT_STRATUM_ASSGN (
             CN TEXT PRIMARY KEY,
@@ -107,7 +106,7 @@ def sample_fia_db(temp_db_path):
             FOREIGN KEY (EVALID) REFERENCES POP_EVAL(EVALID)
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE POP_STRATUM (
             CN TEXT PRIMARY KEY,
@@ -123,7 +122,7 @@ def sample_fia_db(temp_db_path):
             FOREIGN KEY (EVALID) REFERENCES POP_EVAL(EVALID)
         )
     """)
-    
+
     cursor.execute("""
         CREATE TABLE REF_SPECIES (
             SPCD INTEGER PRIMARY KEY,
@@ -133,7 +132,7 @@ def sample_fia_db(temp_db_path):
             SPECIES TEXT
         )
     """)
-    
+
     # Insert sample data
     # Plots (10 plots in North Carolina)
     plots_data = [
@@ -149,7 +148,7 @@ def sample_fia_db(temp_db_path):
         ("PLT010", 37, 1, 10, 2021, 35.9, -81.0, 1, 24.0),
     ]
     cursor.executemany("INSERT INTO PLOT VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)", plots_data)
-    
+
     # Conditions (one per plot, all forest)
     cond_data = [
         ("COND001", "PLT001", 1, 1, 1.0, 1, 220, 10),
@@ -164,7 +163,7 @@ def sample_fia_db(temp_db_path):
         ("COND010", "PLT010", 1, 1, 1.0, 1, 220, 10),
     ]
     cursor.executemany("INSERT INTO COND VALUES (?, ?, ?, ?, ?, ?, ?, ?)", cond_data)
-    
+
     # Trees (multiple trees per plot)
     tree_data = []
     tree_id = 1
@@ -187,35 +186,35 @@ def sample_fia_db(temp_db_path):
             volcfgrs = volcfnet * 1.1  # Gross volume (10% more than net)
             volcsgrs = volcsnet * 1.1  # Gross sawlog volume
             volbfgrs = volbfnet * 1.1  # Gross board feet
-            
+
             tree_data.append((
                 tree_cn, plt_cn, 1, tree_num, 1, spcd, dia, ht,
                 tpa_unadj, drybio_ag, drybio_bg, volcfnet, volcsnet, volbfnet,
                 volcfgrs, volcsgrs, volbfgrs
             ))
             tree_id += 1
-    
+
     cursor.executemany("""
         INSERT INTO TREE VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, tree_data)
-    
+
     # Evaluation
     eval_data = [
         ("EVAL001", 372301, "NC2023", "VOL", "NC 2023 Volume", 2018, 2023, 37)
     ]
     cursor.executemany("INSERT INTO POP_EVAL VALUES (?, ?, ?, ?, ?, ?, ?, ?)", eval_data)
-    
+
     # Plot-Stratum assignments
     stratum_assgn_data = []
     for plot_num in range(1, 11):
         plt_cn = f"PLT{plot_num:03d}"
         assgn_cn = f"ASSGN{plot_num:03d}"
         stratum_assgn_data.append((assgn_cn, plt_cn, "STRAT001", 372301))
-    
+
     cursor.executemany("""
         INSERT INTO POP_PLOT_STRATUM_ASSGN VALUES (?, ?, ?, ?)
     """, stratum_assgn_data)
-    
+
     # Stratum
     stratum_data = [
         ("STRAT001", 372301, 6000.0, 1.0, 1.1, 0.9, 10, 50, 50, 300000.0)
@@ -223,7 +222,7 @@ def sample_fia_db(temp_db_path):
     cursor.executemany("""
         INSERT INTO POP_STRATUM VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, stratum_data)
-    
+
     # Species reference
     species_data = [
         (131, "Loblolly pine", "Pinus taeda", "Pinus", "taeda"),
@@ -232,10 +231,10 @@ def sample_fia_db(temp_db_path):
         (802, "White oak", "Quercus alba", "Quercus", "alba"),
     ]
     cursor.executemany("INSERT INTO REF_SPECIES VALUES (?, ?, ?, ?, ?)", species_data)
-    
+
     conn.commit()
     conn.close()
-    
+
     yield temp_db_path
 
 
@@ -285,7 +284,7 @@ def sample_tree_data():
         "DRYBIO_AG": [],
         "VOLCFNET": [],
     }
-    
+
     tree_id = 1
     for plot_num in range(1, 6):
         plt_cn = f"PLT{plot_num:03d}"
@@ -300,7 +299,7 @@ def sample_tree_data():
             data["DRYBIO_AG"].append(20.0 + tree_num * 5)
             data["VOLCFNET"].append(15.0 + tree_num * 3)
             tree_id += 1
-    
+
     return pl.DataFrame(data)
 
 

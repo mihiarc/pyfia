@@ -1,10 +1,10 @@
 site_name: PyFIA - Forest Inventory Analysis Tools
-site_description: Python toolkit for USDA Forest Service FIA database analysis with DuckDB backend
+site_description: High-performance Python library for USDA Forest Service FIA data analysis - Architecture and Documentation
 site_author: PyFIA Contributors
-site_url: https://pyfia.readthedocs.io
+site_url: https://mihiarc.github.io/pyfia/
 
-repo_url: https://github.com/your-username/pyfia
-repo_name: pyfia
+repo_url: https://github.com/mihiarc/pyfia
+repo_name: mihiarc/pyfia
 edit_uri: edit/main/docs/
 
 copyright: Copyright &copy; 2025 PyFIA Contributors
@@ -145,10 +145,10 @@ plugins:
   # - offline
 
 nav:
-  - Home: README.md
+  - Home: ARCHITECTURE_DIAGRAMS.md
   
   - Getting Started:
-    - Overview: README.md
+    - Project Overview: README.md
     - Installation: README.md#installation
     - Quick Start: README.md#quick-start
   

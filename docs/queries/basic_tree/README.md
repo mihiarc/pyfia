@@ -1,6 +1,6 @@
 # Basic Tree Queries
 
-This section contains fundamental tree enumeration and counting queries that form the foundation of forest inventory analysis.
+This section contains tree enumeration and counting queries based on EVALIDator SQL Queries.
 
 ## Queries in this Section
 

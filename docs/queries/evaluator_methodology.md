@@ -4,7 +4,7 @@ This guide provides comprehensive documentation for understanding and translatin
 
 ## 📋 Table of Contents
 
-1. [What is EVALIDator?](#what-is-evaluator)
+1. [What is EVALIDator?](#-what-is-evaluator)
 2. [Core Statistical Concepts](#core-statistical-concepts)
 3. [Oracle to DuckDB Translation](#oracle-to-duckdb-translation)
 4. [Key Table Relationships](#key-table-relationships)

@@ -19,9 +19,7 @@ The FIA query collection has been restructured into a modular, category-based or
 
 ### 📚 **Essential Resources**
 
-- **[📝 Query Best Practices](./queries/best_practices.md)** - Comprehensive guidelines for FIA query development
-- **[⚠️ Common Pitfalls](./queries/common_pitfalls.md)** - Critical mistakes to avoid
-- **[🔧 EVALIDator Methodology](./queries/evaluator_methodology.md)** - Oracle EVALIDator translation principles
+- **[🔧 EVALIDator Methodology](./evaluator_methodology.md)** - Oracle EVALIDator translation principles
 
 ## 🎯 Benefits of New Structure
 

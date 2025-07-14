@@ -149,8 +149,6 @@ nav:
   
   - Getting Started:
     - Project Overview: README.md
-    - Installation: README.md#installation
-    - Quick Start: README.md#quick-start
   
   - AI Agent:
     - Getting Started: ai_agent/README.md
@@ -216,8 +214,6 @@ nav:
   
   - About:
     - Project Overview: README.md
-    - Contributing: README.md#contributing
-    - License: README.md#license
 
 extra:
   # Version provider

@@ -33,7 +33,9 @@
       "Bash(git commit:*)",
       "Bash(git merge:*)",
       "Bash(git branch:*)",
-      "Bash(uv pip:*)"
+      "Bash(uv pip:*)",
+      "Bash(gh run list:*)",
+      "Bash(gh run view:*)"
     ],
     "deny": []
   }

@@ -62,9 +62,8 @@ print(colorado_biomass.head())
 This documentation is organized into several key sections:
 
 ### 🏁 Getting Started
-- **[Development Guide](DEVELOPMENT.md)** - Setup, testing, and contribution guidelines
 - **[AI Agent Documentation](ai_agent/README.md)** - Natural language interface for FIA queries
-- **[Architecture](architecture_diagram.md)** - System design and components
+- **[Architecture](ARCHITECTURE_DIAGRAMS.md)** - System design and components
 
 ### 🤖 AI Agent
 Complete documentation for the natural language AI interface:
@@ -82,7 +81,7 @@ Complete documentation for the natural language AI interface:
 - **[Query Overview](queries/README.md)** - Complete guide to the query system
 - **[EVALIDator Quick Reference](queries/evaluator_quick_reference.md)** - Essential patterns for Oracle translation
 - **[EVALIDator Methodology](queries/evaluator_methodology.md)** - Comprehensive translation guide
-- **[Working Query Bank](FIA_WORKING_QUERY_BANK.md)** - Reorganized query collection
+- **[Working Query Bank](queries/FIA_WORKING_QUERY_BANK.md)** - Reorganized query collection
 
 ### 🌲 Query Examples
 Ready-to-use examples for common forest analysis tasks:
@@ -210,7 +209,7 @@ PyFIA is built on modern data engineering principles:
 
 ## 🤝 Contributing
 
-We welcome contributions! Please see our [Development Guide](DEVELOPMENT.md) for details on:
+We welcome contributions! Please see our contribution guidelines for details on:
 
 - Setting up the development environment
 - Running tests and validation

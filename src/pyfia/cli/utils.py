@@ -1,7 +1,7 @@
 """
 Utility functions for pyFIA CLI interfaces.
 
-This module contains shared utilities used by both the direct CLI and AI CLI,
+This module contains shared utilities used by the direct CLI,
 including state parsing, validation helpers, and display formatting functions.
 """
 

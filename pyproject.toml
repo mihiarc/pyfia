@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyfia"
 version = "0.2.0"
-description = "High-performance Python implementation for Forest Inventory Analysis"
+description = "Python implementation of rFIA package for Forest Inventory Analysis with exact statistical compatibility"
 readme = "README.md"
 authors = [
     {name = "Chris Mihiar", email = "28452317+mihiarc@users.noreply.github.com"}
@@ -36,14 +36,6 @@ dependencies = [
 [project.optional-dependencies]
 spatial = ["geopandas>=1.1.0", "shapely>=2.1.1"]
 pandas = ["pandas>=2.3.0"]
-langchain = [
-    "langchain>=0.3.0",
-    "langchain-openai>=0.3.0", 
-    "langchain-community>=0.3.0",
-    "langchain-core>=0.3.0",
-    "langgraph>=0.2.0",
-    "python-dotenv>=1.0.0"
-]
 dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
@@ -57,7 +49,7 @@ dev = [
     "mkdocs-minify-plugin>=0.8.0",
     "mkdocs-git-revision-date-localized-plugin>=1.2.0",
 ]
-all = ["pyfia[spatial,pandas,langchain,dev]"]
+all = ["pyfia[spatial,pandas,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/mihiarc/pyfia"
@@ -67,7 +59,6 @@ Issues = "https://github.com/mihiarc/pyfia/issues"
 
 [project.scripts]
 pyfia = "pyfia.cli.direct:main"
-pyfia-ai = "pyfia.cli.ai_interface:main"
 pyfia-typecheck = "scripts.typecheck:main"
 pyfia-setup-precommit = "scripts.setup_precommit:main"
 
@@ -80,7 +71,6 @@ include = ["pyfia*"]
 
 [tool.setuptools.package-data]
 "pyfia.database.memory_docs" = ["*.md"]
-"pyfia.ai.prompts" = ["*.txt"]
 
 [tool.ruff]
 line-length = 88

@@ -1,7 +1,7 @@
 """
 Base CLI functionality for pyFIA command-line interfaces.
 
-This module provides shared functionality for both the direct CLI and AI CLI,
+This module provides shared functionality for the direct CLI,
 including history management, database connection patterns, dataframe display,
 and common command handling.
 """

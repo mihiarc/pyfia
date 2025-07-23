@@ -6,7 +6,6 @@ import pytest
 from pyfia.filters.joins import (
     aggregate_tree_to_plot,
     apply_adjustment_factors,
-    assign_tree_basis,
     get_evalid_assignments,
     join_plot_metadata,
     join_plot_stratum,

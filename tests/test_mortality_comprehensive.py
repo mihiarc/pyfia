@@ -59,7 +59,7 @@ class TestMortalityBasicEstimation:
     def test_mortality_volume_per_year(self, sample_fia_instance, sample_evaluation):
         """Test annual volume mortality estimation."""
         try:
-            result = # mortality(
+            result = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="VOLUME"
@@ -75,7 +75,7 @@ class TestMortalityBasicEstimation:
     def test_mortality_biomass_per_year(self, sample_fia_instance, sample_evaluation):
         """Test annual biomass mortality estimation."""
         try:
-            result = # mortality(
+            result = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="BIOMASS"
@@ -92,7 +92,7 @@ class TestMortalityBasicEstimation:
         """Test mortality for growing stock vs all trees."""
         try:
             # All trees
-            result_all = # mortality(
+            result_all = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -100,7 +100,7 @@ class TestMortalityBasicEstimation:
             )
 
             # Growing stock only
-            result_gs = # mortality(
+            result_gs = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -117,7 +117,7 @@ class TestMortalityBasicEstimation:
     def test_mortality_by_species(self, sample_fia_instance, sample_evaluation):
         """Test mortality estimation grouped by species."""
         try:
-            result = # mortality(
+            result = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -138,7 +138,7 @@ class TestMortalityBasicEstimation:
     def test_mortality_by_size_class(self, sample_fia_instance, sample_evaluation):
         """Test mortality estimation grouped by size class."""
         try:
-            result = # mortality(
+            result = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -188,14 +188,14 @@ class TestMortalityStatisticalProperties:
     def test_mortality_per_acre_vs_totals(self, sample_fia_instance, sample_evaluation):
         """Test totals=True vs totals=False parameter."""
         try:
-            result_per_acre = # mortality(
+            result_per_acre = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
                 totals=False
             )
 
-            result_totals = # mortality(
+            result_totals = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -221,14 +221,14 @@ class TestMortalityStatisticalProperties:
         """Test that grouped estimates are consistent."""
         try:
             # Get total mortality
-            result_total = # mortality(
+            result_total = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE"
             )
 
             # Get mortality by species
-            result_by_species = # mortality(
+            result_by_species = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -254,7 +254,7 @@ class TestMortalityErrorHandling:
     def test_mortality_with_invalid_component(self, sample_fia_instance, sample_evaluation):
         """Test mortality with invalid component parameter."""
         with pytest.raises(ValueError):
-            # mortality(
+            mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="INVALID"
@@ -263,7 +263,7 @@ class TestMortalityErrorHandling:
     def test_mortality_with_invalid_tree_class(self, sample_fia_instance, sample_evaluation):
         """Test mortality with invalid treeClass parameter."""
         with pytest.raises(ValueError):
-            # mortality(
+            mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -273,7 +273,7 @@ class TestMortalityErrorHandling:
     def test_mortality_with_invalid_evalid(self, sample_fia_instance):
         """Test mortality with non-existent EVALID."""
         with pytest.raises((ValueError, RuntimeError)):
-            # mortality(sample_fia_instance, evalid=999999, component="TREE")
+            mortality(sample_fia_instance, evalid=999999, component="TREE")
 
     def test_mortality_with_vol_evaluation(self, sample_fia_instance, sample_evaluation):
         """Test mortality with volume evaluation (should fail or return zeros)."""
@@ -382,7 +382,7 @@ class TestMortalityIntegration:
 
         for component in components:
             try:
-                results[component] = # mortality(
+                results[component] = mortality(
                     sample_fia_instance,
                     evalid=sample_evaluation.evalid,
                     component=component
@@ -402,7 +402,7 @@ class TestMortalityIntegration:
         """Test consistency across different estimation methods."""
         # Test temporal methods if available
         try:
-            result_ti = # mortality(
+            result_ti = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -482,7 +482,7 @@ class TestMortalitySpecialCases:
         """Test mortality with domain filtering."""
         try:
             # Test with tree domain
-            result_filtered = # mortality(
+            result_filtered = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",
@@ -490,7 +490,7 @@ class TestMortalitySpecialCases:
             )
 
             # Test with area domain
-            result_area = # mortality(
+            result_area = mortality(
                 sample_fia_instance,
                 evalid=sample_evaluation.evalid,
                 component="TREE",

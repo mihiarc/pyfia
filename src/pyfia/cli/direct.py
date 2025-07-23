@@ -3,7 +3,7 @@
 Direct CLI for pyFIA - Programmatic access to FIA estimation methods.
 
 This module provides a command-line interface for direct interaction with
-pyFIA's statistical estimation methods without SQL or AI layers.
+pyFIA's statistical estimation methods.
 Uses DuckDB for efficient handling of large-scale FIA datasets.
 """
 

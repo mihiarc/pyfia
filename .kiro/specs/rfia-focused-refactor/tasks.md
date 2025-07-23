@@ -65,19 +65,19 @@
   - Ensure all remaining CLI utilities function correctly
   - _Requirements: 6.1, 6.2_
 
-- [ ] 4. Update documentation to focus on rFIA functionality
+- [x] 4. Update documentation to focus on rFIA functionality
   - Rewrite README.md to emphasize rFIA compatibility
   - Remove AI agent documentation sections
   - Update examples and usage patterns
   - _Requirements: 5.1, 5.2, 5.3, 5.4, 5.5_
 
-- [ ] 4.1 Rewrite README.md for rFIA focus
+- [x] 4.1 Rewrite README.md for rFIA focus
   - Remove all AI agent sections from README.md
   - Update the overview and features sections to focus on rFIA compatibility
   - Update installation instructions to remove AI-related dependencies
   - _Requirements: 5.1, 5.2_
 
-- [ ] 4.2 Update examples and quick start guide
+- [x] 4.2 Update examples and quick start guide
   - Replace AI agent examples with direct rFIA-equivalent usage patterns
   - Update the quick start section to show statistical estimation workflows
   - Ensure all code examples work with the refactored codebase

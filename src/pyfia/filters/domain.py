@@ -83,14 +83,14 @@ def get_intelligent_defaults(
 ) -> Dict[str, str]:
     """
     Get intelligent defaults based on query context and analysis type.
-    
+
     Parameters
     ----------
     query_context : str, optional
         Natural language context about the query
     analysis_type : str, default "general"
         Type of analysis: "area", "volume", "biomass", "mortality", "growth", "general"
-    
+
     Returns
     -------
     dict
@@ -142,7 +142,7 @@ def apply_tree_filters(
 ) -> Tuple[pl.DataFrame, Optional[FilterAssumptions]]:
     """
     Apply tree type and domain filters following FIA methodology.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -162,7 +162,7 @@ def apply_tree_filters(
         Natural language context for intelligent defaults
     track_assumptions : bool, default False
         Whether to track and return filtering assumptions
-    
+
     Returns
     -------
     pl.DataFrame or tuple
@@ -170,7 +170,6 @@ def apply_tree_filters(
     """
     assumptions_made = []
     defaults_applied = []
-    original_tree_type = tree_type
 
     # Apply intelligent defaults if requested
     if tree_type == "auto":
@@ -249,7 +248,7 @@ def apply_area_filters(
 ) -> Tuple[pl.DataFrame, Optional[FilterAssumptions]]:
     """
     Apply land type and area domain filters.
-    
+
     Parameters
     ----------
     cond_df : pl.DataFrame
@@ -268,7 +267,7 @@ def apply_area_filters(
         Existing assumptions object to update
     track_assumptions : bool, default False
         Whether to track and return filtering assumptions
-    
+
     Returns
     -------
     pl.DataFrame or tuple
@@ -284,7 +283,6 @@ def apply_area_filters(
             defaults_applied=[],
         )
 
-    original_land_type = land_type
 
     # Apply intelligent defaults if requested
     if land_type == "auto":
@@ -336,7 +334,7 @@ def parse_domain_expression(
 ) -> pl.DataFrame:
     """
     Parse and apply custom domain expressions safely.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -345,7 +343,7 @@ def parse_domain_expression(
         Filter expression to parse
     domain_type : str, default "tree"
         Type of domain ("tree" or "area") for validation
-    
+
     Returns
     -------
     pl.DataFrame
@@ -376,7 +374,7 @@ def apply_growing_stock_filter(
 ) -> pl.DataFrame:
     """
     Apply growing stock filters per FIA definitions.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -386,7 +384,7 @@ def apply_growing_stock_filter(
         - "standard": Standard GS definition
         - "merchantable": For merchantable volume
         - "board_foot": For board foot volume
-    
+
     Returns
     -------
     pl.DataFrame
@@ -417,7 +415,7 @@ def apply_mortality_filters(
 ) -> pl.DataFrame:
     """
     Apply mortality-specific filters.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -426,7 +424,7 @@ def apply_mortality_filters(
         Tree classification:
         - "all": All mortality trees
         - "growing_stock": Only growing stock mortality
-    
+
     Returns
     -------
     pl.DataFrame
@@ -459,10 +457,10 @@ def apply_standard_filters(
 ) -> Tuple[pl.DataFrame, pl.DataFrame, Optional[FilterAssumptions]]:
     """
     Apply standard tree and area filters together with intelligent defaults.
-    
+
     This is a convenience function that applies both tree and area
     filters in one call, returning both filtered dataframes and assumptions.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -481,7 +479,7 @@ def apply_standard_filters(
         Natural language context for intelligent defaults
     track_assumptions : bool, default False
         Whether to track and return filtering assumptions
-    
+
     Returns
     -------
     tuple[pl.DataFrame, pl.DataFrame, Optional[FilterAssumptions]]
@@ -510,7 +508,7 @@ def apply_standard_filters(
 def get_size_class_expr() -> pl.Expr:
     """
     Get Polars expression for FIA standard size classes.
-    
+
     Returns
     -------
     pl.Expr
@@ -535,7 +533,7 @@ def create_domain_explanation(
 ) -> str:
     """
     Create human-readable explanation of domain filters for agent communication.
-    
+
     Parameters
     ----------
     tree_type : str
@@ -548,7 +546,7 @@ def create_domain_explanation(
         Custom area domain filter
     query_context : str, optional
         Original query context for reference
-        
+
     Returns
     -------
     str
@@ -580,12 +578,12 @@ def create_domain_explanation(
 def suggest_common_domains(analysis_type: str = "general") -> Dict[str, List[str]]:
     """
     Suggest common domain filters for different analysis types.
-    
+
     Parameters
     ----------
     analysis_type : str
         Type of analysis to suggest domains for
-        
+
     Returns
     -------
     dict
@@ -644,7 +642,7 @@ def validate_filters(
 ) -> None:
     """
     Validate filter type parameters.
-    
+
     Parameters
     ----------
     tree_type : str
@@ -653,7 +651,7 @@ def validate_filters(
         Land type to validate
     gs_type : str
         Growing stock type to validate
-    
+
     Raises
     ------
     ValueError

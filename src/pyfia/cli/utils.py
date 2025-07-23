@@ -43,11 +43,11 @@ STATE_CODE_TO_ABBR = {v: k for k, v in STATE_ABBR_TO_CODE.items()}
 
 def parse_state_identifier(identifier: str) -> Optional[int]:
     """Parse state identifier (code, abbreviation, or name) to state code.
-    
+
     Args:
-        identifier: State code (e.g., "37"), abbreviation (e.g., "NC"), 
+        identifier: State code (e.g., "37"), abbreviation (e.g., "NC"),
                    or name (e.g., "North Carolina")
-    
+
     Returns:
         State code as integer, or None if not found
     """
@@ -93,7 +93,7 @@ def validate_evalid(evalid: str) -> bool:
         return False
 
     try:
-        code = int(evalid)
+        int(evalid)
         return True
     except ValueError:
         return False
@@ -300,7 +300,7 @@ def create_estimation_help_text() -> str:
     return """
 **Common Parameters:**
 • `forest` or `timber` - Land type filter
-• `live`, `dead`, `gs`, `all` - Tree type filter  
+• `live`, `dead`, `gs`, `all` - Tree type filter
 • `by_species` - Group results by species
 • `by_size_class` - Group by diameter size classes
 • `totals` - Include population totals

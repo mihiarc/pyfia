@@ -29,13 +29,13 @@ def mortality(
 ) -> pl.DataFrame:
     """
     Estimate mortality using optimized DuckDB queries.
-    
+
     This implementation follows DuckDB best practices:
     - Uses SQL pushdown instead of materializing tables
     - Applies memory optimization settings
     - Implements proper join order optimization
     - Uses streaming execution where possible
-    
+
     Parameters
     ----------
     db : FIA or str
@@ -58,7 +58,7 @@ def mortality(
         Include totals in output
     variance : bool, default False
         Include variance estimates
-        
+
     Returns
     -------
     pl.DataFrame
@@ -164,9 +164,9 @@ def mortality(
 
         if by_size_class:
             size_class_expr = """
-            CASE 
+            CASE
                 WHEN t.DIA < 5.0 THEN 'Saplings'
-                WHEN t.DIA < 10.0 THEN 'Small' 
+                WHEN t.DIA < 10.0 THEN 'Small'
                 WHEN t.DIA < 20.0 THEN 'Medium'
                 ELSE 'Large'
             END AS SIZE_CLASS
@@ -174,9 +174,9 @@ def mortality(
             select_cols.append(size_class_expr)
             # For CASE expressions, use the full expression in GROUP BY
             group_cols.append("""
-            CASE 
+            CASE
                 WHEN t.DIA < 5.0 THEN 'Saplings'
-                WHEN t.DIA < 10.0 THEN 'Small' 
+                WHEN t.DIA < 10.0 THEN 'Small'
                 WHEN t.DIA < 20.0 THEN 'Medium'
                 ELSE 'Large'
             END
@@ -201,11 +201,11 @@ def mortality(
         # Use optimized join order starting from smallest table (POP_STRATUM)
         # Join to GRM tables instead of main TREE table for mortality analysis
         query = f"""
-        SELECT 
+        SELECT
             {select_clause}
             SUM(
-                {mortality_col} * 
-                CASE 
+                {mortality_col} *
+                CASE
                     WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
                     WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
                     WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
@@ -213,7 +213,7 @@ def mortality(
                 END * ps.EXPNS
             ) AS MORTALITY_TPA,
             COUNT(DISTINCT p.CN) as nPlots
-            
+
         FROM POP_STRATUM ps
         INNER JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
         INNER JOIN PLOT p ON ppsa.PLT_CN = p.CN
@@ -223,7 +223,7 @@ def mortality(
         {species_join}
 
         WHERE {" AND ".join(where_conditions)}
-        
+
         {group_clause}
         ORDER BY MORTALITY_TPA DESC
         """

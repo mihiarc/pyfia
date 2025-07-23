@@ -3,7 +3,7 @@ Data filtering and processing utilities for pyFIA.
 
 This module provides:
 - Domain filtering functions
-- Data grouping utilities  
+- Data grouping utilities
 - Common join operations
 - Adjustment factor calculations
 - Classification functions

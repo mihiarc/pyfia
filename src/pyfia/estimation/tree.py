@@ -25,13 +25,13 @@ def tree_count(
 ) -> pl.DataFrame:
     """
     Estimate tree counts using optimized DuckDB queries.
-    
+
     This implementation follows DuckDB best practices:
     - Uses SQL pushdown instead of materializing tables
     - Applies memory optimization settings
     - Implements proper join order optimization
     - Uses streaming execution where possible
-    
+
     Parameters
     ----------
     db : FIA or str
@@ -52,7 +52,7 @@ def tree_count(
         Additional grouping columns
     totals : bool, default False
         Include totals in output
-        
+
     Returns
     -------
     pl.DataFrame
@@ -150,9 +150,9 @@ def tree_count(
 
         if by_size_class:
             size_class_expr = """
-            CASE 
+            CASE
                 WHEN t.DIA < 5.0 THEN 'Saplings'
-                WHEN t.DIA < 10.0 THEN 'Small' 
+                WHEN t.DIA < 10.0 THEN 'Small'
                 WHEN t.DIA < 20.0 THEN 'Medium'
                 ELSE 'Large'
             END AS SIZE_CLASS
@@ -160,9 +160,9 @@ def tree_count(
             select_cols.append(size_class_expr)
             # For CASE expressions, use the full expression in GROUP BY
             group_cols.append("""
-            CASE 
+            CASE
                 WHEN t.DIA < 5.0 THEN 'Saplings'
-                WHEN t.DIA < 10.0 THEN 'Small' 
+                WHEN t.DIA < 10.0 THEN 'Small'
                 WHEN t.DIA < 20.0 THEN 'Medium'
                 ELSE 'Large'
             END
@@ -187,11 +187,11 @@ def tree_count(
         # Use the exact EVALIDator formula with optimized join order
         # Start from smallest table (POP_STRATUM) and join outward
         query = f"""
-        SELECT 
+        SELECT
             {select_clause}
             SUM(
-                t.TPA_UNADJ * 
-                CASE 
+                t.TPA_UNADJ *
+                CASE
                     WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
                     WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
                     WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
@@ -199,7 +199,7 @@ def tree_count(
                 END * ps.EXPNS
             ) AS TREE_COUNT,
             COUNT(DISTINCT p.CN) as nPlots
-            
+
         FROM POP_STRATUM ps
         INNER JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
         INNER JOIN PLOT p ON ppsa.PLT_CN = p.CN
@@ -208,7 +208,7 @@ def tree_count(
         {species_join}
 
         WHERE {" AND ".join(where_conditions)}
-        
+
         {group_clause}
         ORDER BY TREE_COUNT DESC
         """
@@ -237,21 +237,21 @@ def tree_count_simple(
 ) -> pl.DataFrame:
     """
     Simplified tree count function optimized for AI agent use.
-    
+
     This function uses modular join patterns from the joins module
     and the established TPA estimation pipeline for reliable results.
-    
+
     Parameters
     ----------
     db : FIA or str
         FIA database object or path
     species_code : int, optional
         Species code (SPCD) to filter by
-    state_code : int, optional  
+    state_code : int, optional
         State FIPS code to filter by
     tree_status : int, default 1
         Tree status code (1=live, 2=dead)
-        
+
     Returns
     -------
     pl.DataFrame

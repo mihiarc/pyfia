@@ -156,7 +156,7 @@ class BaseCLI(cmd.Cmd):
 
     def _connect_to_database(self, db_path_str: str) -> bool:
         """Connect to database with validation and progress display.
-        
+
         Subclasses should override this method to implement specific connection logic.
         """
         raise NotImplementedError("Subclasses must implement _connect_to_database")

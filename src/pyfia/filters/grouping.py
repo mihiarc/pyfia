@@ -33,10 +33,10 @@ def setup_grouping_columns(
 ) -> tuple[pl.DataFrame, List[str]]:
     """
     Set up grouping columns for FIA estimation.
-    
+
     This function prepares the dataframe with necessary grouping columns
     and returns both the modified dataframe and the list of columns to group by.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -53,7 +53,7 @@ def setup_grouping_columns(
         Type of size class labels to use
     dia_col : str, default "DIA"
         Name of diameter column to use for size classes
-    
+
     Returns
     -------
     tuple[pl.DataFrame, List[str]]
@@ -103,7 +103,7 @@ def create_size_class_expr(
 ) -> pl.Expr:
     """
     Create a Polars expression for diameter size classes.
-    
+
     Parameters
     ----------
     dia_col : str, default "DIA"
@@ -112,7 +112,7 @@ def create_size_class_expr(
         Type of size class labels to use:
         - "standard": Numeric ranges (1.0-4.9, 5.0-9.9, etc.)
         - "descriptive": Text labels (Saplings, Small, etc.)
-    
+
     Returns
     -------
     pl.Expr
@@ -142,14 +142,14 @@ def create_size_class_expr(
 def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
     """
     Add land type category column for area estimation grouping.
-    
+
     Creates a 'landType' column based on COND_STATUS_CD and other attributes.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
         Condition dataframe with COND_STATUS_CD, SITECLCD, and RESERVCD columns
-    
+
     Returns
     -------
     pl.DataFrame
@@ -189,10 +189,10 @@ def prepare_plot_groups(
 ) -> List[str]:
     """
     Prepare final grouping columns for plot-level aggregation.
-    
+
     This function combines base grouping columns with additional groups
     and ensures certain columns are always included (like PLT_CN).
-    
+
     Parameters
     ----------
     base_groups : List[str]
@@ -201,7 +201,7 @@ def prepare_plot_groups(
         Additional columns to include in grouping
     always_include : List[str], optional
         Columns that should always be included (default: ["PLT_CN"])
-    
+
     Returns
     -------
     List[str]
@@ -235,7 +235,7 @@ def add_species_info(
 ) -> pl.DataFrame:
     """
     Add species information for grouping and display.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -246,7 +246,7 @@ def add_species_info(
         Whether to include COMMON_NAME column
     include_genus : bool, default False
         Whether to include GENUS column
-    
+
     Returns
     -------
     pl.DataFrame
@@ -283,14 +283,14 @@ def validate_grouping_columns(
 ) -> None:
     """
     Validate that required grouping columns exist in dataframe.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
         Dataframe to validate
     required_groups : List[str]
         List of required column names
-    
+
     Raises
     ------
     ValueError
@@ -309,12 +309,12 @@ def get_size_class_bounds(
 ) -> Dict[str, tuple[float, float]]:
     """
     Get the diameter bounds for each size class.
-    
+
     Parameters
     ----------
     size_class_type : {"standard", "descriptive"}, default "standard"
         Type of size class definitions to return
-    
+
     Returns
     -------
     Dict[str, tuple[float, float]]

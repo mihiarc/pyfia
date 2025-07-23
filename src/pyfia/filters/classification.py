@@ -26,12 +26,12 @@ def assign_tree_basis(
 ) -> pl.DataFrame:
     """
     Assign TREE_BASIS based on tree diameter and plot design.
-    
+
     Trees are assigned to measurement plots based on their diameter:
     - MICR: Trees 1.0-4.9" DBH (microplot)
-    - SUBP: Trees 5.0"+ DBH (subplot) 
+    - SUBP: Trees 5.0"+ DBH (subplot)
     - MACR: Large trees based on MACRO_BREAKPOINT_DIA (macroplot)
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -46,17 +46,17 @@ def assign_tree_basis(
         Column containing macroplot breakpoint diameter
     output_column : str, default "TREE_BASIS"
         Name for output column
-    
+
     Returns
     -------
     pl.DataFrame
         Tree dataframe with TREE_BASIS column added
-        
+
     Examples
     --------
     >>> # Basic tree basis assignment
     >>> trees_with_basis = assign_tree_basis(trees, plots)
-    
+
     >>> # Simplified assignment (no macroplot)
     >>> trees_simple = assign_tree_basis(trees, include_macro=False)
     """
@@ -104,7 +104,7 @@ def assign_size_class(
 ) -> pl.DataFrame:
     """
     Assign size class based on tree diameter.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -118,17 +118,17 @@ def assign_size_class(
         - "standard": Saplings (<5"), Small (5-9.9"), Medium (10-19.9"), Large (20"+)
         - "detailed": More granular classes
         - "simple": Small (<10"), Large (10"+)
-    
+
     Returns
     -------
     pl.DataFrame
         Tree dataframe with size class column added
-        
+
     Examples
     --------
     >>> # Standard size classes
     >>> trees_with_size = assign_size_class(trees)
-    
+
     >>> # Simple size classes
     >>> trees_simple = assign_size_class(trees, class_system="simple")
     """
@@ -178,10 +178,10 @@ def assign_prop_basis(
 ) -> pl.DataFrame:
     """
     Assign PROP_BASIS for condition area calculations.
-    
+
     Determines whether condition area should use subplot or macroplot
     adjustment factors based on plot design.
-    
+
     Parameters
     ----------
     cond_df : pl.DataFrame
@@ -190,7 +190,7 @@ def assign_prop_basis(
         Column containing macroplot breakpoint diameter
     output_column : str, default "PROP_BASIS"
         Name for output column
-    
+
     Returns
     -------
     pl.DataFrame
@@ -213,9 +213,9 @@ def assign_forest_type_group(
 ) -> pl.DataFrame:
     """
     Assign forest type groups based on forest type codes.
-    
+
     Groups forest types into major categories following FIA classification.
-    
+
     Parameters
     ----------
     cond_df : pl.DataFrame
@@ -224,12 +224,12 @@ def assign_forest_type_group(
         Column containing forest type codes
     output_column : str, default "FOREST_TYPE_GROUP"
         Name for output column
-    
+
     Returns
     -------
     pl.DataFrame
         Condition dataframe with forest type group column added
-        
+
     Examples
     --------
     >>> # Add forest type groups
@@ -270,7 +270,7 @@ def assign_land_use_class(
 ) -> pl.DataFrame:
     """
     Assign land use classes based on condition status and reserve codes.
-    
+
     Parameters
     ----------
     cond_df : pl.DataFrame
@@ -281,7 +281,7 @@ def assign_land_use_class(
         Column containing reserve codes
     output_column : str, default "LAND_USE_CLASS"
         Name for output column
-    
+
     Returns
     -------
     pl.DataFrame
@@ -314,7 +314,7 @@ def assign_species_group(
 ) -> pl.DataFrame:
     """
     Assign species groups based on species codes.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -330,7 +330,7 @@ def assign_species_group(
         - "family": Group by family
     output_column : str, default "SPECIES_GROUP"
         Name for output column
-    
+
     Returns
     -------
     pl.DataFrame
@@ -375,7 +375,7 @@ def validate_classification_columns(
 ) -> bool:
     """
     Validate that DataFrame has required columns for classification operations.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -384,12 +384,12 @@ def validate_classification_columns(
         Type of classification: "tree_basis", "size_class", "prop_basis", etc.
     required_columns : List[str], optional
         List of required columns. If None, uses defaults for classification type.
-        
+
     Returns
     -------
     bool
         True if all required columns are present
-        
+
     Raises
     ------
     ValueError

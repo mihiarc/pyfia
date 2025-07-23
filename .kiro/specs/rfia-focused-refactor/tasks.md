@@ -83,60 +83,60 @@
   - Ensure all code examples work with the refactored codebase
   - _Requirements: 5.3, 5.4_
 
-- [ ] 4.3 Remove AI agent documentation directory
+- [x] 4.3 Remove AI agent documentation directory
   - Delete the `docs/ai_agent/` directory and all its contents
   - Update any documentation links that reference AI agent docs
   - _Requirements: 5.5_
 
-- [ ] 5. Validate core FIA functionality remains intact
+- [x] 5. Validate core FIA functionality remains intact
   - Run existing tests to ensure no regressions
   - Verify all estimation functions work correctly
   - Test CLI functionality end-to-end
   - _Requirements: 7.1, 7.2, 7.3, 7.4_
 
-- [ ] 5.1 Run existing test suite
+- [x] 5.1 Run existing test suite
   - Execute the full test suite to identify any broken imports or functionality
   - Fix any test failures caused by the AI code removal
   - Ensure all core estimation tests pass without modification
   - _Requirements: 7.1, 7.2_
 
-- [ ] 5.2 Test core FIA class functionality
+- [x] 5.2 Test core FIA class functionality
   - Test database connection with both DuckDB and SQLite engines
   - Verify EVALID management functions work correctly
   - Test all estimation method calls from the FIA class
   - _Requirements: 7.4_
 
-- [ ] 5.3 Validate estimation function accuracy
+- [x] 5.3 Validate estimation function accuracy
   - Run validation tests against existing rFIA benchmarks
   - Ensure biomass, volume, area, and TPA functions maintain exact accuracy
   - Verify mortality and growth functions work correctly
   - _Requirements: 7.3_
 
-- [ ] 5.4 Test CLI interface functionality
+- [x] 5.4 Test CLI interface functionality
   - Test all direct CLI commands (connect, evalid, area, biomass, volume, tpa, mortality)
   - Verify command parsing and parameter handling works correctly
   - Test export functionality and result display
   - _Requirements: 7.4_
 
-- [ ] 6. Final cleanup and optimization
+- [x] 6. Final cleanup and optimization
   - Remove any remaining AI-related code or comments
   - Update import statements throughout the codebase
   - Optimize package structure for focused scope
   - _Requirements: 2.4, 3.4_
 
-- [ ] 6.1 Clean up remaining AI references
+- [x] 6.1 Clean up remaining AI references
   - Search codebase for any remaining AI-related imports, comments, or code
   - Remove or update any lingering references to AI functionality
   - Ensure all import statements are clean and functional
   - _Requirements: 2.4_
 
-- [ ] 6.2 Update module imports and dependencies
+- [x] 6.2 Update module imports and dependencies
   - Review all Python files for import statements that reference removed AI modules
   - Update any conditional imports that check for AI dependencies
   - Ensure all remaining imports resolve correctly
   - _Requirements: 2.4, 3.4_
 
-- [ ] 6.3 Optimize package structure and build
+- [x] 6.3 Optimize package structure and build
   - Test package building with updated configuration
   - Verify package installation works correctly without AI dependencies
   - Ensure package size is reduced after AI code removal

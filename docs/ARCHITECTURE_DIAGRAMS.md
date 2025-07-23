@@ -4,46 +4,9 @@
 
 pyFIA is a Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides:
 - **Statistical estimation functions** for forest metrics (area, volume, biomass, etc.)
-- **Two usage paths**: Direct Python API or Natural Language AI interface
+- **rFIA-compatible API** for seamless migration from R
 - **High performance** using DuckDB and Polars
 - **Proper FIA methodology** with EVALID-based statistical validity
-
-## Two Ways to Use pyFIA
-
-```mermaid
-graph TB
-    subgraph "User Entry Points"
-        U1[Python Scripts/<br/>Notebooks]
-        U2[Command Line]
-    end
-    
-    subgraph "Usage Paths"
-        Direct[Direct API Path<br/>Statistical Functions]
-        AI[AI Agent Path<br/>Natural Language]
-    end
-    
-    U1 --> Direct
-    U2 --> Direct
-    U2 --> AI
-    
-    Direct --> R1[Statistical Results<br/>DataFrames]
-    AI --> R2[Formatted Results<br/>Tables & Explanations]
-    
-    style Direct fill:#2ecc71
-    style AI fill:#9b59b6
-```
-
-### Path 1: Direct API (Green Path)
-- Import pyFIA functions directly
-- Call estimation functions with parameters
-- Get back Polars DataFrames with results
-- Full control over analysis
-
-### Path 2: AI Agent (Purple Path)
-- Ask questions in natural language
-- Agent converts to appropriate queries
-- Get formatted, explained results
-- Interactive exploration
 
 ## Core Architecture
 
@@ -52,8 +15,7 @@ graph TB
     %% Entry Points
     subgraph "Entry Layer"
         PY[Python API<br/>import pyfia]
-        CLI1[pyfia CLI<br/>Direct Functions]
-        CLI2[pyfia-ai CLI<br/>Natural Language]
+        CLI[pyfia CLI<br/>Direct Functions]
     end
     
     %% Core Components
@@ -69,13 +31,6 @@ graph TB
         UTILS[Utilities<br/>Statistical Calculations<br/>Stratification]
     end
     
-    %% AI Components
-    subgraph "AI Layer"
-        AGENT[FIA Agent<br/>Query Understanding]
-        TOOLS[Agent Tools<br/>SQL, Schema, Species]
-        FORMAT[Result Formatter<br/>Rich Output]
-    end
-    
     %% Data
     subgraph "Data Layer"
         DB[(DuckDB<br/>FIA Database)]
@@ -83,22 +38,15 @@ graph TB
     
     %% Direct Path
     PY --> FIA
-    CLI1 --> FIA
+    CLI --> FIA
     FIA --> EST
     EST --> FILT
     EST --> UTILS
     FIA --> DR
     DR --> DB
     
-    %% AI Path  
-    CLI2 --> AGENT
-    AGENT --> TOOLS
-    TOOLS --> DR
-    AGENT --> FORMAT
-    
     style FIA fill:#e74c3c
     style EST fill:#2ecc71
-    style AGENT fill:#9b59b6
     style DB fill:#34495e
 ```
 
@@ -121,28 +69,6 @@ sequenceDiagram
     pyFIA->>Estimator: Calculate estimates
     Estimator-->>pyFIA: Results with SE
     pyFIA-->>User: DataFrame with estimates
-```
-
-### AI Agent Flow
-```mermaid
-sequenceDiagram
-    participant User
-    participant Agent
-    participant Tools
-    participant Database
-    participant Formatter
-    
-    User->>Agent: "How many oak trees in NC?"
-    Agent->>Agent: Understand query
-    Agent->>Tools: find_species_codes("oak")
-    Tools-->>Agent: Oak species codes
-    Agent->>Tools: execute_query(SQL)
-    Tools->>Database: Run query
-    Database-->>Tools: Raw results
-    Tools-->>Agent: Query results
-    Agent->>Formatter: Format with context
-    Formatter-->>Agent: Rich formatted output
-    Agent-->>User: Explained results
 ```
 
 ## Key Components
@@ -175,15 +101,6 @@ sequenceDiagram
 | **Grouping** | Result aggregation | By species, size class, ownership |
 | **Classification** | Tree categorization | Live/dead, growing stock |
 
-### AI Components
-
-| Component | Purpose | Key Features |
-|-----------|---------|--------------|
-| **Agent** | Natural language processing | LangGraph ReAct pattern |
-| **Tools** | Agent capabilities | SQL execution, schema lookup |
-| **Formatter** | Result presentation | Rich tables, statistics, explanations |
-| **Domain Knowledge** | FIA expertise | Species codes, terminology |
-
 ## Design Principles
 
 ### 1. Statistical Validity First
@@ -196,10 +113,10 @@ sequenceDiagram
 - **Polars** for efficient data manipulation
 - Lazy evaluation where possible
 
-### 3. Two Clear Paths
-- **Direct API** for programmatic control
-- **AI Agent** for exploration and learning
-- No mixing of concerns between paths
+### 3. rFIA Compatibility
+- **Function signatures** match rFIA where possible
+- **Parameter names** follow rFIA conventions
+- **Statistical outputs** identical to rFIA
 
 ### 4. Modular Design
 - Estimation functions are independent
@@ -218,8 +135,7 @@ src/pyfia/
 ├── core/           # Database connection, EVALID management
 ├── estimation/     # Statistical estimation functions
 ├── filters/        # Data filtering and processing
-├── ai/            # AI agent components
-├── cli/           # Command-line interfaces
+├── cli/           # Command-line interface
 ├── database/      # Database utilities and schema
 ├── models/        # Data models (Pydantic)
 └── locations/     # Geographic parsing utilities
@@ -241,9 +157,11 @@ FIA uses post-stratified estimation:
 3. Estimates calculated by stratum
 4. Combined for population totals
 
-### Dual Interface Design
-- **Direct path**: Maximum control, pure functions
-- **AI path**: Natural language, guided exploration
-- Clean separation prevents complexity
+### rFIA Compatibility
+pyFIA maintains compatibility with the R rFIA package:
+- Same function names and parameters
+- Identical statistical methodology
+- Matching output structures
+- Easy migration path
 
-This architecture provides a solid foundation for forest inventory analysis while remaining accessible to both programmers and domain experts.
+This architecture provides a solid foundation for forest inventory analysis while maintaining full compatibility with existing rFIA workflows.

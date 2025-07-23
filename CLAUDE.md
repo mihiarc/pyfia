@@ -8,7 +8,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-pyFIA is a Python implementation for analyzing USDA Forest Inventory and Analysis (FIA) data using Polars for high performance and DuckDB for handling large-scale national datasets.
+pyFIA is a Python implementation of the R rFIA package for analyzing USDA Forest Inventory and Analysis (FIA) data using Polars for high performance and DuckDB for handling large-scale national datasets.
 
 ## Development Commands
 
@@ -21,12 +21,11 @@ source .venv/bin/activate     # Unix/Mac
 uv pip install -e .[dev]
 
 # IMPORTANT: Install in editable mode to make CLI commands available
-# This makes the pyfia and pyfia-ai commands available in your PATH
+# This makes the pyfia command available in your PATH
 uv pip install -e .
 
 # Install with different feature sets
 uv pip install -e .                # Basic installation
-uv pip install -e .[langchain]     # With AI agent support
 uv pip install -e .[spatial]       # With spatial features (geopandas)
 uv pip install -e .[all]          # All features
 
@@ -45,9 +44,8 @@ uv run mypy pyfia/                 # Type check
 mkdocs serve                       # Local documentation server
 mkdocs build                       # Build static docs
 
-# CLI Tools
+# CLI Tool
 pyfia                             # Direct API CLI
-pyfia-ai path/to/database.duckdb  # AI-enhanced query CLI
 ```
 
 ### Benchmarking
@@ -67,7 +65,6 @@ graph TB
     classDef userInterface fill:#4a90e2,stroke:#fff,stroke-width:2px,color:#fff
     classDef coreComponent fill:#2ecc71,stroke:#fff,stroke-width:2px,color:#fff
     classDef dataLayer fill:#e74c3c,stroke:#fff,stroke-width:2px,color:#fff
-    classDef aiComponent fill:#9b59b6,stroke:#fff,stroke-width:2px,color:#fff
     classDef estimator fill:#f39c12,stroke:#fff,stroke-width:2px,color:#fff
     classDef filterComponent fill:#e67e22,stroke:#fff,stroke-width:2px,color:#fff
     classDef utility fill:#34495e,stroke:#fff,stroke-width:2px,color:#fff
@@ -75,19 +72,12 @@ graph TB
 
     %% User Interfaces
     CLI["cli.direct - Direct API"]:::userInterface
-    CLIAI["cli.ai_interface - Natural Language"]:::userInterface
     API["Python API"]:::userInterface
 
     %% Core Components
     FIA["core.fia - FIA Class"]:::coreComponent
     Settings["core.settings - Pydantic Settings"]:::coreComponent
     
-    %% AI Components
-    AIAgent["ai.agent - FIAAgent"]:::aiComponent
-    DomainKnowledge["ai.domain_knowledge"]:::aiComponent
-    ResultFormatter["ai.result_formatter"]:::aiComponent
-    DuckDBInterface["database.query_interface"]:::aiComponent
-
     %% Data Layer
     DataReader["core.data_reader"]:::dataLayer
     SchemaMapper["database.schema_mapper"]:::dataLayer
@@ -119,23 +109,11 @@ graph TB
 
     %% External Dependencies
     Polars["Polars DataFrames"]:::external
-    LangChain["LangChain Framework"]:::external
     GeoPandas["GeoPandas"]:::external
-    OpenAI["OpenAI API"]:::external
 
     %% Connections - User Layer
     CLI --> FIA
-    CLIAI --> AIAgent
     API --> FIA
-
-    %% Connections - AI Layer
-    AIAgent --> DuckDBInterface
-    AIAgent --> DomainKnowledge
-    AIAgent --> ResultFormatter
-    AIAgent --> LangChain
-    LangChain --> OpenAI
-    DuckDBInterface --> DuckDB
-    DuckDBInterface --> SchemaMapper
 
     %% Connections - Core Layer
     FIA --> DataReader
@@ -171,23 +149,12 @@ graph TB
     %% Connections - Utilities
     FIA --> Config
     CLI --> CLIConfig
-    CLIAI --> CLIConfig
-    CLIAI --> LocationParser
-    LocationParser --> LocationResolver
     Area --> GeoPandas
 
     %% Add labels for clarity
     subgraph UI["User Interfaces (pyfia.cli)"]
         CLI
-        CLIAI
         API
-    end
-
-    subgraph AI["AI Components (pyfia.ai + pyfia.database)"]
-        AIAgent
-        DomainKnowledge
-        ResultFormatter
-        DuckDBInterface
     end
 
     subgraph Core["Core System (pyfia.core)"]
@@ -258,10 +225,11 @@ sequenceDiagram
     Est-->>User: Results DataFrame
 ```
 
-### Dual-Interface Design
-pyFIA provides two distinct interfaces:
-1. **Direct CLI (`pyfia`)**: Pure pyFIA API access for statistical analysis
-2. **AI CLI (`pyfia-ai`)**: Natural language queries with SQL generation via LangChain/GPT-4
+### rFIA Compatibility
+pyFIA provides a Python implementation that mirrors the R rFIA package:
+- **Function signatures**: Match rFIA conventions
+- **Parameter names**: Same as rFIA (treeDomain, areaDomain, bySpecies, etc.)
+- **Statistical outputs**: Identical estimates to rFIA
 
 ### Python Package Structure  
 - `pyfia/core/`: Core functionality
@@ -279,16 +247,11 @@ pyFIA provides two distinct interfaces:
   - `growth.py`: Growth estimation
   - `tree.py`: Tree count estimations
   - `area_workflow.py`: Advanced area estimation workflows
-- `pyfia/ai/`: AI components
-  - `agent.py`: Modern FIAAgent using 2025 LangChain patterns
-  - `domain_knowledge.py`: FIA domain expertise
-  - `result_formatter.py`: Result formatting utilities
 - `pyfia/database/`:
-  - `query_interface.py`: Direct SQL interface for AI agents
+  - `query_interface.py`: Direct SQL interface
   - `schema_mapper.py`: Database schema utilities
-- `pyfia/cli/`: Command-line interfaces
+- `pyfia/cli/`: Command-line interface
   - `direct.py`: Direct API CLI
-  - `ai_interface.py`: AI-enhanced CLI
   - `config.py`: CLI configuration
   - `base.py`: Base CLI functionality
   - `utils.py`: CLI utilities
@@ -300,7 +263,7 @@ pyFIA provides two distinct interfaces:
 - `pyfia/models/`:
   - `models.py`: Pydantic data models
 - `pyfia/locations/`:
-  - `parser.py`: Location parsing from natural language
+  - `parser.py`: Location parsing
   - `resolver.py`: Location to database ID resolution
 
 ### Key Design Patterns

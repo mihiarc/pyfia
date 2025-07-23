@@ -1,5 +1,5 @@
-site_name: PyFIA - Forest Inventory Analysis Tools
-site_description: High-performance Python library for USDA Forest Service FIA data analysis - Architecture and Documentation
+site_name: PyFIA - Python Implementation of rFIA
+site_description: High-performance Python implementation of the R rFIA package for USDA Forest Service FIA data analysis
 site_author: PyFIA Contributors
 site_url: https://mihiarc.github.io/pyfia/
 
@@ -149,21 +149,6 @@ nav:
   
   - Getting Started:
     - Project Overview: README.md
-  
-  - AI Agent:
-    - Getting Started: ai_agent/README.md
-    - User Guide: ai_agent/USER_GUIDE.md
-    - Examples: ai_agent/EXAMPLES.md
-    - Features:
-      - Result Formatting: ai_agent/FORMATTING.md
-      - Domain Filtering: ai_agent/DOMAIN_FILTERING.md
-    - Reference:
-      - Architecture: ai_agent/ARCHITECTURE.md
-      - Tools Reference: ai_agent/TOOLS_REFERENCE.md
-      - Troubleshooting: ai_agent/TROUBLESHOOTING.md
-    - Development:
-      - Developer Guide: ai_agent/DEVELOPER_GUIDE.md
-      - Migration History: ai_agent/MODERN_AGENT_MIGRATION.md
   
   - Query Library:
     - Overview: queries/README.md

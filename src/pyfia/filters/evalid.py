@@ -21,11 +21,11 @@ def find_best_evalid(
 ) -> Optional[int]:
     """
     Find the best EVALID for a given state and evaluation type.
-    
+
     This function implements intelligent EVALID selection that prioritizes
     the most recent evaluation by default, with optional preference for
     statewide evaluations over regional ones.
-    
+
     Parameters
     ----------
     query_interface : DuckDBQueryInterface
@@ -33,20 +33,20 @@ def find_best_evalid(
     state_code : int
         FIPS state code (e.g., 48 for Texas)
     eval_type : str, default "EXPVOL"
-        Evaluation type: "EXPVOL" (volume), "EXPCURR" (current), 
+        Evaluation type: "EXPVOL" (volume), "EXPCURR" (current),
         "EXPGROW" (growth), "EXPMORT" (mortality), etc.
     prefer_statewide : bool, default False
         Prefer statewide evaluations over regional ones
     most_recent : bool, default True
         Select the most recent evaluation
-        
+
     Returns
     -------
     int or None
         Best EVALID matching criteria, or None if none found
     """
     query = """
-    SELECT 
+    SELECT
         pe.EVALID,
         pe.EVAL_DESCR,
         pe.STATECD,
@@ -54,7 +54,7 @@ def find_best_evalid(
         pe.END_INVYR,
         pet.EVAL_TYP,
         COUNT(DISTINCT ppsa.PLT_CN) as plot_count,
-        CASE 
+        CASE
             WHEN pe.EVAL_DESCR LIKE '%(%' THEN 1  -- Regional (contains parentheses)
             ELSE 0  -- Statewide
         END as is_regional
@@ -63,7 +63,7 @@ def find_best_evalid(
     LEFT JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
     WHERE pe.STATECD = ?
       AND pet.EVAL_TYP = ?
-    GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
+    GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD,
              pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
     """
 
@@ -102,7 +102,7 @@ def get_evalid_info(
 ) -> str:
     """
     Get formatted information about available EVALIDs.
-    
+
     Parameters
     ----------
     query_interface : DuckDBQueryInterface
@@ -113,14 +113,14 @@ def get_evalid_info(
         Evaluation type to filter by
     limit : int, default 20
         Maximum number of results to return
-        
+
     Returns
     -------
     str
         Formatted EVALID information
     """
     query = """
-    SELECT 
+    SELECT
         pe.EVALID,
         pe.EVAL_DESCR,
         pe.STATECD,
@@ -128,7 +128,7 @@ def get_evalid_info(
         pe.END_INVYR,
         pet.EVAL_TYP,
         COUNT(DISTINCT ppsa.PLT_CN) as plot_count,
-        CASE 
+        CASE
             WHEN pe.EVAL_DESCR LIKE '%(%' THEN 'Regional'
             ELSE 'Statewide'
         END as scope
@@ -144,9 +144,9 @@ def get_evalid_info(
         query += f" AND pet.EVAL_TYP = '{eval_type}'"
 
     query += """
-    GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
+    GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD,
              pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
-    ORDER BY pe.STATECD, 
+    ORDER BY pe.STATECD,
              pe.END_INVYR DESC,
              CASE WHEN pe.EVAL_DESCR LIKE '%(%' THEN 1 ELSE 0 END
     """
@@ -180,7 +180,7 @@ def get_recommended_evalid(
 ) -> Tuple[Optional[int], str]:
     """
     Get recommended EVALID for a specific analysis type with explanation.
-    
+
     Parameters
     ----------
     query_interface : DuckDBQueryInterface
@@ -188,9 +188,9 @@ def get_recommended_evalid(
     state_code : int
         FIPS state code
     analysis_type : str, default "tree_count"
-        Type of analysis: "tree_count", "volume", "biomass", "area", 
+        Type of analysis: "tree_count", "volume", "biomass", "area",
         "growth", "mortality"
-        
+
     Returns
     -------
     tuple
@@ -225,14 +225,14 @@ def get_recommended_evalid(
     # Get details about the selected EVALID
     try:
         detail_query = f"""
-        SELECT 
+        SELECT
             pe.EVALID,
             pe.EVAL_DESCR,
             pe.START_INVYR,
             pe.END_INVYR,
             pet.EVAL_TYP,
             COUNT(DISTINCT ppsa.PLT_CN) as plot_count,
-            CASE 
+            CASE
                 WHEN pe.EVAL_DESCR LIKE '%(%' THEN 'regional'
                 ELSE 'statewide'
             END as scope
@@ -268,14 +268,14 @@ def validate_evalid(
 ) -> Dict[str, Union[bool, str, int]]:
     """
     Validate an EVALID and return information about it.
-    
+
     Parameters
     ----------
     query_interface : DuckDBQueryInterface
         Database interface for executing queries
     evalid : int
         EVALID to validate
-        
+
     Returns
     -------
     dict
@@ -283,7 +283,7 @@ def validate_evalid(
         'eval_type', 'plot_count', 'years'
     """
     query = f"""
-    SELECT 
+    SELECT
         pe.EVALID,
         pe.EVAL_DESCR,
         pe.STATECD,
@@ -295,7 +295,7 @@ def validate_evalid(
     LEFT JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
     LEFT JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
     WHERE pe.EVALID = {evalid}
-    GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD, 
+    GROUP BY pe.EVALID, pe.EVAL_DESCR, pe.STATECD,
              pe.START_INVYR, pe.END_INVYR, pet.EVAL_TYP
     """
 

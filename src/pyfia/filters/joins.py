@@ -21,9 +21,9 @@ def join_tree_condition(
 ) -> pl.DataFrame:
     """
     Join tree and condition tables on PLT_CN and CONDID.
-    
+
     This is the standard join for associating trees with their plot conditions.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -33,7 +33,7 @@ def join_tree_condition(
     cond_columns : List[str], optional
         Specific columns to select from condition table.
         If None, defaults to ["PLT_CN", "CONDID", "CONDPROP_UNADJ"]
-    
+
     Returns
     -------
     pl.DataFrame
@@ -62,10 +62,10 @@ def join_plot_stratum(
 ) -> pl.DataFrame:
     """
     Perform the standard plot → assignment → stratum join sequence.
-    
+
     This three-way join associates plots with their stratification data
     through the POP_PLOT_STRATUM_ASSGN table.
-    
+
     Parameters
     ----------
     plot_df : pl.DataFrame
@@ -79,7 +79,7 @@ def join_plot_stratum(
         If None, includes only SUBP
     stratum_columns : List[str], optional
         Additional columns to select from stratum table
-    
+
     Returns
     -------
     pl.DataFrame
@@ -127,10 +127,10 @@ def apply_adjustment_factors(
 ) -> pl.DataFrame:
     """
     Apply adjustment factors based on tree/prop basis.
-    
+
     This handles the common pattern of multiplying values by the appropriate
     adjustment factor based on plot design (MICR, SUBP, or MACR).
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -142,7 +142,7 @@ def apply_adjustment_factors(
     adj_factor_columns : dict, optional
         Mapping of basis values to adjustment factor columns.
         Defaults to standard FIA naming convention.
-    
+
     Returns
     -------
     pl.DataFrame
@@ -203,10 +203,10 @@ def get_evalid_assignments(
 ) -> pl.DataFrame:
     """
     Filter POP_PLOT_STRATUM_ASSGN by EVALID or plot CNs.
-    
+
     This standardizes the common pattern of filtering assignments
     based on evaluation or specific plots.
-    
+
     Parameters
     ----------
     ppsa_table : pl.LazyFrame
@@ -215,7 +215,7 @@ def get_evalid_assignments(
         Evaluation ID(s) to filter by
     plot_cns : List[str], optional
         Plot CNs to filter by (used if evalid is None)
-    
+
     Returns
     -------
     pl.DataFrame
@@ -240,7 +240,7 @@ def join_species_info(
 ) -> pl.DataFrame:
     """
     Join species reference information.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -250,7 +250,7 @@ def join_species_info(
     species_columns : List[str], optional
         Columns to include from species table.
         Defaults to ["SPCD", "COMMON_NAME", "GENUS", "SPECIES"]
-    
+
     Returns
     -------
     pl.DataFrame
@@ -278,10 +278,10 @@ def aggregate_tree_to_plot(
 ) -> pl.DataFrame:
     """
     Aggregate tree-level data to plot level with proper adjustment.
-    
+
     This handles the common pattern of summing tree values to plot level
     while maintaining proper grouping and adjustment factor application.
-    
+
     Parameters
     ----------
     tree_df : pl.DataFrame
@@ -292,7 +292,7 @@ def aggregate_tree_to_plot(
         Mapping of column names to aggregation expressions
     adjustment_needed : bool, default True
         Whether to group by TREE_BASIS for adjustment factor application
-    
+
     Returns
     -------
     pl.DataFrame
@@ -317,7 +317,7 @@ def join_plot_metadata(
 ) -> pl.DataFrame:
     """
     Join plot-level metadata.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -326,7 +326,7 @@ def join_plot_metadata(
         PLOT dataframe
     plot_columns : List[str], optional
         Columns to include from plot table
-    
+
     Returns
     -------
     pl.DataFrame

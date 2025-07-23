@@ -1190,9 +1190,9 @@ def main():
         cli = FIADirectCLI(args.database)
         cli.cmdloop()
     except KeyboardInterrupt:
-        Console().print("\n[yellow]Interrupted. Use 'exit' to quit properly.[/yellow]")
+        print("\nInterrupted. Use 'exit' to quit properly.")
     except Exception as e:
-        Console().print(f"[red]Fatal error: {e}[/red]")
+        print(f"Fatal error: {e}")
         import traceback
 
         traceback.print_exc()

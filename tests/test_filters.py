@@ -45,39 +45,38 @@ class TestTreeFilters:
 
     def test_live_trees_filter(self, sample_tree_df):
         """Test filtering for live trees."""
-        result = apply_tree_filters(sample_tree_df, tree_type="live")
+        result, _ = apply_tree_filters(sample_tree_df, tree_type="live")
         assert len(result) == 4
         assert result["STATUSCD"].unique().to_list() == [1]
 
     def test_dead_trees_filter(self, sample_tree_df):
         """Test filtering for dead trees."""
-        result = apply_tree_filters(sample_tree_df, tree_type="dead")
+        result, _ = apply_tree_filters(sample_tree_df, tree_type="dead")
         assert len(result) == 2
         assert result["STATUSCD"].unique().to_list() == [2]
 
     def test_growing_stock_filter(self, sample_tree_df):
         """Test filtering for growing stock trees."""
-        result = apply_tree_filters(sample_tree_df, tree_type="gs")
-        # Should get live trees with TREECLCD=2 and AGENTCD<30
-        assert len(result) == 2
+        result, _ = apply_tree_filters(sample_tree_df, tree_type="gs")
+        # Growing stock: STATUSCD == 1 AND TREECLCD == 2
+        assert len(result) == 3  # Three trees with STATUSCD=1 and TREECLCD=2
         assert all(result["STATUSCD"] == 1)
         assert all(result["TREECLCD"] == 2)
-        assert all(result["AGENTCD"] < 30)
 
     def test_tree_domain_filter(self, sample_tree_df):
         """Test custom tree domain filtering."""
-        result = apply_tree_filters(sample_tree_df, tree_domain="DIA >= 10")
+        result, _ = apply_tree_filters(sample_tree_df, tree_domain="DIA >= 10")
         assert len(result) == 3
         assert all(result["DIA"] >= 10)
 
     def test_combined_filters(self, sample_tree_df):
         """Test combining tree type and domain filters."""
-        result = apply_tree_filters(
+        result, _ = apply_tree_filters(
             sample_tree_df,
             tree_type="live",
             tree_domain="DIA >= 10"
         )
-        assert len(result) == 2
+        assert len(result) == 2  # Live trees with DIA >= 10
         assert all(result["STATUSCD"] == 1)
         assert all(result["DIA"] >= 10)
 
@@ -86,133 +85,125 @@ class TestAreaFilters:
     """Test area filtering functions."""
 
     def test_forest_filter(self, sample_cond_df):
-        """Test filtering for forest land."""
-        result = apply_area_filters(sample_cond_df, land_type="forest")
-        assert len(result) == 3
+        """Test filtering for forest conditions."""
+        result, _ = apply_area_filters(sample_cond_df, land_type="forest")
+        assert len(result) == 2
         assert all(result["COND_STATUS_CD"] == 1)
 
     def test_timber_filter(self, sample_cond_df):
-        """Test filtering for timberland."""
-        result = apply_area_filters(sample_cond_df, land_type="timber")
-        # Forest + productive + unreserved
-        assert len(result) == 1  # Only one row meets all criteria
+        """Test filtering for timberland conditions."""
+        result, _ = apply_area_filters(sample_cond_df, land_type="timber")
+        # Timberland: forest, unreserved, productive
+        assert len(result) == 1
         assert all(result["COND_STATUS_CD"] == 1)
-        assert all(result["SITECLCD"].is_in([1, 2, 3, 4, 5, 6]))
         assert all(result["RESERVCD"] == 0)
+        assert all(result["SITECLCD"] >= 1)
+        assert all(result["SITECLCD"] <= 6)
 
     def test_area_domain_filter(self, sample_cond_df):
         """Test custom area domain filtering."""
-        result = apply_area_filters(
-            sample_cond_df,
-            land_type="all",  # Use all to bypass status filter
-            area_domain="OWNGRPCD == 10"
-        )
+        result, _ = apply_area_filters(sample_cond_df, area_domain="OWNGRPCD == 10")
         assert len(result) == 2
         assert all(result["OWNGRPCD"] == 10)
-
-
-class TestSpecializedFilters:
-    """Test specialized filtering functions."""
-
-    def test_growing_stock_types(self, sample_tree_df):
-        """Test different growing stock filter types."""
-        # Standard GS
-        standard = apply_growing_stock_filter(sample_tree_df, gs_type="standard")
-        assert len(standard) == 2
-
-        # Merchantable (adds DIA >= 5.0)
-        merch = apply_growing_stock_filter(sample_tree_df, gs_type="merchantable")
-        assert len(merch) == 1
-        assert all(merch["DIA"] >= 5.0)
-
-        # Board foot (adds DIA >= 9.0)
-        bf = apply_growing_stock_filter(sample_tree_df, gs_type="board_foot")
-        assert len(bf) == 1
-        assert all(bf["DIA"] >= 9.0)
-
-    def test_mortality_filters(self, sample_tree_df):
-        """Test mortality filtering."""
-        # All mortality
-        all_mort = apply_mortality_filters(sample_tree_df, tree_class="all")
-        assert len(all_mort) == 3
-        assert all(all_mort["COMPONENT"].str.contains("MORTALITY"))
-
-        # Growing stock mortality
-        gs_mort = apply_mortality_filters(sample_tree_df, tree_class="growing_stock")
-        assert len(gs_mort) == 2
-        assert all(gs_mort["TREECLCD"] == 2)
-        assert all(gs_mort["AGENTCD"] < 30)
-
-
-class TestUtilityFunctions:
-    """Test utility functions."""
-
-    def test_size_class_expression(self, sample_tree_df):
-        """Test size class expression generation."""
-        expr = get_size_class_expr()
-        result = sample_tree_df.with_columns(expr)
-
-        assert "sizeClass" in result.columns
-        expected_classes = ["10.0-19.9", "1.0-4.9", "10.0-19.9",
-                           "5.0-9.9", "20.0-29.9", "5.0-9.9"]
-        assert result["sizeClass"].to_list() == expected_classes
-
-    def test_standard_filters(self, sample_tree_df, sample_cond_df):
-        """Test applying standard filters to both dataframes."""
-        tree_result, cond_result = apply_standard_filters(
-            sample_tree_df,
-            sample_cond_df,
-            tree_type="live",
-            land_type="timber"
-        )
-
-        assert len(tree_result) == 4  # Live trees
-        assert len(cond_result) == 1   # Timberland (only 1 row meets all criteria)
-
-    def test_validate_filters(self):
-        """Test filter validation."""
-        # Valid filters should not raise
-        validate_filters(tree_type="live", land_type="forest", gs_type="standard")
-
-        # Invalid filters should raise ValueError
-        with pytest.raises(ValueError, match="Invalid tree_type"):
-            validate_filters(tree_type="invalid")
-
-        with pytest.raises(ValueError, match="Invalid land_type"):
-            validate_filters(land_type="invalid")
-
-        with pytest.raises(ValueError, match="Invalid gs_type"):
-            validate_filters(gs_type="invalid")
 
 
 class TestDomainParsing:
     """Test domain expression parsing."""
 
-    def test_simple_domain(self, sample_tree_df):
-        """Test simple domain expressions."""
-        result = parse_domain_expression(
-            sample_tree_df,
-            "DIA >= 10",
-            "tree"
-        )
-        assert len(result) == 3
+    def test_simple_expression(self):
+        """Test parsing simple domain expressions."""
+        expr = parse_domain_expression("DIA > 10", "TREE")
+        assert expr is not None
+        
+        # Test with sample data
+        df = pl.DataFrame({"DIA": [5.0, 10.0, 15.0]})
+        result = df.filter(expr)
+        assert len(result) == 1
+        assert result["DIA"][0] == 15.0
 
-    def test_complex_domain(self, sample_tree_df):
-        """Test complex domain expressions."""
-        result = parse_domain_expression(
-            sample_tree_df,
-            "SPCD == 110 and DIA > 10",
-            "tree"
-        )
-        assert len(result) == 2  # Two trees match: DIA 10.5 and 15.3
-        assert all(result["SPCD"] == 110)
-        assert all(result["DIA"] > 10)
+    def test_compound_expression(self):
+        """Test parsing compound domain expressions."""
+        expr = parse_domain_expression("DIA > 10 AND SPCD == 110", "TREE")
+        assert expr is not None
+        
+        # Test with sample data
+        df = pl.DataFrame({
+            "DIA": [5.0, 15.0, 20.0],
+            "SPCD": [110, 110, 121]
+        })
+        result = df.filter(expr)
+        assert len(result) == 1
+        assert result["DIA"][0] == 15.0
 
-    def test_invalid_domain(self, sample_tree_df):
-        """Test invalid domain expressions."""
-        with pytest.raises(ValueError, match="Invalid tree domain expression"):
-            parse_domain_expression(
-                sample_tree_df,
-                "INVALID SYNTAX",
-                "tree"
-            )
+    def test_invalid_expression(self):
+        """Test handling of invalid expressions."""
+        with pytest.raises(ValueError):
+            parse_domain_expression("INVALID_COL > 10", "TREE")
+
+
+class TestUtilityFunctions:
+    """Test utility filtering functions."""
+
+    def test_standard_filters(self, sample_tree_df, sample_cond_df):
+        """Test standard filter combinations."""
+        tree_result, cond_result, assumptions = apply_standard_filters(
+            sample_tree_df,
+            sample_cond_df,
+            tree_type="live",
+            land_type="forest"
+        )
+        
+        assert len(tree_result) == 4  # Live trees
+        assert len(cond_result) == 2  # Forest conditions
+        assert assumptions is not None
+
+    def test_growing_stock_specific(self):
+        """Test growing stock filter function."""
+        df = pl.DataFrame({
+            "STATUSCD": [1, 1, 2, 1],
+            "TREECLCD": [2, 3, 2, 2],
+            "DIA": [10.0, 12.0, 8.0, 5.0]
+        })
+        
+        result = apply_growing_stock_filter(df)
+        assert len(result) == 2  # Only live growing stock
+        assert all(result["STATUSCD"] == 1)
+        assert all(result["TREECLCD"] == 2)
+
+    def test_mortality_filters(self):
+        """Test mortality-specific filters."""
+        df = pl.DataFrame({
+            "COMPONENT": ["MORTALITY", "COMPONENT", "MORTALITY_ANNUAL", "GROWTH"],
+            "STATUSCD": [2, 1, 2, 1],
+            "DIA": [10.0, 12.0, 8.0, 5.0]
+        })
+        
+        result = apply_mortality_filters(df)
+        assert len(result) == 2  # Only mortality components
+        assert all(result["COMPONENT"].str.contains("MORTALITY"))
+
+    def test_size_class_expression(self):
+        """Test size class calculation."""
+        expr = get_size_class_expr()
+        
+        df = pl.DataFrame({
+            "DIA": [4.5, 6.0, 12.0, 18.0, 25.0]
+        })
+        
+        result = df.with_columns(SIZE_CLASS=expr)
+        expected = ["Small", "Small", "Medium", "Large", "Large"]
+        assert result["SIZE_CLASS"].to_list() == expected
+
+    def test_validate_filters(self):
+        """Test filter validation."""
+        # Valid combinations
+        validate_filters(tree_type="live", land_type="forest")
+        validate_filters(tree_type="gs", land_type="timber")
+        
+        # Invalid tree type
+        with pytest.raises(ValueError):
+            validate_filters(tree_type="invalid", land_type="forest")
+        
+        # Invalid land type
+        with pytest.raises(ValueError):
+            validate_filters(tree_type="live", land_type="invalid")

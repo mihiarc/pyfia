@@ -3,7 +3,7 @@ Statistical estimation methods for FIA data analysis.
 
 This module provides all the core estimation functions following FIA methodology:
 - Forest area estimation
-- Biomass and carbon calculations  
+- Biomass and carbon calculations
 - Volume estimation
 - Trees per acre (TPA)
 - Mortality analysis

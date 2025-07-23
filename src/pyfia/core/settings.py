@@ -5,7 +5,6 @@ This module provides centralized configuration with environment variable support
 """
 
 from pathlib import Path
-from typing import Optional
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -14,7 +13,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class PyFIASettings(BaseSettings):
     """
     Central settings for pyFIA with environment variable support.
-    
+
     Environment variables are prefixed with PYFIA_.
     For example: PYFIA_DATABASE_PATH, PYFIA_LOG_LEVEL
     """
@@ -35,16 +34,6 @@ class PyFIASettings(BaseSettings):
     database_engine: str = Field(
         default="duckdb",
         description="Database engine (duckdb or sqlite)"
-    )
-
-    # API settings
-    openai_api_key: Optional[str] = Field(
-        default=None,
-        description="OpenAI API key for AI features"
-    )
-    openai_model: str = Field(
-        default="gpt-4o",
-        description="OpenAI model to use"
     )
 
     # Performance settings

@@ -24,10 +24,10 @@ class LocationResolver:
     def resolve(self, location: ParsedLocation) -> ParsedLocation:
         """
         Resolve a parsed location to include database identifiers.
-        
+
         Args:
             location: ParsedLocation to resolve
-            
+
         Returns:
             Updated ParsedLocation with resolved identifiers
         """
@@ -92,10 +92,10 @@ class LocationResolver:
     def get_state_code(self, state_identifier: str) -> Optional[int]:
         """
         Get FIPS state code from name or abbreviation.
-        
+
         Args:
             state_identifier: State name, abbreviation, or already a code
-            
+
         Returns:
             FIPS state code or None if not found
         """

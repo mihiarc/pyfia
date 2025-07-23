@@ -69,10 +69,10 @@ class LocationParser:
     def parse(self, text: str) -> List[ParsedLocation]:
         """
         Parse locations from text.
-        
+
         Args:
             text: Natural language text to parse
-            
+
         Returns:
             List of parsed locations found in the text
         """
@@ -140,10 +140,10 @@ class LocationParser:
     def find_primary_location(self, text: str) -> Optional[ParsedLocation]:
         """
         Find the primary/most relevant location in text.
-        
+
         Args:
             text: Text to parse
-            
+
         Returns:
             The most relevant location found, or None if no locations detected
         """

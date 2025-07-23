@@ -26,13 +26,13 @@ def apply_tree_adjustment_factors(
 ) -> pl.DataFrame:
     """
     Apply FIA adjustment factors using EVALIDator methodology.
-    
+
     This implements the standard FIA adjustment factor logic:
     - DIA IS NULL → ADJ_FACTOR_SUBP
-    - DIA < 5.0 → ADJ_FACTOR_MICR  
+    - DIA < 5.0 → ADJ_FACTOR_MICR
     - DIA < MACRO_BREAKPOINT_DIA → ADJ_FACTOR_SUBP
     - DIA >= MACRO_BREAKPOINT_DIA → ADJ_FACTOR_MACR
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -51,17 +51,17 @@ def apply_tree_adjustment_factors(
         Column containing macroplot adjustment factor
     output_column : str, optional
         Name for output column. If None, uses f"{value_column}_ADJ"
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with adjustment factor applied
-        
+
     Examples
     --------
     >>> # Apply adjustment factors to TPA
     >>> df_adj = apply_tree_adjustment_factors(df, "TPA_UNADJ")
-    
+
     >>> # Apply to biomass values
     >>> df_bio = apply_tree_adjustment_factors(df, "DRYBIO_AG", output_column="BIO_ADJ")
     """
@@ -92,9 +92,9 @@ def calculate_expanded_estimate(
 ) -> pl.DataFrame:
     """
     Calculate population-expanded estimates.
-    
+
     Multiplies adjusted values by expansion factors to get population totals.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -105,7 +105,7 @@ def calculate_expanded_estimate(
         Column containing expansion factors
     output_column : str, optional
         Name for output column. If None, uses f"{adjusted_value_column}_EXPANDED"
-        
+
     Returns
     -------
     pl.DataFrame
@@ -132,9 +132,9 @@ def apply_tree_expansion_full(
 ) -> pl.DataFrame:
     """
     Apply full FIA expansion in one step: VALUE * ADJUSTMENT_FACTOR * EXPNS.
-    
+
     This is the complete EVALIDator formula for population estimates.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -150,22 +150,22 @@ def apply_tree_expansion_full(
     micr_factor_column : str, default "ADJ_FACTOR_MICR"
         Column containing microplot adjustment factor
     subp_factor_column : str, default "ADJ_FACTOR_SUBP"
-        Column containing subplot adjustment factor  
+        Column containing subplot adjustment factor
     macr_factor_column : str, default "ADJ_FACTOR_MACR"
         Column containing macroplot adjustment factor
     output_column : str, optional
         Name for output column. If None, uses f"{value_column}_EXPANDED"
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with fully expanded population estimates
-        
+
     Examples
     --------
     >>> # Calculate expanded tree counts
     >>> df_trees = apply_tree_expansion_full(df, "TPA_UNADJ", output_column="TREE_COUNT")
-    
+
     >>> # Calculate expanded biomass
     >>> df_bio = apply_tree_expansion_full(df, "DRYBIO_AG", output_column="BIOMASS_TOTAL")
     """
@@ -201,9 +201,9 @@ def get_adjustment_factor_column(
 ) -> pl.DataFrame:
     """
     Create a column with the appropriate adjustment factor for each tree.
-    
+
     Useful when you need the adjustment factor itself rather than applying it.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -220,7 +220,7 @@ def get_adjustment_factor_column(
         Column containing macroplot adjustment factor
     output_column : str, default "ADJ_FACTOR"
         Name for output column
-        
+
     Returns
     -------
     pl.DataFrame
@@ -245,19 +245,19 @@ def validate_adjustment_columns(
 ) -> bool:
     """
     Validate that DataFrame has required columns for adjustment factor operations.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
         DataFrame to validate
     required_columns : List[str], optional
         List of required columns. If None, uses standard set.
-        
+
     Returns
     -------
     bool
         True if all required columns are present
-        
+
     Raises
     ------
     ValueError

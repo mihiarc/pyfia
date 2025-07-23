@@ -36,7 +36,8 @@
       "Bash(uv pip:*)",
       "Bash(gh run list:*)",
       "Bash(gh run view:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(mv:*)"
     ],
     "deny": []
   }

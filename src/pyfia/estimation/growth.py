@@ -197,7 +197,7 @@ def _calculate_recruitment(
 
     # Aggregate and expand
     recruitment = _aggregate_and_expand(
-        ingrowth, "RECR_TPA_ADJ", "RECR_TPA", grpBy, bySpecies
+        ingrowth, "RECR_TPA_ADJ", "RECR_TPA", grp_by, by_species
     )
 
     return recruitment
@@ -245,7 +245,7 @@ def _calculate_diameter_growth(
 
     # Aggregate (mean diameter growth)
     dia_growth = _aggregate_mean(
-        survivors, "DIA_GROWTH_ADJ", "DIA_GROWTH", grpBy, bySpecies
+        survivors, "DIA_GROWTH_ADJ", "DIA_GROWTH", grp_by, by_species
     )
 
     return dia_growth

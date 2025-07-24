@@ -13,7 +13,7 @@ This module provides:
 from .adjustment import *
 from .classification import *
 from .domain import *
-from .evalid import *
+# from .evalid import *  # Commented out due to missing dependency
 from .grouping import *
 from .joins import *
 

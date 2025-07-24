@@ -326,3 +326,287 @@ def get_size_class_bounds(
         return DESCRIPTIVE_SIZE_CLASSES.copy()
     else:
         raise ValueError(f"Invalid size_class_type: {size_class_type}")
+
+
+def get_forest_type_group(fortypcd: Optional[int]) -> str:
+    """
+    Map forest type code (FORTYPCD) to forest type group name.
+    
+    Groups forest types into major categories following FIA classification
+    with special handling for common western forest types.
+    
+    Parameters
+    ----------
+    fortypcd : int or None
+        Forest type code from COND table
+        
+    Returns
+    -------
+    str
+        Forest type group name
+        
+    Examples
+    --------
+    >>> get_forest_type_group(200)
+    'Douglas-fir'
+    >>> get_forest_type_group(221)
+    'Ponderosa Pine'
+    >>> get_forest_type_group(None)
+    'Unknown'
+    """
+    if fortypcd is None:
+        return "Unknown"
+    elif 100 <= fortypcd <= 199:
+        return "White/Red/Jack Pine"
+    elif 200 <= fortypcd <= 299:
+        if fortypcd == 200:
+            return "Douglas-fir"
+        elif fortypcd in [220, 221, 222]:
+            return "Ponderosa Pine"
+        elif fortypcd == 240:
+            return "Western White Pine"
+        elif fortypcd in [260, 261, 262, 263, 264, 265]:
+            return "Fir/Spruce/Mountain Hemlock"
+        elif fortypcd == 280:
+            return "Lodgepole Pine"
+        else:
+            return "Spruce/Fir"
+    elif 300 <= fortypcd <= 399:
+        if fortypcd in [300, 301, 302, 303, 304, 305]:
+            return "Hemlock/Sitka Spruce"
+        elif fortypcd == 370:
+            return "California Mixed Conifer"
+        else:
+            return "Longleaf/Slash Pine"
+    elif 400 <= fortypcd <= 499:
+        return "Oak/Pine"
+    elif 500 <= fortypcd <= 599:
+        return "Oak/Hickory"
+    elif 600 <= fortypcd <= 699:
+        return "Oak/Gum/Cypress"
+    elif 700 <= fortypcd <= 799:
+        return "Elm/Ash/Cottonwood"
+    elif 800 <= fortypcd <= 899:
+        return "Maple/Beech/Birch"
+    elif 900 <= fortypcd <= 999:
+        if 900 <= fortypcd <= 909:
+            return "Aspen/Birch"
+        elif 910 <= fortypcd <= 919:
+            return "Alder/Maple"
+        elif 920 <= fortypcd <= 929:
+            return "Western Oak"
+        elif 940 <= fortypcd <= 949:
+            return "Tanoak/Laurel"
+        elif 950 <= fortypcd <= 959:
+            return "Other Western Hardwoods"
+        elif 960 <= fortypcd <= 969:
+            return "Tropical Hardwoods"
+        elif 970 <= fortypcd <= 979:
+            return "Exotic Hardwoods"
+        elif 980 <= fortypcd <= 989:
+            return "Woodland Hardwoods"
+        elif 990 <= fortypcd <= 998:
+            return "Exotic Softwoods"
+        elif fortypcd == 999:
+            return "Nonstocked"
+        else:
+            return "Other Hardwoods"
+    else:
+        return "Other"
+
+
+def add_forest_type_group(
+    df: pl.DataFrame,
+    fortypcd_col: str = "FORTYPCD",
+    output_col: str = "FOREST_TYPE_GROUP"
+) -> pl.DataFrame:
+    """
+    Add forest type group column to a dataframe containing FORTYPCD.
+    
+    Parameters
+    ----------
+    df : pl.DataFrame
+        DataFrame containing forest type codes
+    fortypcd_col : str, default "FORTYPCD"
+        Name of column containing forest type codes
+    output_col : str, default "FOREST_TYPE_GROUP"
+        Name for the output column
+        
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with forest type group column added
+        
+    Examples
+    --------
+    >>> cond_with_groups = add_forest_type_group(cond_df)
+    >>> # Group by forest type for analysis
+    >>> by_forest_type = cond_with_groups.group_by("FOREST_TYPE_GROUP").agg(...)
+    """
+    return df.with_columns(
+        pl.col(fortypcd_col)
+        .map_elements(get_forest_type_group, return_dtype=pl.Utf8)
+        .alias(output_col)
+    )
+
+
+def get_ownership_group_name(owngrpcd: Optional[int]) -> str:
+    """
+    Map ownership group code to descriptive name.
+    
+    Parameters
+    ----------
+    owngrpcd : int or None
+        Ownership group code from FIA
+        
+    Returns
+    -------
+    str
+        Ownership group name
+        
+    Examples
+    --------
+    >>> get_ownership_group_name(10)
+    'Forest Service'
+    >>> get_ownership_group_name(40)
+    'Private'
+    """
+    ownership_names = {
+        10: "Forest Service",
+        20: "Other Federal",
+        30: "State and Local Government",
+        40: "Private"
+    }
+    return ownership_names.get(owngrpcd, f"Unknown (Code {owngrpcd})")
+
+
+def add_ownership_group_name(
+    df: pl.DataFrame,
+    owngrpcd_col: str = "OWNGRPCD",
+    output_col: str = "OWNERSHIP_GROUP"
+) -> pl.DataFrame:
+    """
+    Add ownership group name column to a dataframe containing OWNGRPCD.
+    
+    Parameters
+    ----------
+    df : pl.DataFrame
+        DataFrame containing ownership group codes
+    owngrpcd_col : str, default "OWNGRPCD"
+        Name of column containing ownership group codes
+    output_col : str, default "OWNERSHIP_GROUP"
+        Name for the output column
+        
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with ownership group name column added
+    """
+    return df.with_columns(
+        pl.col(owngrpcd_col)
+        .map_elements(get_ownership_group_name, return_dtype=pl.Utf8)
+        .alias(output_col)
+    )
+
+
+def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
+    """
+    Map forest type code (FORTYPCD) to forest type group code (FORTYPGRP).
+    
+    This provides the numeric group code that corresponds to forest type
+    groupings used in FIA reference tables.
+    
+    Parameters
+    ----------
+    fortypcd : int or None
+        Forest type code from COND table
+        
+    Returns
+    -------
+    int or None
+        Forest type group code
+        
+    Examples
+    --------
+    >>> get_forest_type_group_code(200)  # Douglas-fir
+    200
+    >>> get_forest_type_group_code(221)  # Ponderosa Pine
+    220
+    """
+    if fortypcd is None:
+        return None
+    
+    # Map specific codes to their group codes
+    # Based on FIA forest type groupings
+    group_mappings = {
+        # Douglas-fir group
+        200: 200, 201: 200, 202: 200, 203: 200,
+        # Ponderosa Pine group
+        220: 220, 221: 220, 222: 220,
+        # Western White Pine
+        240: 240, 241: 240,
+        # Fir/Spruce/Mountain Hemlock group
+        260: 260, 261: 260, 262: 260, 263: 260, 264: 260, 265: 260,
+        # Lodgepole Pine
+        280: 280, 281: 280,
+        # Hemlock/Sitka Spruce
+        300: 300, 301: 300, 302: 300, 303: 300, 304: 300, 305: 300,
+        # California Mixed Conifer
+        370: 370, 371: 370,
+        # Alder/Maple
+        910: 910, 911: 910, 912: 910, 913: 910, 914: 910, 915: 910,
+        # Western Oak
+        920: 920, 921: 920, 922: 920, 923: 920, 924: 920,
+        # Tanoak/Laurel
+        940: 940, 941: 940, 942: 940,
+        # Other Western Hardwoods
+        950: 950, 951: 950, 952: 950,
+        # Nonstocked
+        999: 999,
+    }
+    
+    # Check if specific mapping exists
+    if fortypcd in group_mappings:
+        return group_mappings[fortypcd]
+    
+    # Otherwise, use the hundred's place as the group
+    # This works for most eastern forest types
+    return (fortypcd // 100) * 100
+
+
+def add_forest_type_group_code(
+    df: pl.DataFrame,
+    fortypcd_col: str = "FORTYPCD",
+    output_col: str = "FORTYPGRP"
+) -> pl.DataFrame:
+    """
+    Add forest type group code column to a dataframe containing FORTYPCD.
+    
+    This creates the FORTYPGRP column that can be used for grouping
+    in area() and other estimation functions.
+    
+    Parameters
+    ----------
+    df : pl.DataFrame
+        DataFrame containing forest type codes
+    fortypcd_col : str, default "FORTYPCD"
+        Name of column containing forest type codes
+    output_col : str, default "FORTYPGRP"
+        Name for the output column
+        
+    Returns
+    -------
+    pl.DataFrame
+        DataFrame with forest type group code column added
+        
+    Examples
+    --------
+    >>> # Add FORTYPGRP before using area() function
+    >>> cond_with_grp = add_forest_type_group_code(cond_df)
+    >>> results = area(db, grp_by=["FORTYPGRP"])
+    """
+    return df.with_columns(
+        pl.col(fortypcd_col)
+        .map_elements(get_forest_type_group_code, return_dtype=pl.Int32)
+        .alias(output_col)
+    )

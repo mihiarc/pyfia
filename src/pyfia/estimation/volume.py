@@ -106,9 +106,19 @@ def volume(
     trees = _apply_tree_filters(trees, tree_type, tree_domain)
     conds = _apply_area_filters(conds, land_type, area_domain)
 
+    # Get columns needed from COND table
+    cond_cols = ["PLT_CN", "CONDID", "CONDPROP_UNADJ"]
+    
+    # Add any grouping columns that might be in COND
+    if grp_by:
+        grp_cols = [grp_by] if isinstance(grp_by, str) else list(grp_by)
+        for col in grp_cols:
+            if col in conds.columns and col not in cond_cols:
+                cond_cols.append(col)
+    
     # Join trees with forest conditions
     tree_cond = trees.join(
-        conds.select(["PLT_CN", "CONDID", "CONDPROP_UNADJ"]),
+        conds.select(cond_cols),
         on=["PLT_CN", "CONDID"],
         how="inner",
     )
@@ -130,7 +140,7 @@ def volume(
     tree_cond = tree_cond.with_columns(vol_calculations)
 
     # Set up grouping
-    group_cols = _setup_grouping_columns(tree_cond, grp_by, by_species, by_size_class)
+    tree_cond, group_cols = _setup_grouping_columns(tree_cond, grp_by, by_species, by_size_class)
 
     # Sum to plot level
     if group_cols:
@@ -360,8 +370,8 @@ def _setup_grouping_columns(
     grp_by: Optional[Union[str, List[str]]],
     by_species: bool,
     by_size_class: bool,
-) -> List[str]:
-    """Set up grouping columns."""
+) -> tuple[pl.DataFrame, List[str]]:
+    """Set up grouping columns and return modified dataframe."""
     group_cols = []
 
     if grp_by:
@@ -389,4 +399,4 @@ def _setup_grouping_columns(
         )
         group_cols.append("sizeClass")
 
-    return group_cols
+    return tree_cond, group_cols

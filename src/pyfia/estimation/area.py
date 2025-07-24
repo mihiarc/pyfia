@@ -406,22 +406,40 @@ def _calculate_stratum_area_estimates(
             pl.sum("fad_expanded").alias("fad_expanded_total"),
             # Area estimates for variance (adjusted values)
             pl.mean("fa").alias("fa_bar_h"),
-            pl.std("fa", ddof=1).alias("s_fa_h"),
+            # Use ddof=1 but handle single observation case
+            pl.when(pl.count("fa") > 1)
+            .then(pl.std("fa", ddof=1))
+            .otherwise(0.0)
+            .alias("s_fa_h"),
             # Total area for variance (adjusted values)
             pl.mean("fad").alias("fad_bar_h"),
-            pl.std("fad", ddof=1).alias("s_fad_h"),
-            # Correlation for ratio variance
-            pl.corr("fa", "fad").fill_null(0).alias("corr_fa_fad"),
+            pl.when(pl.count("fad") > 1)
+            .then(pl.std("fad", ddof=1))
+            .otherwise(0.0)
+            .alias("s_fad_h"),
+            # Correlation for ratio variance - handle special cases
+            pl.when(pl.count("fa") > 1)
+            .then(
+                # When std dev is 0 (all values same), correlation is undefined
+                # But if fa == fad for all, we know they're perfectly correlated
+                pl.when((pl.std("fa") == 0) & (pl.std("fad") == 0))
+                .then(1.0)  # Perfect correlation when both are constant and equal
+                .otherwise(pl.corr("fa", "fad").fill_null(0))
+            )
+            .otherwise(0.0)
+            .alias("corr_fa_fad"),
             # Stratum weight
             pl.first("EXPNS").alias("w_h"),
         ]
     )
 
     # Calculate covariance from correlation
+    # When either std dev is 0, covariance must be 0 regardless of correlation
     stratum_est = stratum_est.with_columns(
-        (pl.col("corr_fa_fad") * pl.col("s_fa_h") * pl.col("s_fad_h")).alias(
-            "s_fa_fad_h"
-        )
+        pl.when((pl.col("s_fa_h") == 0) | (pl.col("s_fad_h") == 0))
+        .then(0.0)
+        .otherwise(pl.col("corr_fa_fad") * pl.col("s_fa_h") * pl.col("s_fad_h"))
+        .alias("s_fa_fad_h")
     )
 
     # Replace null std devs with 0
@@ -450,15 +468,23 @@ def _calculate_population_area_estimates(
         # Direct expansion totals
         pl.col("fa_expanded_total").sum().alias("FA_TOTAL"),
         pl.col("fad_expanded_total").sum().alias("FAD_TOTAL"),
-        # Variance components (still use stratum-based variance)
-        ((pl.col("w_h") ** 2) * (pl.col("s_fa_h") ** 2) / pl.col("n_h"))
+        # Variance components with protection for small sample sizes
+        pl.when(pl.col("n_h") > 1)
+        .then((pl.col("w_h") ** 2) * (pl.col("s_fa_h") ** 2) / pl.col("n_h"))
+        .otherwise(0.0)
         .sum()
         .alias("FA_VAR"),
-        ((pl.col("w_h") ** 2) * (pl.col("s_fad_h") ** 2) / pl.col("n_h"))
+        
+        pl.when(pl.col("n_h") > 1)
+        .then((pl.col("w_h") ** 2) * (pl.col("s_fad_h") ** 2) / pl.col("n_h"))
+        .otherwise(0.0)
         .sum()
         .alias("FAD_VAR"),
+        
         # Covariance term
-        ((pl.col("w_h") ** 2) * pl.col("s_fa_fad_h") / pl.col("n_h"))
+        pl.when(pl.col("n_h") > 1)
+        .then((pl.col("w_h") ** 2) * pl.col("s_fa_fad_h") / pl.col("n_h"))
+        .otherwise(0.0)
         .sum()
         .alias("COV_FA_FAD"),
         # Sample size
@@ -509,26 +535,72 @@ def _calculate_population_area_estimates(
         )
 
     # Calculate ratio variance
+    if by_land_type and "LAND_TYPE" in pop_est.columns:
+        # For by_land_type, we need to use the correct denominator (total land area)
+        # Get total land area (excluding water) for variance calculation
+        land_area_total = (
+            pop_est.filter(~pl.col("LAND_TYPE").str.contains("Water")).select(
+                pl.sum("FAD_TOTAL").alias("TOTAL_LAND_AREA")
+            )
+        )[0, 0]
+        
+        # Calculate variance of total land area (sum of component variances)
+        land_area_var = (
+            pop_est.filter(~pl.col("LAND_TYPE").str.contains("Water")).select(
+                pl.sum("FAD_VAR").alias("TOTAL_LAND_VAR")
+            )
+        )[0, 0]
+        
+        # For ratio variance with common denominator:
+        # Var(FA/Total_Land) = (1/Total_Land²) * [Var(FA) + (FA/Total_Land)² * Var(Total_Land) - 2 * (FA/Total_Land) * Cov(FA, Total_Land)]
+        # Since FA is a component of Total_Land, Cov(FA, Total_Land) = Var(FA)
+        pop_est = pop_est.with_columns(
+            pl.when(land_area_total == 0)
+            .then(0.0)
+            .otherwise(
+                (1 / (land_area_total ** 2)) * (
+                    pl.col("FA_VAR") + 
+                    ((pl.col("FA_TOTAL") / land_area_total) ** 2) * land_area_var -
+                    2 * (pl.col("FA_TOTAL") / land_area_total) * pl.col("FA_VAR")
+                )
+            )
+            .alias("PERC_VAR_RATIO")
+        )
+    else:
+        # Regular ratio variance calculation
+        pop_est = pop_est.with_columns(
+            ratio_var(
+                pl.col("FA_TOTAL"),
+                pl.col("FAD_TOTAL"),
+                pl.col("FA_VAR"),
+                pl.col("FAD_VAR"),
+                pl.col("COV_FA_FAD"),
+            ).alias("PERC_VAR_RATIO")
+        )
+    
+
+    # Convert to percentage variance with protection against negative values
     pop_est = pop_est.with_columns(
-        ratio_var(
-            pl.col("FA_TOTAL"),
-            pl.col("FAD_TOTAL"),
-            pl.col("FA_VAR"),
-            pl.col("FAD_VAR"),
-            pl.col("COV_FA_FAD"),
-        ).alias("PERC_VAR_RATIO")
+        pl.when(pl.col("PERC_VAR_RATIO") < 0)
+        .then(0.0)  # Set negative variances to 0
+        .otherwise(pl.col("PERC_VAR_RATIO") * 10000)
+        .alias("AREA_PERC_VAR")  # (100)^2
     )
 
-    # Convert to percentage variance
-    pop_est = pop_est.with_columns(
-        (pl.col("PERC_VAR_RATIO") * 10000).alias("AREA_PERC_VAR")  # (100)^2
-    )
-
-    # Calculate standard errors
+    # Calculate standard errors with protection against negative variance
     pop_est = pop_est.with_columns(
         [
-            (pl.col("AREA_PERC_VAR").sqrt()).alias("AREA_PERC_SE"),
-            (pl.col("FA_VAR").sqrt() / pl.col("FA_TOTAL") * 100).alias("AREA_SE"),
+            # Ensure variance is non-negative before sqrt
+            pl.when(pl.col("AREA_PERC_VAR") >= 0)
+            .then(pl.col("AREA_PERC_VAR").sqrt())
+            .otherwise(0.0)
+            .alias("AREA_PERC_SE"),
+            
+            # Protect against division by zero and negative variance
+            pl.when((pl.col("FA_VAR") >= 0) & (pl.col("FA_TOTAL") > 0))
+            .then(pl.col("FA_VAR").sqrt() / pl.col("FA_TOTAL") * 100)
+            .otherwise(0.0)
+            .alias("AREA_SE"),
         ]
     )
 

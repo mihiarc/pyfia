@@ -45,6 +45,7 @@ class FIA:
         self.tables: Dict[str, pl.LazyFrame] = {}
         self.evalid: Optional[List[int]] = None
         self.most_recent: bool = False
+        self.state_filter: Optional[List[int]] = None  # Add state filter
         self._conn: Optional[duckdb.DuckDBPyConnection] = None
         self._reader = FIADataReader(db_path, engine="duckdb")
 
@@ -78,11 +79,23 @@ class FIA:
         Returns:
             Polars LazyFrame of the table
         """
-        # Use the data reader which handles types properly
-        df = self._reader.read_table(table_name, columns=columns, lazy=False)
+        # Build WHERE clause if state filter is active
+        where_clause = None
+        if self.state_filter and table_name in ["PLOT", "COND", "TREE"]:
+            # These tables have STATECD column
+            state_list = ", ".join(str(s) for s in self.state_filter)
+            where_clause = f"STATECD IN ({state_list})"
+        
+        # Use the data reader with WHERE clause for efficient filtering
+        df = self._reader.read_table(
+            table_name, 
+            columns=columns, 
+            where=where_clause,
+            lazy=True  # Keep as lazy for memory efficiency
+        )
 
         # Store as lazy frame
-        self.tables[table_name] = df.lazy()
+        self.tables[table_name] = df
 
         return self.tables[table_name]
 
@@ -184,6 +197,34 @@ class FIA:
 
         self.evalid = evalid
         return self
+    
+    def clip_by_state(self, state: Union[int, List[int]], most_recent: bool = True) -> "FIA":
+        """
+        Filter FIA data by state code(s).
+        
+        This method efficiently filters data at the database level by:
+        1. Setting a state filter for direct table queries
+        2. Finding appropriate EVALIDs for the state(s)
+        3. Combining both filters for optimal performance
+        
+        Args:
+            state: Single state FIPS code or list of codes
+            most_recent: If True, use only most recent evaluations
+            
+        Returns:
+            Self for method chaining
+        """
+        if isinstance(state, int):
+            state = [state]
+            
+        self.state_filter = state
+        
+        # Also find and set EVALIDs for proper statistical grouping
+        evalids = self.find_evalid(state=state, most_recent=most_recent)
+        if evalids:
+            self.clip_by_evalid(evalids)
+        
+        return self
 
     def clip_most_recent(self, eval_type: str = "VOL") -> "FIA":
         """
@@ -206,7 +247,7 @@ class FIA:
 
     def get_plots(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
         """
-        Get PLOT table filtered by current EVALID settings.
+        Get PLOT table filtered by current EVALID and state settings.
 
         Args:
             columns: Optional list of columns to return
@@ -214,35 +255,30 @@ class FIA:
         Returns:
             Filtered PLOT dataframe
         """
-        # Load tables if needed
+        # Load PLOT table if needed (with state filter applied)
         if "PLOT" not in self.tables:
             self.load_table("PLOT")
-        if "POP_PLOT_STRATUM_ASSGN" not in self.tables:
-            self.load_table(
-                "POP_PLOT_STRATUM_ASSGN", ["PLT_CN", "STRATUM_CN", "EVALID"]
+            
+        # If we have EVALID filter, we need to join with assignments
+        if self.evalid:
+            # Load assignment table with EVALID filter directly
+            evalid_str = ", ".join(str(e) for e in self.evalid)
+            ppsa = self._reader.read_table(
+                "POP_PLOT_STRATUM_ASSGN",
+                columns=["PLT_CN", "STRATUM_CN", "EVALID"],
+                where=f"EVALID IN ({evalid_str})",
+                lazy=True
             )
-
-        # Start with PLOT table
-        plots = self.tables["PLOT"]
-
-        # If EVALID filter is active, apply it
-        if self.evalid or self.most_recent:
-            if self.most_recent and not self.evalid:
-                # Find most recent EVALIDs
-                self.evalid = self.find_evalid(most_recent=True, eval_type="VOL")
-
-            # Get plot-stratum assignments for these EVALIDs
-            if self.evalid is None:
-                raise ValueError("No EVALID specified or found")
-            ppsa = (
-                self.tables["POP_PLOT_STRATUM_ASSGN"]
-                .filter(pl.col("EVALID").is_in(self.evalid))
-                .select(["PLT_CN", "EVALID"])
-                .unique()
-            )
-
+            
             # Filter plots to those in the evaluation
-            plots = plots.join(ppsa, left_on="CN", right_on="PLT_CN", how="inner")
+            plots = self.tables["PLOT"].join(
+                ppsa.select(["PLT_CN", "EVALID"]).unique(),
+                left_on="CN", 
+                right_on="PLT_CN", 
+                how="inner"
+            )
+        else:
+            plots = self.tables["PLOT"]
 
         # Select columns if specified
         if columns:
@@ -252,7 +288,7 @@ class FIA:
 
     def get_trees(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
         """
-        Get TREE table filtered by current EVALID settings.
+        Get TREE table filtered by current EVALID and state settings.
 
         Args:
             columns: Optional list of columns to return
@@ -260,15 +296,35 @@ class FIA:
         Returns:
             Filtered TREE dataframe
         """
-        # Get filtered plots
-        plot_cns = self.get_plots(["CN"])["CN"].to_list()
-
-        # Load TREE table if needed
+        # Load TREE table if needed (with state filter applied)
         if "TREE" not in self.tables:
             self.load_table("TREE")
-
-        # Filter trees to those on filtered plots
-        trees = self.tables["TREE"].filter(pl.col("PLT_CN").is_in(plot_cns))
+            
+        # If we need additional filtering by plot CNs
+        if self.evalid:
+            # Get plot CNs efficiently
+            plot_query = self.tables["PLOT"].select("CN")
+            if self.evalid:
+                evalid_str = ", ".join(str(e) for e in self.evalid)
+                ppsa = self._reader.read_table(
+                    "POP_PLOT_STRATUM_ASSGN",
+                    columns=["PLT_CN"],
+                    where=f"EVALID IN ({evalid_str})",
+                    lazy=True
+                ).unique()
+                plot_query = plot_query.join(
+                    ppsa, left_on="CN", right_on="PLT_CN", how="inner"
+                )
+            
+            # Filter trees to those plots
+            trees = self.tables["TREE"].join(
+                plot_query.select("CN"),
+                left_on="PLT_CN",
+                right_on="CN", 
+                how="inner"
+            )
+        else:
+            trees = self.tables["TREE"]
 
         # Select columns if specified
         if columns:
@@ -278,7 +334,7 @@ class FIA:
 
     def get_conditions(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
         """
-        Get COND table filtered by current EVALID settings.
+        Get COND table filtered by current EVALID and state settings.
 
         Args:
             columns: Optional list of columns to return
@@ -286,15 +342,35 @@ class FIA:
         Returns:
             Filtered COND dataframe
         """
-        # Get filtered plots
-        plot_cns = self.get_plots(["CN"])["CN"].to_list()
-
-        # Load COND table if needed
+        # Load COND table if needed (with state filter applied)
         if "COND" not in self.tables:
             self.load_table("COND")
-
-        # Filter conditions to those on filtered plots
-        conds = self.tables["COND"].filter(pl.col("PLT_CN").is_in(plot_cns))
+            
+        # If we need additional filtering by plot CNs
+        if self.evalid:
+            # Get plot CNs efficiently
+            plot_query = self.tables["PLOT"].select("CN")
+            if self.evalid:
+                evalid_str = ", ".join(str(e) for e in self.evalid)
+                ppsa = self._reader.read_table(
+                    "POP_PLOT_STRATUM_ASSGN",
+                    columns=["PLT_CN"],
+                    where=f"EVALID IN ({evalid_str})",
+                    lazy=True
+                ).unique()
+                plot_query = plot_query.join(
+                    ppsa, left_on="CN", right_on="PLT_CN", how="inner"
+                )
+            
+            # Filter conditions to those plots
+            conds = self.tables["COND"].join(
+                plot_query.select("CN"),
+                left_on="PLT_CN",
+                right_on="CN", 
+                how="inner"
+            )
+        else:
+            conds = self.tables["COND"]
 
         # Select columns if specified
         if columns:

@@ -1,3 +1,0 @@
-# tree density Queries
-
-Coming soon...

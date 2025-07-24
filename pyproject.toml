@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "pyfia"
 version = "0.2.0"
-description = "Python implementation of rFIA package for Forest Inventory Analysis with exact statistical compatibility"
+description = "Python library for Forest Inventory Analysis (FIA) data analysis with exact statistical compatibility to rFIA"
 readme = "README.md"
 authors = [
     {name = "Chris Mihiar", email = "28452317+mihiarc@users.noreply.github.com"}
@@ -26,7 +26,6 @@ dependencies = [
     "polars>=1.31.0",
     "numpy>=2.3.0",
     "connectorx>=0.3.1",
-    "rich>=13.7.0",
     "duckdb>=0.9.0",
     "pyarrow>=14.0.0",
     "pydantic>=2.11.0",
@@ -58,7 +57,6 @@ Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 
 [project.scripts]
-pyfia = "pyfia.cli.direct:main"
 pyfia-typecheck = "scripts.typecheck:main"
 pyfia-setup-precommit = "scripts.setup_precommit:main"
 

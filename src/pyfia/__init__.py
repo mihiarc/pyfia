@@ -1,7 +1,8 @@
 """
-pyFIA - A modern Python package for working with USDA Forest Inventory and Analysis (FIA) data.
+pyFIA - A Python library for USDA Forest Inventory and Analysis (FIA) data analysis.
 
-Built on Polars and DuckDB for high-performance forest analytics.
+A programmatic API for forest analytics built on Polars and DuckDB, providing
+exact statistical compatibility with the R rFIA package.
 """
 
 __version__ = "0.2.0"

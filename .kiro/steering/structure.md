@@ -1,75 +1,111 @@
-# Project Structure & Architecture
+# PyFIA Project Structure
+
+## Root Directory Layout
+```
+pyfia/
+├── src/pyfia/           # Main package source code
+├── tests/               # Test suite
+├── docs/                # Documentation source
+├── scripts/             # Development and utility scripts
+├── overrides/           # MkDocs template overrides
+├── .github/             # GitHub Actions workflows
+├── .kiro/               # Kiro steering rules
+└── pyproject.toml       # Project configuration
+```
 
 ## Source Code Organization (`src/pyfia/`)
 
-### Core Modules
-- **`core/`** - Database connections, configuration, and main FIA class
-  - `fia.py` - Main FIA database class with EVALID filtering
-  - `data_reader.py` - Database readers for SQLite/DuckDB
-  - `config.py` - Configuration management
-  - `settings.py` - Pydantic settings models
+### Core Modules (`src/pyfia/core/`)
+- **`fia.py`**: Main FIA class - primary entry point for database interactions
+- **`data_reader.py`**: FIADataReader class for data loading and caching
+- **`config.py`**: Configuration management and default settings
+- **`settings.py`**: Pydantic settings models for type-safe configuration
 
-### Estimation Functions
-- **`estimation/`** - Statistical estimators following FIA methodology
-  - `area.py` - Forest area estimation
-  - `biomass.py` - Biomass and carbon estimation
-  - `volume.py` - Volume estimation (VOLCFNET, VOLBFNET, etc.)
-  - `tpa.py` - Trees per acre estimation
-  - `mortality.py` - Mortality estimation
-  - `growth.py` - Growth and removals
-  - `utils.py` - Shared estimation utilities
+### Estimation Functions (`src/pyfia/estimation/`)
+- **`area.py`**: Forest area estimation (`area()` function)
+- **`biomass.py`**: Biomass and carbon estimation (`biomass()` function)
+- **`volume.py`**: Volume estimation (`volume()` function)
+- **`tpa.py`**: Trees per acre estimation (`tpa()` function)
+- **`mortality.py`**: Mortality estimation (`mortality()` function)
+- **`growth.py`**: Growth estimation (`growth()` function)
+- **`tree.py`**: Tree count estimation (`tree_count()` function)
+- **`utils.py`**: Shared estimation utilities and helper functions
 
-### Data Processing
-- **`filters/`** - Data filtering and domain logic
-  - `domain.py` - Domain-specific filters
-  - `evalid.py` - EVALID-based filtering
-  - `classification.py` - Tree/plot classification
-  - `grouping.py` - Data grouping utilities
-  - `joins.py` - Common table joins
+### Data Processing (`src/pyfia/filters/`)
+- **`domain.py`**: Domain filtering logic (treeDomain, areaDomain)
+- **`grouping.py`**: Data grouping and aggregation functions
+- **`joins.py`**: Common table joins and data merging
+- **`evalid.py`**: EVALID management and validation
+- **`adjustment.py`**: Adjustment factor calculations
+- **`classification.py`**: Data classification and categorization
 
-### Database Layer
-- **`database/`** - Database interface and schema mapping
-  - `query_interface.py` - SQL query execution
-  - `schema_mapper.py` - Database schema mapping
-  - `memory_docs/` - FIA database documentation
-
-### AI Agent
-- **`ai/`** - Natural language query processing
-  - `agent.py` - Main LangGraph-based agent
-  - `domain_knowledge.py` - Forest inventory expertise
-  - `result_formatter.py` - Query result formatting
-
-### CLI Interfaces
-- **`cli/`** - Command-line interfaces
-  - `base.py` - Shared CLI functionality
-  - `direct.py` - Direct SQL CLI
-  - `ai_interface.py` - AI agent CLI
-  - `config.py` - CLI configuration
+### Database Layer (`src/pyfia/database/`)
+- **`query_interface.py`**: Database query abstraction layer
+- **`schema_mapper.py`**: FIA database schema mapping and validation
+- **`memory_docs/`**: In-memory documentation for database schemas
 
 ### Supporting Modules
-- **`models/`** - Pydantic data models
-- **`constants/`** - FIA constants and lookup tables
-- **`locations/`** - Geographic location parsing
+- **`models/`**: Pydantic data models for type safety
+- **`constants/`**: FIA-specific constants and lookup tables
+- **`locations/`**: Geographic location parsing and resolution
 
-## Testing Structure (`tests/`)
-- Property-based testing with Hypothesis
-- Comprehensive integration tests
-- Validation against known FIA results
-- Fixtures in `conftest.py` for consistent test data
+## Test Organization (`tests/`)
 
-## Documentation (`docs/`)
-- **`ai_agent/`** - AI agent documentation
-- **`queries/`** - Example queries organized by topic
-- MkDocs-based documentation with Material theme
+### Test Categories
+- **`test_*_comprehensive.py`**: Comprehensive integration tests for major functions
+- **`test_properties_*.py`**: Property-based tests using Hypothesis
+- **`test_*_integration.py`**: Integration tests with real data scenarios
+- **`conftest.py`**: Shared pytest fixtures and test utilities
 
-## Configuration Files
-- **`pyproject.toml`** - Modern Python packaging and tool configuration
-- **`.pre-commit-config.yaml`** - Code quality hooks
-- **`mkdocs.yml`** - Documentation configuration
+### Test Data Strategy
+- **Sample Database**: SQLite database with realistic FIA data structure
+- **Mock Objects**: For unit testing without database dependencies
+- **Property Testing**: Hypothesis-based tests for statistical properties
+- **Integration Testing**: End-to-end tests with sample datasets
 
-## Architecture Patterns
-- **Lazy evaluation** - Polars LazyFrames for efficient data processing
-- **EVALID-first** - All estimations use proper EVALID filtering
-- **Functional API** - Estimation functions take FIA instance and return results
-- **Type safety** - Gradual MyPy adoption with Pydantic models
-- **CLI consistency** - Shared base classes for all CLI interfaces
+## Documentation Structure (`docs/`)
+
+### Main Documentation
+- **`README.md`**: Project overview and getting started guide
+- **`ARCHITECTURE_DIAGRAMS.md`**: System architecture documentation
+- **Development Guides**: Pre-commit, property testing, Pydantic v2 guides
+
+### Query Library (`docs/queries/`)
+- **Organized by Function**: `basic_tree/`, `biomass_carbon/`, `forest_area/`, etc.
+- **Working Examples**: Real-world query examples with explanations
+- **Methodology**: Statistical methods and evaluation approaches
+
+## Development Scripts (`scripts/`)
+- **`setup_precommit.py`**: Pre-commit hook installation script
+- **`typecheck.py`**: Combined mypy and ty type checking script
+
+## Configuration Philosophy
+
+### Single Source of Truth
+- **`pyproject.toml`**: All tool configurations in one place
+- **Type Safety**: Pydantic models for runtime validation
+- **Environment-Aware**: Settings that adapt to development vs production
+
+### Code Organization Principles
+- **Functional Separation**: Clear separation between estimation, filtering, and data access
+- **rFIA Compatibility**: Function signatures and behavior match R rFIA package
+- **Performance Isolation**: Database operations separated from in-memory processing
+- **Statistical Accuracy**: Estimation logic isolated for easy validation against rFIA
+
+## Import Patterns
+
+### Public API (from `__init__.py`)
+```python
+from pyfia import FIA, area, biomass, volume, tpa, mortality, growth
+```
+
+### Internal Imports
+- Use relative imports within package: `from .core import FIA`
+- Import utilities explicitly: `from pyfia.estimation.utils import calculate_estimates`
+- Keep database layer separate: `from pyfia.database import QueryInterface`
+
+## File Naming Conventions
+- **Snake Case**: All Python files use snake_case
+- **Descriptive Names**: File names clearly indicate functionality
+- **Test Matching**: Test files match source files with `test_` prefix
+- **Documentation**: Markdown files use UPPER_CASE for major docs

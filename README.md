@@ -3,11 +3,11 @@
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://mihiarc.github.io/pyfia/)
 [![Deploy Documentation](https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml)
 
-A high-performance Python implementation of the R [rFIA](https://github.com/hunter-stanke/rFIA) package for analyzing USDA Forest Inventory and Analysis (FIA) data.
+A high-performance Python library implementing the R [rFIA](https://github.com/hunter-stanke/rFIA) package functionality for analyzing USDA Forest Inventory and Analysis (FIA) data.
 
 ## Overview
 
-pyFIA provides a Python interface for working with Forest Inventory and Analysis (FIA) data, mirroring the functionality of the popular rFIA R package. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets while maintaining exact statistical compatibility with rFIA.
+pyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data, mirroring the functionality of the popular rFIA R package. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets while maintaining exact statistical compatibility with rFIA.
 
 ## Features
 
@@ -38,11 +38,11 @@ pyFIA provides a Python interface for working with Forest Inventory and Analysis
 # Basic installation
 pip install pyfia
 
-# With spatial analysis support
+# With spatial analysis support  
 pip install pyfia[spatial]
 
-# With all optional dependencies
-pip install pyfia[all]
+# For development
+pip install -e .[dev]
 ```
 
 ## Quick Start
@@ -91,19 +91,21 @@ pyFIA follows FIA's evaluation-based data structure:
 - **Evaluation types**: VOL (volume), GRM (growth/removal/mortality), CHNG (change)
 - **Automatic EVALID management**: Use `mostRecent=True` for latest evaluations
 
-## CLI Interface
+## Advanced Usage
 
-```bash
-# Connect to database
-pyfia connect /path/to/FIA_database.duckdb
-
-# List available evaluations
-pyfia evalid --state NC
-
-# Get estimates
-pyfia tpa --method TI --by-species
-pyfia biomass --component AG
-pyfia area --land-type timberland
+```python
+# Context manager for automatic connection handling
+with FIA("path/to/FIA_database.duckdb") as db:
+    # Find available evaluations for a state
+    evalids = db.find_evalid(state="NC")
+    
+    # Use specific evaluation
+    results = biomass(db, evalid="372301", bySpecies=True)
+    
+    # Multiple estimations with same connection
+    tpa_results = tpa(db, method='TI')
+    volume_results = volume(db, method='TI', treeDomain="DIA >= 10")
+    area_results = area(db, method='TI', landType='timber')
 ```
 
 ## Documentation

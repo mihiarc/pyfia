@@ -1,89 +1,92 @@
-# Technology Stack & Development
+# PyFIA Technology Stack
 
-## Core Technologies
-- **Python 3.11+** - Minimum supported version
-- **Polars** - Primary data processing framework for high performance
-- **DuckDB** - Columnar database for large-scale analytics
-- **NumPy** - Numerical computing foundation
-- **Pydantic** - Data validation and settings management
-- **Rich** - Terminal formatting and CLI enhancement
+## Build System & Package Management
+- **Build System**: `setuptools` with `pyproject.toml` configuration
+- **Package Manager**: `uv` for fast dependency resolution and virtual environment management
+- **Python Versions**: 3.11, 3.12, 3.13 (minimum 3.11)
+
+## Core Dependencies
+- **Data Processing**: Polars (>=1.31.0) for fast DataFrames, DuckDB (>=0.9.0) for SQL queries
+- **Database Connectivity**: ConnectorX (>=0.3.1) for efficient data loading
+- **Data Formats**: PyArrow (>=14.0.0) for columnar data, NumPy (>=2.3.0) for numerical operations
+- **Configuration**: Pydantic (>=2.11.0) for data validation and settings management
 
 ## Optional Dependencies
-- **LangChain/LangGraph** - AI agent functionality
-- **GeoPandas/Shapely** - Spatial data processing
-- **Pandas** - Legacy compatibility support
+- **Spatial Analysis**: `geopandas`, `shapely` (install with `pip install pyfia[spatial]`)
+- **Pandas Compatibility**: `pandas` (install with `pip install pyfia[pandas]`)
 
-## Build System
-- **setuptools** - Package building
-- **uv** - Recommended package manager for development
-- **pyproject.toml** - Modern Python packaging configuration
-
-## Code Quality Tools
-- **Ruff** - Fast Python linter and formatter (replaces black, flake8, isort)
-- **MyPy** - Static type checking with gradual adoption
-- **Pre-commit** - Git hooks for code quality
-- **Pytest** - Testing framework with coverage support
-- **Hypothesis** - Property-based testing
+## Development Tools
+- **Testing**: pytest with hypothesis for property-based testing, pytest-cov for coverage
+- **Code Quality**: ruff for linting/formatting, mypy for type checking, ty for modern type analysis
+- **Security**: bandit for security scanning, detect-secrets for credential detection
+- **Documentation**: MkDocs with Material theme, git-revision-date plugin
+- **Pre-commit**: Comprehensive hooks for code quality enforcement
 
 ## Common Commands
 
 ### Development Setup
 ```bash
-# Clone and setup with uv (recommended)
-uv venv
-source .venv/bin/activate
+# Install in development mode with all dependencies
+pip install -e .[dev]
+
+# Or using uv (recommended)
 uv pip install -e .[dev]
 
-# Alternative with pip
-pip install -e .[dev]
+# Setup pre-commit hooks
+uv run pyfia-setup-precommit
 ```
 
 ### Testing
 ```bash
 # Run all tests
 uv run pytest
-# or
-pytest
 
 # Run with coverage
-pytest --cov=pyfia
+uv run pytest --cov=pyfia --cov-report=html
+
+# Run property-based tests with more examples
+uv run pytest tests/test_property_based.py --hypothesis-profile=ci
+
+# Run specific test file
+uv run pytest tests/test_biomass_comprehensive.py -v
 ```
 
 ### Code Quality
 ```bash
 # Format code
-uv run ruff format src/ tests/
-ruff format src/ tests/
+uv run ruff format pyfia/
 
-# Lint and fix
-uv run ruff check src/ tests/ --fix
-ruff check src/ tests/ --fix
+# Lint and auto-fix
+uv run ruff check --fix pyfia/
 
-# Type checking
-uv run mypy src/pyfia/
-mypy src/pyfia/
-```
+# Type checking (both mypy and ty)
+uv run pyfia-typecheck
 
-### Pre-commit
-```bash
-# Install hooks
-pre-commit install
-
-# Run on all files
-pre-commit run --all-files
+# Run all pre-commit hooks
+uv run pre-commit run --all-files
 ```
 
 ### Documentation
 ```bash
 # Serve docs locally
-mkdocs serve
+uv run mkdocs serve
 
-# Deploy docs
+# Build documentation
+uv run mkdocs build
+
+# Deploy to GitHub Pages
 ./deploy_docs.sh
 ```
 
-## CLI Tools
-- **pyfia** - Direct CLI interface
-- **pyfia-ai** - AI agent CLI
-- **pyfia-typecheck** - Type checking script
-- **pyfia-setup-precommit** - Pre-commit setup utility
+## Configuration Files
+- **pyproject.toml**: Main project configuration (dependencies, tools, metadata)
+- **mkdocs.yml**: Documentation site configuration
+- **.pre-commit-config.yaml**: Pre-commit hooks configuration
+- **.bandit**: Security scanning exclusions
+- **.secrets.baseline**: Known false positive secrets for detect-secrets
+
+## Performance Considerations
+- **DuckDB**: Used for large-scale data queries (10-100x faster than pandas)
+- **Polars**: Used for in-memory operations (2-5x faster than pandas)
+- **Lazy Evaluation**: Polars lazy frames for memory-efficient workflows
+- **Parallel Processing**: Built-in support for concurrent operations

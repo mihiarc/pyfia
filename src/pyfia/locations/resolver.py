@@ -2,8 +2,9 @@
 Location resolution utilities for converting parsed locations to database identifiers.
 """
 
-from typing import Dict, Optional
+from typing import Optional
 
+from ..constants import StateCodes
 from .parser import LocationType, ParsedLocation
 
 
@@ -11,15 +12,9 @@ class LocationResolver:
     """Resolves parsed locations to database identifiers (FIPS codes, etc.)."""
 
     def __init__(self):
-        # Import state mappings from existing CLI utils
-        try:
-            from ..cli.utils import STATE_CODE_TO_NAME, STATE_NAME_TO_CODE
-            self.state_name_to_code = STATE_NAME_TO_CODE
-            self.state_code_to_name = STATE_CODE_TO_NAME
-        except ImportError:
-            # Fallback state mappings if CLI utils not available
-            self.state_name_to_code = self._get_fallback_state_mappings()
-            self.state_code_to_name = {v: k for k, v in self.state_name_to_code.items()}
+        # Use state mappings from constants module
+        self.state_name_to_code = StateCodes.NAME_TO_CODE
+        self.state_code_to_name = StateCodes.CODE_TO_NAME
 
     def resolve(self, location: ParsedLocation) -> ParsedLocation:
         """
@@ -68,22 +63,6 @@ class LocationResolver:
             if state_name in name or name in state_name:
                 return code
         return None
-
-    def _get_fallback_state_mappings(self) -> Dict[str, int]:
-        """Fallback state name to FIPS code mappings."""
-        return {
-            "alabama": 1, "alaska": 2, "arizona": 4, "arkansas": 5, "california": 6,
-            "colorado": 8, "connecticut": 9, "delaware": 10, "florida": 12, "georgia": 13,
-            "hawaii": 15, "idaho": 16, "illinois": 17, "indiana": 18, "iowa": 19,
-            "kansas": 20, "kentucky": 21, "louisiana": 22, "maine": 23, "maryland": 24,
-            "massachusetts": 25, "michigan": 26, "minnesota": 27, "mississippi": 28,
-            "missouri": 29, "montana": 30, "nebraska": 31, "nevada": 32, "new hampshire": 33,
-            "new jersey": 34, "new mexico": 35, "new york": 36, "north carolina": 37,
-            "north dakota": 38, "ohio": 39, "oklahoma": 40, "oregon": 41, "pennsylvania": 42,
-            "rhode island": 44, "south carolina": 45, "south dakota": 46, "tennessee": 47,
-            "texas": 48, "utah": 49, "vermont": 50, "virginia": 51, "washington": 53,
-            "west virginia": 54, "wisconsin": 55, "wyoming": 56
-        }
 
     def get_state_name(self, state_code: int) -> Optional[str]:
         """Get state name from FIPS code."""

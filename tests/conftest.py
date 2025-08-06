@@ -16,6 +16,9 @@ import pytest
 from pyfia import FIA
 from pyfia.models import EvaluationInfo
 
+# Import centralized fixtures to make them available globally
+from fixtures import *
+
 
 @pytest.fixture(scope="session")
 def temp_db_path():
@@ -257,108 +260,9 @@ def sample_evaluation():
     )
 
 
-@pytest.fixture
-def sample_plot_data():
-    """Create sample plot data as Polars DataFrame."""
-    return pl.DataFrame({
-        "PLT_CN": [f"PLT{i:03d}" for i in range(1, 6)],
-        "STATECD": [37] * 5,
-        "INVYR": [2020] * 5,
-        "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
-        "LON": [-80.5, -80.4, -80.3, -80.2, -80.1],
-        "PLOT_STATUS_CD": [1] * 5,
-    })
+# Legacy fixtures removed - use centralized fixtures from fixtures.py instead
 
 
-@pytest.fixture
-def sample_tree_data():
-    """Create sample tree data as Polars DataFrame."""
-    data = {
-        "CN": [],
-        "PLT_CN": [],
-        "CONDID": [],
-        "STATUSCD": [],
-        "SPCD": [],
-        "DIA": [],
-        "TPA_UNADJ": [],
-        "DRYBIO_AG": [],
-        "VOLCFNET": [],
-    }
-
-    tree_id = 1
-    for plot_num in range(1, 6):
-        plt_cn = f"PLT{plot_num:03d}"
-        for tree_num in range(1, 4):  # 3 trees per plot
-            data["CN"].append(f"TREE{tree_id:04d}")
-            data["PLT_CN"].append(plt_cn)
-            data["CONDID"].append(1)
-            data["STATUSCD"].append(1)  # Live
-            data["SPCD"].append([131, 110, 833][tree_num - 1])
-            data["DIA"].append(10.0 + tree_num * 2)
-            data["TPA_UNADJ"].append(6.0)
-            data["DRYBIO_AG"].append(20.0 + tree_num * 5)
-            data["VOLCFNET"].append(15.0 + tree_num * 3)
-            tree_id += 1
-
-    return pl.DataFrame(data)
-
-
-@pytest.fixture
-def sample_condition_data():
-    """Create sample condition data as Polars DataFrame."""
-    return pl.DataFrame({
-        "PLT_CN": [f"PLT{i:03d}" for i in range(1, 6)],
-        "CONDID": [1] * 5,
-        "COND_STATUS_CD": [1] * 5,  # Forest
-        "CONDPROP_UNADJ": [1.0] * 5,
-        "FORTYPCD": [220] * 5,  # Loblolly pine
-        "OWNGRPCD": [10] * 5,   # National Forest
-        "EXPNS": [6000.0] * 5,
-    })
-
-
-@pytest.fixture
-def mock_database_connection():
-    """Create a mock database connection for testing."""
-    mock_conn = MagicMock()
-    mock_cursor = MagicMock()
-    mock_conn.cursor.return_value = mock_cursor
-    return mock_conn
-
-
-@pytest.fixture
-def sample_estimation_data():
-    """Create comprehensive estimation test data."""
-    return {
-        "plot_data": pl.DataFrame({
-            "PLT_CN": ["PLT001", "PLT002", "PLT003"],
-            "STATECD": [37, 37, 37],
-            "INVYR": [2020, 2020, 2020],
-            "PLOT_STATUS_CD": [1, 1, 1],
-        }),
-        "tree_data": pl.DataFrame({
-            "CN": ["TREE001", "TREE002", "TREE003", "TREE004"],
-            "PLT_CN": ["PLT001", "PLT001", "PLT002", "PLT003"],
-            "STATUSCD": [1, 1, 1, 1],
-            "SPCD": [131, 110, 131, 833],
-            "DIA": [12.0, 8.5, 15.2, 10.1],
-            "TPA_UNADJ": [6.0, 6.0, 6.0, 6.0],
-            "DRYBIO_AG": [25.5, 18.2, 35.8, 22.4],
-            "VOLCFNET": [20.1, 14.6, 28.9, 18.7],
-        }),
-        "condition_data": pl.DataFrame({
-            "PLT_CN": ["PLT001", "PLT002", "PLT003"],
-            "CONDID": [1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1],
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0],
-            "EXPNS": [6000.0, 6000.0, 6000.0],
-        }),
-        "evaluation": {
-            "evalid": 372301,
-            "statecd": 37,
-            "start_year": 2018,
-            "end_year": 2023,
-        }
-    }
+# Legacy sample_estimation_data fixture removed - use standard_estimation_dataset or simple_estimation_dataset instead
 
 

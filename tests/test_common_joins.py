@@ -13,10 +13,10 @@ from pyfia.filters.joins import (
     join_tree_condition,
 )
 
-
+# Custom fixtures for specific join tests (smaller datasets)
 @pytest.fixture
-def sample_tree_df():
-    """Create sample tree data."""
+def joins_tree_data():
+    """Create specific tree data for join testing."""
     return pl.DataFrame({
         "CN": ["1", "2", "3", "4", "5"],
         "PLT_CN": ["P1", "P1", "P2", "P2", "P3"],
@@ -28,8 +28,8 @@ def sample_tree_df():
 
 
 @pytest.fixture
-def sample_cond_df():
-    """Create sample condition data."""
+def joins_condition_data():
+    """Create specific condition data for join testing."""
     return pl.DataFrame({
         "PLT_CN": ["P1", "P1", "P2", "P2", "P3"],
         "CONDID": [1, 2, 1, 2, 1],
@@ -41,8 +41,8 @@ def sample_cond_df():
 
 
 @pytest.fixture
-def sample_plot_df():
-    """Create sample plot data."""
+def joins_plot_data():
+    """Create specific plot data for join testing."""
     return pl.DataFrame({
         "PLT_CN": ["P1", "P2", "P3"],
         "CN": ["P1", "P2", "P3"],
@@ -55,59 +55,25 @@ def sample_plot_df():
     })
 
 
-@pytest.fixture
-def sample_ppsa_df():
-    """Create sample POP_PLOT_STRATUM_ASSGN data."""
-    return pl.DataFrame({
-        "PLT_CN": ["P1", "P2", "P3"],
-        "STRATUM_CN": ["S1", "S2", "S1"],
-        "EVALID": [372301, 372301, 372201],
-    })
-
-
-@pytest.fixture
-def sample_stratum_df():
-    """Create sample POP_STRATUM data."""
-    return pl.DataFrame({
-        "CN": ["S1", "S2"],
-        "EXPNS": [1234.5, 2345.6],
-        "P2POINTCNT": [100, 150],
-        "ADJ_FACTOR_MICR": [1.1, 1.05],
-        "ADJ_FACTOR_SUBP": [1.0, 1.0],
-        "ADJ_FACTOR_MACR": [0.95, 0.98],
-    })
-
-
-@pytest.fixture
-def sample_species_df():
-    """Create sample species reference data."""
-    return pl.DataFrame({
-        "SPCD": [110, 121, 202, 316],
-        "COMMON_NAME": ["shortleaf pine", "loblolly pine", "black cherry", "red maple"],
-        "GENUS": ["Pinus", "Pinus", "Prunus", "Acer"],
-        "SPECIES": ["echinata", "taeda", "serotina", "rubrum"],
-    })
-
-
 class TestTreeConditionJoin:
     """Test tree-condition join function."""
 
-    def test_basic_join(self, sample_tree_df, sample_cond_df):
+    def test_basic_join(self, joins_tree_data, joins_condition_data):
         """Test basic tree-condition join."""
-        result = join_tree_condition(sample_tree_df, sample_cond_df)
+        result = join_tree_condition(joins_tree_data, joins_condition_data)
 
         # Check structure
         assert "CONDPROP_UNADJ" in result.columns
         assert len(result) == 5  # All trees should join
 
         # Check values preserved
-        assert result["DIA"].to_list() == sample_tree_df["DIA"].to_list()
+        assert result["DIA"].to_list() == joins_tree_data["DIA"].to_list()
 
-    def test_custom_columns(self, sample_tree_df, sample_cond_df):
+    def test_custom_columns(self, joins_tree_data, joins_condition_data):
         """Test join with custom column selection."""
         result = join_tree_condition(
-            sample_tree_df,
-            sample_cond_df,
+            joins_tree_data,
+            joins_condition_data,
             cond_columns=["PLT_CN", "CONDID", "SITECLCD", "RESERVCD"]
         )
 
@@ -119,12 +85,12 @@ class TestTreeConditionJoin:
 class TestPlotStratumJoin:
     """Test plot-stratum join function."""
 
-    def test_default_join(self, sample_plot_df, sample_ppsa_df, sample_stratum_df):
+    def test_default_join(self, joins_plot_data, standard_ppsa_data, standard_stratum_data):
         """Test default plot-stratum join."""
         result = join_plot_stratum(
-            sample_plot_df,
-            sample_ppsa_df,
-            sample_stratum_df
+            joins_plot_data,
+            standard_ppsa_data,
+            standard_stratum_data
         )
 
         # Check structure
@@ -133,12 +99,12 @@ class TestPlotStratumJoin:
         assert "ADJ_FACTOR_MICR" not in result.columns  # Not requested by default
         assert len(result) == 3
 
-    def test_all_adjustment_factors(self, sample_plot_df, sample_ppsa_df, sample_stratum_df):
+    def test_all_adjustment_factors(self, joins_plot_data, standard_ppsa_data, standard_stratum_data):
         """Test join with all adjustment factors."""
         result = join_plot_stratum(
-            sample_plot_df,
-            sample_ppsa_df,
-            sample_stratum_df,
+            joins_plot_data,
+            standard_ppsa_data,
+            standard_stratum_data,
             adj_factors=["MICR", "SUBP", "MACR"]
         )
 
@@ -150,9 +116,9 @@ class TestPlotStratumJoin:
 class TestTreeBasisAssignment:
     """Test tree basis assignment function."""
 
-    def test_simple_assignment(self, sample_tree_df):
+    def test_simple_assignment(self, joins_tree_data):
         """Test simple MICR/SUBP assignment."""
-        result = assign_tree_basis(sample_tree_df, include_macro=False)
+        result = assign_tree_basis(joins_tree_data, include_macro=False)
 
         assert "TREE_BASIS" in result.columns
 
@@ -160,9 +126,9 @@ class TestTreeBasisAssignment:
         expected = ["MICR", "SUBP", "SUBP", "SUBP", "MICR"]
         assert result["TREE_BASIS"].to_list() == expected
 
-    def test_macro_assignment(self, sample_tree_df, sample_plot_df):
+    def test_macro_assignment(self, joins_tree_data, joins_plot_data):
         """Test full assignment including macroplot."""
-        result = assign_tree_basis(sample_tree_df, sample_plot_df, include_macro=True)
+        result = assign_tree_basis(joins_tree_data, joins_plot_data, include_macro=True)
 
         # Tree with DIA=25.0 on plot P2 (MACRO_BREAKPOINT=24.0) should be MACR
         tree4 = result.filter(pl.col("CN") == "4")
@@ -176,10 +142,10 @@ class TestTreeBasisAssignment:
 class TestAdjustmentFactors:
     """Test adjustment factor application."""
 
-    def test_single_column_adjustment(self, sample_tree_df):
+    def test_single_column_adjustment(self, joins_tree_data):
         """Test adjusting a single value column."""
         # Add tree basis and adjustment factors
-        df = sample_tree_df.with_columns([
+        df = joins_tree_data.with_columns([
             pl.when(pl.col("DIA") < 5.0).then(pl.lit("MICR")).otherwise(pl.lit("SUBP")).alias("TREE_BASIS"),
             pl.lit(1.1).alias("ADJ_FACTOR_MICR"),
             pl.lit(1.0).alias("ADJ_FACTOR_SUBP"),
@@ -194,9 +160,9 @@ class TestAdjustmentFactors:
         for i in range(len(micr_trees)):
             assert micr_trees["TPA_UNADJ_ADJ"][i] == micr_trees["TPA_UNADJ"][i] * 1.1
 
-    def test_multiple_columns(self, sample_tree_df):
+    def test_multiple_columns(self, joins_tree_data):
         """Test adjusting multiple columns."""
-        df = sample_tree_df.with_columns([
+        df = joins_tree_data.with_columns([
             pl.when(pl.col("DIA") < 5.0).then(pl.lit("MICR")).otherwise(pl.lit("SUBP")).alias("TREE_BASIS"),
             pl.lit(1.1).alias("ADJ_FACTOR_MICR"),
             pl.lit(1.0).alias("ADJ_FACTOR_SUBP"),
@@ -212,7 +178,7 @@ class TestAdjustmentFactors:
 class TestEvalidAssignments:
     """Test EVALID-based assignment filtering."""
 
-    def test_evalid_filter(self, sample_ppsa_df):
+    def test_evalid_filter(self, standard_ppsa_data):
         """Test filtering by EVALID."""
         ppsa = pl.LazyFrame(sample_ppsa_df)
 
@@ -222,7 +188,7 @@ class TestEvalidAssignments:
         result = get_evalid_assignments(ppsa, evalid=[372301, 372201])
         assert len(result) == 3  # All plots
 
-    def test_plot_cn_filter(self, sample_ppsa_df):
+    def test_plot_cn_filter(self, standard_ppsa_data):
         """Test filtering by plot CNs."""
         ppsa = pl.LazyFrame(sample_ppsa_df)
 
@@ -234,9 +200,9 @@ class TestEvalidAssignments:
 class TestSpeciesJoin:
     """Test species reference join."""
 
-    def test_species_join(self, sample_tree_df, sample_species_df):
+    def test_species_join(self, joins_tree_data, standard_species_data):
         """Test joining species information."""
-        result = join_species_info(sample_tree_df, sample_species_df)
+        result = join_species_info(joins_tree_data, standard_species_data)
 
         assert "COMMON_NAME" in result.columns
         assert "GENUS" in result.columns
@@ -246,18 +212,18 @@ class TestSpeciesJoin:
         assert len(pine_trees) == 3  # Trees 1, 2, and 3 have SPCD 110 or 121
 
         # Check that unmatched species have null values
-        unknown_species = sample_tree_df.with_columns(pl.lit(999).alias("SPCD"))
-        result_unknown = join_species_info(unknown_species, sample_species_df)
+        unknown_species = joins_tree_data.with_columns(pl.lit(999).alias("SPCD"))
+        result_unknown = join_species_info(unknown_species, standard_species_data)
         assert result_unknown["COMMON_NAME"].null_count() == len(unknown_species)
 
 
 class TestTreeToPlotAggregation:
     """Test tree-to-plot aggregation."""
 
-    def test_basic_aggregation(self, sample_tree_df):
+    def test_basic_aggregation(self, joins_tree_data):
         """Test basic tree to plot aggregation."""
         # Add tree basis
-        df = assign_tree_basis(sample_tree_df, include_macro=False)
+        df = assign_tree_basis(joins_tree_data, include_macro=False)
 
         agg_cols = {
             "TPA_SUM": pl.col("TPA_UNADJ").sum(),
@@ -285,9 +251,9 @@ class TestTreeToPlotAggregation:
 class TestPlotMetadataJoin:
     """Test plot metadata join."""
 
-    def test_metadata_join(self, sample_tree_df, sample_plot_df):
+    def test_metadata_join(self, joins_tree_data, joins_plot_data):
         """Test joining plot metadata."""
-        result = join_plot_metadata(sample_tree_df, sample_plot_df)
+        result = join_plot_metadata(joins_tree_data, joins_plot_data)
 
         assert "LAT" in result.columns
         assert "LON" in result.columns

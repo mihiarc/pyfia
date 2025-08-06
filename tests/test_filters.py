@@ -14,65 +14,48 @@ from pyfia.filters.domain import (
     validate_filters,
 )
 
-
-@pytest.fixture
-def sample_tree_df():
-    """Create a sample tree dataframe for testing."""
-    return pl.DataFrame({
-        "STATUSCD": [1, 1, 2, 2, 1, 1],  # Live and dead trees
-        "TREECLCD": [2, 2, 2, 1, 3, 2],  # Growing stock and other classes
-        "AGENTCD": [0, 10, 0, 40, 0, 35],  # Damage codes
-        "DIA": [10.5, 4.2, 15.3, 8.0, 25.0, 6.5],  # Diameter
-        "SPCD": [110, 121, 110, 202, 316, 121],  # Species codes
-        "COMPONENT": ["MORTALITY", "COMPONENT", "MORTALITY", "COMPONENT", "COMPONENT", "MORTALITY"],
-    })
-
-
-@pytest.fixture
-def sample_cond_df():
-    """Create a sample condition dataframe for testing."""
-    return pl.DataFrame({
-        "COND_STATUS_CD": [1, 1, 2, 1, 3],  # Forest and non-forest
-        "SITECLCD": [3, 7, 3, 2, None],  # Site class
-        "RESERVCD": [0, 0, 0, 1, 0],  # Reserved status
-        "OWNGRPCD": [10, 20, 10, 30, 40],  # Ownership groups
-        "FORTYPCD": [121, 401, 122, 703, 999],  # Forest type codes
-    })
+# Using standard centralized fixtures where appropriate
+# Custom fixtures only for specific filter test cases
 
 
 class TestTreeFilters:
     """Test tree filtering functions."""
 
-    def test_live_trees_filter(self, sample_tree_df):
+    def test_live_trees_filter(self, standard_tree_data):
         """Test filtering for live trees."""
-        result, _ = apply_tree_filters(sample_tree_df, tree_type="live")
-        assert len(result) == 4
+        result, _ = apply_tree_filters(standard_tree_data, tree_type="live")
+        # Count live trees in the standard data (STATUSCD == 1)
+        live_count = len(standard_tree_data.filter(pl.col("STATUSCD") == 1))
+        assert len(result) == live_count
         assert result["STATUSCD"].unique().to_list() == [1]
 
-    def test_dead_trees_filter(self, sample_tree_df):
+    def test_dead_trees_filter(self, standard_tree_data):
         """Test filtering for dead trees."""
-        result, _ = apply_tree_filters(sample_tree_df, tree_type="dead")
-        assert len(result) == 2
+        result, _ = apply_tree_filters(standard_tree_data, tree_type="dead")
+        # Count dead trees in the standard data (STATUSCD == 2)
+        dead_count = len(standard_tree_data.filter(pl.col("STATUSCD") == 2))
+        assert len(result) == dead_count
         assert result["STATUSCD"].unique().to_list() == [2]
 
-    def test_growing_stock_filter(self, sample_tree_df):
+    def test_growing_stock_filter(self, standard_tree_data):
         """Test filtering for growing stock trees."""
-        result, _ = apply_tree_filters(sample_tree_df, tree_type="gs")
+        result, _ = apply_tree_filters(standard_tree_data, tree_type="gs")
         # Growing stock: STATUSCD == 1 AND TREECLCD == 2
-        assert len(result) == 3  # Three trees with STATUSCD=1 and TREECLCD=2
+        gs_count = len(standard_tree_data.filter((pl.col("STATUSCD") == 1) & (pl.col("TREECLCD") == 2)))
+        assert len(result) == gs_count
         assert all(result["STATUSCD"] == 1)
         assert all(result["TREECLCD"] == 2)
 
-    def test_tree_domain_filter(self, sample_tree_df):
+    def test_tree_domain_filter(self, standard_tree_data):
         """Test custom tree domain filtering."""
-        result, _ = apply_tree_filters(sample_tree_df, tree_domain="DIA >= 10")
+        result, _ = apply_tree_filters(standard_tree_data, tree_domain="DIA >= 10")
         assert len(result) == 3
         assert all(result["DIA"] >= 10)
 
-    def test_combined_filters(self, sample_tree_df):
+    def test_combined_filters(self, standard_tree_data):
         """Test combining tree type and domain filters."""
         result, _ = apply_tree_filters(
-            sample_tree_df,
+            standard_tree_data,
             tree_type="live",
             tree_domain="DIA >= 10"
         )
@@ -84,15 +67,15 @@ class TestTreeFilters:
 class TestAreaFilters:
     """Test area filtering functions."""
 
-    def test_forest_filter(self, sample_cond_df):
+    def test_forest_filter(self, standard_condition_data):
         """Test filtering for forest conditions."""
-        result, _ = apply_area_filters(sample_cond_df, land_type="forest")
+        result, _ = apply_area_filters(standard_condition_data, land_type="forest")
         assert len(result) == 2
         assert all(result["COND_STATUS_CD"] == 1)
 
-    def test_timber_filter(self, sample_cond_df):
+    def test_timber_filter(self, standard_condition_data):
         """Test filtering for timberland conditions."""
-        result, _ = apply_area_filters(sample_cond_df, land_type="timber")
+        result, _ = apply_area_filters(standard_condition_data, land_type="timber")
         # Timberland: forest, unreserved, productive
         assert len(result) == 1
         assert all(result["COND_STATUS_CD"] == 1)
@@ -100,9 +83,9 @@ class TestAreaFilters:
         assert all(result["SITECLCD"] >= 1)
         assert all(result["SITECLCD"] <= 6)
 
-    def test_area_domain_filter(self, sample_cond_df):
+    def test_area_domain_filter(self, standard_condition_data):
         """Test custom area domain filtering."""
-        result, _ = apply_area_filters(sample_cond_df, area_domain="OWNGRPCD == 10")
+        result, _ = apply_area_filters(standard_condition_data, area_domain="OWNGRPCD == 10")
         assert len(result) == 2
         assert all(result["OWNGRPCD"] == 10)
 
@@ -144,11 +127,11 @@ class TestDomainParsing:
 class TestUtilityFunctions:
     """Test utility filtering functions."""
 
-    def test_standard_filters(self, sample_tree_df, sample_cond_df):
+    def test_standard_filters(self, standard_tree_data, standard_condition_data):
         """Test standard filter combinations."""
         tree_result, cond_result, assumptions = apply_standard_filters(
-            sample_tree_df,
-            sample_cond_df,
+            standard_tree_data,
+            standard_condition_data,
             tree_type="live",
             land_type="forest"
         )

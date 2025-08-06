@@ -15,9 +15,15 @@ All functions support proper statistical methodology including:
 - Stratified sampling
 - Domain specifications
 - Standard error calculations
+
+The module now includes a refactored BaseEstimator architecture that provides
+a cleaner, more maintainable implementation while preserving exact functionality.
 """
 
 from .area import area
+
+# Base estimator classes for refactored architecture
+from .base import BaseEstimator, EstimatorConfig
 from .biomass import biomass
 from .growth import growth
 from .mortality import mortality
@@ -36,6 +42,9 @@ from .utils import (
 )
 from .volume import volume
 
+# Refactored volume estimator (for advanced usage)
+from .volume_refactored import VolumeEstimator
+
 __all__ = [
     # Main estimation functions
     "area",
@@ -45,6 +54,10 @@ __all__ = [
     "mortality",
     "growth",
     "tree_count",
+    # Base estimator architecture
+    "BaseEstimator",
+    "EstimatorConfig",
+    "VolumeEstimator",
     # Utility functions
     "merge_estimation_data",
     "calculate_adjustment_factors",

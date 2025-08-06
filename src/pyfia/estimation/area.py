@@ -15,6 +15,7 @@ from ..constants.constants import (
     ReserveStatus,
     SiteClass,
 )
+from ..filters.common import apply_area_filters_common
 from .utils import ratio_var
 
 
@@ -112,7 +113,7 @@ def area(
     data["POP_PLOT_STRATUM_ASSGN"] = ppsa
 
     # Apply domain filters
-    cond_df = _apply_area_filters(data["COND"], land_type, area_domain)
+    cond_df = apply_area_filters_common(data["COND"], land_type, area_domain, area_estimation_mode=True)
 
     # Handle tree domain if specified
     if tree_domain:
@@ -147,20 +148,6 @@ def area(
     )
 
     return pop_est
-
-
-def _apply_area_filters(
-    cond_df: pl.DataFrame, land_type: str, area_domain: Optional[str]
-) -> pl.DataFrame:
-    """Apply land type and area domain filters."""
-    # For area estimation, we don't filter by land type here
-    # Instead, we calculate indicators for ratio estimation
-
-    # Apply user-defined area domain if specified
-    if area_domain:
-        cond_df = cond_df.filter(pl.sql_expr(area_domain))
-
-    return cond_df
 
 
 def _apply_tree_domain_to_conditions(
@@ -474,13 +461,13 @@ def _calculate_population_area_estimates(
         .otherwise(0.0)
         .sum()
         .alias("FA_VAR"),
-        
+
         pl.when(pl.col("n_h") > 1)
         .then((pl.col("w_h") ** 2) * (pl.col("s_fad_h") ** 2) / pl.col("n_h"))
         .otherwise(0.0)
         .sum()
         .alias("FAD_VAR"),
-        
+
         # Covariance term
         pl.when(pl.col("n_h") > 1)
         .then((pl.col("w_h") ** 2) * pl.col("s_fa_fad_h") / pl.col("n_h"))
@@ -543,14 +530,14 @@ def _calculate_population_area_estimates(
                 pl.sum("FAD_TOTAL").alias("TOTAL_LAND_AREA")
             )
         )[0, 0]
-        
+
         # Calculate variance of total land area (sum of component variances)
         land_area_var = (
             pop_est.filter(~pl.col("LAND_TYPE").str.contains("Water")).select(
                 pl.sum("FAD_VAR").alias("TOTAL_LAND_VAR")
             )
         )[0, 0]
-        
+
         # For ratio variance with common denominator:
         # Var(FA/Total_Land) = (1/Total_Land²) * [Var(FA) + (FA/Total_Land)² * Var(Total_Land) - 2 * (FA/Total_Land) * Cov(FA, Total_Land)]
         # Since FA is a component of Total_Land, Cov(FA, Total_Land) = Var(FA)
@@ -559,7 +546,7 @@ def _calculate_population_area_estimates(
             .then(0.0)
             .otherwise(
                 (1 / (land_area_total ** 2)) * (
-                    pl.col("FA_VAR") + 
+                    pl.col("FA_VAR") +
                     ((pl.col("FA_TOTAL") / land_area_total) ** 2) * land_area_var -
                     2 * (pl.col("FA_TOTAL") / land_area_total) * pl.col("FA_VAR")
                 )
@@ -577,7 +564,7 @@ def _calculate_population_area_estimates(
                 pl.col("COV_FA_FAD"),
             ).alias("PERC_VAR_RATIO")
         )
-    
+
 
     # Convert to percentage variance with protection against negative values
     pop_est = pop_est.with_columns(
@@ -595,7 +582,7 @@ def _calculate_population_area_estimates(
             .then(pl.col("AREA_PERC_VAR").sqrt())
             .otherwise(0.0)
             .alias("AREA_PERC_SE"),
-            
+
             # Protect against division by zero and negative variance
             pl.when((pl.col("FA_VAR") >= 0) & (pl.col("FA_TOTAL") > 0))
             .then(pl.col("FA_VAR").sqrt() / pl.col("FA_TOTAL") * 100)

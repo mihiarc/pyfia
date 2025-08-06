@@ -10,14 +10,12 @@ from typing import List, Optional
 import polars as pl
 
 from ..constants.constants import (
-    DiameterBreakpoints,
-    LandStatus,
     MathConstants,
     PlotBasis,
-    ReserveStatus,
-    SiteClass,
-    TreeClass,
-    TreeStatus,
+)
+from ..filters.common import (
+    apply_area_filters_common,
+    apply_tree_filters_common,
 )
 from .utils import ratio_var
 
@@ -115,8 +113,8 @@ def tpa(
     data["POP_PLOT_STRATUM_ASSGN"] = ppsa
 
     # Apply domain filters
-    tree_df = _apply_tree_filters(data["TREE"], tree_type, tree_domain)
-    cond_df = _apply_cond_filters(data["COND"], land_type, area_domain)
+    tree_df = apply_tree_filters_common(data["TREE"], tree_type, tree_domain, require_diameter_thresholds=True)
+    cond_df = apply_area_filters_common(data["COND"], land_type, area_domain)
 
     # Calculate TREE_BASIS for each tree
     from ..filters.classification import assign_tree_basis
@@ -163,62 +161,6 @@ def tpa(
     pop_est = _calculate_population_estimates(stratum_est, grp_by, totals, variance)
 
     return pop_est
-
-
-def _apply_tree_filters(
-    tree_df: pl.DataFrame, tree_type: str, tree_domain: Optional[str]
-) -> pl.DataFrame:
-    """Apply tree type and domain filters."""
-    # Tree type domain
-    if tree_type == "live":
-        tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == TreeStatus.LIVE)
-            & (pl.col("DIA").is_not_null())
-            & (pl.col("DIA") >= DiameterBreakpoints.MIN_DBH)
-        )
-    elif tree_type == "dead":
-        tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == TreeStatus.DEAD)
-            & (pl.col("DIA").is_not_null())
-            & (pl.col("DIA") >= DiameterBreakpoints.SUBPLOT_MIN_DIA)
-        )
-    elif tree_type == "gs":
-        tree_df = tree_df.filter(
-            (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
-            & (pl.col("DIA").is_not_null())
-            & (pl.col("DIA") >= DiameterBreakpoints.MIN_DBH)
-        )
-    # "all" includes everything with valid DIA
-
-    # User-defined tree domain
-    if tree_domain:
-        tree_df = tree_df.filter(pl.sql_expr(tree_domain))
-
-    # Only keep trees with positive TPA_UNADJ
-    tree_df = tree_df.filter(pl.col("TPA_UNADJ") > 0)
-
-    return tree_df
-
-
-def _apply_cond_filters(
-    cond_df: pl.DataFrame, land_type: str, area_domain: Optional[str]
-) -> pl.DataFrame:
-    """Apply land type and area domain filters."""
-    # Land type domain
-    if land_type == "forest":
-        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
-    elif land_type == "timber":
-        cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)
-            & (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))
-            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
-        )
-
-    # User-defined area domain
-    if area_domain:
-        cond_df = cond_df.filter(pl.sql_expr(area_domain))
-
-    return cond_df
 
 
 # _assign_tree_basis moved to classification.py module

@@ -150,6 +150,9 @@ nav:
   - Getting Started:
     - Project Overview: README.md
   
+  - Examples:
+    - Overview: examples/README.md
+  
   - Query Library:
     - Overview: queries/README.md
     - Quick Reference: queries/evaluator_quick_reference.md

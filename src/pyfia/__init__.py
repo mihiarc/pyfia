@@ -34,6 +34,19 @@ from pyfia.estimation.utils import (
 )
 from pyfia.estimation.volume import volume
 
+# Converter functionality - Import only if needed to avoid heavy dependencies
+try:
+    from pyfia.converter import (
+        ConverterConfig,
+        DataValidator,
+        FIAConverter,
+        SchemaOptimizer,
+        StateMerger,
+    )
+    _CONVERTER_AVAILABLE = True
+except ImportError:
+    _CONVERTER_AVAILABLE = False
+
 # Define public API
 __all__ = [
     # Core classes
@@ -62,6 +75,16 @@ __all__ = [
     "calculate_ratio_estimates",
     "summarize_by_groups",
 ]
+
+# Add converter classes to __all__ if available
+if _CONVERTER_AVAILABLE:
+    __all__.extend([
+        "FIAConverter",
+        "ConverterConfig",
+        "SchemaOptimizer",
+        "StateMerger",
+        "DataValidator"
+    ])
 
 
 def get_fia(db_path=None, engine=None):

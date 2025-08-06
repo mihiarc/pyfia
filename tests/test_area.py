@@ -17,7 +17,6 @@ import pytest
 
 from pyfia.estimation.area import (
     _add_land_type_categories,
-    _apply_area_filters,
     _apply_tree_domain_to_conditions,
     _calculate_domain_indicators,
     _calculate_plot_area_estimates,
@@ -26,31 +25,15 @@ from pyfia.estimation.area import (
     _prepare_area_stratification,
     area,
 )
+from pyfia.filters.common import apply_area_filters_common
 
 
 class TestAreaEstimation:
     """Test suite for area estimation functions."""
 
-    @pytest.fixture
-    def mock_db(self):
-        """Create a mock FIA database object."""
-        db = Mock()
-        db.evalid = [372301]  # NC 2023
-        db.tables = {}
-        db.load_table = Mock()
-        return db
+    # Using centralized mock_fia_database fixture
 
-    @pytest.fixture
-    def sample_plot_data(self):
-        """Create sample PLOT data."""
-        return pl.DataFrame(
-            {
-                "CN": ["1", "2", "3", "4", "5"],
-                "PLT_CN": ["1", "2", "3", "4", "5"],
-                "STATECD": [37, 37, 37, 37, 37],
-                "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0],
-            }
-        )
+    # Using centralized standard_plot_data fixture
 
     @pytest.fixture
     def sample_cond_data(self):
@@ -134,12 +117,12 @@ class TestAreaEstimation:
 
     def test_apply_area_filters_basic(self, sample_cond_data):
         """Test basic area filtering without domain."""
-        result = _apply_area_filters(sample_cond_data, "forest", None)
-        assert len(result) == 6  # No filtering applied yet
+        result = apply_area_filters_common(sample_cond_data, "forest", None)
+        assert len(result) == 4  # Forest conditions only (COND_STATUS_CD == 1)
 
     def test_apply_area_filters_with_domain(self, sample_cond_data):
         """Test area filtering with area domain."""
-        result = _apply_area_filters(sample_cond_data, "forest", "FORTYPCD == 161")
+        result = apply_area_filters_common(sample_cond_data, "forest", "FORTYPCD == 161")
         assert len(result) == 2  # Only loblolly pine forest type
         assert all(result["FORTYPCD"] == 161)
 
@@ -503,7 +486,7 @@ class TestAreaEstimation:
         assert "FORTYPCD" in result.columns
         assert len(result) >= 1  # At least one forest type group
 
-    def test_edge_cases(self, mock_db):
+    def test_edge_cases(self, mock_fia_database):
         """Test edge cases and error conditions."""
         # Empty data with proper schema and types
         empty_plots = pl.DataFrame(
@@ -537,9 +520,9 @@ class TestAreaEstimation:
             }
         )
 
-        mock_db.get_plots = Mock(return_value=empty_plots)
-        mock_db.get_conditions = Mock(return_value=empty_conds)
-        mock_db.tables = {
+        mock_fia_database.get_plots = Mock(return_value=empty_plots)
+        mock_fia_database.get_conditions = Mock(return_value=empty_conds)
+        mock_fia_database.tables = {
             "POP_STRATUM": Mock(collect=Mock(return_value=empty_strata)),
             "POP_PLOT_STRATUM_ASSGN": Mock(
                 filter=Mock(return_value=Mock(collect=Mock(return_value=empty_ppsa)))
@@ -547,7 +530,7 @@ class TestAreaEstimation:
         }
 
         # Should handle empty data gracefully
-        result = area(mock_db)
+        result = area(mock_fia_database)
         assert isinstance(result, pl.DataFrame)
         # Either no rows or has standard columns
         if len(result) > 0:

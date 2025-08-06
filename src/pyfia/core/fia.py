@@ -85,11 +85,11 @@ class FIA:
             # These tables have STATECD column
             state_list = ", ".join(str(s) for s in self.state_filter)
             where_clause = f"STATECD IN ({state_list})"
-        
+
         # Use the data reader with WHERE clause for efficient filtering
         df = self._reader.read_table(
-            table_name, 
-            columns=columns, 
+            table_name,
+            columns=columns,
             where=where_clause,
             lazy=True  # Keep as lazy for memory efficiency
         )
@@ -197,33 +197,33 @@ class FIA:
 
         self.evalid = evalid
         return self
-    
+
     def clip_by_state(self, state: Union[int, List[int]], most_recent: bool = True) -> "FIA":
         """
         Filter FIA data by state code(s).
-        
+
         This method efficiently filters data at the database level by:
         1. Setting a state filter for direct table queries
         2. Finding appropriate EVALIDs for the state(s)
         3. Combining both filters for optimal performance
-        
+
         Args:
             state: Single state FIPS code or list of codes
             most_recent: If True, use only most recent evaluations
-            
+
         Returns:
             Self for method chaining
         """
         if isinstance(state, int):
             state = [state]
-            
+
         self.state_filter = state
-        
+
         # Also find and set EVALIDs for proper statistical grouping
         evalids = self.find_evalid(state=state, most_recent=most_recent)
         if evalids:
             self.clip_by_evalid(evalids)
-        
+
         return self
 
     def clip_most_recent(self, eval_type: str = "VOL") -> "FIA":
@@ -258,7 +258,7 @@ class FIA:
         # Load PLOT table if needed (with state filter applied)
         if "PLOT" not in self.tables:
             self.load_table("PLOT")
-            
+
         # If we have EVALID filter, we need to join with assignments
         if self.evalid:
             # Load assignment table with EVALID filter directly
@@ -269,12 +269,12 @@ class FIA:
                 where=f"EVALID IN ({evalid_str})",
                 lazy=True
             )
-            
+
             # Filter plots to those in the evaluation
             plots = self.tables["PLOT"].join(
                 ppsa.select(["PLT_CN", "EVALID"]).unique(),
-                left_on="CN", 
-                right_on="PLT_CN", 
+                left_on="CN",
+                right_on="PLT_CN",
                 how="inner"
             )
         else:
@@ -299,7 +299,7 @@ class FIA:
         # Load TREE table if needed (with state filter applied)
         if "TREE" not in self.tables:
             self.load_table("TREE")
-            
+
         # If we need additional filtering by plot CNs
         if self.evalid:
             # Get plot CNs efficiently
@@ -315,12 +315,12 @@ class FIA:
                 plot_query = plot_query.join(
                     ppsa, left_on="CN", right_on="PLT_CN", how="inner"
                 )
-            
+
             # Filter trees to those plots
             trees = self.tables["TREE"].join(
                 plot_query.select("CN"),
                 left_on="PLT_CN",
-                right_on="CN", 
+                right_on="CN",
                 how="inner"
             )
         else:
@@ -345,7 +345,7 @@ class FIA:
         # Load COND table if needed (with state filter applied)
         if "COND" not in self.tables:
             self.load_table("COND")
-            
+
         # If we need additional filtering by plot CNs
         if self.evalid:
             # Get plot CNs efficiently
@@ -361,12 +361,12 @@ class FIA:
                 plot_query = plot_query.join(
                     ppsa, left_on="CN", right_on="PLT_CN", how="inner"
                 )
-            
+
             # Filter conditions to those plots
             conds = self.tables["COND"].join(
                 plot_query.select("CN"),
                 left_on="PLT_CN",
-                right_on="CN", 
+                right_on="CN",
                 how="inner"
             )
         else:

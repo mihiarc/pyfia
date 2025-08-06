@@ -222,7 +222,7 @@ class Defaults:
 
 class StateCodes:
     """State FIPS codes and mappings."""
-    
+
     # State abbreviations to FIPS codes
     ABBR_TO_CODE: Dict[str, int] = {
         "AL": 1, "AK": 2, "AZ": 4, "AR": 5, "CA": 6, "CO": 8, "CT": 9, "DE": 10,
@@ -233,7 +233,7 @@ class StateCodes:
         "OR": 41, "PA": 42, "RI": 44, "SC": 45, "SD": 46, "TN": 47, "TX": 48,
         "UT": 49, "VT": 50, "VA": 51, "WA": 53, "WV": 54, "WI": 55, "WY": 56,
     }
-    
+
     # State names to FIPS codes
     NAME_TO_CODE: Dict[str, int] = {
         "alabama": 1, "alaska": 2, "arizona": 4, "arkansas": 5, "california": 6,
@@ -248,7 +248,7 @@ class StateCodes:
         "texas": 48, "utah": 49, "vermont": 50, "virginia": 51, "washington": 53,
         "west virginia": 54, "wisconsin": 55, "wyoming": 56,
     }
-    
+
     # Derived mappings
     CODE_TO_NAME: Dict[int, str] = {v: k.title() for k, v in NAME_TO_CODE.items()}
     CODE_TO_ABBR: Dict[int, str] = {v: k for k, v in ABBR_TO_CODE.items()}

@@ -61,7 +61,7 @@ class PyFIASettings(BaseSettings):
 
     # Logging settings
     log_level: str = Field(
-        default="INFO",
+        default="CRITICAL",
         description="Logging level"
     )
     log_dir: Path = Field(

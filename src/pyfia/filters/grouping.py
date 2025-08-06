@@ -331,20 +331,20 @@ def get_size_class_bounds(
 def get_forest_type_group(fortypcd: Optional[int]) -> str:
     """
     Map forest type code (FORTYPCD) to forest type group name.
-    
+
     Groups forest types into major categories following FIA classification
     with special handling for common western forest types.
-    
+
     Parameters
     ----------
     fortypcd : int or None
         Forest type code from COND table
-        
+
     Returns
     -------
     str
         Forest type group name
-        
+
     Examples
     --------
     >>> get_forest_type_group(200)
@@ -422,7 +422,7 @@ def add_forest_type_group(
 ) -> pl.DataFrame:
     """
     Add forest type group column to a dataframe containing FORTYPCD.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -431,12 +431,12 @@ def add_forest_type_group(
         Name of column containing forest type codes
     output_col : str, default "FOREST_TYPE_GROUP"
         Name for the output column
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with forest type group column added
-        
+
     Examples
     --------
     >>> cond_with_groups = add_forest_type_group(cond_df)
@@ -453,17 +453,17 @@ def add_forest_type_group(
 def get_ownership_group_name(owngrpcd: Optional[int]) -> str:
     """
     Map ownership group code to descriptive name.
-    
+
     Parameters
     ----------
     owngrpcd : int or None
         Ownership group code from FIA
-        
+
     Returns
     -------
     str
         Ownership group name
-        
+
     Examples
     --------
     >>> get_ownership_group_name(10)
@@ -487,7 +487,7 @@ def add_ownership_group_name(
 ) -> pl.DataFrame:
     """
     Add ownership group name column to a dataframe containing OWNGRPCD.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -496,7 +496,7 @@ def add_ownership_group_name(
         Name of column containing ownership group codes
     output_col : str, default "OWNERSHIP_GROUP"
         Name for the output column
-        
+
     Returns
     -------
     pl.DataFrame
@@ -512,20 +512,20 @@ def add_ownership_group_name(
 def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
     """
     Map forest type code (FORTYPCD) to forest type group code (FORTYPGRP).
-    
+
     This provides the numeric group code that corresponds to forest type
     groupings used in FIA reference tables.
-    
+
     Parameters
     ----------
     fortypcd : int or None
         Forest type code from COND table
-        
+
     Returns
     -------
     int or None
         Forest type group code
-        
+
     Examples
     --------
     >>> get_forest_type_group_code(200)  # Douglas-fir
@@ -535,7 +535,7 @@ def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
     """
     if fortypcd is None:
         return None
-    
+
     # Map specific codes to their group codes
     # Based on FIA forest type groupings
     group_mappings = {
@@ -564,11 +564,11 @@ def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
         # Nonstocked
         999: 999,
     }
-    
+
     # Check if specific mapping exists
     if fortypcd in group_mappings:
         return group_mappings[fortypcd]
-    
+
     # Otherwise, use the hundred's place as the group
     # This works for most eastern forest types
     return (fortypcd // 100) * 100
@@ -581,10 +581,10 @@ def add_forest_type_group_code(
 ) -> pl.DataFrame:
     """
     Add forest type group code column to a dataframe containing FORTYPCD.
-    
+
     This creates the FORTYPGRP column that can be used for grouping
     in area() and other estimation functions.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -593,12 +593,12 @@ def add_forest_type_group_code(
         Name of column containing forest type codes
     output_col : str, default "FORTYPGRP"
         Name for the output column
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with forest type group code column added
-        
+
     Examples
     --------
     >>> # Add FORTYPGRP before using area() function

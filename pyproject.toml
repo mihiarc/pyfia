@@ -31,6 +31,8 @@ dependencies = [
     "pydantic>=2.11.0",
     "pydantic-settings>=2.7.0",
     "rich",
+    "click>=8.0.0",
+    "pyyaml>=6.0.0",
 ]
 
 [project.optional-dependencies]
@@ -60,6 +62,7 @@ Issues = "https://github.com/mihiarc/pyfia/issues"
 [project.scripts]
 pyfia-typecheck = "scripts.typecheck:main"
 pyfia-setup-precommit = "scripts.setup_precommit:main"
+pyfia-convert = "pyfia.converter.cli:cli"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
@@ -174,4 +177,5 @@ match-dir = "(?!tests).*"
 dev = [
     "pytest-cov>=6.2.1",
     "pre-commit>=3.6.0",
+    "mypy>=1.17.0",
 ]

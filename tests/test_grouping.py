@@ -16,9 +16,10 @@ from pyfia.filters.grouping import (
 )
 
 
+# Local fixtures for specific grouping tests (where standard fixtures don't match test needs)
 @pytest.fixture
-def sample_tree_df():
-    """Create sample tree data for testing."""
+def grouping_tree_data():
+    """Create specific tree data for grouping tests."""
     return pl.DataFrame({
         "CN": ["1", "2", "3", "4", "5", "6"],
         "PLT_CN": ["P1", "P1", "P2", "P2", "P3", "P3"],
@@ -29,8 +30,8 @@ def sample_tree_df():
 
 
 @pytest.fixture
-def sample_cond_df():
-    """Create sample condition data for testing."""
+def grouping_condition_data():
+    """Create specific condition data for grouping tests."""
     return pl.DataFrame({
         "PLT_CN": ["P1", "P2", "P3", "P4"],
         "COND_STATUS_CD": [1, 1, 2, 3],
@@ -39,25 +40,15 @@ def sample_cond_df():
     })
 
 
-@pytest.fixture
-def sample_species_df():
-    """Create sample species reference data."""
-    return pl.DataFrame({
-        "SPCD": [110, 121, 202, 316],
-        "COMMON_NAME": ["shortleaf pine", "loblolly pine", "black cherry", "red maple"],
-        "GENUS": ["Pinus", "Pinus", "Prunus", "Acer"],
-    })
-
-
 class TestSetupGroupingColumns:
     """Test the main setup_grouping_columns function."""
 
-    def test_no_grouping(self, sample_tree_df):
+    def test_no_grouping(self, grouping_tree_data):
         """Test with no grouping specified."""
-        result_df, group_cols = setup_grouping_columns(sample_tree_df)
+        result_df, group_cols = setup_grouping_columns(grouping_tree_data)
 
         assert group_cols == []
-        assert result_df.columns == sample_tree_df.columns
+        assert result_df.columns == grouping_tree_data.columns
 
     def test_custom_grouping_string(self, sample_tree_df):
         """Test with custom grouping as string."""

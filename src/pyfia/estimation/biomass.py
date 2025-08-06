@@ -10,13 +10,14 @@ from typing import List, Optional, Union
 import polars as pl
 
 from ..constants.constants import (
-    LandStatus,
     MathConstants,
-    ReserveStatus,
-    SiteClass,
-    TreeStatus,
 )
 from ..core import FIA
+from ..filters.common import (
+    apply_area_filters_common,
+    apply_tree_filters_common,
+    setup_grouping_columns_common,
+)
 
 
 def biomass(
@@ -107,8 +108,8 @@ def biomass(
     conds = fia.get_conditions()
 
     # Apply filters following rFIA methodology
-    trees = _apply_tree_filters(trees, tree_type, tree_domain)
-    conds = _apply_area_filters(conds, land_type, area_domain)
+    trees = apply_tree_filters_common(trees, tree_type, tree_domain)
+    conds = apply_area_filters_common(conds, land_type, area_domain)
 
     # Join trees with forest conditions
     tree_cond = trees.join(
@@ -137,7 +138,12 @@ def biomass(
         )
 
     # Set up grouping
-    group_cols = _setup_grouping_columns(tree_cond, grp_by, by_species, by_size_class)
+    if by_size_class:
+        # Need to get the modified dataframe when size class is used
+        tree_cond, group_cols = setup_grouping_columns_common(tree_cond, grp_by, by_species, by_size_class, return_dataframe=True)
+    else:
+        # Just get the group columns when no size class needed
+        group_cols = setup_grouping_columns_common(tree_cond, grp_by, by_species, by_size_class, return_dataframe=False)
 
     # Sum to plot level
     if group_cols:
@@ -237,50 +243,6 @@ def biomass(
     return pop_est.select([col for col in result_cols if col in pop_est.columns])
 
 
-def _apply_tree_filters(
-    tree_df: pl.DataFrame, tree_type: str, tree_domain: Optional[str]
-) -> pl.DataFrame:
-    """Apply tree type and domain filters following rFIA methodology."""
-    # Tree type filters
-    if tree_type == "live":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.LIVE)
-    elif tree_type == "dead":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.DEAD)
-    elif tree_type == "gs":
-        tree_df = tree_df.filter(pl.col("STATUSCD").is_in([TreeStatus.LIVE, TreeStatus.DEAD]))
-    # "all" includes everything
-
-    # Filter for valid biomass data (following rFIA)
-    tree_df = tree_df.filter((pl.col("DIA").is_not_null()) & (pl.col("TPA_UNADJ") > 0))
-
-    # User-defined tree domain
-    if tree_domain:
-        tree_df = tree_df.filter(pl.sql_expr(tree_domain))
-
-    return tree_df
-
-
-def _apply_area_filters(
-    cond_df: pl.DataFrame, land_type: str, area_domain: Optional[str]
-) -> pl.DataFrame:
-    """Apply land type and area domain filters."""
-    # Land type domain
-    if land_type == "forest":
-        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
-    elif land_type == "timber":
-        cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)
-            & (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))
-            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)
-        )
-
-    # User-defined area domain
-    if area_domain:
-        cond_df = cond_df.filter(pl.sql_expr(area_domain))
-
-    return cond_df
-
-
 def _get_biomass_column(component: str) -> str:
     """Get the biomass column name for the specified component."""
     component_map = {
@@ -304,40 +266,3 @@ def _get_biomass_column(component: str) -> str:
         return "DRYBIO_AG"  # Will be modified in calling function
 
     return component_map.get(component, f"DRYBIO_{component}")
-
-
-def _setup_grouping_columns(
-    tree_cond: pl.DataFrame,
-    grp_by: Optional[Union[str, List[str]]],
-    by_species: bool,
-    by_size_class: bool,
-) -> List[str]:
-    """Set up grouping columns."""
-    group_cols = []
-
-    if grp_by:
-        if isinstance(grp_by, str):
-            group_cols = [grp_by]
-        else:
-            group_cols = list(grp_by)
-
-    if by_species:
-        group_cols.append("SPCD")
-
-    if by_size_class:
-        # Add size class based on diameter (following FIA standards)
-        tree_cond = tree_cond.with_columns(
-            pl.when(pl.col("DIA") < 5.0)
-            .then(pl.lit("1.0-4.9"))
-            .when(pl.col("DIA") < 10.0)
-            .then(pl.lit("5.0-9.9"))
-            .when(pl.col("DIA") < 20.0)
-            .then(pl.lit("10.0-19.9"))
-            .when(pl.col("DIA") < 30.0)
-            .then(pl.lit("20.0-29.9"))
-            .otherwise(pl.lit("30.0+"))
-            .alias("sizeClass")
-        )
-        group_cols.append("sizeClass")
-
-    return group_cols

@@ -53,14 +53,15 @@ class AreaStratificationHandler:
     def prepare_stratification_data(
         self, 
         ppsa_df: pl.DataFrame,
-        pop_stratum_df: pl.DataFrame
+        pop_stratum_df: pl.DataFrame,
+        pop_eu_df: Optional[pl.DataFrame] = None
     ) -> pl.DataFrame:
         """
-        Prepare stratification data with both SUBP and MACR adjustment factors.
+        Prepare stratification data with FIA design factors for rFIA-compatible variance calculations.
         
-        This method joins plot-stratum assignments with population stratum
-        data to create a complete stratification dataset that includes both
-        adjustment factors needed for proper area expansion.
+        This method joins plot-stratum assignments with population stratum and estimation unit
+        data to create a complete stratification dataset that includes all FIA design factors
+        needed for proper variance calculations following rFIA methodology.
         
         Parameters
         ----------
@@ -68,18 +69,39 @@ class AreaStratificationHandler:
             Plot-stratum assignments (POP_PLOT_STRATUM_ASSGN)
         pop_stratum_df : pl.DataFrame
             Population stratum data (POP_STRATUM)
+        pop_eu_df : Optional[pl.DataFrame], default None
+            Population estimation unit data (POP_ESTN_UNIT). If None, will be loaded from database.
             
         Returns
         -------
         pl.DataFrame
-            Stratification data with both adjustment factors
+            Stratification data with complete FIA design factors
         """
+        # Load estimation unit data if not provided
+        if pop_eu_df is None:
+            pop_eu_df = self._load_population_estimation_units()
+        
+        # Join stratum data with estimation unit data to get design factors
+        stratum_with_eu = pop_stratum_df.join(
+            pop_eu_df.select([
+                "CN", "AREA_USED", "P1PNTCNT_EU"
+            ]).rename({"CN": "ESTN_UNIT_CN"}),
+            on="ESTN_UNIT_CN",
+            how="inner"
+        ).with_columns([
+            # Calculate stratum weight as in rFIA: P1POINTCNT / P1PNTCNT_EU
+            # Note: Using P1POINTCNT since P1POINTCNT_INVYR is not available in this database
+            (pl.col("P1POINTCNT") / pl.col("P1PNTCNT_EU")).alias("STRATUM_WGT")
+        ])
+        
+        # Join plot-stratum assignments with complete design factors
+        # Note: PPSA has ESTN_UNIT, we add ESTN_UNIT_CN from stratum data for rFIA variance calculations
         return ppsa_df.join(
-            pop_stratum_df.select([
-                "CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", "P2POINTCNT"
-            ]),
-            left_on="STRATUM_CN",
-            right_on="CN",
+            stratum_with_eu.select([
+                "CN", "ESTN_UNIT_CN", "EXPNS", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", 
+                "P2POINTCNT", "AREA_USED", "P1PNTCNT_EU", "STRATUM_WGT"
+            ]).rename({"CN": "STRATUM_CN"}),
+            on="STRATUM_CN",
             how="inner"
         )
     
@@ -107,9 +129,10 @@ class AreaStratificationHandler:
         # Load stratification data
         ppsa = self._load_plot_stratum_assignments()
         pop_stratum = self._load_population_strata()
+        pop_eu = self._load_population_estimation_units()
         
-        # Prepare stratification with both adjustment factors
-        strat_df = self.prepare_stratification_data(ppsa, pop_stratum)
+        # Prepare stratification with complete FIA design factors
+        strat_df = self.prepare_stratification_data(ppsa, pop_stratum, pop_eu)
         
         # Join plot data with stratification
         plot_with_strat = self._join_plot_stratification(plot_data, strat_df)
@@ -148,6 +171,17 @@ class AreaStratificationHandler:
         """
         return self.db.tables["POP_STRATUM"].collect()
     
+    def _load_population_estimation_units(self) -> pl.DataFrame:
+        """
+        Load population estimation unit data from database.
+        
+        Returns
+        -------
+        pl.DataFrame
+            Population estimation unit data with FIA design factors
+        """
+        return self.db.tables["POP_ESTN_UNIT"].collect()
+    
     def _join_plot_stratification(
         self, 
         plot_data: pl.DataFrame, 
@@ -170,8 +204,9 @@ class AreaStratificationHandler:
         """
         return plot_data.join(
             strat_df.select([
-                "PLT_CN", "STRATUM_CN", "EXPNS",
-                "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
+                "PLT_CN", "STRATUM_CN", "ESTN_UNIT_CN", "EXPNS",
+                "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR", "P2POINTCNT",
+                "AREA_USED", "P1PNTCNT_EU", "STRATUM_WGT"
             ]),
             on="PLT_CN",
             how="inner"

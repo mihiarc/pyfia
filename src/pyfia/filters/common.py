@@ -188,7 +188,8 @@ def apply_area_filters_common(
         # "all" includes everything
 
     # Apply user-defined area domain
-    if area_domain:
+    # In area estimation mode, area domain is handled through domain indicators
+    if area_domain and not area_estimation_mode:
         cond_df = cond_df.filter(pl.sql_expr(area_domain))
 
     return cond_df

@@ -176,9 +176,8 @@ class DomainIndicatorCalculator:
         """
         Calculate area domain indicator (aD).
         
-        For area estimation, the area domain indicator is typically 1
-        since area domain filtering is usually applied during data loading
-        rather than as an indicator.
+        The area domain indicator identifies conditions that meet the
+        area domain criteria specified by the user.
         
         Parameters
         ----------
@@ -190,9 +189,17 @@ class DomainIndicatorCalculator:
         pl.DataFrame
             DataFrame with aD column added
         """
-        # Area domain is typically handled by pre-filtering
-        # For now, set to 1 (all conditions are in the area domain)
-        return cond_df.with_columns(pl.lit(1).alias("aD"))
+        if self.area_domain is not None:
+            # Apply area domain filtering as an indicator
+            return cond_df.with_columns(
+                pl.when(pl.sql_expr(self.area_domain))
+                .then(1)
+                .otherwise(0)
+                .alias("aD")
+            )
+        else:
+            # No area domain filtering - all conditions qualify
+            return cond_df.with_columns(pl.lit(1).alias("aD"))
     
     def _calculate_tree_domain_indicator(self, cond_df: pl.DataFrame) -> pl.DataFrame:
         """
@@ -273,9 +280,10 @@ class DomainIndicatorCalculator:
                 .alias("pDI")
             )
         else:
-            # Regular: denominator matches numerator domain (excluding tree domain)
+            # Regular: denominator excludes area domain (for percentage calculations)
+            # pDI represents the broader population we're calculating percentages relative to
             return cond_df.with_columns(
-                (pl.col("landD") * pl.col("aD")).alias("pDI")
+                pl.col("landD").alias("pDI")
             )
     
     def get_indicator_descriptions(self) -> Dict[str, str]:

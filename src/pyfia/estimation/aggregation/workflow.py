@@ -100,8 +100,11 @@ class AreaAggregationBuilder:
             Builder instance for method chaining
         """
         self.aggregations.extend([
-            # Sample size
+            # Sample size (all plots in stratum)
             pl.len().alias("n_h"),
+            
+            # Non-zero plots count (plots with numerator > 0)
+            pl.when(pl.col(numerator_col) > 0).then(1).otherwise(0).sum().alias("n_nonzero"),
             
             # Mean values for variance calculation
             pl.mean(numerator_col).alias("fa_bar_h"),
@@ -149,7 +152,9 @@ class AreaAggregationBuilder:
         self.aggregations.extend([
             pl.col("fa_expanded_total").sum().alias("FA_TOTAL"),
             pl.col("fad_expanded_total").sum().alias("FAD_TOTAL"),
-            pl.col("n_h").sum().alias("N_PLOTS"),
+            pl.col("n_h").sum().alias("N_PLOTS_TOTAL"),
+            # Count non-zero plots for reporting (plots with FA > 0)
+            pl.col("n_nonzero").sum().alias("N_PLOTS"),
         ])
         return self
     

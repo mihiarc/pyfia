@@ -44,7 +44,7 @@ from .volume import volume
 
 # Refactored estimators (for advanced usage)
 from .area import AreaEstimator
-from .volume_refactored import VolumeEstimator
+from .volume import VolumeEstimator
 
 __all__ = [
     # Main estimation functions

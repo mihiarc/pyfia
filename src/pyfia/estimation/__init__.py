@@ -42,7 +42,8 @@ from .utils import (
 )
 from .volume import volume
 
-# Refactored volume estimator (for advanced usage)
+# Refactored estimators (for advanced usage)
+from .area import AreaEstimator
 from .volume_refactored import VolumeEstimator
 
 __all__ = [
@@ -57,6 +58,7 @@ __all__ = [
     # Base estimator architecture
     "BaseEstimator",
     "EstimatorConfig",
+    "AreaEstimator",
     "VolumeEstimator",
     # Utility functions
     "merge_estimation_data",

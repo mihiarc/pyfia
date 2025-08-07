@@ -408,7 +408,7 @@ class TestAreaEstimation:
         sample_ppsa_data,
     ):
         """Test area calculation with tree domain filter."""
-        # Setup mock database
+        # Setup mock database with TREE table
         mock_db.get_plots = Mock(return_value=sample_plot_data)
         mock_db.get_conditions = Mock(return_value=sample_cond_data)
         mock_db.get_trees = Mock(return_value=sample_tree_data)
@@ -419,6 +419,7 @@ class TestAreaEstimation:
                     return_value=Mock(collect=Mock(return_value=sample_ppsa_data))
                 )
             ),
+            "TREE": sample_tree_data,  # Add TREE table to tables dict
         }
 
         # Calculate area for conditions with loblolly pine
@@ -426,6 +427,8 @@ class TestAreaEstimation:
 
         assert isinstance(result, pl.DataFrame)
         # Area should be less than total forest area since filtered by tree domain
+        # Only plots 1 and 2 have qualifying trees (live loblolly pine)
+        # So area percentage should be less than 100%
         assert result["AREA_PERC"][0] < 100.0
 
     def test_area_timber_land_type(

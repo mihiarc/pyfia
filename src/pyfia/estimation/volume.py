@@ -1,22 +1,295 @@
 """
-Volume estimation functions for pyFIA.
+Volume estimation functions for pyFIA using the BaseEstimator architecture.
 
 This module implements volume estimation following FIA procedures,
-matching the functionality of rFIA::volume().
-
-NOTE: This module has been refactored to use the BaseEstimator architecture.
-The original implementation is preserved below for reference and backward
-compatibility testing. The new implementation provides the same functionality
-with cleaner, more maintainable code.
+matching the functionality of rFIA::volume() while using the new
+BaseEstimator architecture for cleaner, more maintainable code.
 """
 
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import polars as pl
 
 from ..core import FIA
-from .base import EstimatorConfig
-from .volume_refactored import VolumeEstimator
+from .base import BaseEstimator, EstimatorConfig
+
+
+class VolumeEstimator(BaseEstimator):
+    """
+    Volume estimator implementing FIA volume calculation procedures.
+
+    This class calculates cubic foot and board foot volume estimates
+    for forest inventory data, supporting multiple volume types (net,
+    gross, sound, sawlog) and various grouping options.
+
+    The estimator follows the standard FIA estimation workflow:
+    1. Filter trees and conditions based on criteria
+    2. Join trees with condition data
+    3. Calculate volume per acre (VOL * TPA_UNADJ)
+    4. Aggregate to plot level
+    5. Apply stratification and expansion
+    6. Calculate population estimates with variance
+
+    Attributes
+    ----------
+    vol_type : str
+        Type of volume to calculate (net, gross, sound, sawlog)
+    volume_columns : Dict[str, str]
+        Mapping of FIA column names to internal calculation columns
+    """
+
+    def __init__(self, db: Union[str, FIA], config: EstimatorConfig):
+        """
+        Initialize the volume estimator.
+
+        Parameters
+        ----------
+        db : Union[str, FIA]
+            FIA database object or path to database
+        config : EstimatorConfig
+            Configuration with estimation parameters including vol_type
+        """
+        super().__init__(db, config)
+
+        # Extract volume-specific parameters
+        self.vol_type = config.extra_params.get("vol_type", "net").upper()
+        self.volume_columns = self._get_volume_columns()
+
+    def get_required_tables(self) -> List[str]:
+        """
+        Return required database tables for volume estimation.
+
+        Returns
+        -------
+        List[str]
+            ["PLOT", "TREE", "COND", "POP_STRATUM", "POP_PLOT_STRATUM_ASSGN"]
+        """
+        return ["PLOT", "TREE", "COND", "POP_STRATUM", "POP_PLOT_STRATUM_ASSGN"]
+
+    def get_response_columns(self) -> Dict[str, str]:
+        """
+        Define volume response columns based on volume type.
+
+        Returns mapping from calculation columns to output columns.
+        For example, for net volume:
+        {"VOL_BOLE_CF": "VOLCFNET_ACRE", "VOL_SAW_CF": "VOLCSNET_ACRE", ...}
+
+        Returns
+        -------
+        Dict[str, str]
+            Mapping of internal calculation names to output names
+        """
+        # Map FIA columns to standardized internal names, then to output names
+        response_mapping = {}
+
+        for fia_col, internal_col in self.volume_columns.items():
+            output_col = self._get_output_column_name(internal_col)
+            # Use internal column name as key for consistency with base class
+            response_mapping[internal_col] = output_col
+
+        return response_mapping
+
+    def calculate_values(self, data: pl.DataFrame) -> pl.DataFrame:
+        """
+        Calculate volume values per acre.
+
+        Multiplies volume columns by TPA_UNADJ to get per-acre values,
+        following the standard FIA volume calculation methodology.
+
+        Parameters
+        ----------
+        data : pl.DataFrame
+            Trees joined with conditions containing volume and TPA columns
+
+        Returns
+        -------
+        pl.DataFrame
+            Data with calculated volume per acre columns
+        """
+        # Calculate volume per acre: VOL * TPA_UNADJ
+        vol_calculations = []
+
+        for fia_col, internal_col in self.volume_columns.items():
+            if fia_col in data.columns:
+                vol_calculations.append(
+                    (pl.col(fia_col) * pl.col("TPA_UNADJ")).alias(internal_col)
+                )
+
+        if not vol_calculations:
+            available_cols = [col for col in self.volume_columns.keys() if col in data.columns]
+            raise ValueError(
+                f"No volume columns found for vol_type '{self.vol_type}'. "
+                f"Expected columns: {list(self.volume_columns.keys())}, "
+                f"Available: {available_cols}"
+            )
+
+        return data.with_columns(vol_calculations)
+
+    def get_output_columns(self) -> List[str]:
+        """
+        Define the output column structure for volume estimates.
+
+        Returns
+        -------
+        List[str]
+            Standard output columns including estimates, SE, and metadata
+        """
+        output_cols = ["YEAR", "nPlots_TREE", "nPlots_AREA", "N"]
+
+        # Add volume estimate columns and their standard errors
+        for _, output_col in self.get_response_columns().items():
+            output_cols.append(output_col)
+            # Add SE or VAR column based on config
+            if self.config.variance:
+                output_cols.append(f"{output_col}_VAR")
+            else:
+                output_cols.append(f"{output_col}_SE")
+
+        # Add totals if requested
+        if self.config.totals:
+            for _, output_col in self.get_response_columns().items():
+                output_cols.append(f"{output_col}_TOTAL")
+
+        return output_cols
+
+    def apply_module_filters(self, tree_df: Optional[pl.DataFrame],
+                            cond_df: pl.DataFrame) -> tuple[Optional[pl.DataFrame], pl.DataFrame]:
+        """
+        Apply volume-specific filtering requirements.
+
+        Volume estimation requires valid volume data (VOLCFGRS not null)
+        in addition to the standard filters.
+
+        Parameters
+        ----------
+        tree_df : Optional[pl.DataFrame]
+            Tree dataframe after common filters
+        cond_df : pl.DataFrame
+            Condition dataframe after common filters
+
+        Returns
+        -------
+        tuple[Optional[pl.DataFrame], pl.DataFrame]
+            Filtered tree and condition dataframes
+        """
+        # Volume requires valid volume data
+        if tree_df is not None:
+            # Filter for trees with valid volume measurements
+            tree_df = tree_df.filter(pl.col("VOLCFGRS").is_not_null())
+
+        return tree_df, cond_df
+
+    def format_output(self, estimates: pl.DataFrame) -> pl.DataFrame:
+        """
+        Format output to match rFIA volume() function structure.
+
+        Ensures compatibility with existing code expecting the original
+        volume() function output format.
+
+        Parameters
+        ----------
+        estimates : pl.DataFrame
+            Raw estimation results
+
+        Returns
+        -------
+        pl.DataFrame
+            Formatted output matching rFIA structure
+        """
+        # Start with base formatting
+        formatted = super().format_output(estimates)
+
+        # Ensure nPlots columns are properly named for compatibility
+        if "nPlots" in formatted.columns and "nPlots_TREE" not in formatted.columns:
+            formatted = formatted.rename({"nPlots": "nPlots_TREE"})
+
+        if "nPlots_TREE" in formatted.columns and "nPlots_AREA" not in formatted.columns:
+            formatted = formatted.with_columns(
+                pl.col("nPlots_TREE").alias("nPlots_AREA")
+            )
+
+        return formatted
+
+    def _get_volume_columns(self) -> Dict[str, str]:
+        """
+        Get the volume column mapping for the specified volume type.
+
+        Returns
+        -------
+        Dict[str, str]
+            Mapping from FIA column names to internal calculation names
+        """
+        if self.vol_type == "NET":
+            return {
+                "VOLCFNET": "BOLE_CF_ACRE",  # Bole cubic feet (net)
+                "VOLCSNET": "SAW_CF_ACRE",   # Sawlog cubic feet (net)
+                "VOLBFNET": "SAW_BF_ACRE",   # Sawlog board feet (net)
+            }
+        elif self.vol_type == "GROSS":
+            return {
+                "VOLCFGRS": "BOLE_CF_ACRE",  # Bole cubic feet (gross)
+                "VOLCSGRS": "SAW_CF_ACRE",   # Sawlog cubic feet (gross)
+                "VOLBFGRS": "SAW_BF_ACRE",   # Sawlog board feet (gross)
+            }
+        elif self.vol_type == "SOUND":
+            return {
+                "VOLCFSND": "BOLE_CF_ACRE",  # Bole cubic feet (sound)
+                "VOLCSSND": "SAW_CF_ACRE",   # Sawlog cubic feet (sound)
+                # VOLBFSND not available in FIA
+            }
+        elif self.vol_type == "SAWLOG":
+            return {
+                "VOLCSNET": "SAW_CF_ACRE",   # Sawlog cubic feet (net)
+                "VOLBFNET": "SAW_BF_ACRE",   # Sawlog board feet (net)
+            }
+        else:
+            raise ValueError(
+                f"Unknown volume type: {self.vol_type}. "
+                f"Valid types are: NET, GROSS, SOUND, SAWLOG"
+            )
+
+    def _get_output_column_name(self, internal_col: str) -> str:
+        """
+        Get the output column name for rFIA compatibility.
+
+        Maps internal calculation column names to the expected
+        output column names that match rFIA conventions.
+
+        Parameters
+        ----------
+        internal_col : str
+            Internal column name (e.g., "BOLE_CF_ACRE")
+
+        Returns
+        -------
+        str
+            Output column name (e.g., "VOLCFNET_ACRE")
+        """
+        # Map internal names to rFIA output names based on volume type
+        if internal_col == "BOLE_CF_ACRE":
+            if self.vol_type == "NET":
+                return "VOLCFNET_ACRE"
+            elif self.vol_type == "GROSS":
+                return "VOLCFGRS_ACRE"
+            elif self.vol_type == "SOUND":
+                return "VOLCFSND_ACRE"
+        elif internal_col == "SAW_CF_ACRE":
+            if self.vol_type == "NET":
+                return "VOLCSNET_ACRE"
+            elif self.vol_type == "GROSS":
+                return "VOLCSGRS_ACRE"
+            elif self.vol_type == "SOUND":
+                return "VOLCSSND_ACRE"
+            elif self.vol_type == "SAWLOG":
+                return "VOLCSNET_ACRE"
+        elif internal_col == "SAW_BF_ACRE":
+            if self.vol_type in ["NET", "SAWLOG"]:
+                return "VOLBFNET_ACRE"
+            elif self.vol_type == "GROSS":
+                return "VOLBFGRS_ACRE"
+
+        # Fallback to internal name if no mapping found
+        return internal_col
 
 
 def volume(
@@ -42,8 +315,9 @@ def volume(
     """
     Estimate volume from FIA data following rFIA methodology.
 
-    This function now uses the refactored VolumeEstimator class internally
-    while maintaining full backward compatibility with the original API.
+    This is a wrapper function that maintains backward compatibility with
+    the original volume() API while using the new VolumeEstimator class
+    internally for cleaner implementation.
 
     Parameters
     ----------
@@ -88,6 +362,27 @@ def volume(
     -------
     pl.DataFrame
         DataFrame with volume estimates
+
+    Examples
+    --------
+    >>> # Basic volume estimation
+    >>> vol_results = volume(db, vol_type="net")
+
+    >>> # Volume by species with totals
+    >>> vol_results = volume(
+    ...     db,
+    ...     by_species=True,
+    ...     totals=True,
+    ...     vol_type="gross"
+    ... )
+
+    >>> # Volume for large trees by forest type
+    >>> vol_results = volume(
+    ...     db,
+    ...     grp_by="FORTYPCD",
+    ...     tree_domain="DIA >= 20.0",
+    ...     land_type="timber"
+    ... )
     """
     # Create configuration from parameters
     config = EstimatorConfig(
@@ -123,272 +418,3 @@ def volume(
         pass
 
     return results
-
-
-# ============================================================================
-# ORIGINAL IMPLEMENTATION (Preserved for reference and testing)
-# ============================================================================
-
-def volume_original(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
-    by_species: bool = False,
-    by_size_class: bool = False,
-    land_type: str = "forest",
-    tree_type: str = "live",
-    vol_type: str = "net",
-    method: str = "TI",
-    lambda_: float = 0.5,
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
-    totals: bool = False,
-    variance: bool = False,
-    by_plot: bool = False,
-    cond_list: bool = False,
-    n_cores: int = 1,
-    remote: bool = False,
-    mr: bool = False,
-) -> pl.DataFrame:
-    """
-    Original volume estimation implementation.
-
-    This is the original implementation preserved for reference and
-    backward compatibility testing. New code should use the refactored
-    volume() function above.
-    """
-    # Import here to avoid circular dependencies
-    from ..filters.common import (
-        apply_area_filters_common,
-        apply_tree_filters_common,
-        setup_grouping_columns_common,
-    )
-    # Handle database connection
-    if isinstance(db, str):
-        fia = FIA(db)
-    else:
-        fia = db
-
-    # Ensure required tables are loaded
-    fia.load_table("PLOT")
-    fia.load_table("TREE")
-    fia.load_table("COND")
-    fia.load_table("POP_STRATUM")
-    fia.load_table("POP_PLOT_STRATUM_ASSGN")
-
-    # Get filtered data
-    trees = fia.get_trees()
-    conds = fia.get_conditions()
-
-    # Apply filters following rFIA methodology
-    trees = apply_tree_filters_common(trees, tree_type, tree_domain, require_volume=True)
-    conds = apply_area_filters_common(conds, land_type, area_domain)
-
-    # Get columns needed from COND table
-    cond_cols = ["PLT_CN", "CONDID", "CONDPROP_UNADJ"]
-
-    # Add any grouping columns that might be in COND
-    if grp_by:
-        grp_cols = [grp_by] if isinstance(grp_by, str) else list(grp_by)
-        for col in grp_cols:
-            if col in conds.columns and col not in cond_cols:
-                cond_cols.append(col)
-
-    # Join trees with forest conditions
-    tree_cond = trees.join(
-        conds.select(cond_cols),
-        on=["PLT_CN", "CONDID"],
-        how="inner",
-    )
-
-    # Get volume columns based on volType
-    volume_cols = _get_volume_columns(vol_type)
-
-    # Calculate volume per acre following rFIA: VOL * TPA_UNADJ
-    vol_calculations = []
-    for vol_col, result_col in volume_cols.items():
-        if vol_col in tree_cond.columns:
-            vol_calculations.append(
-                (pl.col(vol_col) * pl.col("TPA_UNADJ")).alias(result_col)
-            )
-
-    if not vol_calculations:
-        raise ValueError(f"No volume columns found for vol_type '{vol_type}'")
-
-    tree_cond = tree_cond.with_columns(vol_calculations)
-
-    # Set up grouping
-    tree_cond, group_cols = setup_grouping_columns_common(tree_cond, grp_by, by_species, by_size_class, return_dataframe=True)
-
-    # Sum to plot level
-    if group_cols:
-        plot_groups = ["PLT_CN"] + group_cols
-    else:
-        plot_groups = ["PLT_CN"]
-
-    # Aggregate volume columns
-    agg_exprs = []
-    for _, result_col in volume_cols.items():
-        agg_exprs.append(pl.sum(result_col).alias(f"PLOT_{result_col}"))
-
-    plot_vol = tree_cond.group_by(plot_groups).agg(agg_exprs)
-
-    # Get stratification data
-    ppsa = (
-        fia.tables["POP_PLOT_STRATUM_ASSGN"]
-        .filter(pl.col("EVALID").is_in(fia.evalid) if fia.evalid else pl.lit(True))
-        .collect()
-    )
-
-    pop_stratum = fia.tables["POP_STRATUM"].collect()
-
-    # Join with stratification
-    plot_with_strat = plot_vol.join(
-        ppsa.select(["PLT_CN", "STRATUM_CN"]), on="PLT_CN", how="inner"
-    ).join(
-        pop_stratum.select(["CN", "EXPNS", "ADJ_FACTOR_SUBP"]),
-        left_on="STRATUM_CN",
-        right_on="CN",
-        how="inner",
-    )
-
-    # CRITICAL: Use direct expansion (matches area/biomass calculation approach)
-    expansion_exprs = []
-    for _, result_col in volume_cols.items():
-        plot_col = f"PLOT_{result_col}"
-        if plot_col in plot_with_strat.columns:
-            expansion_exprs.append(
-                (pl.col(plot_col) * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS")).alias(
-                    f"TOTAL_{result_col}"
-                )
-            )
-
-    plot_with_strat = plot_with_strat.with_columns(expansion_exprs)
-
-    # Calculate population estimates
-    if group_cols:
-        agg_exprs = []
-        for _, result_col in volume_cols.items():
-            total_col = f"TOTAL_{result_col}"
-            if total_col in plot_with_strat.columns:
-                agg_exprs.append(pl.sum(total_col).alias(f"VOL_TOTAL_{result_col}"))
-        agg_exprs.append(pl.len().alias("nPlots_TREE"))
-
-        pop_est = plot_with_strat.group_by(group_cols).agg(agg_exprs)
-    else:
-        agg_exprs = []
-        for _, result_col in volume_cols.items():
-            total_col = f"TOTAL_{result_col}"
-            if total_col in plot_with_strat.columns:
-                agg_exprs.append(pl.sum(total_col).alias(f"VOL_TOTAL_{result_col}"))
-        agg_exprs.append(pl.len().alias("nPlots_TREE"))
-
-        pop_est = plot_with_strat.select(agg_exprs)
-
-    # Calculate per-acre estimates using forest area
-    forest_area = 18592940  # From area estimation (should be calculated dynamically)
-
-    per_acre_exprs = []
-    se_exprs = []
-    for _, result_col in volume_cols.items():
-        total_col = f"VOL_TOTAL_{result_col}"
-        if total_col in pop_est.columns:
-            per_acre_col = _get_output_column_name(result_col, vol_type)
-            se_col = f"{per_acre_col}_SE"
-
-            per_acre_exprs.append((pl.col(total_col) / forest_area).alias(per_acre_col))
-            # Simplified SE calculation (should use proper variance estimation)
-            se_exprs.append((pl.col(total_col) / forest_area * 0.015).alias(se_col))
-
-    pop_est = pop_est.with_columns(per_acre_exprs + se_exprs)
-
-    # Add other columns to match rFIA output
-    pop_est = pop_est.with_columns(
-        [
-            pl.lit(2023).alias("YEAR"),
-            pl.col("nPlots_TREE").alias("nPlots_AREA"),
-            pl.len().alias("N"),
-        ]
-    )
-
-    # Select output columns based on volType
-    result_cols = ["YEAR", "nPlots_TREE", "nPlots_AREA", "N"]
-
-    # Add volume-specific columns
-    for _, result_col in volume_cols.items():
-        per_acre_col = _get_output_column_name(result_col, vol_type)
-        se_col = f"{per_acre_col}_SE"
-        if per_acre_col in pop_est.columns:
-            result_cols.extend([per_acre_col, se_col])
-
-    if group_cols:
-        result_cols = group_cols + result_cols
-
-    if totals:
-        # Add total columns
-        for _, result_col in volume_cols.items():
-            total_col = f"VOL_TOTAL_{result_col}"
-            if total_col in pop_est.columns:
-                result_cols.append(total_col)
-
-    return pop_est.select([col for col in result_cols if col in pop_est.columns])
-
-
-def _get_volume_columns(vol_type: str) -> dict:
-    """Get the volume column mapping for the specified volume type."""
-    vol_type = vol_type.upper()
-
-    if vol_type == "NET":
-        return {
-            "VOLCFNET": "BOLE_CF_ACRE",  # Bole cubic feet (net)
-            "VOLCSNET": "SAW_CF_ACRE",  # Sawlog cubic feet (net)
-            "VOLBFNET": "SAW_BF_ACRE",  # Sawlog board feet (net)
-        }
-    elif vol_type == "GROSS":
-        return {
-            "VOLCFGRS": "BOLE_CF_ACRE",  # Bole cubic feet (gross)
-            "VOLCSGRS": "SAW_CF_ACRE",  # Sawlog cubic feet (gross)
-            "VOLBFGRS": "SAW_BF_ACRE",  # Sawlog board feet (gross)
-        }
-    elif vol_type == "SOUND":
-        return {
-            "VOLCFSND": "BOLE_CF_ACRE",  # Bole cubic feet (sound)
-            "VOLCSSND": "SAW_CF_ACRE",  # Sawlog cubic feet (sound)
-            # VOLBFSND not available in FIA
-        }
-    elif vol_type == "SAWLOG":
-        return {
-            "VOLCSNET": "SAW_CF_ACRE",  # Sawlog cubic feet (net)
-            "VOLBFNET": "SAW_BF_ACRE",  # Sawlog board feet (net)
-        }
-    else:
-        raise ValueError(f"Unknown volume type: {vol_type}")
-
-
-def _get_output_column_name(result_col: str, vol_type: str) -> str:
-    """Get the output column name for rFIA compatibility."""
-    vol_type = vol_type.upper()
-
-    # Map internal names to rFIA output names
-    if result_col == "BOLE_CF_ACRE":
-        if vol_type == "NET":
-            return "VOLCFNET_ACRE"
-        elif vol_type == "GROSS":
-            return "VOLCFGRS_ACRE"
-        elif vol_type == "SOUND":
-            return "VOLCFSND_ACRE"
-    elif result_col == "SAW_CF_ACRE":
-        if vol_type == "NET":
-            return "VOLCSNET_ACRE"
-        elif vol_type == "GROSS":
-            return "VOLCSGRS_ACRE"
-        elif vol_type == "SOUND":
-            return "VOLCSSND_ACRE"
-        elif vol_type == "SAWLOG":
-            return "VOLCSNET_ACRE"
-    elif result_col == "SAW_BF_ACRE":
-        if vol_type in ["NET", "SAWLOG"]:
-            return "VOLBFNET_ACRE"
-        elif vol_type == "GROSS":
-            return "VOLBFGRS_ACRE"
-
-    return result_col

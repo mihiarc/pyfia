@@ -365,11 +365,11 @@ class TestAreaRealData:
         EXPECTED_GA_LOBLOLLY_FT = 7_337_755   # From EVALIDator
         AREA_TOLERANCE = 10  # Allow 10 acre tolerance for area estimates
         
-        # TODO: Get these values from EVALIDator when available
-        # EXPECTED_GA_TIMBERLAND_PLOTS = ???  # Non-zero plots for timberland
-        # EXPECTED_GA_TIMBERLAND_SE_PCT = ???  # Sampling error % for timberland
-        # EXPECTED_GA_LOBLOLLY_PLOTS = ???  # Non-zero plots for loblolly forest type  
-        # EXPECTED_GA_LOBLOLLY_SE_PCT = ???  # Sampling error % for loblolly forest type
+        # EVALIDator sampling error values (update these when available)
+        # For now, using None to skip sampling error validation for Georgia
+        EXPECTED_GA_TIMBERLAND_SE_PCT = None  # TODO: Get from EVALIDator
+        EXPECTED_GA_LOBLOLLY_SE_PCT = None    # TODO: Get from EVALIDator
+        SE_TOLERANCE = 0.5   # Allow 0.5% tolerance for sampling error percentages
         
         with FIA(fia_database_path) as db:
             db.clip_by_evalid(132301)  # Georgia EVALID matching EVALIDator 132023
@@ -418,9 +418,18 @@ class TestAreaRealData:
             assert abs(loblolly_area - EXPECTED_GA_LOBLOLLY_FT) <= AREA_TOLERANCE, \
                 f"Georgia loblolly pine area mismatch: pyFIA {loblolly_area:,.0f} vs EVALIDator {EXPECTED_GA_LOBLOLLY_FT:,.0f}"
             
-            # Assert reasonable sampling error percentages (should be small but non-zero)
-            assert 0.001 <= timber_se_pct <= 1.0, f"Timberland sampling error {timber_se_pct:.3f}% outside expected range"
-            assert 0.001 <= loblolly_se_pct <= 2.0, f"Loblolly sampling error {loblolly_se_pct:.3f}% outside expected range"
+            # Assert sampling error accuracy if EVALIDator values are available
+            if EXPECTED_GA_TIMBERLAND_SE_PCT is not None:
+                assert abs(timber_se_pct - EXPECTED_GA_TIMBERLAND_SE_PCT) <= SE_TOLERANCE, \
+                    f"GA timberland sampling error mismatch: pyFIA {timber_se_pct:.3f}% vs EVALIDator {EXPECTED_GA_TIMBERLAND_SE_PCT:.3f}%"
+            
+            if EXPECTED_GA_LOBLOLLY_SE_PCT is not None:
+                assert abs(loblolly_se_pct - EXPECTED_GA_LOBLOLLY_SE_PCT) <= SE_TOLERANCE, \
+                    f"GA loblolly sampling error mismatch: pyFIA {loblolly_se_pct:.3f}% vs EVALIDator {EXPECTED_GA_LOBLOLLY_SE_PCT:.3f}%"
+                    
+            # Basic sanity checks - sampling errors should be reasonable
+            assert 0.001 <= timber_se_pct <= 5.0, f"GA timberland sampling error {timber_se_pct:.3f}% outside reasonable range"
+            assert 0.001 <= loblolly_se_pct <= 5.0, f"GA loblolly sampling error {loblolly_se_pct:.3f}% outside reasonable range"
             
             # Assert reasonable plot counts
             assert timber_plots >= 1000, f"Too few timberland plots: {timber_plots}"
@@ -559,14 +568,13 @@ class TestAreaRealData:
             assert abs(loblolly_area - EXPECTED_SC_LOBLOLLY_FT) <= AREA_TOLERANCE, \
                 f"South Carolina loblolly pine area mismatch: pyFIA {loblolly_area:,.0f} vs EVALIDator {EXPECTED_SC_LOBLOLLY_FT:,.0f}"
             
-            # For now, just assert reasonable ranges rather than exact matches for sampling errors
-            # until we can investigate the variance calculation discrepancy
-            assert 0.001 <= timber_se_pct <= 5.0, f"Timberland sampling error {timber_se_pct:.3f}% outside reasonable range"
-            assert 0.001 <= loblolly_se_pct <= 10.0, f"Loblolly sampling error {loblolly_se_pct:.3f}% outside reasonable range"
+            # Assert sampling error accuracy - these should match EVALIDator within tolerance
+            # If these fail, variance calculations need to be fixed
+            assert abs(timber_se_pct - EXPECTED_SC_TIMBERLAND_SE_PCT) <= SE_TOLERANCE, \
+                f"SC timberland sampling error mismatch: pyFIA {timber_se_pct:.3f}% vs EVALIDator {EXPECTED_SC_TIMBERLAND_SE_PCT:.3f}% (diff: {abs(timber_se_pct - EXPECTED_SC_TIMBERLAND_SE_PCT):.3f}%)"
             
-            # TODO: Investigate variance calculation to match EVALIDator sampling errors
-            # Expected: timber_se_pct ≈ 0.796%, loblolly_se_pct ≈ 2.463%
-            # Current: timber_se_pct ≈ 0.003%, loblolly_se_pct ≈ 0.008%
+            assert abs(loblolly_se_pct - EXPECTED_SC_LOBLOLLY_SE_PCT) <= SE_TOLERANCE, \
+                f"SC loblolly sampling error mismatch: pyFIA {loblolly_se_pct:.3f}% vs EVALIDator {EXPECTED_SC_LOBLOLLY_SE_PCT:.3f}% (diff: {abs(loblolly_se_pct - EXPECTED_SC_LOBLOLLY_SE_PCT):.3f}%)"
             
             # Assert reasonable plot counts
             assert timber_plots >= 1000, f"Too few timberland plots: {timber_plots}"
@@ -639,6 +647,50 @@ class TestAreaRealData:
             assert area_acres > 10_000_000, f"SC timberland area {area_acres:,.0f} seems too small"
             assert n_plots > 1000, f"SC timberland plots {n_plots:,} seems too few"
             assert 0.001 <= sampling_error_pct <= 5.0, f"SC sampling error {sampling_error_pct:.3f}% outside reasonable range"
+
+    def test_variance_calculation_accuracy_strict_validation(self, fia_database_path):
+        """
+        STRICT validation test that WILL FAIL until variance calculations are fixed.
+        
+        This test enforces exact matching of sampling error percentages with EVALIDator.
+        It is designed to fail and force fixing the variance calculation methodology
+        before the test suite can pass completely.
+        
+        Known issue: pyFIA sampling errors are 100-300x lower than EVALIDator values.
+        """
+        # Strict EVALIDator comparison values
+        EXPECTED_SC_TIMBERLAND_SE_PCT = 0.796  # From EVALIDator
+        EXPECTED_SC_LOBLOLLY_SE_PCT = 2.463    # From EVALIDator  
+        STRICT_TOLERANCE = 0.1  # Very tight tolerance - must be nearly exact
+        
+        with FIA(fia_database_path) as db:
+            db.clip_by_evalid(452301)  # South Carolina
+            
+            # Test timberland sampling error
+            timber_result = area(db, land_type="timber", totals=True)
+            timber_area = timber_result["AREA"][0]
+            timber_se = timber_result["AREA_SE"][0]
+            timber_se_pct = (timber_se / timber_area * 100) if timber_area > 0 else 0
+            
+            print(f"\nSTRICT VARIANCE VALIDATION (South Carolina EVALID 452301):")
+            print(f"Timberland Sampling Error: pyFIA {timber_se_pct:.3f}% vs EVALIDator {EXPECTED_SC_TIMBERLAND_SE_PCT:.3f}%")
+            print(f"Difference: {abs(timber_se_pct - EXPECTED_SC_TIMBERLAND_SE_PCT):.3f}% (tolerance: {STRICT_TOLERANCE:.1f}%)")
+            
+            # Test loblolly pine sampling error  
+            loblolly_result = area(db, area_domain="FORTYPCD == 161", land_type="timber", totals=True)
+            loblolly_area = loblolly_result["AREA"][0]
+            loblolly_se = loblolly_result["AREA_SE"][0]
+            loblolly_se_pct = (loblolly_se / loblolly_area * 100) if loblolly_area > 0 else 0
+            
+            print(f"Loblolly Sampling Error: pyFIA {loblolly_se_pct:.3f}% vs EVALIDator {EXPECTED_SC_LOBLOLLY_SE_PCT:.3f}%")
+            print(f"Difference: {abs(loblolly_se_pct - EXPECTED_SC_LOBLOLLY_SE_PCT):.3f}% (tolerance: {STRICT_TOLERANCE:.1f}%)")
+            
+            # STRICT assertions that will fail until variance calculations are fixed
+            assert abs(timber_se_pct - EXPECTED_SC_TIMBERLAND_SE_PCT) <= STRICT_TOLERANCE, \
+                f"VARIANCE CALCULATION ERROR: SC timberland sampling error {timber_se_pct:.3f}% vs EVALIDator {EXPECTED_SC_TIMBERLAND_SE_PCT:.3f}% (diff: {abs(timber_se_pct - EXPECTED_SC_TIMBERLAND_SE_PCT):.3f}% > {STRICT_TOLERANCE:.1f}% tolerance). FIX VARIANCE CALCULATIONS!"
+            
+            assert abs(loblolly_se_pct - EXPECTED_SC_LOBLOLLY_SE_PCT) <= STRICT_TOLERANCE, \
+                f"VARIANCE CALCULATION ERROR: SC loblolly sampling error {loblolly_se_pct:.3f}% vs EVALIDator {EXPECTED_SC_LOBLOLLY_SE_PCT:.3f}% (diff: {abs(loblolly_se_pct - EXPECTED_SC_LOBLOLLY_SE_PCT):.3f}% > {STRICT_TOLERANCE:.1f}% tolerance). FIX VARIANCE CALCULATIONS!"
 
 
 # Helper functions for EVALIDator comparison

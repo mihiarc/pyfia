@@ -111,9 +111,13 @@ def apply_tree_filters_common(
     # "all" includes everything with valid measurements
 
     # Filter for valid data required by all modules
-    tree_df = tree_df.filter(
-        (pl.col("DIA").is_not_null()) & (pl.col("TPA_UNADJ") > 0)
-    )
+    # If DIA not present (e.g., minimal projections for performance), skip DIA validation
+    if "DIA" in tree_df.columns:
+        tree_df = tree_df.filter(
+            (pl.col("DIA").is_not_null()) & (pl.col("TPA_UNADJ") > 0)
+        )
+    else:
+        tree_df = tree_df.filter(pl.col("TPA_UNADJ") > 0)
 
     # Additional filter for volume estimation
     if require_volume:

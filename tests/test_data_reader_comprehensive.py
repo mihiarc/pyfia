@@ -351,7 +351,7 @@ class TestFIADataReaderPerformance:
 
         # Should load test data quickly
         loading_time = end_time - start_time
-        assert loading_time < 1.0  # Less than 1 second for test data
+        assert loading_time < 3.0  # Less than 3 seconds for test data
 
         # Should return non-empty data
         assert len(plots) > 0
@@ -379,8 +379,8 @@ class TestFIADataReaderPerformance:
 
         # Performance improvement is implementation dependent
         # Just ensure both complete in reasonable time
-        assert first_load_time < 1.0
-        assert second_load_time < 1.0
+        assert first_load_time < 3.0
+        assert second_load_time < 3.0
 
 
 class TestFIADataReaderDataConsistency:

@@ -132,13 +132,10 @@ class FIA:
             pop_eval = self.tables["POP_EVAL"].collect()
             pop_eval_typ = self.tables["POP_EVAL_TYP"].collect()
 
-            # Check if EVALID exists in POP_EVAL, if not we need to handle differently
+            # Check if EVALID exists in POP_EVAL
             if "EVALID" not in pop_eval.columns:
-                # Some FIA databases might have different schema
-                # Try to extract EVALID from CN or other columns
                 raise ValueError(
-                    f"EVALID column not found in POP_EVAL table. "
-                    f"Available columns: {pop_eval.columns}"
+                    f"EVALID column not found in POP_EVAL table. Available columns: {pop_eval.columns}"
                 )
 
             # Join on CN = EVAL_CN

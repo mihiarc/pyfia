@@ -10,6 +10,7 @@ from typing import Dict, List, Literal, Optional, Union, overload
 
 import duckdb
 import polars as pl
+import sqlite3
 
 
 class FIADataReader:
@@ -41,11 +42,24 @@ class FIADataReader:
         # DuckDB connection (kept open for performance)
         self._duckdb_conn = duckdb.connect(str(self.db_path), read_only=True)
 
+        # Optional SQLite connection if the db_path is actually a SQLite DB
+        self._sqlite_conn: Optional[sqlite3.Connection] = None
+        try:
+            sqlite_conn = sqlite3.connect(str(self.db_path))
+            cur = sqlite_conn.cursor()
+            cur.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
+            _ = cur.fetchone()
+            self._sqlite_conn = sqlite_conn
+        except Exception:
+            self._sqlite_conn = None
+
     def __del__(self):
         """Close DuckDB connection if open."""
         try:
             if hasattr(self, "_duckdb_conn") and self._duckdb_conn:
                 self._duckdb_conn.close()
+            if hasattr(self, "_sqlite_conn") and self._sqlite_conn:
+                self._sqlite_conn.close()
         except Exception:
             # Avoid raising during garbage collection
             pass
@@ -63,8 +77,17 @@ class FIADataReader:
         if table_name in self._schemas:
             return self._schemas[table_name]
 
-        result = self._duckdb_conn.execute(f"DESCRIBE {table_name}").fetchall()
-        schema = {row[0]: row[1] for row in result}
+        try:
+            result = self._duckdb_conn.execute(f"DESCRIBE {table_name}").fetchall()
+            schema = {row[0]: row[1] for row in result}
+        except Exception:
+            if self._sqlite_conn is None:
+                raise
+            cur = self._sqlite_conn.cursor()
+            cur.execute(f"PRAGMA table_info({table_name})")
+            rows = cur.fetchall()
+            # PRAGMA columns: cid, name, type, notnull, dflt_value, pk
+            schema = {row[1]: (row[2] or "") for row in rows}
         self._schemas[table_name] = schema
 
         return schema
@@ -116,8 +139,11 @@ class FIADataReader:
         if where:
             query += f" WHERE {where}"
 
-        # Execute query - DuckDB can directly read into Polars DataFrame
-        df = self._duckdb_conn.execute(query).pl()
+        # Execute query using appropriate engine
+        if self._sqlite_conn is not None:
+            df = pl.read_database(query, self._sqlite_conn)
+        else:
+            df = self._duckdb_conn.execute(query).pl()
 
         # Handle CN fields consistently
         self.get_table_schema(table_name)

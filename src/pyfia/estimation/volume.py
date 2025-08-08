@@ -8,7 +8,6 @@ BaseEstimator architecture for cleaner, more maintainable code.
 
 from typing import Dict, List, Optional, Union
 import os
-import os
 
 import polars as pl
 import duckdb
@@ -126,9 +125,8 @@ class VolumeEstimator(BaseEstimator):
         # Attach stratum adjustment factors to each plot via PPSA
         ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"].collect()
         pop_stratum = self.db.tables["POP_STRATUM"].collect()
-        # Restrict to timberland stratum (RSCD=33) as in provided SQL
-        if "RSCD" in pop_stratum.columns:
-            pop_stratum = pop_stratum.filter(pl.col("RSCD") == 33)
+        # Note: RSCD is Region/Station Code; do not filter by RSCD for land type.
+        # Land type filtering is handled via condition filters upstream.
         strat = ppsa.join(pop_stratum.select(["CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).rename({"CN": "STRATUM_CN"}), on="STRATUM_CN", how="inner")
         data = data.join(strat.select(["PLT_CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).unique(), on="PLT_CN", how="left")
 
@@ -169,8 +167,11 @@ class VolumeEstimator(BaseEstimator):
     def _estimate_totals_sql_style(self) -> pl.DataFrame:
         """Compute net merchantable bole totals on timberland mirroring provided SQL.
 
-        - Filters: RSCD=33 (timber), live trees, productive site classes, not reserved,
-          forest conditions, non-woodland species, valid TPA/VOLCFNET
+        Notes:
+        - Timberland is enforced via COND predicates (COND_STATUS_CD=1, RESERVCD=0,
+          SITECLCD in 1..6). RSCD is a Region/Station code and is not used to select timberland.
+        - Additional filters: live trees, forest conditions, non-woodland species,
+          valid TPA/VOLCFNET
         - Basis-dependent adjustment using MACRO_BREAKPOINT_DIA and DIA
         - Expansion by EXPNS at stratum level, summed over plots
         - Optional species grouping handled by self.config.by_species
@@ -190,7 +191,7 @@ class VolumeEstimator(BaseEstimator):
         ])
         ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
         pop_stratum = self.db.tables["POP_STRATUM"].select([
-            "CN", "RSCD", "EVALID", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
+            "CN", "EVALID", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
         ])
         ref_species = self.db.tables["REF_SPECIES"].select(["SPCD", "WOODLAND"])  # 'N' for non-woodland
 
@@ -199,8 +200,7 @@ class VolumeEstimator(BaseEstimator):
             ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
             pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
 
-        # Timberland only in pop_stratum (RSCD=33)
-        pop_stratum = pop_stratum.filter(pl.col("RSCD") == 33)
+        # Do not filter by RSCD here; timberland filtering is handled via COND filters below
 
         # Join PPSA -> POP_STRATUM for EXPNS and ADJ factors
         strat = ppsa.join(pop_stratum.rename({"CN": "STRATUM_CN"}), on="STRATUM_CN", how="inner")
@@ -303,7 +303,7 @@ WITH inner_est AS (
   JOIN tree ON tree.plt_cn = cond.plt_cn AND tree.condid = cond.condid
   JOIN ref_species ON tree.spcd = ref_species.spcd
   WHERE 
-    pop_stratum.rscd = 33 AND pop_stratum.evalid IN ({evalid_list})
+    pop_stratum.evalid IN ({evalid_list})
     AND tree.statuscd = 1
     AND cond.reservcd = 0
     AND cond.siteclcd IN (1,2,3,4,5,6)
@@ -379,7 +379,7 @@ WITH INNER AS (
     AND tree.tpa_unadj IS NOT NULL
     AND tree.volcfnet IS NOT NULL
     AND ref_species.woodland = 'N'
-    AND (pop_stratum.rscd = 33 AND pop_stratum.evalid = {evalid})
+    AND (pop_stratum.evalid = {evalid})
   GROUP BY
     pop_stratum.estn_unit_cn,
     pop_stratum.cn,

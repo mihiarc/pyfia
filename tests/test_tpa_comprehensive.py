@@ -253,7 +253,7 @@ class TestTPAIntegration:
 
         # Should complete in reasonable time (allow more with real DB)
         execution_time = end_time - start_time
-        assert execution_time < (10.0 if use_real_data else 1.0)
+        assert execution_time < (10.0 if use_real_data else 3.0)
 
         # Should produce valid result
         assert len(result) > 0

@@ -1,232 +1,214 @@
 """
-Tree Count estimation following FIA methodology.
+Tree count estimation aligned with the BaseEstimator architecture.
 
-This module implements tree count estimation using FIA's EVALIDator methodology
-to produce exact population estimates with proper expansion factors.
+This module provides a TreeCountEstimator that follows the same
+template-method workflow used by `volume`, `biomass`, `tpa`, etc.
+It computes population-level tree counts using FIA adjustment factors
+and stratification expansion.
 """
 
-from typing import List, Optional, Union
+from typing import Dict, List, Optional, Union
 
 import polars as pl
 
 from ..core import FIA
+from .base import BaseEstimator, EstimatorConfig
+from ..filters.classification import assign_tree_basis
+
+
+class TreeCountEstimator(BaseEstimator):
+    """
+    Estimator that computes population-level tree counts.
+
+    Calculation outline
+    - Filter trees/conditions using common filters
+    - Join plot-level design info and stratum adjustment/expansion factors
+    - Compute tree-level counts per acre: TPA_UNADJ adjusted by basis factor
+    - Aggregate to plot, then expand by EXPNS to population totals
+    - Sum to population and add variance/SE via base hook
+    """
+
+    def get_required_tables(self) -> List[str]:
+        tables = [
+            "PLOT",
+            "TREE",
+            "COND",
+            "POP_STRATUM",
+            "POP_PLOT_STRATUM_ASSGN",
+        ]
+        # Species names are optional; grouping uses SPCD only
+        return tables
+
+    def get_response_columns(self) -> Dict[str, str]:
+        # Internal calculation column -> output column
+        return {"TREE_COUNT_VALUE": "TREE_COUNT"}
+
+    def calculate_values(self, data: pl.DataFrame) -> pl.DataFrame:
+        # Ensure plot macro breakpoint is present and keep plots for basis assignment
+        plots = self.db.get_plots(columns=["CN", "MACRO_BREAKPOINT_DIA"])  # collects
+        if "MACRO_BREAKPOINT_DIA" not in data.columns:
+            data = data.join(
+                plots.select(["CN", "MACRO_BREAKPOINT_DIA"]).rename({"CN": "PLT_CN"}),
+                on="PLT_CN",
+                how="left",
+            )
+
+        # Attach stratum adjustment factors to each plot via PPSA -> POP_STRATUM
+        ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"].collect()
+        pop_stratum = self.db.tables["POP_STRATUM"].collect()
+        strat = ppsa.join(
+            pop_stratum.select(["CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).rename(
+                {"CN": "STRATUM_CN"}
+            ),
+            on="STRATUM_CN",
+            how="inner",
+        )
+        data = data.join(
+            strat.select(["PLT_CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).unique(),
+            on="PLT_CN",
+            how="left",
+        )
+
+        # Assign tree basis (MICR/SUBP/MACR) for adjustment using plot macro breakpoint
+        data = assign_tree_basis(data, plot_df=plots.rename({"CN": "PLT_CN"}), include_macro=True)
+
+        # Basis-specific adjustment factor
+        adj_expr = (
+            pl.when(pl.col("TREE_BASIS") == "MICR").then(pl.col("ADJ_FACTOR_MICR"))
+            .when(pl.col("TREE_BASIS") == "MACR").then(pl.col("ADJ_FACTOR_MACR"))
+            .otherwise(pl.col("ADJ_FACTOR_SUBP"))
+            .cast(pl.Float64)
+            .alias("_ADJ_FACTOR")
+        )
+        data = data.with_columns(adj_expr)
+
+        # Tree-level count per acre adjusted
+        return data.with_columns(
+            (
+                pl.col("TPA_UNADJ").cast(pl.Float64)
+                * pl.col("_ADJ_FACTOR").cast(pl.Float64)
+            ).alias("TREE_COUNT_VALUE")
+        )
+
+    # Override stratification to expand plot-level sums by EXPNS
+    def _apply_stratification(self, plot_data: pl.DataFrame) -> pl.DataFrame:
+        # PPSA filtered by EVALID (if any)
+        ppsa = (
+            self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+            .filter(pl.col("EVALID").is_in(self.db.evalid) if self.db.evalid else pl.lit(True))
+            .collect()
+        )
+        pop_stratum = self.db.tables["POP_STRATUM"].collect()
+        strat = ppsa.join(
+            pop_stratum.select(["CN", "EXPNS"]).rename({"CN": "STRATUM_CN"}),
+            on="STRATUM_CN",
+            how="inner",
+        )
+
+        # Join EXPNS to plot rows
+        plot_with_expns = plot_data.join(
+            strat.select(["PLT_CN", "EXPNS"]).unique(),
+            on="PLT_CN",
+            how="inner",
+        )
+
+        # Expand plot-level values by EXPNS to create totals
+        response_cols = self.get_response_columns()
+        total_exprs: List[pl.Expr] = []
+        for _, output_name in response_cols.items():
+            plot_col = f"PLOT_{output_name}"
+            if plot_col in plot_with_expns.columns:
+                total_exprs.append(
+                    (pl.col(plot_col) * pl.col("EXPNS").cast(pl.Float64)).alias(f"TOTAL_{output_name}")
+                )
+        if total_exprs:
+            plot_with_expns = plot_with_expns.with_columns(total_exprs)
+
+        return plot_with_expns
+
+    # Override population step to sum totals (no per-acre ratio)
+    def _calculate_population_estimates(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
+        response_cols = self.get_response_columns()
+        agg_exprs: List[pl.Expr] = []
+        for _, output_name in response_cols.items():
+            total_col = f"TOTAL_{output_name}"
+            if total_col in expanded_data.columns:
+                # Final population tree count under name TREE_COUNT
+                agg_exprs.append(pl.sum(total_col).alias(output_name))
+
+        agg_exprs.append(pl.len().alias("nPlots"))
+
+        if self._group_cols:
+            pop_estimates = expanded_data.group_by(self._group_cols).agg(agg_exprs)
+        else:
+            pop_estimates = expanded_data.select(agg_exprs)
+
+        # Variance/SE for TREE_COUNT
+        for _, output_name in response_cols.items():
+            if output_name in pop_estimates.columns:
+                pop_estimates = self.calculate_variance(pop_estimates, output_name)
+
+        # Add metadata columns
+        pop_estimates = pop_estimates.with_columns(
+            [
+                pl.lit(self._get_year()).alias("YEAR"),
+                pl.col("nPlots").alias("N"),
+                pl.col("nPlots").alias("nPlots_TREE"),
+                pl.col("nPlots").alias("nPlots_AREA"),
+            ]
+        )
+
+        return pop_estimates
+
+    def get_output_columns(self) -> List[str]:
+        cols = ["YEAR", "nPlots_TREE", "nPlots_AREA", "N", "TREE_COUNT"]
+        # Add SE/VAR depending on config
+        if self.config.variance:
+            cols.append("TREE_COUNT_VAR")
+        else:
+            cols.append("TREE_COUNT_SE")
+        return cols
 
 
 def tree_count(
-    db: Union[FIA, str],
+    db: Union[str, FIA],
+    grp_by: Optional[Union[str, List[str]]] = None,
     by_species: bool = False,
     by_size_class: bool = False,
+    land_type: str = "forest",
+    tree_type: str = "live",
+    method: str = "TI",
+    lambda_: float = 0.5,
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
-    tree_type: str = "live",
-    land_type: str = "forest",
-    grp_by: Optional[Union[str, List[str]]] = None,
-    totals: bool = False,
+    totals: bool = True,
+    variance: bool = False,
+    by_plot: bool = False,
+    most_recent: bool = False,
 ) -> pl.DataFrame:
     """
-    Estimate tree counts using optimized DuckDB queries.
+    Estimate population tree counts following FIA methodology.
 
-    This implementation follows DuckDB best practices:
-    - Uses SQL pushdown instead of materializing tables
-    - Applies memory optimization settings
-    - Implements proper join order optimization
-    - Uses streaming execution where possible
-
-    Parameters
-    ----------
-    db : FIA or str
-        FIA database instance or path to database
-    by_species : bool, default False
-        Include species-level grouping
-    by_size_class : bool, default False
-        Include size class grouping
-    tree_domain : str, optional
-        SQL filter for tree selection (e.g., "SPCD == 131")
-    area_domain : str, optional
-        SQL filter for area selection (e.g., "STATECD == 48")
-    tree_type : str, default "live"
-        Tree status filter: "live", "dead", or "gs" (growing stock)
-    land_type : str, default "forest"
-        Land type filter: "forest", "timber", or "all"
-    grp_by : str or List[str], optional
-        Additional grouping columns
-    totals : bool, default False
-        Include totals in output
-
-    Returns
-    -------
-    pl.DataFrame
-        Tree count estimates with standard errors
+    Parameters mirror other estimators to maintain a consistent API.
     """
-    # Handle database input
-    if isinstance(db, str):
-        fia = FIA(db)
-    else:
-        fia = db
+    config = EstimatorConfig(
+        grp_by=grp_by,
+        by_species=by_species,
+        by_size_class=by_size_class,
+        land_type=land_type,
+        tree_type=tree_type,
+        tree_domain=tree_domain,
+        area_domain=area_domain,
+        method=method,
+        lambda_=lambda_,
+        totals=totals,
+        variance=variance,
+        by_plot=by_plot,
+        most_recent=most_recent,
+    )
 
-    # Use DuckDB's efficient query optimization with memory management
-    try:
-        from ..database.query_interface import DuckDBQueryInterface
-        from ..filters.evalid import get_recommended_evalid
-
-        query_interface = DuckDBQueryInterface(fia.db_path)
-
-        # Apply DuckDB optimization settings for large queries
-        optimization_settings = [
-            "SET memory_limit = '4GB'",  # Conservative memory limit
-            "SET threads = 4",           # Avoid too many threads
-            "SET preserve_insertion_order = false",  # Allow reordering for memory efficiency
-        ]
-
-        for setting in optimization_settings:
-            try:
-                query_interface.execute_query(setting)
-            except Exception:
-                pass  # Settings may not be available in all DuckDB versions
-
-        # Build WHERE conditions for filter pushdown
-        where_conditions = ["1=1"]  # Base condition
-
-        # Tree status filters (push down early)
-        if tree_type == "live":
-            where_conditions.append("t.STATUSCD = 1")
-        elif tree_type == "dead":
-            where_conditions.append("t.STATUSCD = 2")
-        elif tree_type == "gs":
-            where_conditions.append("t.STATUSCD = 1")  # Growing stock = live
-
-        # Land type filters (push down early)
-        if land_type == "forest":
-            where_conditions.append("c.COND_STATUS_CD = 1")
-        elif land_type == "timber":
-            where_conditions.append("(c.COND_STATUS_CD = 1 AND c.RESERVCD = 0)")
-
-        # Tree domain filter (push down early) - qualify column names
-        if tree_domain:
-            # Replace common unqualified column names with qualified ones
-            qualified_domain = tree_domain
-            qualified_domain = qualified_domain.replace("SPCD", "t.SPCD")
-            qualified_domain = qualified_domain.replace("DIA", "t.DIA")
-            qualified_domain = qualified_domain.replace("STATUSCD", "t.STATUSCD")
-            where_conditions.append(f"({qualified_domain})")
-
-        # Area domain filter (extract state code efficiently)
-        if area_domain and "STATECD" in area_domain:
-            import re
-            state_match = re.search(r'STATECD\s*==\s*(\d+)', area_domain)
-            if state_match:
-                state_code = int(state_match.group(1))
-                where_conditions.append(f"ps.STATECD = {state_code}")
-
-        # EVALID filter (push down early) - use intelligent EVALID selection
-        if fia.evalid:
-            if isinstance(fia.evalid, list):
-                evalid_list = ','.join(map(str, fia.evalid))
-                where_conditions.append(f"ps.EVALID IN ({evalid_list})")
-            else:
-                where_conditions.append(f"ps.EVALID = {fia.evalid}")
-        else:
-            # Auto-select best EVALID if area_domain specifies a state
-            if area_domain and "STATECD" in area_domain:
-                import re
-                state_match = re.search(r'STATECD\s*==\s*(\d+)', area_domain)
-                if state_match:
-                    state_code = int(state_match.group(1))
-                    recommended_evalid, explanation = get_recommended_evalid(
-                        query_interface, state_code, "tree_count"
-                    )
-                    if recommended_evalid:
-                        where_conditions.append(f"ps.EVALID = {recommended_evalid}")
-                        # Store for future reference
-                        fia.evalid = recommended_evalid
-
-        # Build SELECT columns and corresponding GROUP BY columns
-        select_cols = []
-        group_cols = []
-
-        if by_species:
-            select_cols.extend(["t.SPCD", "rs.COMMON_NAME", "rs.SCIENTIFIC_NAME"])
-            group_cols.extend(["t.SPCD", "rs.COMMON_NAME", "rs.SCIENTIFIC_NAME"])
-
-        if by_size_class:
-            size_class_expr = """
-            CASE
-                WHEN t.DIA < 5.0 THEN 'Saplings'
-                WHEN t.DIA < 10.0 THEN 'Small'
-                WHEN t.DIA < 20.0 THEN 'Medium'
-                ELSE 'Large'
-            END AS SIZE_CLASS
-            """
-            select_cols.append(size_class_expr)
-            # For CASE expressions, use the full expression in GROUP BY
-            group_cols.append("""
-            CASE
-                WHEN t.DIA < 5.0 THEN 'Saplings'
-                WHEN t.DIA < 10.0 THEN 'Small'
-                WHEN t.DIA < 20.0 THEN 'Medium'
-                ELSE 'Large'
-            END
-            """)
-
-        # Add grouping columns from grp_by parameter
-        if grp_by:
-            if isinstance(grp_by, str):
-                group_cols.append(grp_by)
-                select_cols.append(grp_by)
-            else:
-                group_cols.extend(grp_by)
-                select_cols.extend(grp_by)
-
-        # Build the optimized SQL query with proper join order
-        select_clause = ", ".join(select_cols) + ", " if select_cols else ""
-        group_clause = f"GROUP BY {', '.join(group_cols)}" if group_cols else ""
-
-        # Species join only if needed
-        species_join = "LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD" if by_species else ""
-
-        # Use the exact EVALIDator formula with optimized join order
-        # Start from smallest table (POP_STRATUM) and join outward
-        query = f"""
-        SELECT
-            {select_clause}
-            SUM(
-                t.TPA_UNADJ *
-                CASE
-                    WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
-                    WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
-                    WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
-                    ELSE ps.ADJ_FACTOR_MACR
-                END * ps.EXPNS
-            ) AS TREE_COUNT,
-            COUNT(DISTINCT p.CN) as nPlots
-
-        FROM POP_STRATUM ps
-        INNER JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
-        INNER JOIN PLOT p ON ppsa.PLT_CN = p.CN
-        INNER JOIN COND c ON c.PLT_CN = p.CN
-        INNER JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
-        {species_join}
-
-        WHERE {" AND ".join(where_conditions)}
-
-        {group_clause}
-        ORDER BY TREE_COUNT DESC
-        """
-
-        # Execute the optimized query with streaming
-        result = query_interface.execute_query(query, limit=None)
-
-        # Add basic SE approximation
-        result = result.with_columns([
-            # Rough SE approximation - proper calculation would need plot-level variance
-            (pl.col("TREE_COUNT") * 0.05).alias("SE"),  # Assume 5% SE for now
-            pl.lit(5.0).alias("SE_PERCENT")  # Placeholder
-        ])
-
-        return result
-
-    except Exception as e:
-        raise RuntimeError(f"Tree count estimation failed: {str(e)}")
+    with TreeCountEstimator(db, config) as estimator:
+        return estimator.estimate()
 
 
 def tree_count_simple(
@@ -236,51 +218,22 @@ def tree_count_simple(
     tree_status: int = 1,
 ) -> pl.DataFrame:
     """
-    Simplified tree count function optimized for AI agent use.
-
-    This function uses modular join patterns from the joins module
-    and the established TPA estimation pipeline for reliable results.
-
-    Parameters
-    ----------
-    db : FIA or str
-        FIA database object or path
-    species_code : int, optional
-        Species code (SPCD) to filter by
-    state_code : int, optional
-        State FIPS code to filter by
-    tree_status : int, default 1
-        Tree status code (1=live, 2=dead)
-
-    Returns
-    -------
-    pl.DataFrame
-        Simple DataFrame with tree count and metadata
+    Simplified helper for quick tree counts by species/state.
     """
-    # Build domain filters
-    tree_domain = None
-    area_domain = None
+    tree_type = "live" if tree_status == 1 else ("dead" if tree_status == 2 else "all")
+    tree_domain = f"SPCD == {species_code}" if species_code is not None else None
+    area_domain = f"STATECD == {state_code}" if state_code is not None else None
 
-    if tree_status == 1:
-        tree_type = "live"
-    elif tree_status == 2:
-        tree_type = "dead"
-    else:
-        tree_type = "all"
-
-    if species_code:
-        tree_domain = f"SPCD == {species_code}"
-
-    if state_code:
-        area_domain = f"STATECD == {state_code}"
-
-    # Use the full tree_count function with species grouping for metadata
     return tree_count(
         db=db,
-        by_species=bool(species_code),  # Include species info if filtering by species
+        grp_by=None,
+        by_species=bool(species_code),
+        by_size_class=False,
+        land_type="forest",
         tree_type=tree_type,
         tree_domain=tree_domain,
         area_domain=area_domain,
         totals=True,
         variance=False,
+        most_recent=False,
     )

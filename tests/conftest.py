@@ -5,6 +5,7 @@ This module provides reusable test fixtures for consistent testing
 across all pyFIA modules.
 """
 
+import os
 import sqlite3
 import tempfile
 from pathlib import Path
@@ -26,6 +27,21 @@ def temp_db_path():
     with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
         yield Path(tmp.name)
     # Cleanup happens automatically
+
+
+@pytest.fixture(scope="session")
+def use_real_data() -> bool:
+    """Return True if PYFIA_DATABASE_PATH is set and exists."""
+    db_path = os.getenv("PYFIA_DATABASE_PATH")
+    return bool(db_path and Path(db_path).exists())
+
+
+@pytest.fixture(scope="session")
+def real_fia_instance(use_real_data):
+    """Create a FIA instance pointing to the real DuckDB if available."""
+    if not use_real_data:
+        return None
+    return FIA(os.getenv("PYFIA_DATABASE_PATH"))
 
 
 @pytest.fixture(scope="session")
@@ -242,8 +258,19 @@ def sample_fia_db(temp_db_path):
 
 
 @pytest.fixture
-def sample_fia_instance(sample_fia_db):
-    """Create a FIA instance with sample data."""
+def sample_fia_instance(sample_fia_db, use_real_data):
+    """Create a FIA instance backing tests; prefer real DB if configured.
+
+    When using the real database, clip to a manageable scope to keep tests fast.
+    """
+    if use_real_data:
+        db = FIA(os.getenv("PYFIA_DATABASE_PATH"))
+        try:
+            # Default to Georgia (13), most recent evaluation for bounded size
+            db.clip_by_state(13, most_recent=True)
+        except Exception:
+            pass
+        return db
     return FIA(str(sample_fia_db))
 
 

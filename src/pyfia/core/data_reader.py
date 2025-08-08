@@ -43,8 +43,12 @@ class FIADataReader:
 
     def __del__(self):
         """Close DuckDB connection if open."""
-        if self._duckdb_conn:
-            self._duckdb_conn.close()
+        try:
+            if hasattr(self, "_duckdb_conn") and self._duckdb_conn:
+                self._duckdb_conn.close()
+        except Exception:
+            # Avoid raising during garbage collection
+            pass
 
     def get_table_schema(self, table_name: str) -> Dict[str, str]:
         """

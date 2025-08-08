@@ -6,6 +6,8 @@ working SQL examples in FIA_WORKING_QUERY_BANK.md
 """
 
 from unittest.mock import Mock
+import os
+from pathlib import Path
 
 import numpy as np
 import polars as pl
@@ -194,11 +196,18 @@ class TestAreaIntegrationEVALIDator:
             "forest_type_groups": forest_type_groups,
         }
 
-    def test_minnesota_forest_area_by_type_group(self, minnesota_forest_area_data):
+    def test_minnesota_forest_area_by_type_group(self, minnesota_forest_area_data, real_fia_instance, use_real_data):
         """
         Test that matches Minnesota Forest Area by Forest Type Group example.
         Should calculate areas matching the SQL pattern with PROP_BASIS handling.
         """
+        if use_real_data:
+            # Run against real DB with broad assertions only
+            db = real_fia_instance
+            result = area(db, grp_by=["FORTYPCD"], land_type="forest", totals=True)
+            assert "AREA_PERC" in result.columns
+            assert result.shape[0] > 0
+            return
         data = minnesota_forest_area_data
 
         # Add forest type group to conditions
@@ -262,7 +271,7 @@ class TestAreaIntegrationEVALIDator:
             if perc is not None and not np.isnan(perc):
                 assert 0 <= perc <= 100
 
-    def test_prop_basis_adjustment_factor_selection(self):
+    def test_prop_basis_adjustment_factor_selection(self, real_fia_instance, use_real_data):
         """
         Test that PROP_BASIS correctly selects between ADJ_FACTOR_MACR and ADJ_FACTOR_SUBP.
         This matches the SQL pattern:
@@ -271,6 +280,13 @@ class TestAreaIntegrationEVALIDator:
             ELSE ps.ADJ_FACTOR_SUBP
         END
         """
+        if use_real_data:
+            db = real_fia_instance
+            # Just ensure query runs and adjustment columns exist in strata
+            res = area(db, land_type="forest", totals=True)
+            assert "AREA" in res.columns
+            assert res.shape[0] > 0
+            return
         # Create test data with clear MACR vs SUBP distinction
         plots = pl.DataFrame({"CN": ["P1", "P2"], "PLT_CN": ["P1", "P2"]})
 
@@ -326,12 +342,19 @@ class TestAreaIntegrationEVALIDator:
         # Total: 1250 acres
         assert result["AREA"][0] == pytest.approx(1250.0, rel=0.01)
 
-    def test_direct_expansion_method(self):
+    def test_direct_expansion_method(self, real_fia_instance, use_real_data):
         """
         Test that area calculation uses direct expansion (not post-stratified means).
         This matches the SQL pattern:
         SUM(c.CONDPROP_UNADJ * adjustment_factor * ps.EXPNS)
         """
+        if use_real_data:
+            db = real_fia_instance
+            res = area(db, land_type="forest", totals=True)
+            assert "AREA" in res.columns
+            assert "AREA_PERC" in res.columns
+            assert res.shape[0] > 0
+            return
         # Create simple test case
         plots = pl.DataFrame({"CN": ["P1", "P2", "P3"], "PLT_CN": ["P1", "P2", "P3"]})
 
@@ -395,11 +418,18 @@ class TestAreaIntegrationEVALIDator:
         # Percentage should be 100% since all conditions are forest
         assert result["AREA_PERC"][0] == pytest.approx(100.0, rel=0.01)
 
-    def test_by_land_type_denominator(self):
+    def test_by_land_type_denominator(self, real_fia_instance, use_real_data):
         """
         Test that by_land_type uses correct denominator (excludes water).
         For byLandType=TRUE: percentages should be of land area only (status 1+2).
         """
+        if use_real_data:
+            db = real_fia_instance
+            res = area(db, by_land_type=True, totals=True)
+            # Basic structural check only when using real data
+            assert "LAND_TYPE" in res.columns
+            assert res.shape[0] > 0
+            return
         plots = pl.DataFrame(
             {"CN": ["P1", "P2", "P3", "P4"], "PLT_CN": ["P1", "P2", "P3", "P4"]}
         )

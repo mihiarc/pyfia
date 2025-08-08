@@ -284,7 +284,14 @@ class FIA:
         if columns:
             plots = plots.select(columns)
 
-        return plots.collect()
+        # Materialize results
+        plots_df = plots.collect()
+
+        # Ensure PLT_CN is always available for downstream joins
+        if "PLT_CN" not in plots_df.columns and "CN" in plots_df.columns:
+            plots_df = plots_df.with_columns(pl.col("CN").alias("PLT_CN"))
+
+        return plots_df
 
     def get_trees(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
         """

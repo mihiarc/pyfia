@@ -84,11 +84,11 @@ class TestSetupGroupingColumns:
             by_size_class=True
         )
 
-        assert "sizeClass" in group_cols
-        assert "sizeClass" in result_df.columns
+        assert "SIZE_CLASS" in group_cols
+        assert "SIZE_CLASS" in result_df.columns
 
         # Verify size classes
-        size_classes = result_df["sizeClass"].unique().sort()
+        size_classes = result_df["SIZE_CLASS"].unique().sort()
         expected = ["1.0-4.9", "5.0-9.9", "10.0-19.9", "20.0-29.9", "30.0+"]
         assert set(size_classes) == set(expected)
 
@@ -101,8 +101,8 @@ class TestSetupGroupingColumns:
             by_size_class=True
         )
 
-        assert group_cols == ["PLT_CN", "SPCD", "sizeClass"]
-        assert "sizeClass" in result_df.columns
+        assert group_cols == ["PLT_CN", "SPCD", "SIZE_CLASS"]
+        assert "SIZE_CLASS" in result_df.columns
 
     def test_duplicate_removal(self, sample_tree_df):
         """Test that duplicates are removed from group columns."""
@@ -132,21 +132,21 @@ class TestSizeClassExpressions:
         result = sample_tree_df.with_columns(expr)
 
         # Check specific trees
-        assert result.filter(pl.col("DIA") == 3.5)["sizeClass"][0] == "1.0-4.9"
-        assert result.filter(pl.col("DIA") == 6.2)["sizeClass"][0] == "5.0-9.9"
-        assert result.filter(pl.col("DIA") == 12.5)["sizeClass"][0] == "10.0-19.9"
-        assert result.filter(pl.col("DIA") == 25.0)["sizeClass"][0] == "20.0-29.9"
-        assert result.filter(pl.col("DIA") == 32.5)["sizeClass"][0] == "30.0+"
+        assert result.filter(pl.col("DIA") == 3.5)["SIZE_CLASS"][0] == "1.0-4.9"
+        assert result.filter(pl.col("DIA") == 6.2)["SIZE_CLASS"][0] == "5.0-9.9"
+        assert result.filter(pl.col("DIA") == 12.5)["SIZE_CLASS"][0] == "10.0-19.9"
+        assert result.filter(pl.col("DIA") == 25.0)["SIZE_CLASS"][0] == "20.0-29.9"
+        assert result.filter(pl.col("DIA") == 32.5)["SIZE_CLASS"][0] == "30.0+"
 
     def test_descriptive_size_classes(self, sample_tree_df):
         """Test descriptive size class labels."""
         expr = create_size_class_expr("DIA", "descriptive")
         result = sample_tree_df.with_columns(expr)
 
-        assert result.filter(pl.col("DIA") == 3.5)["sizeClass"][0] == "Saplings"
-        assert result.filter(pl.col("DIA") == 6.2)["sizeClass"][0] == "Small"
-        assert result.filter(pl.col("DIA") == 12.5)["sizeClass"][0] == "Medium"
-        assert result.filter(pl.col("DIA") == 25.0)["sizeClass"][0] == "Large"
+        assert result.filter(pl.col("DIA") == 3.5)["SIZE_CLASS"][0] == "Saplings"
+        assert result.filter(pl.col("DIA") == 6.2)["SIZE_CLASS"][0] == "Small"
+        assert result.filter(pl.col("DIA") == 12.5)["SIZE_CLASS"][0] == "Medium"
+        assert result.filter(pl.col("DIA") == 25.0)["SIZE_CLASS"][0] == "Large"
 
     def test_custom_diameter_column(self):
         """Test using a different diameter column name."""
@@ -154,8 +154,8 @@ class TestSizeClassExpressions:
         expr = create_size_class_expr("DIA_BEGIN", "standard")
         result = df.with_columns(expr)
 
-        assert "sizeClass" in result.columns
-        assert result["sizeClass"].to_list() == ["1.0-4.9", "10.0-19.9", "20.0-29.9"]
+        assert "SIZE_CLASS" in result.columns
+        assert result["SIZE_CLASS"].to_list() == ["1.0-4.9", "10.0-19.9", "20.0-29.9"]
 
     def test_invalid_size_class_type(self):
         """Test error with invalid size class type."""
@@ -192,10 +192,10 @@ class TestPlotGroups:
 
     def test_prepare_plot_groups_default(self):
         """Test default behavior with PLT_CN always included."""
-        base_groups = ["SPCD", "sizeClass"]
+        base_groups = ["SPCD", "SIZE_CLASS"]
         result = prepare_plot_groups(base_groups)
 
-        assert result == ["PLT_CN", "SPCD", "sizeClass"]
+        assert result == ["PLT_CN", "SPCD", "SIZE_CLASS"]
 
     def test_prepare_plot_groups_additional(self):
         """Test with additional groups."""

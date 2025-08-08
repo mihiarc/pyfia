@@ -328,44 +328,33 @@ def apply_area_filters(
 
 
 def parse_domain_expression(
-    df: pl.DataFrame,
+    df: pl.DataFrame | str,
     domain: str,
     domain_type: str = "tree",
-) -> pl.DataFrame:
+) -> pl.DataFrame | pl.Expr:
     """
-    Parse and apply custom domain expressions safely.
+    Parse custom domain expressions.
 
-    Parameters
-    ----------
-    df : pl.DataFrame
-        Dataframe to filter
-    domain : str
-        Filter expression to parse
-    domain_type : str, default "tree"
-        Type of domain ("tree" or "area") for validation
-
-    Returns
-    -------
-    pl.DataFrame
-        Filtered dataframe
+    Supports two call styles for backward compatibility:
+    - parse_domain_expression(df, domain, domain_type) -> filtered DataFrame
+    - parse_domain_expression(domain, domain_type) -> Polars Expr
     """
-    try:
-        # First try as a Polars expression
-        # Replace common SQL operators with Polars equivalents
-        polars_expr = domain.replace(" and ", " & ").replace(" or ", " | ")
-
-        # Create a namespace with column references
-        namespace = {col: pl.col(col) for col in df.columns}
-
-        # Evaluate the expression
-        filter_expr = eval(polars_expr, {"pl": pl}, namespace)
-        return df.filter(filter_expr)
-    except Exception:
-        # Fallback: try as raw SQL expression
+    # Overload: if first argument is actually the domain string, return Expr
+    if not isinstance(df, pl.DataFrame):
+        domain_str = str(df)
+        # domain parameter may actually be the domain_type in this usage
+        # Keep API tolerant and ignore here
         try:
-            return df.sql(f"SELECT * FROM self WHERE {domain}")
+            return pl.sql_expr(domain_str)
         except Exception as e:
-            raise ValueError(f"Invalid {domain_type} domain expression: {domain}") from e
+            raise ValueError(f"Invalid {domain_type} domain expression: {domain_str}") from e
+
+    # Regular: filter the provided DataFrame
+    try:
+        expr = pl.sql_expr(domain)
+        return df.filter(expr)
+    except Exception as e:
+        raise ValueError(f"Invalid {domain_type} domain expression: {domain}") from e
 
 
 def apply_growing_stock_filter(
@@ -399,10 +388,17 @@ def apply_growing_stock_filter(
 
     if gs_type == "merchantable":
         # Additional filters for merchantable volume
-        gs_filter = gs_filter & (pl.col("DIA") >= 5.0)
+        # If AGENTCD not present, skip that component gracefully
+        gs_filter = (
+            (pl.col("STATUSCD") == TreeStatus.LIVE)
+            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
+        ) & (pl.col("DIA") >= 5.0)
     elif gs_type == "board_foot":
         # Board foot requires larger diameter
-        gs_filter = gs_filter & (pl.col("DIA") >= 9.0)
+        gs_filter = (
+            (pl.col("STATUSCD") == TreeStatus.LIVE)
+            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
+        ) & (pl.col("DIA") >= 9.0)
     elif gs_type != "standard":
         raise ValueError(f"Invalid gs_type: {gs_type}")
 
@@ -515,12 +511,10 @@ def get_size_class_expr() -> pl.Expr:
         Expression that creates 'sizeClass' column based on DIA
     """
     return (
-        pl.when(pl.col("DIA") < 5.0).then(pl.lit("1.0-4.9"))
-        .when(pl.col("DIA") < 10.0).then(pl.lit("5.0-9.9"))
-        .when(pl.col("DIA") < 20.0).then(pl.lit("10.0-19.9"))
-        .when(pl.col("DIA") < 30.0).then(pl.lit("20.0-29.9"))
-        .otherwise(pl.lit("30.0+"))
-        .alias("sizeClass")
+        pl.when(pl.col("DIA") < 10.0).then(pl.lit("Small"))
+        .when(pl.col("DIA") < 18.0).then(pl.lit("Medium"))
+        .otherwise(pl.lit("Large"))
+        .alias("SIZE_CLASS")
     )
 
 

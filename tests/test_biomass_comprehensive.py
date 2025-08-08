@@ -102,7 +102,7 @@ class TestBiomassBasicEstimation:
 
     def test_biomass_by_size_class(self, sample_fia_instance, sample_evaluation):
         """Test biomass estimation grouped by size class."""
-        # Skip test if sizeClass column is not available in implementation
+        # Skip test if SIZE_CLASS column is not available in implementation
         try:
             result = biomass(sample_fia_instance, component="AG",
                 by_size_class=True
@@ -114,7 +114,7 @@ class TestBiomassBasicEstimation:
             # All estimates should be positive
             assert (result["BIO_ACRE"] > 0).all()
         except Exception as e:
-            if "sizeClass" in str(e):
+            if "SIZE_CLASS" in str(e):
                 pytest.skip("Size class functionality not fully implemented")
             else:
                 raise

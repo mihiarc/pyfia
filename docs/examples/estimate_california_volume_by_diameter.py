@@ -129,13 +129,13 @@ def estimate_california_merchantable_volume(db_path: str = "fia.duckdb"):
     
     # Sort by custom order
     for size_class in size_class_order:
-        rows = volume_by_diameter.filter(pl.col("sizeClass") == size_class)
+        rows = volume_by_diameter.filter(pl.col("SIZE_CLASS") == size_class)
         if not rows.is_empty():
             row = rows.row(0, named=True)
             vol_total = row.get('VOL_TOTAL_BOLE_CF_ACRE', 0)
             percentage = (vol_total / total_vol * 100) if total_vol > 0 else 0
             table1.add_row(
-                row["sizeClass"] + " inches",
+                row["SIZE_CLASS"] + " inches",
                 f"{vol_total:,.0f}" if vol_total else "-",
                 f"{row['VOLCFNET_ACRE']:,.1f} ft³/ac",
                 f"{percentage:.1f}%",
@@ -160,13 +160,13 @@ def estimate_california_merchantable_volume(db_path: str = "fia.duckdb"):
     sawlog_classes = ["10.0-19.9", "20.0-29.9", "30.0+"]
     
     for size_class in sawlog_classes:
-        rows = sawlog_volume.filter(pl.col("sizeClass") == size_class)
+        rows = sawlog_volume.filter(pl.col("SIZE_CLASS") == size_class)
         if not rows.is_empty():
             row = rows.row(0, named=True)
             vol_total = row.get('VOL_TOTAL_SAW_CF_ACRE', 0)
             percentage = (vol_total / total_sawlog * 100) if total_sawlog > 0 else 0
             table2.add_row(
-                row["sizeClass"] + " inches",
+                row["SIZE_CLASS"] + " inches",
                 f"{vol_total:,.0f}" if vol_total else "-",
                 f"{row['VOLCSNET_ACRE']:,.1f} ft³/ac",
                 f"{percentage:.1f}%"
@@ -213,7 +213,7 @@ def estimate_california_merchantable_volume(db_path: str = "fia.duckdb"):
         )
         .pivot(
             values="VOLCFNET_ACRE",
-            index="sizeClass",
+            index="SIZE_CLASS",
             on="Owner",
             aggregate_function="sum"
         )
@@ -223,16 +223,16 @@ def estimate_california_merchantable_volume(db_path: str = "fia.duckdb"):
     table4.add_column("Diameter Class", style="cyan")
     
     # Add columns for each ownership type
-    owner_cols = [col for col in ownership_pivot.columns if col != "sizeClass"]
+    owner_cols = [col for col in ownership_pivot.columns if col != "SIZE_CLASS"]
     for owner in owner_cols:
         table4.add_column(owner, justify="right")
     
     # Sort by size class order
     for size_class in size_class_order:
-        rows = ownership_pivot.filter(pl.col("sizeClass") == size_class)
+        rows = ownership_pivot.filter(pl.col("SIZE_CLASS") == size_class)
         if not rows.is_empty():
             row = rows.row(0, named=True)
-            row_data = [row["sizeClass"] + " inches"]
+            row_data = [row["SIZE_CLASS"] + " inches"]
             for owner in owner_cols:
                 value = row.get(owner, 0)
                 row_data.append(f"{value:,.1f}" if value else "-")
@@ -250,14 +250,14 @@ def estimate_california_merchantable_volume(db_path: str = "fia.duckdb"):
         dist_total = volume_by_diameter['VOL_TOTAL_BOLE_CF_ACRE'].sum() if 'VOL_TOTAL_BOLE_CF_ACRE' in volume_by_diameter.columns else volume_by_diameter['VOLCFNET_ACRE'].sum()
         
         for size_class in size_class_order:
-            rows = volume_by_diameter.filter(pl.col("sizeClass") == size_class)
+            rows = volume_by_diameter.filter(pl.col("SIZE_CLASS") == size_class)
             if not rows.is_empty():
                 row = rows.row(0, named=True)
                 vol_value = row.get('VOL_TOTAL_BOLE_CF_ACRE', row.get('VOLCFNET_ACRE', 0))
                 percentage = (vol_value / dist_total * 100) if dist_total > 0 else 0
                 bar_length = int(percentage / 2)  # Scale to fit
                 bar = "█" * bar_length
-                console.print(f"   {row['sizeClass']:>10} inches: {bar} {percentage:.1f}%")
+                console.print(f"   {row['SIZE_CLASS']:>10} inches: {bar} {percentage:.1f}%")
     
     console.print("\n[bold yellow]Analysis complete![/bold yellow]")
 

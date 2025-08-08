@@ -106,7 +106,7 @@ class TestVolumeBasicEstimation:
 
     def test_volume_by_size_class(self, sample_fia_instance, sample_evaluation, use_real_data):
         """Test volume estimation grouped by size class."""
-        # Skip test if sizeClass column is not available in implementation
+        # Skip test if SIZE_CLASS column is not available in implementation
         try:
             result = volume(sample_fia_instance, vol_type="net",
                 by_size_class=True
@@ -118,7 +118,7 @@ class TestVolumeBasicEstimation:
             # All estimates should be non-negative
             assert (result["VOLCFNET_ACRE"].fill_null(0) >= 0).all()
         except Exception as e:
-            if "sizeClass" in str(e):
+            if "SIZE_CLASS" in str(e):
                 pytest.skip("Size class functionality not fully implemented")
             else:
                 raise

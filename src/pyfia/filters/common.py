@@ -289,9 +289,9 @@ def setup_grouping_columns_common(
             .when(pl.col("DIA") < 30.0)
             .then(pl.lit("20.0-29.9"))
             .otherwise(pl.lit("30.0+"))
-            .alias("sizeClass")
+            .alias("SIZE_CLASS")
         )
-        group_cols.append("sizeClass")
+        group_cols.append("SIZE_CLASS")
 
     # Return based on requested format
     if return_dataframe:

@@ -79,10 +79,10 @@ def setup_grouping_columns(
         if dia_col not in df.columns:
             raise ValueError(f"{dia_col} column not found in dataframe for size class grouping")
 
-        # Add size class column
+        # Add size class column (standardize to UPPER_SNAKE_CASE)
         size_class_expr = create_size_class_expr(dia_col, size_class_type)
         df = df.with_columns(size_class_expr)
-        group_cols.append("sizeClass")
+        group_cols.append("SIZE_CLASS")
 
     # Add land type grouping (for area estimation)
     if by_land_type:
@@ -125,7 +125,7 @@ def create_size_class_expr(
             .when(pl.col(dia_col) < 20.0).then(pl.lit("10.0-19.9"))
             .when(pl.col(dia_col) < 30.0).then(pl.lit("20.0-29.9"))
             .otherwise(pl.lit("30.0+"))
-            .alias("sizeClass")
+            .alias("SIZE_CLASS")
         )
     elif size_class_type == "descriptive":
         return (
@@ -133,7 +133,7 @@ def create_size_class_expr(
             .when(pl.col(dia_col) < 10.0).then(pl.lit("Small"))
             .when(pl.col(dia_col) < 20.0).then(pl.lit("Medium"))
             .otherwise(pl.lit("Large"))
-            .alias("sizeClass")
+            .alias("SIZE_CLASS")
         )
     else:
         raise ValueError(f"Invalid size_class_type: {size_class_type}")

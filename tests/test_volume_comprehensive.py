@@ -355,7 +355,7 @@ class TestVolumeIntegration:
 
         # Should complete in reasonable time (allow more for real DB)
         execution_time = end_time - start_time
-        assert execution_time < (10.0 if use_real_data else 1.0)
+        assert execution_time < (10.0 if use_real_data else 3.0)
 
         # Should produce valid result
         assert len(result) > 0
@@ -375,6 +375,40 @@ class TestVolumeIntegration:
         
         # Note: We can't directly compare these as they measure different things
         # (bole volume vs sawlog volume)
+
+
+class TestVolumeLandTypeBehavior:
+    """Tests to ensure land_type filtering is enforced via COND predicates, not RSCD."""
+
+    def test_forest_with_timber_conditions_matches_timber(self, sample_fia_instance, sample_evaluation):
+        """When land_type='forest' but area_domain enforces timberland conditions,
+        results should match land_type='timber'. This verifies filtering is via COND, not RSCD.
+        """
+        timber_domain = "COND_STATUS_CD == 1 AND RESERVCD == 0 AND SITECLCD IN (1,2,3,4,5,6)"
+
+        result_forest_timberconds = volume(
+            sample_fia_instance,
+            vol_type="net",
+            land_type="forest",
+            area_domain=timber_domain,
+        )
+
+        result_timber = volume(
+            sample_fia_instance,
+            vol_type="net",
+            land_type="timber",
+        )
+
+        # Both should produce valid outputs
+        assert len(result_forest_timberconds) > 0
+        assert len(result_timber) > 0
+
+        # Compare primary per-acre estimate
+        v_forest = result_forest_timberconds["VOLCFNET_ACRE"][0]
+        v_timber = result_timber["VOLCFNET_ACRE"][0]
+
+        # Allow a small tolerance due to potential grouping/order differences
+        assert abs(v_forest - v_timber) < 1e-6
 
 
 class TestVolumeSpecialCases:

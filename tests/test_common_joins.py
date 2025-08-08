@@ -12,6 +12,7 @@ from pyfia.filters.joins import (
     join_species_info,
     join_tree_condition,
 )
+from pyfia.filters.classification import assign_tree_basis
 
 # Custom fixtures for specific join tests (smaller datasets)
 @pytest.fixture
@@ -87,9 +88,16 @@ class TestPlotStratumJoin:
 
     def test_default_join(self, joins_plot_data, standard_ppsa_data, standard_stratum_data):
         """Test default plot-stratum join."""
+        # Adapt PPSA PLT_CN values to match joins_plot_data (P1, P2, P3)
+        ppsa_adj = standard_ppsa_data.with_columns(
+            pl.col("PLT_CN").str.replace("^P00", "P")
+        )
+        # Keep only rows for P1..P3 to align with joins_plot_data
+        ppsa_adj = ppsa_adj.filter(pl.col("PLT_CN").is_in(["P1", "P2", "P3"]))
+
         result = join_plot_stratum(
             joins_plot_data,
-            standard_ppsa_data,
+            ppsa_adj,
             standard_stratum_data
         )
 
@@ -180,6 +188,12 @@ class TestEvalidAssignments:
 
     def test_evalid_filter(self, standard_ppsa_data):
         """Test filtering by EVALID."""
+        # Create a small PPSA dataset tailored to expected counts
+        sample_ppsa_df = pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3"],
+            "STRATUM_CN": ["S1", "S1", "S2"],
+            "EVALID": [372301, 372301, 372201],
+        })
         ppsa = pl.LazyFrame(sample_ppsa_df)
 
         result = get_evalid_assignments(ppsa, evalid=372301)
@@ -190,6 +204,11 @@ class TestEvalidAssignments:
 
     def test_plot_cn_filter(self, standard_ppsa_data):
         """Test filtering by plot CNs."""
+        sample_ppsa_df = pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3"],
+            "STRATUM_CN": ["S1", "S1", "S2"],
+            "EVALID": [372301, 372301, 372201],
+        })
         ppsa = pl.LazyFrame(sample_ppsa_df)
 
         result = get_evalid_assignments(ppsa, plot_cns=["P1", "P3"])

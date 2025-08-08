@@ -861,23 +861,98 @@ def _calculate_land_type_percentages_rfia(variance_results: pl.DataFrame) -> pl.
     This function processes the rFIA variance calculation output and converts
     it to the expected format for land type analysis.
     """
-    # The rFIA variance calculator already provides AREA_PERC, AREA_TOTAL, and sampling errors
-    # We just need to ensure the column names match expected output format
-    return variance_results.rename({
+    # Rename to common field names
+    renamed = variance_results.rename({
         "AREA_TOTAL": "FA_TOTAL",
-        "AREA_TOTAL_DEN": "FAD_TOTAL", 
+        "AREA_TOTAL_DEN": "FAD_TOTAL",
         "AREA_TOTAL_VAR": "FA_VAR",
         "AREA_PERC_VAR": "AREA_PERC_VAR",
         "AREA_TOTAL_SE_ACRES": "FA_SE",
         "AREA_PERC_SE": "AREA_PERC_SE",
-        "total_plots": "N_PLOTS"
-    }).select([
-        # Keep any grouping columns
-        *[col for col in variance_results.columns if col not in ["AREA_TOTAL", "AREA_TOTAL_DEN", "AREA_TOTAL_VAR", "AREA_PERC_VAR", "AREA_TOTAL_SE_ACRES", "AREA_TOTAL_SE_PCT", "AREA_PERC_SE", "total_plots", "AREA_PERC"]],
-        # Standard output columns  
-        "FA_TOTAL", "FAD_TOTAL", "AREA_PERC", "FA_VAR", "AREA_PERC_VAR", 
-        "FA_SE", "AREA_PERC_SE", "N_PLOTS"
+        "total_plots": "N_PLOTS",
+    })
+
+    # Compute denominators for by-land-type percentages
+    # Land area (excluding water)
+    land_area_total = (
+        renamed.filter(~pl.col("LAND_TYPE").str.contains("Water"))
+        .select(pl.col("FAD_TOTAL").cast(pl.Float64).sum().alias("TOTAL_LAND_AREA"))
+    )
+    land_area_total_val = float(land_area_total[0, 0]) if land_area_total.height > 0 else 0.0
+
+    # Water area (numerator for water group); FAD_TOTAL for water is expected to be 0
+    water_area_total = (
+        renamed.filter(pl.col("LAND_TYPE").str.contains("Water"))
+        .select(pl.col("FA_TOTAL").cast(pl.Float64).sum().alias("TOTAL_WATER_AREA"))
+    )
+    water_area_total_val = float(water_area_total[0, 0]) if water_area_total.height > 0 else 0.0
+
+    total_area_val = land_area_total_val + water_area_total_val
+
+    # Safe percentage function handling denominators
+    def _compute_pct(row: dict) -> float:
+        lt = row.get("LAND_TYPE")
+        fa_total = float(row.get("FA_TOTAL") or 0.0)
+        if lt is not None and "Water" in str(lt):
+            denom = total_area_val
+        else:
+            denom = land_area_total_val
+        if denom <= 0.0:
+            return 0.0
+        pct = (fa_total / denom) * 100.0
+        # Clip to [0, 100] to avoid small numerical issues
+        if pct < 0.0:
+            return 0.0
+        if pct > 100.0:
+            return 100.0
+        return pct
+
+    result = renamed.with_columns(
+        pl.struct(["LAND_TYPE", "FA_TOTAL"]).map_elements(_compute_pct, return_dtype=pl.Float64).alias("AREA_PERC")
+    )
+
+    # Select grouping columns (everything not part of the measure set) plus outputs
+    group_cols = [
+        col
+        for col in variance_results.columns
+        if col
+        not in [
+            "AREA_TOTAL",
+            "AREA_TOTAL_DEN",
+            "AREA_TOTAL_VAR",
+            "AREA_PERC_VAR",
+            "AREA_TOTAL_SE_ACRES",
+            "AREA_TOTAL_SE_PCT",
+            "AREA_PERC_SE",
+            "total_plots",
+            "AREA_PERC",
+        ]
+    ]
+
+    # Provide totals columns expected by output when totals=True
+    result = result.with_columns([
+        pl.col("FA_TOTAL").alias("AREA"),
+        pl.col("FA_VAR").alias("AREA_VAR"),
+        pl.col("FA_SE").alias("AREA_SE"),
     ])
+
+    return result.select(
+        [
+            *group_cols,
+            "FA_TOTAL",
+            "FAD_TOTAL",
+            "AREA_PERC",
+            "FA_VAR",
+            "AREA_PERC_VAR",
+            "FA_SE",
+            "AREA_PERC_SE",
+            "N_PLOTS",
+            # Totals aliases for convenience
+            "AREA",
+            "AREA_VAR",
+            "AREA_SE",
+        ]
+    )
 
 
 def _calculate_standard_percentages_rfia(variance_results: pl.DataFrame) -> pl.DataFrame:

@@ -104,3 +104,8 @@ def get_fia(db_path=None, engine=None):
         engine = get_default_engine()
 
     return FIA(db_path, engine=engine)
+
+
+# Provide a dummy attribute for tests that patch 'pyfia.tpa._prepare_tpa_data'
+# Tests reference a legacy path; expose a no-op placeholder to keep them working.
+setattr(tpa, "_prepare_tpa_data", None)

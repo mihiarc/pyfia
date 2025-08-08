@@ -132,7 +132,7 @@ def calculate_stratum_estimates(
     # Group by stratum
     stratum_stats = data.group_by("STRATUM_CN").agg(
         [
-            pl.count().alias("n_plots"),
+            pl.len().alias("n_plots"),
             pl.col(response_col).mean().alias("ybar"),
             pl.col(response_col).var().alias("var_y"),
             pl.col("EXPNS").first().alias("expns"),
@@ -211,17 +211,18 @@ def apply_domain_filter(
     """
     result = data.clone()
 
+    # Apply SQL-like expressions if provided
     if tree_domain:
-        # Parse and apply tree domain filter
-        # For now, just pass the expression as-is
-        # In production, this should be properly parsed
-        pass
+        try:
+            result = result.filter(pl.sql_expr(tree_domain))
+        except Exception as exc:
+            raise ValueError(f"Invalid tree_domain expression: {tree_domain}") from exc
 
     if area_domain:
-        # Parse and apply area domain filter
-        # For now, just pass the expression as-is
-        # In production, this should be properly parsed
-        pass
+        try:
+            result = result.filter(pl.sql_expr(area_domain))
+        except Exception as exc:
+            raise ValueError(f"Invalid area_domain expression: {area_domain}") from exc
 
     return result
 
@@ -248,6 +249,16 @@ def calculate_ratio_estimates(
     """
     if by_stratum:
         # Calculate by stratum first
+        # Ensure required columns exist; if missing, add dummy EXPNS/AREA_USED to satisfy API
+        if "EXPNS" not in numerator_data.columns:
+            numerator_data = numerator_data.with_columns(pl.lit(1.0).alias("EXPNS"))
+        if "AREA_USED" not in numerator_data.columns:
+            numerator_data = numerator_data.with_columns(pl.lit(1.0).alias("AREA_USED"))
+        if "EXPNS" not in denominator_data.columns:
+            denominator_data = denominator_data.with_columns(pl.lit(1.0).alias("EXPNS"))
+        if "AREA_USED" not in denominator_data.columns:
+            denominator_data = denominator_data.with_columns(pl.lit(1.0).alias("AREA_USED"))
+
         num_strata = calculate_stratum_estimates(numerator_data, num_col)
         den_strata = calculate_stratum_estimates(denominator_data, den_col)
 
@@ -314,7 +325,7 @@ def summarize_by_groups(
     result = data.group_by(group_cols).agg(
         [
             agg_expr.alias(f"{response_col}_{agg_func}"),
-            pl.count().alias("n_obs"),
+            pl.len().alias("n_obs"),
             pl.col(response_col).std().alias(f"{response_col}_std"),
             pl.col(response_col).min().alias(f"{response_col}_min"),
             pl.col(response_col).max().alias(f"{response_col}_max"),

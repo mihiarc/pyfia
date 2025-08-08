@@ -12,6 +12,65 @@ import polars as pl
 from ..constants.constants import (
     DiameterBreakpoints,
 )
+def apply_adjustment_factors(
+    df: pl.DataFrame,
+    value_columns: "str | List[str]",
+    basis_column: str = "TREE_BASIS",
+    adj_factor_columns: Optional[dict] = None,
+) -> pl.DataFrame:
+    """
+    Apply adjustment factors based on basis to one or more value columns.
+
+    This is a convenience wrapper expected by estimation modules.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Input dataframe containing value columns and adjustment factor columns
+    value_columns : str | List[str]
+        Column name or list of column names to adjust
+    basis_column : str, default "TREE_BASIS"
+        Column containing basis values (e.g., MICR/SUBP/MACR)
+    adj_factor_columns : dict, optional
+        Mapping from basis value to adjustment factor column name
+
+    Returns
+    -------
+    pl.DataFrame
+        Dataframe with new columns suffixed with _ADJ for each value column
+    """
+    if isinstance(value_columns, str):
+        value_columns = [value_columns]
+
+    if adj_factor_columns is None:
+        adj_factor_columns = {
+            "MICR": "ADJ_FACTOR_MICR",
+            "SUBP": "ADJ_FACTOR_SUBP",
+            "MACR": "ADJ_FACTOR_MACR",
+        }
+
+    adjusted_exprs: List[pl.Expr] = []
+    for col in value_columns:
+        conditional_expr = None
+        for basis_value, factor_col in adj_factor_columns.items():
+            if factor_col in df.columns:
+                condition = pl.col(basis_column) == basis_value
+                # Ensure numeric types are float to avoid decimal type issues
+                value_expr = pl.col(col).cast(pl.Float64) * pl.col(factor_col).cast(pl.Float64)
+                if conditional_expr is None:
+                    conditional_expr = pl.when(condition).then(value_expr)
+                else:
+                    conditional_expr = conditional_expr.when(condition).then(value_expr)
+
+        if conditional_expr is None:
+            adjusted_exprs.append(pl.col(col).alias(f"{col}_ADJ"))
+        else:
+            adjusted_exprs.append(
+                conditional_expr.otherwise(pl.col(col).cast(pl.Float64)).alias(f"{col}_ADJ")
+            )
+
+    return df.with_columns(adjusted_exprs)
+
 
 
 def apply_tree_adjustment_factors(

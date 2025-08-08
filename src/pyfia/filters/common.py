@@ -123,7 +123,11 @@ def apply_tree_filters_common(
 
     # Apply user-defined tree domain
     if tree_domain:
-        tree_df = tree_df.filter(pl.sql_expr(tree_domain))
+        try:
+            tree_df = tree_df.filter(pl.sql_expr(tree_domain))
+        except Exception as exc:
+            # Normalize parsing errors to ValueError for consistent error handling in tests
+            raise ValueError(f"Invalid tree_domain expression: {tree_domain}") from exc
 
     return tree_df
 
@@ -190,7 +194,10 @@ def apply_area_filters_common(
     # Apply user-defined area domain
     # In area estimation mode, area domain is handled through domain indicators
     if area_domain and not area_estimation_mode:
-        cond_df = cond_df.filter(pl.sql_expr(area_domain))
+        try:
+            cond_df = cond_df.filter(pl.sql_expr(area_domain))
+        except Exception as exc:
+            raise ValueError(f"Invalid area_domain expression: {area_domain}") from exc
 
     return cond_df
 

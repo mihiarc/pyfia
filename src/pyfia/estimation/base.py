@@ -454,7 +454,8 @@ class BaseEstimator(ABC):
             tree_df = self.db.get_trees()
 
             # Apply common tree filters with module-specific flags
-            require_volume = "volume" in self.__class__.__name__.lower()
+            # Let modules enforce their own volume requirements
+            require_volume = False
             tree_df = apply_tree_filters_common(
                 tree_df,
                 self.config.tree_type,
@@ -580,28 +581,49 @@ class BaseEstimator(ABC):
         # Prepare stratification data
         strat_df = self.prepare_stratification_data(ppsa, pop_stratum)
 
-        # Join plot data with stratification
+        # Join plot data with stratification, keep STRATUM_CN to aggregate by stratum
         plot_with_strat = plot_data.join(
-            strat_df.select(["PLT_CN", "EXPNS", "ADJ_FACTOR_SUBP"]),
+            strat_df.select(["PLT_CN", "STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP"]),
             on="PLT_CN",
             how="inner"
         )
 
-        # Apply expansion to create population totals
-        response_cols = self.get_response_columns()
-        expansion_exprs = []
+        # Cast factors to float to avoid decimal precision issues
+        plot_with_strat = plot_with_strat.with_columns([
+            pl.col("ADJ_FACTOR_SUBP").cast(pl.Float64),
+            pl.col("EXPNS").cast(pl.Float64),
+        ])
 
+        # Compute ratio-of-means within stratum: y_bar_h for each plot metric
+        response_cols = self.get_response_columns()
+        strat_group_cols = ["STRATUM_CN"]
+        if self._group_cols:
+            strat_group_cols.extend(self._group_cols)
+
+        agg_exprs = [
+            pl.len().alias("n_h"),
+            pl.col("EXPNS").first().cast(pl.Float64).alias("A_h"),
+            pl.col("ADJ_FACTOR_SUBP").first().cast(pl.Float64).alias("ADJ_h"),
+        ]
         for _, output_name in response_cols.items():
             plot_col = f"PLOT_{output_name}"
             if plot_col in plot_with_strat.columns:
-                expansion_exprs.append(
-                    (pl.col(plot_col) * pl.col("ADJ_FACTOR_SUBP") * pl.col("EXPNS"))
-                    .alias(f"TOTAL_{output_name}")
+                agg_exprs.append(pl.mean(plot_col).alias(f"ybar_{output_name}"))
+
+        stratum_est = plot_with_strat.group_by(strat_group_cols).agg(agg_exprs)
+
+        # Convert to TOTAL per stratum: TOTAL = ybar_h * ADJ_h * A_h
+        total_exprs = []
+        for _, output_name in response_cols.items():
+            ybar_col = f"ybar_{output_name}"
+            if ybar_col in stratum_est.columns:
+                total_exprs.append(
+                    (pl.col(ybar_col) * pl.col("ADJ_h") * pl.col("A_h")).alias(f"TOTAL_{output_name}")
                 )
 
-        plot_with_strat = plot_with_strat.with_columns(expansion_exprs)
+        stratum_est = stratum_est.with_columns(total_exprs)
 
-        return plot_with_strat
+        return stratum_est
 
     def _calculate_population_estimates(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
         """
@@ -617,7 +639,7 @@ class BaseEstimator(ABC):
         pl.DataFrame
             Population-level estimates with per-acre values and variance
         """
-        # Aggregate by grouping columns
+        # Aggregate by grouping columns (sum totals already expanded by EXPNS upstream for volume)
         response_cols = self.get_response_columns()
         agg_exprs = []
 
@@ -634,18 +656,22 @@ class BaseEstimator(ABC):
         else:
             pop_estimates = expanded_data.select(agg_exprs)
 
-        # Calculate per-acre values using ratio-of-means
-        forest_area = self._get_forest_area()
-
+        # Calculate per-acre values using ratio-of-means: sum(TOTAL)/sum(A_h)
+        denom = (
+            expanded_data.select(pl.col("EXPNS").cast(pl.Float64).sum()).item()
+            if "EXPNS" in expanded_data.columns
+            else None
+        )
         per_acre_exprs = []
         for _, output_name in response_cols.items():
             pop_col = f"POP_{output_name}"
-            if pop_col in pop_estimates.columns:
+            if pop_col in pop_estimates.columns and denom:
                 per_acre_exprs.append(
-                    (pl.col(pop_col) / forest_area).alias(output_name)
+                    (pl.col(pop_col).cast(pl.Float64) / float(denom)).alias(output_name)
                 )
 
-        pop_estimates = pop_estimates.with_columns(per_acre_exprs)
+        if per_acre_exprs:
+            pop_estimates = pop_estimates.with_columns(per_acre_exprs)
 
         # Add variance/SE for each estimate
         for _, output_name in response_cols.items():
@@ -675,21 +701,8 @@ class BaseEstimator(ABC):
         return pop_estimates
 
     def _get_forest_area(self) -> float:
-        """
-        Get forest area for per-acre calculations.
-
-        This is a simplified version - production code would calculate
-        this dynamically based on the evaluation and applied filters.
-
-        Returns
-        -------
-        float
-            Forest area in acres
-        """
-        # TODO: Calculate dynamically from data
-        # This should sum EXPNS * ADJ_FACTOR_SUBP * CONDPROP_UNADJ
-        # for all conditions meeting the land_type criteria
-        return 18592940.0  # Placeholder value
+        """Deprecated in favor of direct EXPNS sum in _calculate_population_estimates."""
+        return 0.0
 
     def _get_year(self) -> int:
         """

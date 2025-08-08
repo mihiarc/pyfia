@@ -63,9 +63,12 @@ def assign_tree_basis(
     if include_macro and plot_df is not None:
         # Join with plot to get MACRO_BREAKPOINT_DIA if not already present
         if macro_breakpoint_column not in tree_df.columns:
+            # Support plot tables that expose plot key as either PLT_CN or CN
+            right_key = "PLT_CN" if "PLT_CN" in plot_df.columns else "CN"
             tree_df = tree_df.join(
-                plot_df.select(["PLT_CN", macro_breakpoint_column]),
-                on="PLT_CN",
+                plot_df.select([right_key, macro_breakpoint_column]),
+                left_on="PLT_CN",
+                right_on=right_key,
                 how="left",
             )
 

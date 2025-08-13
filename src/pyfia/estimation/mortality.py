@@ -14,6 +14,7 @@ from ..constants.constants import (
 )
 from ..core import FIA
 from .mortality.calculator import MortalityCalculator, MortalityEstimatorConfig
+from .config import MortalityConfig
 
 
 def mortality(

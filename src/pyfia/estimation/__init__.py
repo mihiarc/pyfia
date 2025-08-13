@@ -26,7 +26,7 @@ from .area import area
 from .base import BaseEstimator, EstimatorConfig
 from .biomass import biomass
 from .growth import growth
-from .mortality import mortality
+from .mortality import mortality  # Import from mortality.py file, not directory
 from .tpa import tpa
 from .tree import tree_count
 
@@ -45,6 +45,7 @@ from .volume import volume
 # Refactored estimators (for advanced usage)
 from .area import AreaEstimator
 from .volume import VolumeEstimator
+from .mortality import MortalityCalculator, MortalityEstimatorConfig
 
 __all__ = [
     # Main estimation functions
@@ -60,6 +61,8 @@ __all__ = [
     "EstimatorConfig",
     "AreaEstimator",
     "VolumeEstimator",
+    "MortalityCalculator",
+    "MortalityEstimatorConfig",
     # Utility functions
     "merge_estimation_data",
     "calculate_adjustment_factors",

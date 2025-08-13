@@ -13,6 +13,7 @@ from ..constants.constants import (
     LandStatus,
 )
 from ..core import FIA
+from .mortality.calculator import MortalityCalculator, MortalityEstimatorConfig
 
 
 def mortality(
@@ -26,22 +27,24 @@ def mortality(
     grp_by: Optional[Union[str, List[str]]] = None,
     totals: bool = False,
     variance: bool = False,
+    by_species_group: bool = False,
+    by_ownership: bool = False,
+    by_agent: bool = False,
+    by_disturbance: bool = False,
+    include_components: bool = False,
 ) -> pl.DataFrame:
     """
-    Estimate mortality using optimized DuckDB queries.
+    Estimate mortality using the enhanced mortality calculator.
 
-    This implementation follows DuckDB best practices:
-    - Uses SQL pushdown instead of materializing tables
-    - Applies memory optimization settings
-    - Implements proper join order optimization
-    - Uses streaming execution where possible
+    This function provides a high-level interface to the mortality calculator
+    with support for multiple grouping variables and proper variance calculation.
 
     Parameters
     ----------
     db : FIA or str
         FIA database instance or path to database
     by_species : bool, default False
-        Include species-level grouping
+        Include species-level grouping (SPCD)
     by_size_class : bool, default False
         Include size class grouping
     tree_domain : str, optional
@@ -53,16 +56,86 @@ def mortality(
     land_type : str, default "forest"
         Land type filter: "forest", "timber", or "all"
     grp_by : str or List[str], optional
-        Additional grouping columns
+        Additional grouping columns (e.g., ["UNITCD", "COUNTYCD"])
     totals : bool, default False
-        Include totals in output
+        Include total estimates in addition to per-acre values
     variance : bool, default False
-        Include variance estimates
+        Return variance instead of standard error
+    by_species_group : bool, default False
+        Include species group grouping (SPGRPCD)
+    by_ownership : bool, default False
+        Include ownership group grouping (OWNGRPCD)
+    by_agent : bool, default False
+        Include mortality agent grouping (AGENTCD)
+    by_disturbance : bool, default False
+        Include disturbance code grouping (DSTRBCD1, DSTRBCD2, DSTRBCD3)
+    include_components : bool, default False
+        Include basal area and volume mortality components
 
     Returns
     -------
     pl.DataFrame
-        Mortality estimates with standard errors
+        Mortality estimates with the following columns:
+        - Grouping columns (if specified)
+        - MORTALITY_TPA: Trees per acre mortality
+        - MORTALITY_BA: Basal area mortality (if include_components=True)
+        - MORTALITY_VOL: Volume mortality (if include_components=True)
+        - Standard errors or variances
+        - N_PLOTS: Number of plots in estimate
+        - YEAR: Inventory year
+    
+    Examples
+    --------
+    >>> # Basic mortality by species
+    >>> mortality(db, by_species=True)
+    
+    >>> # Mortality by ownership and agent with variance
+    >>> mortality(db, by_ownership=True, by_agent=True, variance=True)
+    
+    >>> # Mortality for specific species with components
+    >>> mortality(db, tree_domain="SPCD == 131", include_components=True)
+    """
+    # Create configuration
+    config = MortalityEstimatorConfig(
+        grp_by=grp_by,
+        by_species=by_species,
+        by_size_class=by_size_class,
+        land_type=land_type,
+        tree_type="all",  # Mortality uses all trees
+        tree_domain=tree_domain,
+        area_domain=area_domain,
+        totals=totals,
+        variance=variance,
+        group_by_species_group=by_species_group,
+        group_by_ownership=by_ownership,
+        group_by_agent=by_agent,
+        group_by_disturbance=by_disturbance,
+        include_components=include_components,
+        extra_params={"tree_class": tree_class}
+    )
+    
+    # Create calculator and run estimation
+    calculator = MortalityCalculator(db, config)
+    return calculator.estimate()
+
+
+def mortality_legacy(
+    db: Union[FIA, str],
+    by_species: bool = False,
+    by_size_class: bool = False,
+    tree_domain: Optional[str] = None,
+    area_domain: Optional[str] = None,
+    tree_class: str = "growing_stock",
+    land_type: str = "forest",
+    grp_by: Optional[Union[str, List[str]]] = None,
+    totals: bool = False,
+    variance: bool = False,
+) -> pl.DataFrame:
+    """
+    Legacy mortality estimation using direct SQL queries.
+    
+    This function is preserved for backward compatibility and testing.
+    Use the main mortality() function for new code.
     """
     # Handle database input
     if isinstance(db, str):

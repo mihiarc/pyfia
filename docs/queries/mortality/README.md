@@ -10,6 +10,7 @@ This directory contains SQL queries for estimating forest growth, mortality, and
 - **[North Carolina Tree Mortality Rate](north_carolina_mortality_trees_per_acre.md)** - Simple mortality rate in trees per acre per year on forest land
 - **[Georgia Growing-Stock Mortality by Damage Agent](georgia_growing_stock_mortality_by_agent.md)** - Annual mortality by tree-level cause of death and species
 - **[Georgia Growing-Stock Mortality by Disturbance Type](georgia_growing_stock_mortality_by_disturbance.md)** - Annual mortality by condition-level disturbance and species
+- **[Mortality with Variance by Evaluation Group](mortality_with_variance.md)** - Stratified variance estimator aggregated to evaluation-group totals
 
 ## Key Concepts
 

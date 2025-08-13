@@ -11,6 +11,7 @@ import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator, EstimatorConfig
+from ..config import MortalityConfig
 from ..utils import ratio_var
 from .variance import MortalityVarianceCalculator
 from .group_handler import MortalityGroupHandler
@@ -19,9 +20,11 @@ from .group_handler import MortalityGroupHandler
 @dataclass
 class MortalityEstimatorConfig(EstimatorConfig):
     """
-    Configuration specific to mortality estimation.
+    Legacy configuration specific to mortality estimation.
     
     Extends base EstimatorConfig with mortality-specific parameters.
+    This is maintained for backwards compatibility. New code should
+    use MortalityConfig from config.py instead.
     """
     # Mortality-specific grouping variables
     group_by_species_group: bool = False
@@ -78,7 +81,7 @@ class MortalityCalculator(BaseEstimator):
     both trees per acre (TPA) and volume per acre.
     """
     
-    def __init__(self, db: Union[str, FIA], config: MortalityEstimatorConfig):
+    def __init__(self, db: Union[str, FIA], config: Union[MortalityEstimatorConfig, MortalityConfig]):
         """
         Initialize the mortality calculator.
         
@@ -86,14 +89,24 @@ class MortalityCalculator(BaseEstimator):
         ----------
         db : Union[str, FIA]
             FIA database object or path to database
-        config : MortalityEstimatorConfig
-            Configuration for mortality estimation
+        config : Union[MortalityEstimatorConfig, MortalityConfig]
+            Configuration for mortality estimation. Can be either the legacy
+            dataclass config or the new Pydantic-based MortalityConfig.
         """
-        super().__init__(db, config)
+        # Convert new config to legacy format if needed
+        if isinstance(config, MortalityConfig):
+            base_config = config.to_estimator_config()
+            # Store the original for mortality-specific access
+            self._pydantic_config = config
+        else:
+            base_config = config
+            self._pydantic_config = None
+            
+        super().__init__(db, base_config)
         self.mortality_config = config
         
         # Set up grouping columns based on configuration
-        self._group_cols = config.get_grouping_variables()
+        self._group_cols = config.get_grouping_columns() if hasattr(config, 'get_grouping_columns') else config.get_grouping_variables()
         
         # Determine which mortality column to use based on tree_class and land_type
         self._mortality_col = self._get_mortality_column()
@@ -104,7 +117,11 @@ class MortalityCalculator(BaseEstimator):
         
     def _get_mortality_column(self) -> str:
         """Determine which mortality column to use based on configuration."""
-        tree_class = self.config.extra_params.get("tree_class", "all")
+        # Get tree_class from either config type
+        if self._pydantic_config:
+            tree_class = self._pydantic_config.tree_class
+        else:
+            tree_class = self.config.extra_params.get("tree_class", "all")
         land_type = self.config.land_type
         
         if tree_class == "growing_stock":

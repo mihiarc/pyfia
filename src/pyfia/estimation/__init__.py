@@ -24,9 +24,11 @@ from .area import area
 
 # Base estimator classes for refactored architecture
 from .base import BaseEstimator, EstimatorConfig
+from .config import EstimatorConfigV2, MortalityConfig
 from .biomass import biomass
 from .growth import growth
-from .mortality import mortality  # Import from mortality.py file, not directory
+from .mortality import mortality as _mortality_func  # Import from mortality.py file
+mortality = _mortality_func  # Re-export with original name
 from .tpa import tpa
 from .tree import tree_count
 
@@ -59,6 +61,8 @@ __all__ = [
     # Base estimator architecture
     "BaseEstimator",
     "EstimatorConfig",
+    "EstimatorConfigV2",
+    "MortalityConfig",
     "AreaEstimator",
     "VolumeEstimator",
     "MortalityCalculator",

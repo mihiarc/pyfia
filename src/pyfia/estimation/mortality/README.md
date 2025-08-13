@@ -1,110 +1,210 @@
-# Mortality Estimation Module
+# Enhanced Mortality Estimation Module
 
-This module implements enhanced mortality estimation for pyFIA following FIA statistical procedures.
+This module implements comprehensive mortality estimation functionality for pyFIA, supporting detailed grouping variables and variance calculations as specified in the mortality estimation plan.
 
 ## Overview
 
-The mortality module provides comprehensive tree mortality estimation with support for:
-- Multiple grouping variables (species, ownership, mortality agents, disturbance codes)
-- Proper stratified variance calculation
-- Both trees per acre (TPA) and volume/basal area mortality metrics
-- Integration with the FIA database structure
+The enhanced mortality estimation module provides:
+- Support for all FIA grouping variables (SPCD, SPGRPCD, OWNGRPCD, UNITCD, AGENTCD, DSTRBCD1-3)
+- Complete variance calculations at plot, stratum, and population levels
+- Flexible query building for both DuckDB and SQLite backends
+- Full integration with the existing pyFIA estimation framework
 
 ## Components
 
-### MortalityCalculator
-The main calculator class that inherits from `BaseEstimator` and implements:
-- Plot-level mortality aggregation
-- Stratum-level expansion
-- Population-level estimation with proper variance
+### 1. **MortalityEstimator** (`estimator.py`)
+The main estimation class that orchestrates the mortality calculation process.
 
-### MortalityEstimatorConfig
-Extended configuration class that adds mortality-specific parameters:
-- `group_by_species_group`: Group by SPGRPCD
-- `group_by_ownership`: Group by OWNGRPCD
-- `group_by_agent`: Group by mortality agent (AGENTCD)
-- `group_by_disturbance`: Group by disturbance codes (DSTRBCD1-3)
-- `include_components`: Include BA and volume mortality
+```python
+from pyfia import FIA
+from pyfia.estimation.config import MortalityConfig
+from pyfia.estimation.mortality import MortalityEstimator
 
-### MortalityVarianceCalculator
-Implements stratified sampling variance calculation:
+# Configure estimation
+config = MortalityConfig(
+    mortality_type="tpa",
+    by_species=True,
+    group_by_ownership=True,
+    group_by_agent=True,
+    variance=True
+)
+
+# Run estimation
+estimator = MortalityEstimator(db, config)
+results = estimator.estimate()
+```
+
+### 2. **MortalityCalculator** (`calculator.py`)
+Handles the core statistical calculations for mortality at plot, stratum, and population levels.
+
+Key features:
+- Plot-level expansion using TREE_GRM_COMPONENT table
+- Stratum-level aggregation with proper weighting
+- Population-level estimation with expansion factors
+
+### 3. **MortalityQueryBuilder** (`query_builder.py`)
+Generates optimized SQL queries for mortality data extraction.
+
+Features:
+- Database-specific query optimization (DuckDB vs SQLite)
+- Flexible grouping variable support
+- CTE-based query structure for performance
+- Reference table joins for descriptive names
+
+### 4. **MortalityVarianceCalculator** (`variance.py`)
+Implements proper variance calculations following FIA statistical methodology.
+
+Supports:
 - Stratum-level variance components
 - Population-level variance aggregation
-- Ratio variance for complex estimates
+- Ratio variance for per-acre estimates
+- Multiple variance calculation methods (standard, ratio, hybrid)
 
-### MortalityGroupHandler
-Manages grouping operations:
+### 5. **MortalityGroupHandler** (`group_handler.py`)
+Manages grouping operations and reference table lookups.
+
+Features:
 - Validates grouping variables
-- Adds reference table lookups (species names, owner names, etc.)
-- Filters to statistically significant groups
+- Adds descriptive names from reference tables
+- Filters statistically significant groups
+- Handles NULL values appropriately
 
-## Usage
+## Configuration
 
+The module uses the `MortalityConfig` class from `pyfia.estimation.config`:
+
+```python
+config = MortalityConfig(
+    # Mortality type
+    mortality_type="tpa",  # "tpa", "volume", or "both"
+    tree_class="all",      # "all", "timber", "growing_stock"
+    
+    # Grouping options
+    by_species=True,
+    by_size_class=False,
+    group_by_species_group=False,
+    group_by_ownership=True,
+    group_by_agent=True,
+    group_by_disturbance=False,
+    
+    # Domain filters
+    tree_domain="DIA >= 10.0",
+    area_domain=None,
+    land_type="forest",
+    
+    # Output options
+    variance=True,
+    totals=False,
+    variance_method="ratio",  # "standard", "ratio", "hybrid"
+    
+    # Component options
+    include_components=False,
+    include_natural=True,
+    include_harvest=True
+)
+```
+
+## Usage Examples
+
+### Basic Mortality Estimation
 ```python
 from pyfia import FIA, mortality
 
-# Basic mortality estimation
-with FIA("path/to/fia.duckdb") as db:
-    # Simple mortality estimate
-    results = mortality(db)
-    
-    # Mortality by species and ownership
-    results = mortality(
-        db,
-        by_species=True,
-        by_ownership=True,
-        variance=True
-    )
-    
-    # Detailed mortality with all components
-    results = mortality(
-        db,
-        by_species=True,
-        by_agent=True,
-        by_disturbance=True,
-        include_components=True,
-        totals=True
-    )
+db = FIA("path/to/fia.duckdb")
+
+# Simple mortality by species
+results = mortality(db, by_species=True, mortality_type="tpa")
 ```
 
-## Grouping Variables
+### Advanced Grouping
+```python
+# Multiple grouping variables
+results = mortality(
+    db,
+    grp_by=["SPCD", "OWNGRPCD", "AGENTCD"],
+    mortality_type="tpa",
+    variance=True,
+    totals=True
+)
+```
 
-The module supports grouping by:
-- **SPCD**: Individual species
-- **SPGRPCD**: Species groups
-- **OWNGRPCD**: Ownership groups
-- **AGENTCD**: Mortality agents (disease, insects, fire, etc.)
-- **DSTRBCD1-3**: Disturbance codes
-- **UNITCD**: FIA estimation units
-- **FORTYPCD**: Forest type codes
-- Any custom columns via `grp_by` parameter
+### Custom Configuration
+```python
+from pyfia.estimation.config import MortalityConfig
+from pyfia.estimation.mortality import MortalityEstimator
 
-## Output Structure
+config = MortalityConfig(
+    mortality_type="both",  # TPA and volume
+    by_species=True,
+    group_by_ownership=True,
+    tree_domain="DIA >= 5.0 AND DIA < 20.0",
+    variance_method="ratio",
+    include_components=True
+)
 
-Results include:
-- **MORTALITY_TPA**: Trees per acre mortality
-- **MORTALITY_BA**: Basal area mortality (optional)
-- **MORTALITY_VOL**: Volume mortality (optional)
-- **Standard errors** or **variances**
-- **N_PLOTS**: Number of plots in estimate
-- **Grouping columns** with reference names where available
+estimator = MortalityEstimator(db, config)
+results = estimator.estimate()
+```
+
+## Database Interface Integration
+
+The module integrates with the new database interface layer:
+
+```python
+from pyfia.database import create_interface
+
+# Auto-detect database type
+with create_interface("path/to/fia.duckdb") as db_interface:
+    db = FIA("path/to/fia.duckdb")
+    db._interface = db_interface
+    
+    results = mortality(db, by_species=True)
+```
+
+## Testing
+
+Comprehensive test coverage is provided:
+
+- `test_mortality_enhanced.py` - Integration tests for all functionality
+- `test_mortality_query_builder.py` - Unit tests for query generation
+- `test_mortality_variance.py` - Variance calculation tests
+
+Run tests with:
+```bash
+uv run pytest tests/test_mortality*.py -v
+```
+
+## Validation
+
+Use the validation script to compare with SQL results:
+
+```bash
+uv run python scripts/validate_mortality_implementation.py \
+    --db path/to/fia.duckdb \
+    --sql-results docs/queries/mortality/expected_results.csv \
+    --by-species \
+    --by-ownership \
+    --tolerance 0.01
+```
+
+## Performance Considerations
+
+1. **Query Optimization**: The query builder uses proper join order (smallest to largest tables)
+2. **Lazy Evaluation**: Uses Polars LazyFrames for memory efficiency
+3. **Batch Processing**: Handles large EVALID lists in batches
+4. **Index Usage**: Leverages database indexes on EVALID, PLT_CN, and TRE_CN
 
 ## Statistical Methodology
 
-The module follows FIA's design-based estimation procedures:
-1. Uses TREE_GRM_COMPONENT table for mortality data
-2. Applies proper stratification via POP_STRATUM
-3. Calculates variance using stratified sampling formulas
-4. Supports ratio-of-means estimation
-
-## Integration with SQL Queries
-
-The module is designed to eventually support SQL-based queries for performance while maintaining the same statistical rigor. The current implementation uses Polars for in-memory processing but can be extended to use DuckDB SQL queries directly.
+The module implements design-based estimation following:
+- Bechtold & Patterson (2005) FIA sampling methodology
+- Post-stratified estimation with proper variance calculation
+- Ratio-of-means estimators for per-acre values
 
 ## Future Enhancements
 
-- Direct SQL query generation for large-scale processing
-- Temporal analysis (annual, SMA, LMA, EMA methods)
-- Growth-removal-mortality component breakdown
-- Custom mortality agent groupings
-- Spatial analysis capabilities
+1. Caching for repeated calculations
+2. Parallel processing for large datasets
+3. Additional variance calculation methods
+4. Support for custom mortality metrics
+5. Integration with spatial analysis tools

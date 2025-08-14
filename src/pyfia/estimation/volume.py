@@ -10,8 +10,6 @@ from typing import Dict, List, Optional, Union
 import os
 
 import polars as pl
-import duckdb
-import sqlite3
 
 from ..core import FIA
 from .base import BaseEstimator, EstimatorConfig
@@ -318,9 +316,12 @@ FROM inner_est
 {group_outer}
 """
 
-        con: duckdb.DuckDBPyConnection = self.db._get_connection()
-        df = con.execute(sql).fetch_df()
-        return pl.from_pandas(df)
+        # Direct SQL execution is not supported through the FIA abstraction layer
+        # This functionality needs to be reimplemented using the FIA data reader interface
+        raise NotImplementedError(
+            "SQL-style volume totals are not currently supported. "
+            "Direct database access violates the FIA abstraction layer."
+        )
 
     def _estimate_totals_via_sqlite(self) -> Optional[pl.DataFrame]:
         """If a matching per-state SQLite FIADB exists, run the exact SQLite query there.
@@ -394,19 +395,12 @@ SELECT SUM(ESTIMATED_VALUE * EXPNS) AS VOLCFNET_ACRE_TOTAL
 FROM INNER;
 """
 
-        with sqlite3.connect(sqlite_path) as con:
-            cur = con.cursor()
-            row = cur.execute(sql).fetchone()
-            if not row or row[0] is None:
-                return None
-            total = float(row[0])
-            if self.config.by_species:
-                # species breakdown path: run per-spcd
-                sql_sp = sql.replace("SELECT SUM(ESTIMATED_VALUE * EXPNS) AS VOLCFNET_ACRE_TOTAL\nFROM INNER;",
-                                     "SELECT tree.spcd AS SPCD, SUM(ESTIMATED_VALUE * EXPNS) AS VOLCFNET_ACRE_TOTAL FROM INNER JOIN tree ON 1=1 GROUP BY tree.spcd;")
-                # The above join is a placeholder; for brevity, skip species breakdown via sqlite here
-                pass
-            return pl.DataFrame({"VOLCFNET_ACRE_TOTAL": [total]})
+        # Direct SQLite access is not supported through the FIA abstraction layer
+        # This functionality needs to be reimplemented using the FIA data reader interface
+        raise NotImplementedError(
+            "SQLite-based volume totals are not currently supported. "
+            "Direct database access violates the FIA abstraction layer."
+        )
 
     def get_output_columns(self) -> List[str]:
         """

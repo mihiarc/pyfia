@@ -72,8 +72,7 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["pyfia*"]
 
-[tool.setuptools.package-data]
-"pyfia.database.memory_docs" = ["*.md"]
+# Package data section removed (database module deleted)
 
 [tool.ruff]
 line-length = 88

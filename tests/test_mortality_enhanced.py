@@ -366,22 +366,19 @@ class TestMortalityEnhanced:
 class TestMortalityIntegration:
     """Integration tests with database interfaces."""
     
-    def test_mortality_with_duckdb_interface(self, sample_fia_db):
-        """Test mortality using DuckDB interface."""
-        from pyfia.database import create_interface
+    def test_mortality_with_backend(self, sample_fia_db):
+        """Test mortality using backend support."""
+        # FIA class now automatically detects and uses appropriate backend
+        db = FIA(sample_fia_db)
         
-        with create_interface(sample_fia_db) as db_interface:
-            db = FIA(sample_fia_db)
-            db._interface = db_interface
-            
-            result = mortality(
-                db,
-                by_species=True,
-                mortality_type="tpa"
-            )
-            
-            assert len(result) > 0
-            assert "SPCD" in result.columns
+        result = mortality(
+            db,
+            by_species=True,
+            mortality_type="tpa"
+        )
+        
+        assert len(result) > 0
+        assert "SPCD" in result.columns
             
     @pytest.mark.parametrize("grouping_vars", [
         ["SPCD"],

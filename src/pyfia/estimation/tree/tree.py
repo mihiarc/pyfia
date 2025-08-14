@@ -330,9 +330,12 @@ SELECT SUM(estimated_value * expns) AS TREE_COUNT
 FROM inner_est
 """
 
-        con: duckdb.DuckDBPyConnection = self.db._get_connection()
-        df = con.execute(sql).fetch_df()
-        return pl.from_pandas(df)
+        # Direct SQL execution is not supported through the FIA abstraction layer
+        # This functionality needs to be reimplemented using the FIA data reader interface
+        raise NotImplementedError(
+            "SQL-style tree totals are not currently supported. "
+            "Direct database access violates the FIA abstraction layer."
+        )
 
 
 def tree_count(

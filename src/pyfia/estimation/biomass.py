@@ -8,7 +8,6 @@ matching the functionality of rFIA::biomass().
 from typing import List, Optional, Union
 
 import polars as pl
-import duckdb
 
 from ..constants.constants import (
     MathConstants,
@@ -511,6 +510,9 @@ SELECT SUM(estimated_value * expns) AS BIO_ACRE
 FROM inner_est
 """
 
-    con: duckdb.DuckDBPyConnection = fia._get_connection()
-    df = con.execute(sql).fetch_df()
-    return pl.from_pandas(df)
+    # Direct SQL execution is not supported through the FIA abstraction layer
+    # This functionality needs to be reimplemented using the FIA data reader interface
+    raise NotImplementedError(
+        "SQL-style biomass totals are not currently supported. "
+        "Direct database access violates the FIA abstraction layer."
+    )

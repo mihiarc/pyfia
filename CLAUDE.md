@@ -65,7 +65,8 @@ uv run mkdocs build
 
 **FIA Database Class (`pyfia.core.fia.FIA`)**
 - Main entry point for database connections and EVALID-based filtering
-- Handles DuckDB connections with lazy loading
+- Supports both DuckDB and SQLite backends transparently
+- Automatic backend detection or explicit engine selection
 - Provides context manager support for automatic connection handling
 - Key methods: `clip_by_evalid()`, `clip_by_state()`, `prepare_estimation_data()`
 
@@ -75,16 +76,21 @@ uv run mkdocs build
 - All support domain filtering, grouping, and proper variance calculations
 
 **Data Reader (`pyfia.core.data_reader.FIADataReader`)**
-- Efficient data loading from DuckDB with WHERE clause support
+- Efficient data loading with WHERE clause support
+- Supports both DuckDB and SQLite backends through abstraction layer
+- Automatic backend detection based on file extension/content
 - Lazy evaluation for memory efficiency
 - Automatic schema detection and column validation
+- Backend-specific optimizations (DuckDB: columnar storage, SQLite: PRAGMA settings)
 
 **Filters (`pyfia.filters/`)**
 - Domain filtering, EVALID management, plot joins
 - Statistical grouping and classification utilities
 
 ### Database Structure
-- Uses DuckDB for efficient large-scale data processing
+- Supports both DuckDB and SQLite backends with automatic detection
+- DuckDB recommended for efficient large-scale data processing
+- SQLite supported for compatibility with FIA DataMart downloads
 - EVALID-based filtering ensures statistically valid plot groupings
 - Supports multiple evaluation types: VOL (volume), GRM (growth/removal/mortality), CHNG (change)
 - State-level filtering applied at database level for performance
@@ -144,8 +150,8 @@ uv run mkdocs build
 ```python
 from pyfia import FIA, tpa, volume, area
 
-# Context manager pattern (preferred)
-with FIA("path/to/fia.duckdb") as db:
+# Auto-detect backend (DuckDB or SQLite)
+with FIA("path/to/fia.duckdb") as db:  # or .db for SQLite
     # Filter to North Carolina most recent volume evaluation
     db.clip_by_state(37, most_recent=True)
     
@@ -154,8 +160,12 @@ with FIA("path/to/fia.duckdb") as db:
     vol_results = volume(db, bySpecies=True)
     area_results = area(db, landType='timber')
 
-# Method chaining pattern
-db = FIA("path/to/fia.duckdb").clip_by_state([37, 45]).clip_most_recent("VOL")
+# Explicit backend selection
+db_sqlite = FIA("path/to/fia.db", engine="sqlite")
+db_duckdb = FIA("path/to/fia.duckdb", engine="duckdb")
+
+# Method chaining pattern works with both backends
+db = FIA("path/to/fia.db").clip_by_state([37, 45]).clip_most_recent("VOL")
 results = volume(db, treeDomain="DIA >= 10.0", bySpecies=True)
 ```
 

@@ -12,13 +12,13 @@ The enhanced mortality estimation module provides:
 
 ## Components
 
-### 1. **MortalityEstimator** (`estimator.py`)
-The main estimation class that orchestrates the mortality calculation process.
+### 1. **mortality()** function (`mortality.py`)
+The main estimation function that provides the high-level interface for mortality calculation.
 
 ```python
 from pyfia import FIA
 from pyfia.estimation.config import MortalityConfig
-from pyfia.estimation.mortality import MortalityEstimator
+from pyfia.estimation.mortality import mortality
 
 # Configure estimation
 config = MortalityConfig(
@@ -30,8 +30,7 @@ config = MortalityConfig(
 )
 
 # Run estimation
-estimator = MortalityEstimator(db, config)
-results = estimator.estimate()
+results = mortality(db, config)
 ```
 
 ### 2. **MortalityCalculator** (`calculator.py`)
@@ -131,7 +130,7 @@ results = mortality(
 ### Custom Configuration
 ```python
 from pyfia.estimation.config import MortalityConfig
-from pyfia.estimation.mortality import MortalityEstimator
+from pyfia.estimation.mortality import mortality
 
 config = MortalityConfig(
     mortality_type="both",  # TPA and volume
@@ -142,21 +141,21 @@ config = MortalityConfig(
     include_components=True
 )
 
-estimator = MortalityEstimator(db, config)
-results = estimator.estimate()
+results = mortality(db, config)
 ```
 
-## Database Interface Integration
+## Database Backend Support
 
-The module integrates with the new database interface layer:
+The module supports both DuckDB and SQLite backends through automatic detection:
 
 ```python
-from pyfia.database import create_interface
+from pyfia import FIA
 
-# Auto-detect database type
-with create_interface("path/to/fia.duckdb") as db_interface:
-    db = FIA("path/to/fia.duckdb")
-    db._interface = db_interface
+# Auto-detect database type (DuckDB or SQLite)
+db = FIA("path/to/fia.duckdb")  # or .db for SQLite
+
+# Or explicitly specify backend
+db = FIA("path/to/fia.db", engine="sqlite")
     
     results = mortality(db, by_species=True)
 ```

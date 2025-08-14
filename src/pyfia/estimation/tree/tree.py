@@ -11,9 +11,9 @@ from typing import Dict, List, Optional, Union
 
 import polars as pl
 
-from ..core import FIA
-from .base import BaseEstimator, EstimatorConfig
-from ..filters.classification import assign_tree_basis
+from pyfia.core import FIA
+from ..base import BaseEstimator, EstimatorConfig
+from pyfia.filters.classification import assign_tree_basis
 
 
 class TreeCountEstimator(BaseEstimator):
@@ -103,7 +103,7 @@ class TreeCountEstimator(BaseEstimator):
         Live trees: DIA >= 1.0 per FIA standard; dead trees: DIA >= 5.0.
         """
         if tree_df is not None:
-            from ..filters.common import apply_tree_filters_common
+            from pyfia.filters.common import apply_tree_filters_common
 
             tree_df = apply_tree_filters_common(
                 tree_df,
@@ -137,19 +137,27 @@ class TreeCountEstimator(BaseEstimator):
             )
 
             # Set up grouping columns on the combined data
-            from ..filters.common import setup_grouping_columns_common
+            from pyfia.filters.common import setup_grouping_columns_common
 
             data, group_cols = setup_grouping_columns_common(
                 data,
                 self.config.grp_by,
                 self.config.by_species,
                 self.config.by_size_class,
-                return_dataframe=True,
+                return_dataframe=True
             )
             self._group_cols = group_cols
         else:
             data = cond_df
             self._group_cols = []
+
+            # Handle custom grouping columns
+            if self.config.grp_by:
+                if isinstance(self.config.grp_by, str):
+                    self._group_cols = [self.config.grp_by]
+                else:
+                    self._group_cols = list(self.config.grp_by)
+
         return data
 
     # Attach stratification identifiers/weights; don't expand at plot level

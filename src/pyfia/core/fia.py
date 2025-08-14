@@ -9,7 +9,7 @@ import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-import duckdb
+# import duckdb  # No longer needed - handled by backends
 import polars as pl
 
 from .data_reader import FIADataReader
@@ -29,42 +29,37 @@ class FIA:
         most_recent (bool): Whether to use most recent evaluations
     """
 
-    def __init__(self, db_path: Union[str, Path], engine: str = "duckdb"):
+    def __init__(self, db_path: Union[str, Path], engine: Optional[str] = None):
         """
         Initialize FIA database connection.
 
         Args:
-            db_path: Path to FIA DuckDB database
-            engine: Database engine (kept for compatibility, always uses DuckDB)
+            db_path: Path to FIA database (DuckDB or SQLite)
+            engine: Database engine ('duckdb', 'sqlite', or None for auto-detect)
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {db_path}")
 
-        # Always use DuckDB regardless of engine parameter
+        # Initialize with appropriate engine
         self.tables: Dict[str, pl.LazyFrame] = {}
         self.evalid: Optional[List[int]] = None
         self.most_recent: bool = False
         self.state_filter: Optional[List[int]] = None  # Add state filter
-        self._conn: Optional[duckdb.DuckDBPyConnection] = None
-        self._reader = FIADataReader(db_path, engine="duckdb")
+        # Connection managed by FIADataReader
+        self._reader = FIADataReader(db_path, engine=engine)
 
     def __enter__(self):
         """Context manager entry."""
-        self._conn = duckdb.connect(str(self.db_path), read_only=True)
+        # Connection managed by FIADataReader
         return self
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         """Context manager exit."""
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        # Connection cleanup handled by FIADataReader
+        pass
 
-    def _get_connection(self) -> duckdb.DuckDBPyConnection:
-        """Get database connection, creating if needed."""
-        if self._conn is None:
-            self._conn = duckdb.connect(str(self.db_path), read_only=True)
-        return self._conn
+    # Connection management moved to FIADataReader with backend support
 
     def load_table(
         self, table_name: str, columns: Optional[List[str]] = None
@@ -480,7 +475,7 @@ class FIA:
 
         See mortality() function for full parameter documentation.
         """
-        from pyfia.estimation.mortality import mortality
+        from pyfia.estimation.mortality.mortality import mortality
 
         return mortality(self, **kwargs)
 

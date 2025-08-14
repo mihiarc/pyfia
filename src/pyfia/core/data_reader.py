@@ -2,64 +2,64 @@
 Optimized data reading utilities for pyFIA.
 
 This module provides high-performance functions for reading FIA data
-from DuckDB databases using Polars lazy evaluation.
+from DuckDB and SQLite databases using Polars lazy evaluation.
 """
 
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Union, overload
+import logging
 
-import duckdb
 import polars as pl
-import sqlite3
 
+from .backends import DatabaseBackend, create_backend
+
+logger = logging.getLogger(__name__)
 
 class FIADataReader:
     """
-    Optimized reader for FIA databases (DuckDB).
+    Optimized reader for FIA databases.
 
     This class provides efficient methods for reading FIA data with:
-    - DuckDB backend for high performance
+    - Support for both DuckDB and SQLite backends
     - Lazy evaluation for memory efficiency
     - Column selection to minimize data transfer
     - Type-aware schema handling for FIA's VARCHAR CN fields
+    - Automatic database type detection
     """
 
-    def __init__(self, db_path: Union[str, Path], engine: str = "duckdb"):
+    def __init__(self, db_path: Union[str, Path], engine: Optional[str] = None, **backend_kwargs):
         """
         Initialize data reader.
 
         Args:
-            db_path: Path to FIA DuckDB database
-            engine: Database engine (kept for compatibility, always uses DuckDB)
+            db_path: Path to FIA database (DuckDB or SQLite)
+            engine: Database engine ('duckdb' or 'sqlite'). If None, auto-detect.
+            **backend_kwargs: Additional backend-specific options:
+                - For DuckDB: read_only, memory_limit, threads
+                - For SQLite: timeout, check_same_thread
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {db_path}")
 
-        # Cache for table schemas
-        self._schemas: Dict[str, Dict[str, str]] = {}
-
-        # DuckDB connection (kept open for performance)
-        self._duckdb_conn = duckdb.connect(str(self.db_path), read_only=True)
-
-        # Optional SQLite connection if the db_path is actually a SQLite DB
-        self._sqlite_conn: Optional[sqlite3.Connection] = None
-        try:
-            sqlite_conn = sqlite3.connect(str(self.db_path))
-            cur = sqlite_conn.cursor()
-            cur.execute("SELECT name FROM sqlite_master WHERE type='table' LIMIT 1")
-            _ = cur.fetchone()
-            self._sqlite_conn = sqlite_conn
-        except Exception:
-            self._sqlite_conn = None
+        # Create backend using factory function
+        self._backend: DatabaseBackend = create_backend(
+            db_path, 
+            engine=engine,
+            **backend_kwargs
+        )
+        
+        # Connect to database
+        self._backend.connect()
+        
+        # Cache for table schemas (delegate to backend)
+        self._schemas = self._backend._schema_cache
 
     def __del__(self):
-        """Close DuckDB connection if open."""
+        """Close database connection if open."""
         try:
-            if hasattr(self, "_duckdb_conn") and self._duckdb_conn:
-                self._duckdb_conn.close()
-            if hasattr(self, "_sqlite_conn") and self._sqlite_conn:
-                self._sqlite_conn.close()
+            if hasattr(self, "_backend") and self._backend:
+                self._backend.disconnect()
         except Exception:
             # Avoid raising during garbage collection
             pass
@@ -74,23 +74,71 @@ class FIADataReader:
         Returns:
             Dictionary mapping column names to SQL types
         """
-        if table_name in self._schemas:
-            return self._schemas[table_name]
+        return self._backend.get_table_schema(table_name)
 
-        try:
-            result = self._duckdb_conn.execute(f"DESCRIBE {table_name}").fetchall()
-            schema = {row[0]: row[1] for row in result}
-        except Exception:
-            if self._sqlite_conn is None:
-                raise
-            cur = self._sqlite_conn.cursor()
-            cur.execute(f"PRAGMA table_info({table_name})")
-            rows = cur.fetchall()
-            # PRAGMA columns: cid, name, type, notnull, dflt_value, pk
-            schema = {row[1]: (row[2] or "") for row in rows}
-        self._schemas[table_name] = schema
+    def _is_cn_column(self, column_name: str) -> bool:
+        """
+        Check if a column is a CN (Control Number) field.
+        
+        Args:
+            column_name: Name of the column
+            
+        Returns:
+            True if the column is a CN field
+        """
+        return self._backend.is_cn_column(column_name)
 
-        return schema
+    def _is_string_column(self, table_name: str, column_name: str) -> bool:
+        """
+        Check if a column should be treated as a string.
+        
+        Args:
+            table_name: Name of the table
+            column_name: Name of the column
+            
+        Returns:
+            True if the column should be treated as a string
+        """
+        return self._backend.is_string_column(table_name, column_name)
+
+    def _is_float_column(self, table_name: str, column_name: str) -> bool:
+        """
+        Check if a column should be treated as a floating point number.
+        
+        Args:
+            table_name: Name of the table
+            column_name: Name of the column
+            
+        Returns:
+            True if the column should be treated as a float
+        """
+        return self._backend.is_float_column(table_name, column_name)
+
+    def _is_integer_column(self, table_name: str, column_name: str) -> bool:
+        """
+        Check if a column should be treated as an integer.
+        
+        Args:
+            table_name: Name of the table
+            column_name: Name of the column
+            
+        Returns:
+            True if the column should be treated as an integer
+        """
+        return self._backend.is_integer_column(table_name, column_name)
+
+    def _build_select_clause(self, table_name: str, columns: Optional[List[str]] = None) -> str:
+        """
+        Build SELECT clause with appropriate type casting.
+        
+        Args:
+            table_name: Name of the table
+            columns: Optional list of columns to select
+            
+        Returns:
+            SELECT clause with type casting
+        """
+        return self._backend.build_select_clause(table_name, columns)
 
     @overload
     def read_table(
@@ -129,30 +177,34 @@ class FIADataReader:
         Returns:
             Polars DataFrame or LazyFrame
         """
-        # Build query
-        if columns:
-            col_str = ", ".join(columns)
-            query = f"SELECT {col_str} FROM {table_name}"
-        else:
-            query = f"SELECT * FROM {table_name}"
+        # Build SELECT clause with appropriate type casting
+        select_clause = self._build_select_clause(table_name, columns)
+        query = f"SELECT {select_clause} FROM {table_name}"
 
         if where:
             query += f" WHERE {where}"
 
-        # Execute query using appropriate engine
-        if self._sqlite_conn is not None:
-            df = pl.read_database(query, self._sqlite_conn)
+        # Execute query using backend
+        # For SQLite backend, we need schema overrides for proper string handling
+        if hasattr(self._backend, '__class__') and self._backend.__class__.__name__ == 'SQLiteBackend':
+            schema_overrides = {
+                col: pl.Utf8 for col in (columns or self.get_table_schema(table_name).keys())
+            }
+            df = self._backend.read_dataframe(query, schema_overrides=schema_overrides)
         else:
-            df = self._duckdb_conn.execute(query).pl()
+            df = self._backend.read_dataframe(query)
 
-        # Handle CN fields consistently
-        self.get_table_schema(table_name)
+        # Post-process to convert types
         for col in df.columns:
-            if col.endswith("_CN") or col == "CN":
-                # In DuckDB, CN fields might be BIGINT - convert to string for consistency
-                df = df.with_columns(pl.col(col).cast(pl.Utf8))
+            if self._is_integer_column(table_name, col):
+                # Convert integer columns back to Int64
+                try:
+                    df = df.with_columns(pl.col(col).cast(pl.Int64))
+                except:
+                    pass  # Keep as string if conversion fails
 
-        return df.lazy() if lazy else df
+        # Return as lazy frame by default
+        return df.lazy() if lazy else df.collect()
 
     def read_plot_data(self, evalid: List[int]) -> pl.DataFrame:
         """
@@ -170,11 +222,11 @@ class FIADataReader:
             "POP_PLOT_STRATUM_ASSGN",
             columns=["PLT_CN", "STRATUM_CN", "EVALID"],
             where=f"EVALID IN ({evalid_str})",
-            lazy=False,
+            lazy=True,
         )
 
         # Get unique plot CNs
-        plot_cns = ppsa.select("PLT_CN").unique()["PLT_CN"].to_list()
+        plot_cns = ppsa.select("PLT_CN").unique().collect()["PLT_CN"].to_list()
 
         # Read plots
         if plot_cns:
@@ -186,21 +238,21 @@ class FIADataReader:
                 batch = plot_cns[i : i + batch_size]
                 cn_str = ", ".join(f"'{cn}'" for cn in batch)
 
-                df = self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=False)
+                df = self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=True)
                 plot_dfs.append(df)
 
-            plots = pl.concat(plot_dfs, how="diagonal") if plot_dfs else pl.DataFrame()
+            plots = pl.concat(plot_dfs).collect() if plot_dfs else pl.DataFrame()
         else:
             plots = pl.DataFrame()
 
         # Add EVALID information
         if not plots.is_empty():
-            plots = plots.join(
+            plots = plots.lazy().join(
                 ppsa.select(["PLT_CN", "STRATUM_CN", "EVALID"]),
                 left_on="CN",
                 right_on="PLT_CN",
                 how="left",
-            )
+            ).collect()
 
         return plots
 
@@ -225,10 +277,10 @@ class FIADataReader:
             batch = plot_cns[i : i + batch_size]
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
 
-            df = self.read_table("TREE", where=f"PLT_CN IN ({cn_str})", lazy=False)
+            df = self.read_table("TREE", where=f"PLT_CN IN ({cn_str})", lazy=True)
             tree_dfs.append(df)
 
-        return pl.concat(tree_dfs, how="diagonal") if tree_dfs else pl.DataFrame()
+        return pl.concat(tree_dfs).collect() if tree_dfs else pl.DataFrame()
 
     def read_cond_data(self, plot_cns: List[str]) -> pl.DataFrame:
         """
@@ -251,10 +303,10 @@ class FIADataReader:
             batch = plot_cns[i : i + batch_size]
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
 
-            df = self.read_table("COND", where=f"PLT_CN IN ({cn_str})", lazy=False)
+            df = self.read_table("COND", where=f"PLT_CN IN ({cn_str})", lazy=True)
             cond_dfs.append(df)
 
-        return pl.concat(cond_dfs, how="diagonal") if cond_dfs else pl.DataFrame()
+        return pl.concat(cond_dfs).collect() if cond_dfs else pl.DataFrame()
 
     def read_pop_tables(self, evalid: List[int]) -> Dict[str, pl.DataFrame]:
         """
@@ -270,13 +322,13 @@ class FIADataReader:
 
         # Read POP_EVAL
         pop_eval = self.read_table(
-            "POP_EVAL", where=f"EVALID IN ({evalid_str})", lazy=False
-        )
+            "POP_EVAL", where=f"EVALID IN ({evalid_str})", lazy=True
+        ).collect()
 
         # Read POP_PLOT_STRATUM_ASSGN
         ppsa = self.read_table(
-            "POP_PLOT_STRATUM_ASSGN", where=f"EVALID IN ({evalid_str})", lazy=False
-        )
+            "POP_PLOT_STRATUM_ASSGN", where=f"EVALID IN ({evalid_str})", lazy=True
+        ).collect()
 
         # Get unique stratum CNs
         if not ppsa.is_empty():
@@ -285,8 +337,8 @@ class FIADataReader:
 
             # Read POP_STRATUM
             pop_stratum = self.read_table(
-                "POP_STRATUM", where=f"CN IN ({stratum_cn_str})", lazy=False
-            )
+                "POP_STRATUM", where=f"CN IN ({stratum_cn_str})", lazy=True
+            ).collect()
 
             # Get estimation unit CNs
             estn_unit_cns = (
@@ -296,8 +348,8 @@ class FIADataReader:
 
             # Read POP_ESTN_UNIT
             pop_estn_unit = self.read_table(
-                "POP_ESTN_UNIT", where=f"CN IN ({estn_unit_cn_str})", lazy=False
-            )
+                "POP_ESTN_UNIT", where=f"CN IN ({estn_unit_cn_str})", lazy=True
+            ).collect()
         else:
             pop_stratum = pl.DataFrame()
             pop_estn_unit = pl.DataFrame()

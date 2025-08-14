@@ -70,7 +70,7 @@ class MortalityQueryBuilder:
             
         where_clause = " AND ".join(where_clauses) if where_clauses else "1=1"
         
-        # Build query with proper join order
+        # Build query with proper join order and text casting for numeric precision
         query = f"""
         WITH plot_mortality AS (
             SELECT 
@@ -78,18 +78,18 @@ class MortalityQueryBuilder:
                 ps.ESTN_UNIT_CN,
                 p.CN AS PLT_CN,
                 {group_select if groups else "'ALL' AS TOTAL_GROUP"},
-                SUM(t.{mortality_col} * ppsa.EXPNS) AS MORTALITY_EXPANDED,
+                SUM(t.{mortality_col} * ps.EXPNS) AS MORTALITY_EXPANDED,
                 COUNT(DISTINCT p.CN) AS N_PLOTS,
-                COUNT(t.CN) AS N_TREES
+                COUNT(t.TRE_CN) AS N_TREES
             FROM POP_STRATUM ps
             JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ps.CN = ppsa.STRATUM_CN
             JOIN PLOT p ON ppsa.PLT_CN = p.CN
             JOIN COND c ON p.CN = c.PLT_CN
-            JOIN TREE_GRM_COMPONENT t ON c.CN = t.CONDID
+            JOIN TREE_GRM_COMPONENT t ON c.PLT_CN = t.PLT_CN
             WHERE {where_clause}
                 AND ps.EVALID = ppsa.EVALID
                 AND c.CONDPROP_UNADJ > 0
-                AND t.DIA IS NOT NULL
+                AND t.{mortality_col} > 0
             GROUP BY 
                 ppsa.STRATUM_CN,
                 ps.ESTN_UNIT_CN,

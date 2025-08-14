@@ -1,92 +1,122 @@
 """
-Variance calculation for mortality estimates.
+Variance calculation for mortality estimation.
 
 This module implements stratified variance calculation for mortality
-estimates following FIA statistical procedures.
+estimates following FIA statistical procedures from Bechtold & Patterson (2005).
 """
 
-from typing import List, Optional
 import polars as pl
-
-from ..utils import ratio_var
+from typing import List, Optional, Union
+from pyfia.core import FIA
 
 
 class MortalityVarianceCalculator:
     """
-    Handles variance calculations for mortality estimates.
+    Calculates variance for mortality estimates using stratified sampling.
     
-    Implements stratified sampling variance calculation following
+    This class implements the variance calculation methods from
     Bechtold & Patterson (2005) for mortality estimation.
+    
+    The stratified variance formula:
+    Var(Ŷ) = Σ_h [N_h²/n * (1-f_h) * s²_h / n_h]
+    
+    Where:
+    - N_h = total area in stratum h (from EXPNS)
+    - n = total sample size (plots)
+    - f_h = sampling fraction in stratum h
+    - s²_h = sample variance in stratum h
+    - n_h = sample size in stratum h
     """
     
-    def __init__(self):
-        """Initialize the variance calculator."""
-        pass
+    def __init__(self, db: Optional[Union[str, FIA]] = None):
+        """
+        Initialize the variance calculator.
+        
+        Parameters
+        ----------
+        db : Union[str, FIA], optional
+            FIA database for loading design factors if needed
+        """
+        if db is not None:
+            if isinstance(db, str):
+                self.db = FIA(db)
+            else:
+                self.db = db
+        else:
+            self.db = None
     
     def calculate_stratum_variance(
-        self, 
-        data: pl.DataFrame, 
-        response_var: str,
+        self,
+        data: pl.DataFrame,
+        response_col: str,
         group_cols: Optional[List[str]] = None
     ) -> pl.DataFrame:
         """
-        Calculate variance at the stratum level.
+        Calculate stratum-level variance components.
+        
+        This implements the stratum variance calculation:
+        s²_h = Σ(y_i - ȳ_h)² / (n_h - 1)
+        
+        Which is equivalent to:
+        s²_h = [Σy_i² - n_h * ȳ_h²] / (n_h - 1)
         
         Parameters
         ----------
         data : pl.DataFrame
             Plot-level data with stratum assignments
-        response_var : str
-            Name of the response variable (e.g., "PLOT_MORTALITY_TPA")
-        group_cols : Optional[List[str]]
-            Additional grouping columns beyond stratum
+        response_col : str
+            Column containing the response variable (e.g., mortality values)
+        group_cols : List[str], optional
+            Additional grouping columns (e.g., species, size class)
             
         Returns
         -------
         pl.DataFrame
-            Stratum-level statistics including variance components
+            Stratum-level variance components
         """
-        # Define stratum grouping
-        strat_groups = ["STRATUM_CN"]
-        if group_cols:
-            strat_groups.extend(group_cols)
-        
-        # Helper function for safe standard deviation
-        def _safe_std(col_name: str) -> pl.Expr:
-            return (
-                pl.when(pl.count(col_name) > 1)
-                .then(pl.std(col_name, ddof=1))
-                .otherwise(0.0)
-            )
-        
-        # Calculate stratum-level statistics
-        stratum_stats = data.group_by(strat_groups).agg([
-            # Sample size
-            pl.len().alias("n_h"),
-            
-            # Mean and standard deviation
-            pl.mean(response_var).alias(f"{response_var}_bar_h"),
-            _safe_std(response_var).alias(f"s_{response_var}_h"),
-            
-            # Stratum weight (expansion factor)
-            pl.first("EXPNS").alias("A_h"),
-            
-            # Adjustment factor
-            pl.first("ADJ_FACTOR_SUBP").alias("adj_h"),
+        # Ensure numeric types for calculations
+        data = data.with_columns([
+            pl.col(response_col).cast(pl.Float64),
+            pl.col("STRATUM_CN").cast(pl.Int64),
+            pl.col("ESTN_UNIT_CN").cast(pl.Int64)
         ])
         
-        # Calculate variance contribution from each stratum
+        # Build grouping columns
+        group_by = ["STRATUM_CN", "ESTN_UNIT_CN"]
+        if group_cols:
+            # Only include grouping columns that exist in the data
+            available_groups = [col for col in group_cols if col in data.columns]
+            group_by.extend(available_groups)
+        
+        # Calculate stratum-level statistics
+        stratum_stats = data.group_by(group_by).agg([
+            # Sum of y values
+            pl.col(response_col).sum().alias("y_sum"),
+            # Sum of y² values
+            (pl.col(response_col).pow(2)).sum().alias("y_sum_sq"),
+            # Number of plots in stratum
+            pl.len().alias("n_h"),
+            # For joining with population data
+            pl.col("EXPNS").first().alias("EXPNS"),
+            pl.col("ADJ_FACTOR_SUBP").first().alias("ADJ_FACTOR_SUBP")
+        ])
+        
+        # Calculate stratum mean and variance
         stratum_stats = stratum_stats.with_columns([
-            # Variance of the mean
-            pl.when(pl.col("n_h") > 1)
+            # Mean: ȳ_h = Σy_i / n_h
+            (pl.col("y_sum") / pl.col("n_h")).alias("y_mean"),
+            # Degrees of freedom
+            (pl.col("n_h") - 1).alias("df")
+        ])
+        
+        # Calculate stratum variance: s²_h = [Σy_i² - n_h * ȳ_h²] / (n_h - 1)
+        stratum_stats = stratum_stats.with_columns([
+            pl.when(pl.col("df") > 0)
             .then(
-                (pl.col(f"s_{response_var}_h") ** 2) / pl.col("n_h")
+                (pl.col("y_sum_sq") - (pl.col("n_h") * pl.col("y_mean").pow(2))) / pl.col("df")
             )
-            .otherwise(0.0)
-            .alias(f"var_{response_var}_h"),
-            
-            # Weight for variance calculation (A_h^2)
-            (pl.col("A_h") ** 2).alias("A_h_sq"),
+            .otherwise(0.0)  # Variance is 0 when n_h <= 1
+            .alias("stratum_var")
         ])
         
         return stratum_stats
@@ -94,222 +124,145 @@ class MortalityVarianceCalculator:
     def calculate_population_variance(
         self,
         stratum_data: pl.DataFrame,
-        response_var: str,
+        pop_data: Optional[pl.DataFrame] = None,
         group_cols: Optional[List[str]] = None
     ) -> pl.DataFrame:
         """
-        Calculate population-level variance from stratum statistics.
+        Calculate population-level variance using stratified sampling formula.
+        
+        Implements the formula from the SQL reference:
+        Var = (AREA²/n) * [Σ(w_h * n_h * s²_h) + (1/n) * Σ((1-w_h) * n_h * s²_h)]
+        
+        Where:
+        - AREA = total area in estimation unit
+        - n = total plots in estimation unit
+        - w_h = stratum weight (P1POINTCNT / P1PNTCNT_EU)
+        - n_h = plots in stratum
+        - s²_h = stratum variance
         
         Parameters
         ----------
         stratum_data : pl.DataFrame
-            Stratum-level statistics from calculate_stratum_variance
-        response_var : str
-            Name of the response variable
-        group_cols : Optional[List[str]]
-            Grouping columns for aggregation
+            Stratum-level data with variance components
+        pop_data : pl.DataFrame, optional
+            Population data with design factors. If not provided, will load from db
+        group_cols : List[str], optional
+            Additional grouping columns
             
         Returns
         -------
         pl.DataFrame
-            Population-level estimates with variance
+            Population-level variance estimates
         """
-        # Aggregation expressions
-        agg_exprs = [
-            # Total estimate (sum of stratum contributions)
-            (
-                pl.col(f"{response_var}_bar_h") * 
-                pl.col("adj_h") * 
-                pl.col("A_h")
-            ).sum().alias(f"{response_var}_TOTAL"),
-            
-            # Variance (sum of weighted stratum variances)
-            (
-                pl.col("A_h_sq") * 
-                pl.col(f"var_{response_var}_h") * 
-                (pl.col("adj_h") ** 2)
-            ).sum().alias(f"{response_var}_VAR"),
-            
-            # Total area (sum of expansion factors)
-            pl.col("A_h").sum().alias("TOTAL_AREA"),
-            
-            # Total plots
-            pl.col("n_h").sum().alias("N_PLOTS"),
-        ]
+        # Load population design factors if not provided
+        if pop_data is None and self.db is not None:
+            pop_data = self._load_population_factors()
+        elif pop_data is None:
+            raise ValueError("Either pop_data or db must be provided")
         
-        # Aggregate by groups if specified
+        # Join stratum data with population factors
+        join_cols = ["ESTN_UNIT_CN", "STRATUM_CN"]
+        data_with_factors = stratum_data.join(
+            pop_data,
+            on=join_cols,
+            how="inner"
+        )
+        
+        # Build grouping columns for aggregation
+        group_by = ["ESTN_UNIT_CN"]
         if group_cols:
-            pop_estimates = stratum_data.group_by(group_cols).agg(agg_exprs)
-        else:
-            pop_estimates = stratum_data.select(agg_exprs)
+            available_groups = [col for col in group_cols if col in stratum_data.columns]
+            group_by.extend(available_groups)
         
-        # Calculate per-acre values and standard errors
-        pop_estimates = pop_estimates.with_columns([
-            # Per-acre estimate
-            (pl.col(f"{response_var}_TOTAL") / pl.col("TOTAL_AREA"))
-            .alias(response_var.replace("PLOT_", "")),
+        # Calculate population variance components
+        pop_variance = data_with_factors.group_by(group_by).agg([
+            # Total estimate (sum of stratum estimates)
+            (pl.col("y_sum") * pl.col("EXPNS")).sum().alias("estimate"),
             
-            # Standard error (per-acre)
-            (
-                pl.col(f"{response_var}_VAR").sqrt() / pl.col("TOTAL_AREA")
-            ).alias(f"{response_var.replace('PLOT_', '')}_SE"),
+            # Total plots in estimation unit
+            pl.col("n").first().alias("n_total"),
             
-            # Coefficient of variation
-            pl.when(pl.col(f"{response_var}_TOTAL") > 0)
-            .then(
-                (pl.col(f"{response_var}_VAR").sqrt() / pl.col(f"{response_var}_TOTAL")) * 100
-            )
-            .otherwise(0.0)
-            .alias(f"{response_var.replace('PLOT_', '')}_CV"),
+            # Total area
+            pl.col("AREA_USED").first().alias("total_area"),
+            
+            # First variance component: Σ(w_h * n_h * s²_h)
+            (pl.col("w_h") * pl.col("n_h") * pl.col("stratum_var")).sum().alias("var_component_1"),
+            
+            # Second variance component: Σ((1-w_h) * n_h * s²_h)
+            ((1 - pl.col("w_h")) * pl.col("n_h") * pl.col("stratum_var")).sum().alias("var_component_2"),
+            
+            # Count of non-zero plots
+            pl.col("n_h").sum().alias("total_plots")
         ])
         
-        return pop_estimates
+        # Calculate final variance using the stratified formula
+        pop_variance = pop_variance.with_columns([
+            # Var = (AREA²/n) * [var_component_1 + (1/n) * var_component_2]
+            pl.when(pl.col("n_total") > 0)
+            .then(
+                (pl.col("total_area").pow(2) / pl.col("n_total")) * 
+                (pl.col("var_component_1") + (1.0 / pl.col("n_total")) * pl.col("var_component_2"))
+            )
+            .otherwise(0.0)
+            .alias("var_of_estimate")
+        ])
+        
+        # Calculate standard error and coefficient of variation
+        pop_variance = pop_variance.with_columns([
+            # Standard error = sqrt(variance)
+            pl.col("var_of_estimate").sqrt().alias("se_of_estimate"),
+            
+            # CV% = (SE / estimate) * 100
+            pl.when((pl.col("estimate") != 0) & (pl.col("estimate").is_not_null()))
+            .then((pl.col("var_of_estimate").sqrt() / pl.col("estimate").abs()) * 100)
+            .otherwise(0.0)
+            .alias("se_of_estimate_pct")
+        ])
+        
+        return pop_variance
     
-    def calculate_ratio_variance(
-        self,
-        data: pl.DataFrame,
-        numerator_col: str,
-        denominator_col: str,
-        group_cols: Optional[List[str]] = None
-    ) -> pl.DataFrame:
+    def _load_population_factors(self) -> pl.DataFrame:
         """
-        Calculate variance for ratio estimates (e.g., mortality per unit area).
+        Load population design factors from FIA database.
         
-        Parameters
-        ----------
-        data : pl.DataFrame
-            Data with numerator and denominator values
-        numerator_col : str
-            Column name for ratio numerator
-        denominator_col : str
-            Column name for ratio denominator  
-        group_cols : Optional[List[str]]
-            Grouping columns
-            
         Returns
         -------
         pl.DataFrame
-            Data with ratio variance added
+            Population factors including weights and sample sizes
         """
-        # First calculate stratum-level statistics for both variables
-        strat_groups = ["STRATUM_CN"]
-        if group_cols:
-            strat_groups.extend(group_cols)
+        if self.db is None:
+            raise ValueError("Database connection required to load population factors")
         
-        # Helper functions
-        def _safe_std(col_name: str) -> pl.Expr:
-            return (
-                pl.when(pl.count(col_name) > 1)
-                .then(pl.std(col_name, ddof=1))
-                .otherwise(0.0)
-            )
+        # Load estimation unit data
+        pop_eu = self.db.tables["POP_ESTN_UNIT"].collect().select([
+            pl.col("CN").alias("ESTN_UNIT_CN"),
+            "AREA_USED",
+            "P1PNTCNT_EU",
+            "P2PNTCNT_EU"
+        ])
         
-        def _safe_correlation(col1: str, col2: str) -> pl.Expr:
-            return (
-                pl.when(pl.count(col1) > 1)
-                .then(
-                    pl.when((pl.std(col1) == 0) & (pl.std(col2) == 0))
-                    .then(1.0)
-                    .otherwise(pl.corr(col1, col2).fill_null(0))
-                )
-                .otherwise(0.0)
-            )
+        # Load stratum data
+        pop_stratum = self.db.tables["POP_STRATUM"].collect().select([
+            "CN",
+            "ESTN_UNIT_CN",
+            "P1POINTCNT",
+            "P2POINTCNT",
+            "EXPNS",
+            "ADJ_FACTOR_SUBP"
+        ])
         
-        # Calculate stratum statistics
-        stratum_stats = data.group_by(strat_groups).agg([
-            # Sample size
-            pl.len().alias("n_h"),
-            
-            # Means
-            pl.mean(numerator_col).alias("y_bar_h"),
-            pl.mean(denominator_col).alias("x_bar_h"),
-            
-            # Standard deviations
-            _safe_std(numerator_col).alias("s_y_h"),
-            _safe_std(denominator_col).alias("s_x_h"),
-            
-            # Correlation
-            _safe_correlation(numerator_col, denominator_col).alias("r_yx_h"),
-            
+        # Join and calculate weights
+        pop_factors = pop_stratum.join(
+            pop_eu,
+            on="ESTN_UNIT_CN",
+            how="inner"
+        ).with_columns([
             # Stratum weight
-            pl.first("EXPNS").alias("A_h"),
-            pl.first("ADJ_FACTOR_SUBP").alias("adj_h"),
-        ])
+            (pl.col("P1POINTCNT") / pl.col("P1PNTCNT_EU")).alias("w_h"),
+            # Total plots in estimation unit
+            pl.col("P2PNTCNT_EU").alias("n")
+        ]).rename({
+            "CN": "STRATUM_CN"
+        })
         
-        # Calculate covariance from correlation
-        stratum_stats = stratum_stats.with_columns([
-            pl.when((pl.col("s_y_h") == 0) | (pl.col("s_x_h") == 0))
-            .then(0.0)
-            .otherwise(pl.col("r_yx_h") * pl.col("s_y_h") * pl.col("s_x_h"))
-            .alias("s_yx_h")
-        ])
-        
-        # Aggregate to population level
-        agg_exprs = [
-            # Totals
-            (pl.col("y_bar_h") * pl.col("adj_h") * pl.col("A_h")).sum().alias("Y_TOTAL"),
-            (pl.col("x_bar_h") * pl.col("adj_h") * pl.col("A_h")).sum().alias("X_TOTAL"),
-            
-            # Variance components
-            pl.when(pl.col("n_h") > 1)
-            .then(
-                (pl.col("A_h") ** 2) * (pl.col("adj_h") ** 2) *
-                (pl.col("s_y_h") ** 2) / pl.col("n_h")
-            )
-            .otherwise(0.0)
-            .sum().alias("VAR_Y"),
-            
-            pl.when(pl.col("n_h") > 1)
-            .then(
-                (pl.col("A_h") ** 2) * (pl.col("adj_h") ** 2) *
-                (pl.col("s_x_h") ** 2) / pl.col("n_h")
-            )
-            .otherwise(0.0)
-            .sum().alias("VAR_X"),
-            
-            pl.when(pl.col("n_h") > 1)
-            .then(
-                (pl.col("A_h") ** 2) * (pl.col("adj_h") ** 2) *
-                pl.col("s_yx_h") / pl.col("n_h")
-            )
-            .otherwise(0.0)
-            .sum().alias("COV_YX"),
-            
-            # Sample size
-            pl.col("n_h").sum().alias("N_PLOTS"),
-        ]
-        
-        if group_cols:
-            pop_stats = stratum_stats.group_by(group_cols).agg(agg_exprs)
-        else:
-            pop_stats = stratum_stats.select(agg_exprs)
-        
-        # Calculate ratio and its variance
-        pop_stats = pop_stats.with_columns([
-            # Ratio estimate
-            pl.when(pl.col("X_TOTAL") > 0)
-            .then(pl.col("Y_TOTAL") / pl.col("X_TOTAL"))
-            .otherwise(0.0)
-            .alias("RATIO"),
-            
-            # Ratio variance using delta method
-            ratio_var(
-                pl.col("Y_TOTAL"),
-                pl.col("X_TOTAL"),
-                pl.col("VAR_Y"),
-                pl.col("VAR_X"),
-                pl.col("COV_YX")
-            ).alias("RATIO_VAR"),
-        ])
-        
-        # Add standard error and CV
-        pop_stats = pop_stats.with_columns([
-            pl.col("RATIO_VAR").sqrt().alias("RATIO_SE"),
-            
-            pl.when(pl.col("RATIO") > 0)
-            .then((pl.col("RATIO_VAR").sqrt() / pl.col("RATIO")) * 100)
-            .otherwise(0.0)
-            .alias("RATIO_CV"),
-        ])
-        
-        return pop_stats
+        return pop_factors

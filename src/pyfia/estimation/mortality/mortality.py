@@ -11,7 +11,7 @@ import polars as pl
 
 from ...core import FIA
 from ..config import MortalityConfig
-from .calculator import MortalityCalculator
+from ..mortality_lazy import mortality_lazy
 
 
 def mortality(
@@ -143,73 +143,29 @@ def mortality(
     ...     by_species=True
     ... )
     """
-    # Handle the three usage patterns:
-    # 1. Config only (config provided, no individual params)
-    # 2. Parameters only (no config, individual params provided)
-    # 3. Mixed (config + param overrides)
-    
-    # Collect all provided parameters (non-None values)
-    provided_params = {}
-    
-    # Check each parameter and add to provided_params if not None
-    if by_species is not None:
-        provided_params["by_species"] = by_species
-    if by_size_class is not None:
-        provided_params["by_size_class"] = by_size_class
-    if tree_domain is not None:
-        provided_params["tree_domain"] = tree_domain
-    if area_domain is not None:
-        provided_params["area_domain"] = area_domain
-    if tree_class is not None:
-        provided_params["tree_class"] = tree_class
-    if land_type is not None:
-        provided_params["land_type"] = land_type
-    if grp_by is not None:
-        provided_params["grp_by"] = grp_by
-    if totals is not None:
-        provided_params["totals"] = totals
-    if variance is not None:
-        provided_params["variance"] = variance
-    if by_species_group is not None:
-        provided_params["group_by_species_group"] = by_species_group
-    if by_ownership is not None:
-        provided_params["group_by_ownership"] = by_ownership
-    if by_agent is not None:
-        provided_params["group_by_agent"] = by_agent
-    if by_disturbance is not None:
-        provided_params["group_by_disturbance"] = by_disturbance
-    if include_components is not None:
-        provided_params["include_components"] = include_components
-    if mortality_type is not None:
-        provided_params["mortality_type"] = mortality_type
-    if include_natural is not None:
-        provided_params["include_natural"] = include_natural
-    if include_harvest is not None:
-        provided_params["include_harvest"] = include_harvest
-    if variance_method is not None:
-        provided_params["variance_method"] = variance_method
-    
-    # Determine which usage pattern we're in
-    if config is None:
-        # Parameters only - create config from provided parameters
-        final_config = MortalityConfig(**provided_params)
-    elif not provided_params:
-        # Config only - use as is
-        final_config = config
-    else:
-        # Mixed usage - create new config with overrides
-        # First get the config as a dict
-        config_dict = config.model_dump()
-        # Update with provided parameters
-        config_dict.update(provided_params)
-        # Create new config
-        final_config = MortalityConfig(**config_dict)
-        
-    # Create calculator with final config
-    calculator = MortalityCalculator(db, final_config)
-    
-    # Calculate mortality
-    results = calculator.estimate()
-    
-    return results
+    # Delegate to lazy implementation for improved performance
+    # This maintains backward compatibility while leveraging lazy evaluation
+    return mortality_lazy(
+        db=db,
+        config=config,
+        by_species=by_species,
+        by_size_class=by_size_class,
+        tree_domain=tree_domain,
+        area_domain=area_domain,
+        tree_class=tree_class,
+        land_type=land_type,
+        grp_by=grp_by,
+        totals=totals,
+        variance=variance,
+        by_species_group=by_species_group,
+        by_ownership=by_ownership,
+        by_agent=by_agent,
+        by_disturbance=by_disturbance,
+        include_components=include_components,
+        mortality_type=mortality_type,
+        include_natural=include_natural,
+        include_harvest=include_harvest,
+        variance_method=variance_method,
+        show_progress=True,  # Default to showing progress
+    )
 

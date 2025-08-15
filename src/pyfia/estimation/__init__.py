@@ -20,10 +20,13 @@ from .formatters import OutputFormatter, format_estimation_output
 from .area import area
 from .biomass import biomass
 from .growth import growth
+from .growth_lazy import LazyGrowthEstimator, growth_lazy
 from .mortality.mortality import mortality
+from .mortality_lazy import LazyMortalityEstimator, mortality_lazy
 from .tpa import tpa
 from .tree.tree import tree_count, tree_count_simple
 from .volume import volume
+from .volume_lazy import LazyVolumeEstimator, volume_lazy
 
 # Variance calculation components
 from .variance_calculator import (
@@ -83,11 +86,17 @@ __all__ = [
     "area",
     "biomass",
     "growth",
+    "LazyGrowthEstimator",
+    "growth_lazy",
     "mortality",
+    "mortality_lazy",
     "tpa",
     "tree_count",
     "tree_count_simple",
     "volume",
+    "LazyVolumeEstimator",
+    "volume_lazy",
+    "LazyMortalityEstimator",
     
     # Variance calculation
     "FIAVarianceCalculator",

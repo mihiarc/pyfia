@@ -400,14 +400,14 @@ class RFIAVarianceCalculator:
         """
         # Prepare grouping columns
         base_groups = ["ESTN_UNIT_CN", "STRATUM_CN"]
-        if grouping_cols:
-            # Remove any duplicates and ensure base groups are included
-            all_groups = list(dict.fromkeys(base_groups + [col for col in grouping_cols if col not in base_groups]))
-        else:
-            all_groups = base_groups
+        
+        # CRITICAL FIX: Stratum-level variance must ONLY group by stratum,
+        # not by user-specified grouping columns (e.g., FORTYPCD)
+        # User grouping is applied AFTER stratum aggregation
         
         # Step 1: Calculate stratum-level variances and covariances
-        stratum_stats = plot_data.group_by(all_groups).agg([
+        # Group ONLY by stratum identifiers, not user groups
+        stratum_stats = plot_data.group_by(base_groups).agg([
             # Stratum variance for numerator (fa_adjusted)
             self.stratum_calc.calculate_stratum_variance("fa_adjusted").alias("fa_var_stratum"),
             
@@ -434,9 +434,6 @@ class RFIAVarianceCalculator:
         ])
         
         # Step 2: Calculate population-level variances
-        # Group by estimation unit (and any additional grouping columns)
-        eu_groups = ["ESTN_UNIT_CN"] + [col for col in (grouping_cols or []) if col not in ["ESTN_UNIT_CN", "STRATUM_CN"]]
-        
         # Load design factors for population variance calculation
         design_factors = self.population_calc._load_design_factors()
         
@@ -447,6 +444,13 @@ class RFIAVarianceCalculator:
             how="inner"
         )
         
+        # For user grouping, we need to handle this at the population aggregation level
+        # The stratum variances are the same for all groups within a stratum
+        # We'll aggregate by estimation unit first, then handle grouping
+        
+        # Group only by estimation unit for variance calculation
+        # User grouping will be applied to the final results
+        eu_groups = ["ESTN_UNIT_CN"]
         
         # Calculate population variances using pre-calculated stratum variances
         # First calculate P2PNTCNT_EU (sum of P2POINTCNT across strata)

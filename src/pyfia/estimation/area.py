@@ -250,7 +250,8 @@ class AreaEstimator(BaseEstimator):
 
         # Identify reference columns that should be preserved
         reference_cols = []
-        potential_reference_cols = ["FORTYPCD", "OWNGRPCD", "SPCD", "FOREST_TYPE_GROUP", "OWNERSHIP_GROUP"]
+        # Only preserve descriptive reference columns that aren't already in grouping
+        potential_reference_cols = ["FOREST_TYPE_GROUP", "OWNERSHIP_GROUP", "COMMON_NAME"]
         
         for col in potential_reference_cols:
             if col in data.columns and col not in plot_groups:

@@ -610,3 +610,86 @@ def add_forest_type_group_code(
         .map_elements(get_forest_type_group_code, return_dtype=pl.Int32)
         .alias(output_col)
     )
+
+
+def auto_enhance_grouping_data(
+    data_df: pl.DataFrame,
+    group_cols: List[str],
+    preserve_reference_columns: bool = True
+) -> tuple[pl.DataFrame, List[str]]:
+    """
+    Automatically enhance grouping data with reference information.
+    
+    This function intelligently adds enhanced columns for common FIA grouping
+    variables to make output more interpretable while preserving original
+    columns for reference.
+    
+    Parameters
+    ----------
+    data_df : pl.DataFrame
+        Input dataframe to enhance
+    group_cols : List[str]
+        List of grouping columns to potentially enhance
+    preserve_reference_columns : bool, default True
+        Whether to preserve original columns alongside enhanced ones
+        
+    Returns
+    -------
+    tuple[pl.DataFrame, List[str]]
+        Enhanced dataframe and updated list of grouping columns
+        
+    Examples
+    --------
+    >>> # Enhance data with forest type group names
+    >>> enhanced_df, enhanced_cols = auto_enhance_grouping_data(
+    ...     cond_df, ["FORTYPCD", "OWNGRPCD"]
+    ... )
+    >>> # Now has FORTYPCD + FOREST_TYPE_GROUP, OWNGRPCD + OWNERSHIP_GROUP
+    """
+    enhanced_df = data_df
+    enhanced_group_cols = group_cols.copy()
+    
+    # Track columns that were enhanced for reference preservation
+    enhanced_mappings = {}
+    
+    # Enhance FORTYPCD with forest type groups
+    if "FORTYPCD" in group_cols and "FORTYPCD" in enhanced_df.columns:
+        # Add forest type group code (FORTYPGRP) for grouping
+        enhanced_df = add_forest_type_group_code(enhanced_df)
+        enhanced_mappings["FORTYPCD"] = "FORTYPGRP"
+        
+        # Also add descriptive name for better output readability
+        enhanced_df = add_forest_type_group(enhanced_df)
+        
+        # Replace FORTYPCD with FORTYPGRP in grouping columns if not preserving references
+        if not preserve_reference_columns:
+            enhanced_group_cols = [
+                "FORTYPGRP" if col == "FORTYPCD" else col 
+                for col in enhanced_group_cols
+            ]
+        else:
+            # Add FORTYPGRP to grouping columns alongside FORTYPCD
+            idx = enhanced_group_cols.index("FORTYPCD")
+            enhanced_group_cols.insert(idx + 1, "FORTYPGRP")
+    
+    # Enhance OWNGRPCD with ownership group names
+    if "OWNGRPCD" in group_cols and "OWNGRPCD" in enhanced_df.columns:
+        enhanced_df = add_ownership_group_name(enhanced_df)
+        enhanced_mappings["OWNGRPCD"] = "OWNERSHIP_GROUP"
+        
+        if not preserve_reference_columns:
+            enhanced_group_cols = [
+                "OWNERSHIP_GROUP" if col == "OWNGRPCD" else col 
+                for col in enhanced_group_cols
+            ]
+        else:
+            # Add OWNERSHIP_GROUP alongside OWNGRPCD
+            if "OWNGRPCD" in enhanced_group_cols:
+                idx = enhanced_group_cols.index("OWNGRPCD")
+                enhanced_group_cols.insert(idx + 1, "OWNERSHIP_GROUP")
+    
+    # Enhance SPCD with species information if available
+    # Note: This would require species reference table, which may not always be available
+    # For now, we just preserve SPCD as-is but could be extended later
+    
+    return enhanced_df, enhanced_group_cols

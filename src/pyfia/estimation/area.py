@@ -82,7 +82,7 @@ class AreaEstimator(BaseEstimator):
         # Store whether we need tree filtering
         self._needs_tree_filtering = config.tree_domain is not None
 
-        # Initialize group columns early
+        # Initialize group columns using filter utilities
         self._group_cols = []
         if self.config.grp_by:
             if isinstance(self.config.grp_by, str):
@@ -93,6 +93,9 @@ class AreaEstimator(BaseEstimator):
         # Add LAND_TYPE to group cols if using by_land_type
         if self.by_land_type and "LAND_TYPE" not in self._group_cols:
             self._group_cols.append("LAND_TYPE")
+        
+        # Store original group columns for reference
+        self._original_group_cols = self._group_cols.copy()
 
         # Initialize components through composition
         self.components = components or self._create_default_components()
@@ -223,21 +226,49 @@ class AreaEstimator(BaseEstimator):
         if tree_df is not None:
             self._data_cache["TREE"] = tree_df
 
-        # Grouping columns are already set up in __init__
+        # Apply grouping data enhancements using filter utilities
+        from ..filters.grouping import auto_enhance_grouping_data
+        
+        if self._group_cols:
+            enhanced_df, enhanced_group_cols = auto_enhance_grouping_data(
+                cond_df, 
+                self._group_cols,
+                preserve_reference_columns=True
+            )
+            # Update the dataframe and group columns
+            cond_df = enhanced_df
+            self._group_cols = enhanced_group_cols
+
         return cond_df
 
     def _calculate_plot_estimates(self, data: pl.DataFrame) -> pl.DataFrame:
-        """Calculate plot-level area estimates."""
+        """Calculate plot-level area estimates with reference column preservation."""
         # Determine grouping columns
         plot_groups = ["PLT_CN"]
         if self._group_cols:
             plot_groups.extend(self._group_cols)
 
-        # Aggregate area values to plot level
-        plot_estimates = data.group_by(plot_groups).agg([
+        # Identify reference columns that should be preserved
+        reference_cols = []
+        potential_reference_cols = ["FORTYPCD", "OWNGRPCD", "SPCD", "FOREST_TYPE_GROUP", "OWNERSHIP_GROUP"]
+        
+        for col in potential_reference_cols:
+            if col in data.columns and col not in plot_groups:
+                reference_cols.append(col)
+
+        # Build aggregation expressions for numerical values
+        agg_exprs = [
             pl.sum("fa").alias("PLOT_AREA_NUMERATOR"),
             pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS"),
-        ])
+        ]
+        
+        # Add reference column preservation expressions
+        # For reference columns, take the first value since they should be consistent within groups
+        for ref_col in reference_cols:
+            agg_exprs.append(pl.col(ref_col).first().alias(ref_col))
+
+        # Aggregate area values to plot level
+        plot_estimates = data.group_by(plot_groups).agg(agg_exprs)
 
         # Calculate denominator separately (not grouped by land type)
         plot_denom = data.group_by("PLT_CN").agg([

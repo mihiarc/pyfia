@@ -668,9 +668,10 @@ def auto_enhance_grouping_data(
                 for col in enhanced_group_cols
             ]
         else:
-            # Add FORTYPGRP to grouping columns alongside FORTYPCD
-            idx = enhanced_group_cols.index("FORTYPCD")
-            enhanced_group_cols.insert(idx + 1, "FORTYPGRP")
+            # Add FORTYPGRP to grouping columns alongside FORTYPCD (if not already there)
+            if "FORTYPGRP" not in enhanced_group_cols:
+                idx = enhanced_group_cols.index("FORTYPCD")
+                enhanced_group_cols.insert(idx + 1, "FORTYPGRP")
     
     # Enhance OWNGRPCD with ownership group names
     if "OWNGRPCD" in group_cols and "OWNGRPCD" in enhanced_df.columns:

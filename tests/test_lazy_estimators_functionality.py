@@ -27,13 +27,8 @@ import polars as pl
 import pytest
 
 from pyfia import FIA
-# Import the refactored lazy-enabled functions
-from pyfia.estimation.area import area as area_lazy
-from pyfia.estimation.tpa import tpa as tpa_lazy
-from pyfia.estimation.volume import volume as volume_lazy
-from pyfia.estimation.growth import growth as growth_lazy
-from pyfia.estimation.mortality_lazy import mortality_lazy
-from pyfia.estimation.biomass import biomass as biomass_lazy
+# Import the main estimator functions with integrated lazy evaluation
+from pyfia.estimation import area, tpa, volume, growth, mortality, biomass
 from pyfia.estimation.base import EstimatorConfig
 from pyfia.estimation.lazy_evaluation import CollectionStrategy, LazyEstimatorMixin
 from pyfia.estimation.progress import OperationType
@@ -45,7 +40,7 @@ from pyfia.estimation.biomass import BiomassEstimator
 from pyfia.estimation.tpa import TPAEstimator
 from pyfia.estimation.volume import VolumeEstimator
 from pyfia.estimation.growth import GrowthEstimator
-from pyfia.estimation.mortality_lazy import LazyMortalityEstimator
+from pyfia.estimation.mortality import MortalityEstimator
 
 
 class TestLazyEstimatorProgressTracking:
@@ -360,7 +355,7 @@ class TestLazyEstimatorIntegration:
         (TPAEstimator, "tpa"),
         (VolumeEstimator, "volume"),
         (GrowthEstimator, "growth"),
-        (LazyMortalityEstimator, "mortality"),
+        (MortalityEstimator, "mortality"),
     ])
     def test_lazy_estimator_workflow(self, sample_db, estimator_class, function_name):
         """Test complete workflow for each lazy estimator."""
@@ -405,10 +400,10 @@ class TestLazyEstimatorIntegration:
         }
         
         # Run area estimation
-        area_result = area_lazy(sample_db, **params)
+        area_result = area(sample_db, **params)
         
         # Run TPA estimation
-        tpa_result = tpa_lazy(sample_db, **params)
+        tpa_result = tpa(sample_db, **params)
         
         # Both should have consistent plot counts
         if "nPlots_AREA" in area_result.columns and "nPlots_TREE" in tpa_result.columns:
@@ -431,7 +426,7 @@ class TestLazyEstimatorBasics:
             TPAEstimator,
             VolumeEstimator,
             GrowthEstimator,
-            LazyMortalityEstimator
+            MortalityEstimator
         ]
         
         for estimator_class in estimators:
@@ -452,7 +447,7 @@ class TestLazyEstimatorBasics:
             TPAEstimator,
             VolumeEstimator,
             GrowthEstimator,
-            LazyMortalityEstimator
+            MortalityEstimator
         ]
         
         for estimator_class in estimators:
@@ -466,7 +461,7 @@ class TestLazyEstimatorBasics:
         (TPAEstimator, "tpa"),
         (VolumeEstimator, "volume"),
         (GrowthEstimator, "growth"),
-        (LazyMortalityEstimator, "mortality"),
+        (MortalityEstimator, "mortality"),
     ])
     def test_basic_estimator_classes(self, estimator_class, name):
         """Test that estimator classes can be instantiated."""

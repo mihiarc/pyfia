@@ -9,7 +9,6 @@ specific steps.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional, Union, Callable
 
 import polars as pl
@@ -21,72 +20,8 @@ from ..filters.common import (
     apply_tree_filters_common,
     setup_grouping_columns_common,
 )
+from .config import EstimatorConfig
 
-
-@dataclass
-class EstimatorConfig:
-    """
-    Configuration for FIA estimation parameters.
-
-    This dataclass encapsulates all common parameters used across
-    different estimation modules, providing a clean interface for
-    configuration management.
-
-    Attributes
-    ----------
-    grp_by : Optional[Union[str, List[str]]]
-        Column(s) to group estimates by
-    by_species : bool
-        Whether to group by species code (SPCD)
-    by_size_class : bool
-        Whether to group by diameter size classes
-    land_type : str
-        Land type filter: "forest", "timber", or "all"
-    tree_type : str
-        Tree type filter: "live", "dead", "gs", or "all"
-    tree_domain : Optional[str]
-        SQL-like expression for tree filtering
-    area_domain : Optional[str]
-        SQL-like expression for area filtering
-    method : str
-        Estimation method: "TI", "SMA", "LMA", "EMA", or "ANNUAL"
-    lambda_ : float
-        Temporal weighting parameter for moving averages
-    totals : bool
-        Whether to include total estimates in addition to per-acre
-    variance : bool
-        Whether to return variance instead of standard error
-    by_plot : bool
-        Whether to return plot-level estimates
-    most_recent : bool
-        Whether to use only the most recent evaluation
-    """
-
-    grp_by: Optional[Union[str, List[str]]] = None
-    by_species: bool = False
-    by_size_class: bool = False
-    land_type: str = "forest"
-    tree_type: str = "live"
-    tree_domain: Optional[str] = None
-    area_domain: Optional[str] = None
-    method: str = "TI"
-    lambda_: float = 0.5
-    totals: bool = False
-    variance: bool = False
-    by_plot: bool = False
-    most_recent: bool = False
-
-    # Additional parameters can be stored here
-    extra_params: Dict[str, Any] = field(default_factory=dict)
-
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert configuration to dictionary for backwards compatibility."""
-        result = {
-            k: v for k, v in self.__dict__.items()
-            if k != "extra_params" and v is not None
-        }
-        result.update(self.extra_params)
-        return result
 
 
 class BaseEstimator(ABC):

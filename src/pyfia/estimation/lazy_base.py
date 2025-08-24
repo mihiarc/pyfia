@@ -12,7 +12,8 @@ import warnings
 import polars as pl
 
 from ..core import FIA
-from .base import BaseEstimator, EnhancedBaseEstimator, EstimatorConfig
+from .base import BaseEstimator, EnhancedBaseEstimator
+from .config import EstimatorConfig
 from .lazy_evaluation import (
     LazyEstimatorMixin,
     LazyFrameWrapper,

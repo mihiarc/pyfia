@@ -12,7 +12,7 @@ import polars as pl
 
 from ..core import FIA
 from ..constants.constants import MathConstants
-from .base import EstimatorConfig
+from .config import EstimatorConfig
 from .lazy_base import LazyBaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin

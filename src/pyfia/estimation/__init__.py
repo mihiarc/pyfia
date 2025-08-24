@@ -65,6 +65,35 @@ from .progress import (
     ProgressConfig,
 )
 
+# Query optimization components
+from .query_builders import (
+    QueryBuilderFactory,
+    CompositeQueryBuilder,
+    BaseQueryBuilder,
+    TreeQueryBuilder,
+    ConditionQueryBuilder,
+    PlotQueryBuilder,
+    StratificationQueryBuilder,
+    QueryPlan,
+    QueryColumn,
+    QueryFilter,
+    QueryJoin,
+    JoinStrategy,
+    FilterPushDownLevel,
+)
+
+from .join_optimizer import (
+    JoinOptimizer,
+    OptimizedQueryExecutor,
+    JoinNode,
+    JoinCostEstimator,
+    FilterPushDown,
+    JoinRewriter,
+    FIAJoinPatterns,
+    JoinType,
+    JoinStatistics,
+)
+
 __all__ = [
     # Base classes
     "BaseEstimator",
@@ -128,4 +157,30 @@ __all__ = [
     "EstimatorProgressMixin",
     "CollectionProgress",
     "OperationType",
+    
+    # Query optimization
+    "QueryBuilderFactory",
+    "CompositeQueryBuilder",
+    "BaseQueryBuilder",
+    "TreeQueryBuilder",
+    "ConditionQueryBuilder",
+    "PlotQueryBuilder",
+    "StratificationQueryBuilder",
+    "QueryPlan",
+    "QueryColumn",
+    "QueryFilter",
+    "QueryJoin",
+    "JoinStrategy",
+    "FilterPushDownLevel",
+    
+    # Join optimization
+    "JoinOptimizer",
+    "OptimizedQueryExecutor",
+    "JoinNode",
+    "JoinCostEstimator",
+    "FilterPushDown",
+    "JoinRewriter",
+    "FIAJoinPatterns",
+    "JoinType",
+    "JoinStatistics",
 ]

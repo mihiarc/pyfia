@@ -22,6 +22,20 @@ from .lazy_evaluation import (
     LazyComputationNode,
     ComputationStatus
 )
+from .query_builders import (
+    QueryBuilderFactory,
+    CompositeQueryBuilder,
+    QueryPlan,
+    QueryFilter,
+    JoinStrategy
+)
+from .join_optimizer import (
+    JoinOptimizer,
+    OptimizedQueryExecutor,
+    JoinNode,
+    JoinType
+)
+from .caching import MemoryCache
 
 
 class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
@@ -65,44 +79,83 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         # Collection points tracking
         self._collection_points: List[str] = []
         self._deferred_operations: int = 0
+        
+        # Initialize query optimization components
+        self._cache = MemoryCache(max_size_mb=256, max_entries=100)
+        self._query_factory = QueryBuilderFactory()
+        self._composite_builder = CompositeQueryBuilder(db, config, self._cache)
+        self._join_optimizer = JoinOptimizer(config, self._cache)
+        self._query_executor = OptimizedQueryExecutor(self._join_optimizer, self._cache)
     
     # === Lazy Data Loading Methods ===
     
     @lazy_operation("load_table", cache_key_params=["table_name"])
-    def load_table_lazy(self, table_name: str) -> Union[pl.DataFrame, pl.LazyFrame]:
+    def load_table_lazy(self, table_name: str, filters: Optional[Dict[str, Any]] = None) -> LazyFrameWrapper:
         """
-        Load a table with automatic lazy evaluation based on size.
+        Load a table using query builders for optimized access.
         
         Parameters
         ----------
         table_name : str
             Name of the table to load
+        filters : Optional[Dict[str, Any]]
+            Filters to apply
             
         Returns
         -------
-        Union[pl.DataFrame, pl.LazyFrame]
-            The loaded table, lazy if large
+        LazyFrameWrapper
+            The loaded table with optimizations applied
         """
-        # Get table reference
-        if table_name not in self.db.tables:
-            self.db.load_table(table_name)
+        # Map table names to query builder types
+        builder_map = {
+            "TREE": "tree",
+            "PLOT": "plot",
+            "COND": "condition",
+            "POP_STRATUM": "stratification",
+            "POP_PLOT_STRATUM_ASSGN": "stratification"
+        }
         
-        table_ref = self.db.tables[table_name]
-        
-        # For lazy frames, return as-is
-        if isinstance(table_ref, pl.LazyFrame):
-            return table_ref
-        
-        # For DataFrames, check if we should convert to lazy
-        if self._prefer_lazy and len(table_ref) > self._auto_lazy_threshold:
-            return table_ref.lazy()
-        
-        return table_ref
+        # Use appropriate query builder if available
+        if table_name in builder_map:
+            builder_type = builder_map[table_name]
+            builder = self._query_factory.create_builder(builder_type, self.db, self.config, self._cache)
+            
+            # Build query plan with filters
+            kwargs = {}
+            if filters:
+                # Convert filters to appropriate format
+                if "tree_domain" in filters:
+                    kwargs["tree_domain"] = filters["tree_domain"]
+                if "area_domain" in filters:
+                    kwargs["area_domain"] = filters["area_domain"]
+                if "plot_domain" in filters:
+                    kwargs["plot_domain"] = filters["plot_domain"]
+                if "evalid" in filters:
+                    kwargs["evalid"] = filters["evalid"]
+            
+            plan = builder.build_query_plan(**kwargs)
+            return builder.execute(plan)
+        else:
+            # Fall back to direct table loading for non-optimized tables
+            if table_name not in self.db.tables:
+                self.db.load_table(table_name)
+            
+            table_ref = self.db.tables[table_name]
+            
+            # Apply filters if provided
+            if filters:
+                for col, value in filters.items():
+                    if isinstance(table_ref, pl.LazyFrame):
+                        table_ref = table_ref.filter(pl.col(col) == value)
+                    else:
+                        table_ref = table_ref.filter(pl.col(col) == value)
+            
+            return LazyFrameWrapper(table_ref)
     
     @lazy_operation("get_trees", cache_key_params=["filters"])
     def get_trees_lazy(self, filters: Optional[Dict[str, Any]] = None) -> LazyFrameWrapper:
         """
-        Get tree data with lazy evaluation support.
+        Get tree data using optimized query builders.
         
         Parameters
         ----------
@@ -114,27 +167,25 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         LazyFrameWrapper
             Wrapped tree data
         """
-        # Load tree table
-        tree_data = self.load_table_lazy("TREE")
+        # Use tree query builder
+        tree_builder = self._query_factory.create_builder("tree", self.db, self.config, self._cache)
         
-        # TREE table doesn't have EVALID directly - it's filtered via PLT_CN joins
-        # The FIA.get_trees() method handles this by joining with filtered plots
-        # For now, we'll rely on the base workflow to handle EVALID filtering
-        
-        # Apply additional filters
+        # Build query plan with filters
+        kwargs = {}
         if filters:
-            for col, value in filters.items():
-                if isinstance(tree_data, pl.LazyFrame):
-                    tree_data = tree_data.filter(pl.col(col) == value)
-                else:
-                    tree_data = tree_data.filter(pl.col(col) == value)
+            kwargs.update(filters)
+        if self.config.tree_domain:
+            kwargs["tree_domain"] = self.config.tree_domain
+        if self.config.tree_type == "live":
+            kwargs["status_cd"] = [1]  # Live trees only
         
-        return LazyFrameWrapper(tree_data)
+        plan = tree_builder.build_query_plan(**kwargs)
+        return tree_builder.execute(plan)
     
     @lazy_operation("get_conditions", cache_key_params=["filters"])
     def get_conditions_lazy(self, filters: Optional[Dict[str, Any]] = None) -> LazyFrameWrapper:
         """
-        Get condition data with lazy evaluation support.
+        Get condition data using optimized query builders.
         
         Parameters
         ----------
@@ -146,22 +197,27 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         LazyFrameWrapper
             Wrapped condition data
         """
-        # Load condition table
-        cond_data = self.load_table_lazy("COND")
+        # Use condition query builder
+        cond_builder = self._query_factory.create_builder("condition", self.db, self.config, self._cache)
         
-        # COND table doesn't have EVALID directly - it's filtered via PLT_CN joins
-        # The FIA.get_conditions() method handles this by joining with filtered plots
-        # For now, we'll rely on the base workflow to handle EVALID filtering
-        
-        # Apply additional filters
+        # Build query plan with filters
+        kwargs = {}
         if filters:
-            for col, value in filters.items():
-                if isinstance(cond_data, pl.LazyFrame):
-                    cond_data = cond_data.filter(pl.col(col) == value)
-                else:
-                    cond_data = cond_data.filter(pl.col(col) == value)
+            kwargs.update(filters)
+        if self.config.area_domain:
+            kwargs["area_domain"] = self.config.area_domain
+        if self.config.land_type:
+            # Map land_type to appropriate filter
+            land_type_map = {
+                "timber": {"land_class": [1]},
+                "forest": {"land_class": [1, 2]},
+                "all": {}
+            }
+            if self.config.land_type in land_type_map:
+                kwargs.update(land_type_map[self.config.land_type])
         
-        return LazyFrameWrapper(cond_data)
+        plan = cond_builder.build_query_plan(**kwargs)
+        return cond_builder.execute(plan)
     
     # === Frame-Agnostic Filtering Methods ===
     
@@ -208,9 +264,11 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
                         right: LazyFrameWrapper,
                         on: Union[str, List[str]],
                         how: str = "inner",
-                        suffix: str = "_right") -> LazyFrameWrapper:
+                        suffix: str = "_right",
+                        left_table: Optional[str] = None,
+                        right_table: Optional[str] = None) -> LazyFrameWrapper:
         """
-        Join two wrapped frames in a frame-agnostic way.
+        Join two wrapped frames using the join optimizer.
         
         Parameters
         ----------
@@ -224,31 +282,31 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
             Join type
         suffix : str
             Suffix for overlapping columns
+        left_table : Optional[str]
+            Name of left table for optimization hints
+        right_table : Optional[str]
+            Name of right table for optimization hints
             
         Returns
         -------
         LazyFrameWrapper
             Joined frame wrapper
         """
-        # Ensure both frames have the same type for join
-        if left.is_lazy and not right.is_lazy:
-            right_frame = right.to_lazy()
-        elif not left.is_lazy and right.is_lazy:
-            # Collect the smaller frame
-            if len(left.frame) < len(right.frame):
-                left_frame = left.to_lazy()
-                right_frame = right.frame
-            else:
-                left_frame = left.frame
-                right_frame = right.collect()
-        else:
-            left_frame = left.frame
-            right_frame = right.frame
+        # Create join node for optimization
+        join_keys = [on] if isinstance(on, str) else on
         
-        # Perform join
-        result = left_frame.join(right_frame, on=on, how=how, suffix=suffix)
+        node = JoinNode(
+            node_id="",
+            left_input=left_table or "left",
+            right_input=right_table or "right",
+            join_keys_left=join_keys,
+            join_keys_right=join_keys,
+            join_type=JoinType(how),
+            strategy=JoinStrategy.AUTO
+        )
         
-        return LazyFrameWrapper(result)
+        # Use optimizer to execute join
+        return self._join_optimizer.execute_optimized_join(left, right, node)
     
     # === Lazy Aggregation Methods ===
     
@@ -288,42 +346,54 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
     
     def _get_filtered_data(self) -> Tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]:
         """
-        Get data from database and apply common filters with lazy support.
+        Get data from database using composite query builder for optimal performance.
         
         Returns
         -------
         Tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]
             Filtered tree and condition frame wrappers
         """
-        # Always get condition data
-        cond_wrapper = self.get_conditions_lazy()
+        # Build estimation query using composite builder
+        estimation_type = self._get_estimation_type()
         
-        # Apply common area filters
-        from ..filters.common import apply_area_filters_common
+        # Get EVALID from database if available
+        evalid = None
+        if hasattr(self.db, 'current_evalids'):
+            evalid = self.db.current_evalids
         
-        # Convert to eager for filter application if needed
-        cond_df = cond_wrapper.collect()
-        cond_df = apply_area_filters_common(
-            cond_df,
-            self.config.land_type,
-            self.config.area_domain
+        # Build optimized query
+        query_results = self._composite_builder.build_estimation_query(
+            estimation_type=estimation_type,
+            evalid=evalid,
+            tree_domain=self.config.tree_domain,
+            area_domain=self.config.area_domain,
+            plot_domain=self.config.plot_domain,
+            tree_type=self.config.tree_type,
+            land_type=self.config.land_type
         )
         
-        # Convert back to lazy if beneficial
-        if self._prefer_lazy and len(cond_df) > self._auto_lazy_threshold:
-            cond_wrapper = LazyFrameWrapper(cond_df.lazy())
-        else:
-            cond_wrapper = LazyFrameWrapper(cond_df)
+        # Extract results
+        cond_wrapper = query_results.get("conditions")
+        tree_wrapper = query_results.get("trees")
         
-        # Get tree data if needed
-        tree_wrapper = None
-        if "TREE" in self.get_required_tables():
-            tree_wrapper = self.get_trees_lazy()
+        # Apply common filters if not already applied by query builders
+        if cond_wrapper:
+            from ..filters.common import apply_area_filters_common
             
-            # Apply common tree filters
+            # Check if filters need to be applied
+            cond_df = cond_wrapper.collect()
+            cond_df = apply_area_filters_common(
+                cond_df,
+                self.config.land_type,
+                self.config.area_domain
+            )
+            cond_wrapper = LazyFrameWrapper(
+                cond_df.lazy() if self._prefer_lazy and len(cond_df) > self._auto_lazy_threshold else cond_df
+            )
+        
+        if tree_wrapper:
             from ..filters.common import apply_tree_filters_common
             
-            # Convert to eager for filter application
             tree_df = tree_wrapper.collect()
             tree_df = apply_tree_filters_common(
                 tree_df,
@@ -331,23 +401,24 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
                 self.config.tree_domain,
                 require_volume=False
             )
-            
-            # Convert back to lazy if beneficial
-            if self._prefer_lazy and len(tree_df) > self._auto_lazy_threshold:
-                tree_wrapper = LazyFrameWrapper(tree_df.lazy())
-            else:
-                tree_wrapper = LazyFrameWrapper(tree_df)
+            tree_wrapper = LazyFrameWrapper(
+                tree_df.lazy() if self._prefer_lazy and len(tree_df) > self._auto_lazy_threshold else tree_df
+            )
         
         # Apply module-specific filters
-        if tree_wrapper:
+        if tree_wrapper and cond_wrapper:
             tree_df = tree_wrapper.collect() if tree_wrapper.is_lazy else tree_wrapper.frame
             cond_df = cond_wrapper.collect() if cond_wrapper.is_lazy else cond_wrapper.frame
             
             tree_df, cond_df = self.apply_module_filters(tree_df, cond_df)
             
             # Wrap results
-            tree_wrapper = LazyFrameWrapper(tree_df.lazy() if self._prefer_lazy and len(tree_df) > self._auto_lazy_threshold else tree_df)
-            cond_wrapper = LazyFrameWrapper(cond_df.lazy() if self._prefer_lazy and len(cond_df) > self._auto_lazy_threshold else cond_df)
+            tree_wrapper = LazyFrameWrapper(
+                tree_df.lazy() if self._prefer_lazy and len(tree_df) > self._auto_lazy_threshold else tree_df
+            )
+            cond_wrapper = LazyFrameWrapper(
+                cond_df.lazy() if self._prefer_lazy and len(cond_df) > self._auto_lazy_threshold else cond_df
+            )
         
         return tree_wrapper, cond_wrapper
     
@@ -355,7 +426,7 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
                                 tree_wrapper: Optional[LazyFrameWrapper],
                                 cond_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
         """
-        Join data and prepare for estimation with lazy support.
+        Join data and prepare for estimation using optimized joins.
         
         Parameters
         ----------
@@ -376,12 +447,14 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
                 lambda df: df.select(cond_cols)
             )
             
-            # Join trees with conditions
+            # Use optimized join with table hints
             data_wrapper = self.join_frames_lazy(
                 tree_wrapper,
                 cond_subset,
                 on=["PLT_CN", "CONDID"],
-                how="inner"
+                how="inner",
+                left_table="TREE",
+                right_table="COND"
             )
             
             # Set up grouping columns
@@ -639,4 +712,39 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
                     f"  {node.operation} ({node_id[:8]}...) - {status_str}"
                 )
         
+        # Add optimization statistics
+        opt_stats = self._join_optimizer.get_optimization_stats()
+        if opt_stats.get("joins_optimized", 0) > 0:
+            plan_lines.append("\nOptimization Statistics:")
+            plan_lines.append(f"  Joins optimized: {opt_stats['joins_optimized']}")
+            plan_lines.append(f"  Filters pushed: {opt_stats['filters_pushed']}")
+            plan_lines.append(f"  Broadcast joins: {opt_stats['broadcast_joins']}")
+        
         return "\n".join(plan_lines)
+    
+    def _get_estimation_type(self) -> str:
+        """
+        Determine the estimation type based on the class name.
+        
+        Returns
+        -------
+        str
+            Estimation type (volume, biomass, tpa, area, etc.)
+        """
+        class_name = self.__class__.__name__.lower()
+        
+        if "volume" in class_name:
+            return "volume"
+        elif "biomass" in class_name:
+            return "biomass"
+        elif "tpa" in class_name or "tree" in class_name:
+            return "tpa"
+        elif "area" in class_name:
+            return "area"
+        elif "mortality" in class_name:
+            return "mortality"
+        elif "growth" in class_name:
+            return "growth"
+        else:
+            # Default to area for unknown types
+            return "area"

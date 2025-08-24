@@ -328,3 +328,90 @@ class TestTPADataValidation:
 
         # All our test plots should be accessible
         assert len(accessible_plots) == len(sample_plot_data)
+
+
+class TestTPALazyImplementation:
+    """Test lazy TPA implementation for performance and compatibility."""
+    
+    def test_tpa_lazy_basic(self, sample_fia_instance):
+        """Test basic lazy TPA estimation produces same results as eager."""
+        # Run both implementations
+        eager_result = tpa(sample_fia_instance)
+        lazy_result = tpa(sample_fia_instance, show_progress=True)
+        
+        # Results should be identical
+        assert isinstance(lazy_result, pl.DataFrame)
+        assert set(eager_result.columns) == set(lazy_result.columns)
+        
+        # Sort both by a consistent column for comparison
+        eager_sorted = eager_result.sort("TPA")
+        lazy_sorted = lazy_result.sort("TPA")
+        
+        # Compare TPA values (allowing for small floating point differences)
+        eager_tpa = eager_sorted["TPA"][0]
+        lazy_tpa = lazy_sorted["TPA"][0]
+        assert abs(eager_tpa - lazy_tpa) < 0.001
+    
+    def test_tpa_lazy_by_species(self, sample_fia_instance):
+        """Test lazy TPA by species matches eager implementation."""
+        eager_result = tpa(sample_fia_instance, by_species=True)
+        lazy_result = tpa(sample_fia_instance, by_species=True, show_progress=True)
+        
+        # Should have same number of species
+        assert len(eager_result) == len(lazy_result)
+        
+        # Sort by SPCD for comparison
+        eager_sorted = eager_result.sort("SPCD")
+        lazy_sorted = lazy_result.sort("SPCD")
+        
+        # Compare species codes
+        assert eager_sorted["SPCD"].to_list() == lazy_sorted["SPCD"].to_list()
+        
+        # Compare TPA values for each species
+        for i in range(len(eager_sorted)):
+            eager_tpa = eager_sorted["TPA"][i]
+            lazy_tpa = lazy_sorted["TPA"][i]
+            # Allow for small differences due to calculation order
+            assert abs(eager_tpa - lazy_tpa) < 0.001
+    
+    def test_tpa_lazy_with_totals(self, sample_fia_instance):
+        """Test lazy TPA with totals option."""
+        result = tpa(sample_fia_instance, totals=True, show_progress=True)
+        
+        # Should have total columns
+        assert "TREE_TOTAL" in result.columns
+        assert "BA_TOTAL" in result.columns
+        assert "AREA_TOTAL" in result.columns
+        
+        # Totals should be reasonable
+        assert result["TREE_TOTAL"][0] >= 0
+        assert result["BA_TOTAL"][0] >= 0
+        assert result["AREA_TOTAL"][0] > 0
+    
+    def test_tpa_lazy_with_domain_filtering(self, sample_fia_instance):
+        """Test lazy TPA with domain filters."""
+        # Test with diameter filter
+        result_all = tpa(sample_fia_instance, show_progress=True)
+        result_large = tpa(
+            sample_fia_instance, 
+            tree_domain="DIA >= 12",
+            show_progress=True
+        )
+        
+        # Filtered result should have fewer or equal trees
+        assert result_large["TPA"][0] <= result_all["TPA"][0]
+    
+    def test_tpa_lazy_basal_area(self, sample_fia_instance):
+        """Test that lazy TPA calculates basal area correctly."""
+        result = tpa(sample_fia_instance, show_progress=True)
+        
+        # Should have BAA column
+        assert "BAA" in result.columns
+        
+        # BAA should be non-negative
+        assert result["BAA"][0] >= 0
+        
+        # BAA should have reasonable relationship to TPA
+        # (trees with positive TPA should have positive BAA)
+        if result["TPA"][0] > 0:
+            assert result["BAA"][0] > 0

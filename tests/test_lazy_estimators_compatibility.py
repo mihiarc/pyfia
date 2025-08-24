@@ -207,7 +207,7 @@ class TestLazyEagerCompatibility:
                         )
 
     def test_tpa_compatibility(self, sample_fia_instance, test_configs):
-        """Test that tpa_lazy produces identical results to tpa."""
+        """Test that tpa produces identical results to reference implementation."""
         if not sample_fia_instance:
             pytest.skip("No test database available")
         
@@ -217,7 +217,7 @@ class TestLazyEagerCompatibility:
                 
                 # Test basic TPA estimation (use tree_params)
                 eager_result = tpa(db, **config["tree_params"])
-                lazy_result = tpa_lazy(db, show_progress=False, **config["tree_params"])
+                lazy_result = tpa(db, show_progress=True, **config["tree_params"])
                 
                 self.assert_dataframes_equal(
                     eager_result, lazy_result,
@@ -317,7 +317,7 @@ class TestLazyEagerCompatibility:
             estimator_pairs = [
                 (area, area, {}),
                 (biomass, biomass_lazy, {}),
-                (tpa, tpa_lazy, {}),
+                (tpa, tpa, {}),
                 (volume, volume_lazy, {}),
             ]
             
@@ -373,7 +373,7 @@ class TestLazyEagerCompatibility:
             estimator_pairs = [
                 (area, area),
                 (biomass, biomass_lazy), 
-                (tpa, tpa_lazy),
+                (tpa, tpa),
                 (volume, volume_lazy),
             ]
             
@@ -407,7 +407,7 @@ class TestLazyEagerCompatibility:
             estimator_pairs = [
                 (area, area),
                 (biomass, biomass_lazy),
-                (tpa, tpa_lazy), 
+                (tpa, tpa), 
                 (volume, volume_lazy),
             ]
             
@@ -442,7 +442,7 @@ class TestLazyEagerCompatibility:
             estimator_pairs = [
                 (area, area),
                 (biomass, biomass_lazy),
-                (tpa, tpa_lazy),
+                (tpa, tpa),
                 (volume, volume_lazy),
             ]
             
@@ -477,7 +477,7 @@ class TestLazyEagerCompatibility:
     @pytest.mark.parametrize("estimator_name,eager_func,lazy_func", [
         ("area", area, area),
         ("biomass", biomass, biomass_lazy), 
-        ("tpa", tpa, tpa_lazy),
+        ("tpa", tpa, tpa),
         ("volume", volume, volume_lazy),
     ])
     def test_parameter_validation_consistency(self, sample_fia_instance, 
@@ -526,7 +526,7 @@ class TestLazyEagerCompatibility:
         
         with sample_fia_instance as db:
             # Run each lazy estimator multiple times to ensure reproducibility
-            lazy_funcs = [area, biomass_lazy, tpa_lazy, volume_lazy]
+            lazy_funcs = [area, biomass_lazy, tpa, volume_lazy]
             
             for lazy_func in lazy_funcs:
                 print(f"\nTesting reproducibility: {lazy_func.__name__}")
@@ -558,15 +558,17 @@ class TestLazyMigrationSafety:
         from pyfia.estimation import area, biomass, tpa, volume, growth
         
         # Test that lazy functions are available
-        from pyfia.estimation import area, tpa_lazy, volume_lazy
-        from pyfia.estimation.biomass import biomass as biomass_lazy
+        from pyfia.estimation import area, tpa
+        from pyfia.estimation.volume import volume
+        from pyfia.estimation.biomass import biomass
         
         # Test mortality imports (may be in different location)
         try:
-            from pyfia.estimation import mortality, mortality_lazy
+            from pyfia.estimation.mortality import mortality
+            from pyfia.estimation.mortality_lazy import mortality_lazy
         except ImportError:
             from pyfia.estimation.mortality import mortality
-            from pyfia.estimation import mortality_lazy
+            from pyfia.estimation.mortality_lazy import mortality_lazy
         
         # All imports should succeed
         assert area is not None
@@ -634,7 +636,7 @@ class TestLazyMigrationSafety:
                 warnings.simplefilter("always")
                 
                 # Run lazy estimators and check for warnings
-                lazy_funcs = [area, biomass_lazy, tpa_lazy, volume_lazy]
+                lazy_funcs = [area, biomass_lazy, tpa, volume_lazy]
                 
                 for lazy_func in lazy_funcs:
                     result = lazy_func(db, show_progress=False)

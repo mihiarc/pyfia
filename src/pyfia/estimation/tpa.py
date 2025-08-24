@@ -3,8 +3,7 @@ Trees Per Acre (TPA) estimation for pyFIA with optimized memory usage.
 
 This module implements TPAEstimator which extends LazyBaseEstimator
 to provide lazy evaluation throughout the TPA estimation workflow.
-It maintains backward compatibility while offering significant performance
-improvements through deferred computation and intelligent caching.
+It offers significant performance improvements through deferred computation and intelligent caching.
 """
 
 from typing import Dict, List, Optional, Union
@@ -30,7 +29,7 @@ class TPAEstimator(EstimatorProgressMixin, LazyBaseEstimator):
     - 2-3x performance improvement through optimized computation
     - Progress tracking for long operations
     - Intelligent caching of reference tables
-    - Backward compatibility with existing tpa() API
+    - Consistent API design with other estimators
     
     The estimator builds a computation graph and defers execution until
     absolutely necessary, collecting all operations at once for optimal

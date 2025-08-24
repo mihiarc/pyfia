@@ -18,7 +18,7 @@ from pyfia.core.settings import PyFIASettings, settings
 from pyfia.estimation.area import area
 from pyfia.estimation.biomass import biomass
 from pyfia.estimation.growth import growth
-from pyfia.estimation.mortality.mortality import mortality
+from pyfia.estimation.mortality import mortality
 from pyfia.estimation.tpa import tpa
 from pyfia.estimation.tree import tree_count
 

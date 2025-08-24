@@ -116,12 +116,9 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         # Load tree table
         tree_data = self.load_table_lazy("TREE")
         
-        # Apply EVALID filter if present
-        if self.db.evalid:
-            if isinstance(tree_data, pl.LazyFrame):
-                tree_data = tree_data.filter(pl.col("EVALID").is_in(self.db.evalid))
-            else:
-                tree_data = tree_data.filter(pl.col("EVALID").is_in(self.db.evalid))
+        # TREE table doesn't have EVALID directly - it's filtered via PLT_CN joins
+        # The FIA.get_trees() method handles this by joining with filtered plots
+        # For now, we'll rely on the base workflow to handle EVALID filtering
         
         # Apply additional filters
         if filters:
@@ -151,12 +148,9 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         # Load condition table
         cond_data = self.load_table_lazy("COND")
         
-        # Apply EVALID filter if present
-        if self.db.evalid:
-            if isinstance(cond_data, pl.LazyFrame):
-                cond_data = cond_data.filter(pl.col("EVALID").is_in(self.db.evalid))
-            else:
-                cond_data = cond_data.filter(pl.col("EVALID").is_in(self.db.evalid))
+        # COND table doesn't have EVALID directly - it's filtered via PLT_CN joins
+        # The FIA.get_conditions() method handles this by joining with filtered plots
+        # For now, we'll rely on the base workflow to handle EVALID filtering
         
         # Apply additional filters
         if filters:
@@ -446,7 +440,10 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         agg_exprs = []
         
         # Check available columns
-        available_cols = data_wrapper.frame.columns
+        if isinstance(data_wrapper.frame, pl.LazyFrame):
+            available_cols = data_wrapper.frame.collect_schema().names()
+        else:
+            available_cols = data_wrapper.frame.columns
         
         for col_name, output_name in response_cols.items():
             if col_name in available_cols:
@@ -501,11 +498,8 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
         
         valued_data = self.calculate_values(prepared_df)
         
-        # Convert back to lazy for remaining operations
-        if self._prefer_lazy and len(valued_data) > self._auto_lazy_threshold:
-            valued_wrapper = LazyFrameWrapper(valued_data.lazy())
-        else:
-            valued_wrapper = LazyFrameWrapper(valued_data)
+        # Wrap the result (already lazy if calculate_values returns LazyFrame)
+        valued_wrapper = LazyFrameWrapper(valued_data)
         
         # Step 5: Calculate plot-level estimates (lazy)
         plot_wrapper = self._calculate_plot_estimates_lazy(valued_wrapper)

@@ -3,8 +3,7 @@ Biomass estimation for pyFIA with optimized memory usage.
 
 This module implements BiomassEstimator which extends LazyBaseEstimator
 to provide lazy evaluation throughout the biomass estimation workflow.
-It maintains backward compatibility while offering significant performance
-improvements through deferred computation and intelligent caching.
+It offers significant performance improvements through deferred computation and intelligent caching.
 """
 
 from typing import Dict, List, Optional, Union
@@ -29,7 +28,7 @@ class BiomassEstimator(EstimatorProgressMixin, LazyBaseEstimator):
     - 2-3x performance improvement through optimized computation
     - Progress tracking for long operations
     - Intelligent caching of reference tables
-    - Backward compatibility with existing biomass() API
+    - Consistent API design with other estimators
     
     The estimator builds a computation graph and defers execution until
     absolutely necessary, collecting all operations at once for optimal
@@ -465,7 +464,7 @@ class BiomassEstimator(EstimatorProgressMixin, LazyBaseEstimator):
                 pl.col("nPlots_TREE").alias("nPlots_AREA")
             )
         
-        # In original biomass.py, BIO_ACRE is an alias for BIO_TOTAL for backward compatibility
+        # BIO_ACRE is an alias for BIO_TOTAL to maintain consistency
         # This is handled in the base estimator's population estimation
         
         return formatted
@@ -645,7 +644,7 @@ def biomass(
     with BiomassEstimator(db, config) as estimator:
         results = estimator.estimate()
     
-    # Handle special cases for backward compatibility
+    # Handle special cases for parameter consistency
     if by_plot:
         # TODO: Implement plot-level results
         # For now, return standard results

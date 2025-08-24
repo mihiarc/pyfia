@@ -3,8 +3,7 @@ Mortality estimation for pyFIA with optimized memory usage.
 
 This module implements MortalityEstimator which extends LazyBaseEstimator
 to provide lazy evaluation throughout the mortality estimation workflow.
-It maintains backward compatibility while offering significant performance
-improvements through deferred computation and intelligent caching.
+It offers significant performance improvements through deferred computation and intelligent caching.
 """
 
 from typing import Dict, List, Optional, Union
@@ -30,7 +29,7 @@ class MortalityEstimator(EstimatorProgressMixin, LazyBaseEstimator):
     - 2-3x performance improvement through optimized computation
     - Progress tracking for long operations
     - Intelligent caching of reference tables
-    - Backward compatibility with existing mortality() API
+    - Consistent API design with other estimators
     
     The estimator builds a computation graph and defers execution until
     absolutely necessary, collecting all operations at once for optimal
@@ -571,7 +570,7 @@ def mortality(
     - 60-70% reduction in memory usage
     - 2-3x performance improvement
     - Progress tracking for long operations
-    - Backward compatibility with existing code
+    - Consistent interface with other estimators
     
     Parameters
     ----------

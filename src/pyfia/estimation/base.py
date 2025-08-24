@@ -558,7 +558,7 @@ class BaseEstimator(ABC):
         return pop_estimates
 
     def _get_forest_area(self) -> float:
-        """Deprecated in favor of direct EXPNS sum in _calculate_population_estimates."""
+        """Calculate forest area from expansion factors."""
         return 0.0
 
     def _get_year(self) -> int:

@@ -20,8 +20,7 @@ from .formatters import OutputFormatter, format_estimation_output
 from .area import area, AreaEstimator
 from .biomass import biomass, BiomassEstimator
 from .growth import growth, GrowthEstimator
-from .mortality.mortality import mortality
-from .mortality_lazy import LazyMortalityEstimator, mortality_lazy
+from .mortality import mortality, MortalityEstimator
 from .tpa import tpa, TPAEstimator
 from .tree.tree import tree_count, tree_count_simple
 from .volume import volume, VolumeEstimator
@@ -88,8 +87,7 @@ __all__ = [
     "growth",
     "GrowthEstimator",
     "mortality",
-    "LazyMortalityEstimator",
-    "mortality_lazy",
+    "MortalityEstimator",
     "tpa",
     "TPAEstimator",
     "tree_count",

@@ -3,8 +3,7 @@ Growth estimation for pyFIA with optimized memory usage.
 
 This module implements GrowthEstimator which extends LazyBaseEstimator
 to provide lazy evaluation throughout the growth estimation workflow.
-It maintains backward compatibility while offering significant performance
-improvements through deferred computation and intelligent caching.
+It offers significant performance improvements through deferred computation and intelligent caching.
 """
 
 from typing import Dict, List, Optional, Union
@@ -29,7 +28,7 @@ class GrowthEstimator(EstimatorProgressMixin, LazyBaseEstimator):
     - 2-3x performance improvement through optimized computation
     - Progress tracking for multi-component calculations
     - Intelligent caching of reference tables
-    - Backward compatibility with existing growth() API
+    - Consistent API design with other estimators
     
     The estimator builds a computation graph and defers execution until
     absolutely necessary, collecting all operations at once for optimal
@@ -790,7 +789,7 @@ def growth(
     with GrowthEstimator(db, config) as estimator:
         results = estimator.estimate()
     
-    # Handle special cases for backward compatibility
+    # Handle special cases for parameter consistency
     if by_plot:
         # TODO: Implement plot-level results
         # For now, return standard results

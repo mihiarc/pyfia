@@ -44,8 +44,7 @@ class LazyBaseEstimator(LazyEstimatorMixin, EnhancedBaseEstimator):
     
     This class extends EnhancedBaseEstimator with lazy evaluation capabilities,
     providing frame-agnostic operations that work seamlessly with both
-    DataFrame and LazyFrame. It maintains backward compatibility while
-    offering significant performance improvements for large datasets.
+    DataFrame and LazyFrame. It offers significant performance improvements for large datasets.
     
     Key features:
     - Automatic lazy/eager mode switching based on data size

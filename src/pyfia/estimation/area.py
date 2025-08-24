@@ -3,8 +3,7 @@ Lazy area estimation for pyFIA with optimized memory usage.
 
 This module implements AreaEstimator which extends LazyBaseEstimator
 to provide lazy evaluation throughout the area estimation workflow.
-It maintains backward compatibility while offering significant performance
-improvements through deferred computation and intelligent caching.
+It offers significant performance improvements through deferred computation and intelligent caching.
 """
 
 from typing import Dict, List, Optional, Union
@@ -37,7 +36,7 @@ class AreaEstimator(EstimatorProgressMixin, LazyBaseEstimator):
     - 2-3x performance improvement through optimized computation
     - Progress tracking for long operations
     - Intelligent caching of reference tables
-    - Backward compatibility with existing area() API
+    - Consistent API design with other estimators
     
     The estimator builds a computation graph and defers execution until
     absolutely necessary, collecting all operations at once for optimal
@@ -627,7 +626,7 @@ class AreaEstimator(EstimatorProgressMixin, LazyBaseEstimator):
     def _apply_minimal_stratification(self, plot_data: pl.DataFrame) -> pl.DataFrame:
         """Apply minimal stratification for testing compatibility."""
         # This is the same fallback logic from area.py
-        # Kept for backward compatibility with tests
+        # Maintain consistent interface
         
         if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables or "POP_STRATUM" not in self.db.tables:
             raise ValueError("Missing required population tables for stratification")
@@ -1023,7 +1022,7 @@ def area(
     Estimate forest area and land proportions using lazy evaluation for improved performance.
     
     This function uses lazy evaluation throughout the workflow for improved memory usage
-    and performance while maintaining backward compatibility.
+    and performance with a consistent interface.
     
     Parameters
     ----------

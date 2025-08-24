@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from ..core import FIA
-from .base import EstimatorConfig
+from .config import EstimatorConfig
 from .config import MortalityConfig
 from .lazy_base import LazyBaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy

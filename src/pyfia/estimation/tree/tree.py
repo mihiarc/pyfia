@@ -12,7 +12,8 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from pyfia.core import FIA
-from ..base import BaseEstimator, EstimatorConfig
+from ..base import BaseEstimator
+from ..config import EstimatorConfig
 from pyfia.filters.classification import assign_tree_basis
 
 

@@ -5,14 +5,17 @@ This module provides high-level functions for estimating various forest
 attributes from FIA data, following FIA statistical procedures.
 """
 
-from .base import (
-    BaseEstimator,
-    EstimatorConfig,
-)
+from .base import BaseEstimator
 
 from .config import (
-    EstimatorConfigV2,
+    EstimatorConfig,
     MortalityConfig,
+    ModularEstimatorConfig,
+    VolumeConfig,
+    BiomassConfig,
+    GrowthConfig,
+    AreaConfig,
+    ConfigFactory,
 )
 
 from .formatters import OutputFormatter, format_estimation_output
@@ -65,12 +68,17 @@ from .progress import (
 __all__ = [
     # Base classes
     "BaseEstimator",
-    "EstimatorConfig",
-    "EstimatorConfigV2",
     "LazyBaseEstimator",
     
     # Configs
+    "EstimatorConfig",
     "MortalityConfig",
+    "ModularEstimatorConfig",
+    "VolumeConfig",
+    "BiomassConfig",
+    "GrowthConfig",
+    "AreaConfig",
+    "ConfigFactory",
     "LazyConfigMixin",
     "CacheConfig",
     "ProgressConfig",

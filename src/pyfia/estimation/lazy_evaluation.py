@@ -53,7 +53,18 @@ class LazyComputationNode:
         """Initialize node ID if not provided."""
         if not self.node_id:
             # Generate ID from operation and params
-            content = f"{self.operation}:{json.dumps(self.params, sort_keys=True)}"
+            # Handle non-serializable objects (like Polars expressions)
+            serializable_params = {}
+            for key, value in self.params.items():
+                try:
+                    # Try to serialize the value
+                    json.dumps(value)
+                    serializable_params[key] = value
+                except (TypeError, ValueError):
+                    # If it fails, convert to string representation
+                    serializable_params[key] = str(value)
+            
+            content = f"{self.operation}:{json.dumps(serializable_params, sort_keys=True)}"
             self.node_id = hashlib.md5(content.encode()).hexdigest()[:12]
     
     @property

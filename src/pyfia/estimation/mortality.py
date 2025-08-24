@@ -16,7 +16,7 @@ from .config import MortalityConfig
 from .lazy_base import LazyBaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
-from .caching import cache_operation
+from .caching import cached_operation
 from ..filters.common import apply_area_filters_common, apply_tree_filters_common
 
 
@@ -479,7 +479,7 @@ class MortalityEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return pop_mortality
     
-    @cache_operation("ref_species", ttl_seconds=3600)
+    @cached_operation("ref_species", ttl_seconds=3600)
     def _get_ref_species(self) -> pl.DataFrame:
         """Get reference species table with caching."""
         if self._ref_species_cache is None:

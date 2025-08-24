@@ -16,7 +16,7 @@ from .base import EstimatorConfig
 from .lazy_base import LazyBaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
-from .caching import cache_operation
+from .caching import cached_operation
 
 
 class GrowthEstimator(EstimatorProgressMixin, LazyBaseEstimator):
@@ -188,7 +188,7 @@ class GrowthEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return combined_lazy
     
-    @cache_operation("tree_grm_component", ttl_seconds=1800)
+    @cached_operation("tree_grm_component", ttl_seconds=1800)
     def _get_tree_grm_component_lazy(self) -> pl.LazyFrame:
         """Get TREE_GRM_COMPONENT table with caching."""
         if self._tree_grm_component_cache is None:
@@ -202,7 +202,7 @@ class GrowthEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return self._tree_grm_component_cache
     
-    @cache_operation("tree_grm_begin", ttl_seconds=1800)
+    @cached_operation("tree_grm_begin", ttl_seconds=1800)
     def _get_tree_grm_begin_lazy(self) -> pl.LazyFrame:
         """Get TREE_GRM_BEGIN table with caching."""
         if self._tree_grm_begin_cache is None:
@@ -216,7 +216,7 @@ class GrowthEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return self._tree_grm_begin_cache
     
-    @cache_operation("tree_grm_midpt", ttl_seconds=1800)
+    @cached_operation("tree_grm_midpt", ttl_seconds=1800)
     def _get_tree_grm_midpt_lazy(self) -> pl.LazyFrame:
         """Get TREE_GRM_MIDPT table with caching."""
         if self._tree_grm_midpt_cache is None:
@@ -230,7 +230,7 @@ class GrowthEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return self._tree_grm_midpt_cache
     
-    @cache_operation("stratification_data", ttl_seconds=1800)
+    @cached_operation("stratification_data", ttl_seconds=1800)
     def _get_stratification_data_lazy(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.

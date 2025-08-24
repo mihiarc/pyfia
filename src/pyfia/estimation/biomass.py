@@ -16,7 +16,7 @@ from .base import EstimatorConfig
 from .lazy_base import LazyBaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
-from .caching import cache_operation
+from .caching import cached_operation
 
 
 class BiomassEstimator(EstimatorProgressMixin, LazyBaseEstimator):
@@ -254,7 +254,7 @@ class BiomassEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return component_map.get(component, f"DRYBIO_{component}")
     
-    @cache_operation("stratification_data", ttl_seconds=1800)
+    @cached_operation("stratification_data", ttl_seconds=1800)
     def _get_stratification_data_lazy(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
@@ -345,7 +345,7 @@ class BiomassEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return tree_df, cond_df
     
-    @cache_operation("ref_species", ttl_seconds=3600)
+    @cached_operation("ref_species", ttl_seconds=3600)
     def _get_ref_species(self) -> pl.DataFrame:
         """
         Get reference species table with caching.

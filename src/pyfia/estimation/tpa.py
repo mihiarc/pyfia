@@ -16,7 +16,7 @@ from .base import EstimatorConfig
 from .lazy_base import LazyBaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
-from .caching import cache_operation
+from .caching import cached_operation
 from .utils import ratio_var
 
 
@@ -226,7 +226,7 @@ class TPAEstimator(EstimatorProgressMixin, LazyBaseEstimator):
             how="left"
         )
     
-    @cache_operation("stratification_data", ttl_seconds=1800)
+    @cached_operation("stratification_data", ttl_seconds=1800)
     def _get_stratification_data_lazy(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
@@ -340,7 +340,7 @@ class TPAEstimator(EstimatorProgressMixin, LazyBaseEstimator):
         
         return tree_df, cond_df
     
-    @cache_operation("ref_species", ttl_seconds=3600)
+    @cached_operation("ref_species", ttl_seconds=3600)
     def _get_ref_species(self) -> pl.DataFrame:
         """
         Get reference species table with caching.

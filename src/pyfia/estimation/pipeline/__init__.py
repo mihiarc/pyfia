@@ -15,32 +15,45 @@ Key Features:
 Example Usage:
 ```python
 from pyfia.estimation.pipeline import (
-    EstimationPipeline, 
-    LoadTablesStep, 
-    FilterDataStep,
-    JoinDataStep,
-    CalculateTreeVolumesStep,
-    AggregateByPlotStep,
+    EstimationPipeline,
+    LoadTreeDataStep,
+    LoadConditionDataStep,
+    ApplyTreeDomainStep,
+    JoinTreeConditionStep,
+    CalculateVolumeStep,
+    AggregateToPlotStep,
     ApplyStratificationStep,
-    CalculatePopulationEstimatesStep,
-    FormatOutputStep
+    CalculateVarianceStep,
+    CalculatePopulationTotalsStep,
+    FormatOutputStep,
+    create_volume_estimation_steps
 )
 
-# Build a volume estimation pipeline
-pipeline = (
-    EstimationPipeline()
-    .add_step(LoadTablesStep(tables=["PLOT", "COND", "TREE"]))
-    .add_step(FilterDataStep(tree_domain="STATUSCD == 1", area_domain="COND_STATUS_CD == 1"))
-    .add_step(JoinDataStep(join_strategy="optimized"))
-    .add_step(CalculateTreeVolumesStep())
-    .add_step(AggregateByPlotStep())
-    .add_step(ApplyStratificationStep())
-    .add_step(CalculatePopulationEstimatesStep())
-    .add_step(FormatOutputStep())
+# Build a volume estimation pipeline manually
+pipeline = EstimationPipeline()
+pipeline.add_step(LoadTreeDataStep(db, evalid=231720))
+pipeline.add_step(LoadConditionDataStep(db, evalid=231720))
+pipeline.add_step(ApplyTreeDomainStep(tree_domain="STATUSCD == 1 AND DIA >= 5.0"))
+pipeline.add_step(JoinTreeConditionStep())
+pipeline.add_step(CalculateVolumeStep(volume_type="net"))
+pipeline.add_step(AggregateToPlotStep(value_columns=["VOLCFNET"]))
+pipeline.add_step(ApplyStratificationStep(db, evalid=231720))
+pipeline.add_step(CalculateVarianceStep())
+pipeline.add_step(CalculatePopulationTotalsStep())
+pipeline.add_step(FormatOutputStep())
+
+# Or use convenience function
+steps = create_volume_estimation_steps(
+    db=db,
+    evalid=231720,
+    tree_domain="STATUSCD == 1 AND DIA >= 5.0",
+    by_species=True,
+    include_variance=True
 )
+pipeline = EstimationPipeline(steps)
 
 # Execute the pipeline
-result = pipeline.execute(db, config)
+result = pipeline.execute(ExecutionContext(db=db, config=config))
 ```
 
 Architecture:
@@ -95,42 +108,59 @@ from .base_steps import (
 
 from .steps import (
     # Data loading steps
-    LoadTablesStep,
-    LoadRequiredTablesStep,
+    LoadTreeDataStep,
+    LoadConditionDataStep,
+    LoadPlotDataStep,
+    LoadStratumDataStep,
+    LoadSeedlingDataStep,
     
     # Data filtering steps
-    FilterDataStep,
-    ApplyDomainFiltersStep,
-    ApplyModuleFiltersStep,
+    ApplyTreeDomainStep,
+    ApplyAreaDomainStep,
+    ApplyPlotDomainStep,
+    ApplyLandTypeFilterStep,
+    ApplyOwnershipFilterStep,
     
     # Data joining steps
-    JoinDataStep,
-    OptimizedJoinStep,
-    PrepareEstimationDataStep,
-)
-
-from .steps_calculations import (
+    JoinTreeConditionStep,
+    JoinWithPlotStep,
+    JoinWithStratumStep,
+    OptimizedJoinStep as OptimizedJoinDataStep,
+    
     # Value calculation steps
-    CalculateTreeVolumesStep,
+    CalculateVolumeStep,
     CalculateBiomassStep,
-    CalculateAreaStep,
-    CalculateGrowthStep,
-    CalculateMortalityStep,
     CalculateTPAStep,
+    CalculateAreaStep,
+    CalculateMortalityStep,
+    CalculateGrowthStep,
     
     # Aggregation steps
-    AggregateByPlotStep,
-    GroupByColumnsStep,
+    AggregateToPlotStep,
+    AggregateBySpeciesStep,
+    AggregateByDiameterClassStep,
+    AggregateByOwnershipStep,
+    GroupedAggregationStep,
     
-    # Statistical processing steps
+    # Stratification steps
     ApplyStratificationStep,
-    CalculatePopulationEstimatesStep,
-    ApplyVarianceCalculationStep,
+    CalculateVarianceStep,
+    CalculateStandardErrorStep,
+    CalculatePopulationTotalsStep,
+    ApplyExpansionFactorsStep,
     
     # Output formatting steps
+    CalculatePopulationEstimatesStep,
     FormatOutputStep,
-    AddMetadataStep,
-    ValidateOutputStep,
+    AddTotalsStep,
+    CalculatePercentagesStep,
+    FormatVarianceOutputStep,
+    
+    # Convenience functions
+    create_standard_loading_steps,
+    create_standard_filtering_steps,
+    create_volume_estimation_steps,
+    create_area_estimation_steps,
 )
 
 from .builders import (
@@ -205,33 +235,60 @@ __all__ = [
     "StepResult",
     "ExecutionMode",
     
-    # Core steps
-    "LoadTablesStep",
-    "LoadRequiredTablesStep",
-    "FilterDataStep",
-    "ApplyDomainFiltersStep",
-    "ApplyModuleFiltersStep",
-    "JoinDataStep",
-    "OptimizedJoinStep",
-    "PrepareEstimationDataStep",
+    # Data loading steps
+    "LoadTreeDataStep",
+    "LoadConditionDataStep",
+    "LoadPlotDataStep",
+    "LoadStratumDataStep",
+    "LoadSeedlingDataStep",
+    
+    # Filtering steps
+    "ApplyTreeDomainStep",
+    "ApplyAreaDomainStep",
+    "ApplyPlotDomainStep",
+    "ApplyLandTypeFilterStep",
+    "ApplyOwnershipFilterStep",
+    
+    # Joining steps
+    "JoinTreeConditionStep",
+    "JoinWithPlotStep",
+    "JoinWithStratumStep",
+    "OptimizedJoinDataStep",
     
     # Value calculation steps
-    "CalculateTreeVolumesStep",
-    "CalculateBiomassStep", 
-    "CalculateAreaStep",
-    "CalculateGrowthStep",
-    "CalculateMortalityStep",
+    "CalculateVolumeStep",
+    "CalculateBiomassStep",
     "CalculateTPAStep",
+    "CalculateAreaStep",
+    "CalculateMortalityStep",
+    "CalculateGrowthStep",
     
-    # Processing steps
-    "AggregateByPlotStep",
-    "GroupByColumnsStep",
+    # Aggregation steps
+    "AggregateToPlotStep",
+    "AggregateBySpeciesStep",
+    "AggregateByDiameterClassStep",
+    "AggregateByOwnershipStep",
+    "GroupedAggregationStep",
+    
+    # Stratification steps
     "ApplyStratificationStep",
+    "CalculateVarianceStep",
+    "CalculateStandardErrorStep",
+    "CalculatePopulationTotalsStep",
+    "ApplyExpansionFactorsStep",
+    
+    # Output formatting steps
     "CalculatePopulationEstimatesStep",
-    "ApplyVarianceCalculationStep",
     "FormatOutputStep",
-    "AddMetadataStep",
-    "ValidateOutputStep",
+    "AddTotalsStep",
+    "CalculatePercentagesStep",
+    "FormatVarianceOutputStep",
+    
+    # Convenience functions
+    "create_standard_loading_steps",
+    "create_standard_filtering_steps",
+    "create_volume_estimation_steps",
+    "create_area_estimation_steps",
     
     # Pipeline builders
     "PipelineBuilder",

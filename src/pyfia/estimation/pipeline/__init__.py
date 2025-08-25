@@ -201,6 +201,83 @@ from .testing import (
     AssertionStep,
 )
 
+# Import orchestration components
+from .orchestrator import (
+    AdvancedOrchestrator,
+    DependencyResolver,
+    ExecutionPlan,
+    StepDependency,
+    DependencyType,
+    ExecutionStrategy,
+    RetryConfig,
+    RetryStrategy,
+    ParallelExecutor,
+    ConditionalExecutor,
+    SkipStrategy,
+)
+
+from .validation import (
+    PipelineValidator,
+    SchemaValidator,
+    ConfigurationValidator,
+    StepCompatibilityValidator,
+    PreExecutionValidator,
+    ValidationLevel,
+    ValidationResult,
+    ValidationIssue,
+    ValidationReport,
+    validate_input,
+    validate_output,
+    validate_config,
+)
+
+from .monitoring import (
+    PipelineMonitor,
+    MetricsCollector,
+    PerformanceMonitor,
+    AlertManager,
+    ExecutionHistory,
+    RichProgressDisplay,
+    Metric,
+    MetricType,
+    MetricUnit,
+    Alert,
+    AlertLevel,
+    StepMetrics,
+    PerformanceSnapshot,
+)
+
+from .error_handling import (
+    ErrorRecoveryEngine,
+    ErrorHandler,
+    DataErrorHandler,
+    ResourceErrorHandler,
+    ComputationErrorHandler,
+    CheckpointManager,
+    RollbackManager,
+    ErrorContext,
+    ErrorReport,
+    RecoveryAction,
+    RecoveryStrategy,
+    ErrorSeverity,
+    ErrorCategory,
+    GracefulDegradation,
+)
+
+from .optimizer import (
+    PipelineOptimizer,
+    OptimizationLevel,
+    OptimizationHint,
+    OptimizationResult,
+    StepFusionOptimizer,
+    QueryPushdownOptimizer,
+    CacheOptimizer,
+    DataLocalityOptimizer,
+    FusionStrategy,
+    CacheStrategy,
+    PipelineABTester,
+)
+
 __all__ = [
     # Core abstractions
     "PipelineStep",
@@ -317,4 +394,75 @@ __all__ = [
     "PipelineTester", 
     "TestDataFactory",
     "AssertionStep",
+    
+    # Orchestration
+    "AdvancedOrchestrator",
+    "DependencyResolver",
+    "ExecutionPlan",
+    "StepDependency",
+    "DependencyType",
+    "ExecutionStrategy",
+    "RetryConfig",
+    "RetryStrategy",
+    "ParallelExecutor",
+    "ConditionalExecutor",
+    "SkipStrategy",
+    
+    # Validation
+    "PipelineValidator",
+    "SchemaValidator",
+    "ConfigurationValidator",
+    "StepCompatibilityValidator",
+    "PreExecutionValidator",
+    "ValidationLevel",
+    "ValidationResult",
+    "ValidationIssue",
+    "ValidationReport",
+    "validate_input",
+    "validate_output",
+    "validate_config",
+    
+    # Monitoring
+    "PipelineMonitor",
+    "MetricsCollector",
+    "PerformanceMonitor",
+    "AlertManager",
+    "ExecutionHistory",
+    "RichProgressDisplay",
+    "Metric",
+    "MetricType",
+    "MetricUnit",
+    "Alert",
+    "AlertLevel",
+    "StepMetrics",
+    "PerformanceSnapshot",
+    
+    # Error Handling
+    "ErrorRecoveryEngine",
+    "ErrorHandler",
+    "DataErrorHandler",
+    "ResourceErrorHandler",
+    "ComputationErrorHandler",
+    "CheckpointManager",
+    "RollbackManager",
+    "ErrorContext",
+    "ErrorReport",
+    "RecoveryAction",
+    "RecoveryStrategy",
+    "ErrorSeverity",
+    "ErrorCategory",
+    "GracefulDegradation",
+    
+    # Optimization
+    "PipelineOptimizer",
+    "OptimizationLevel",
+    "OptimizationHint",
+    "OptimizationResult",
+    "StepFusionOptimizer",
+    "QueryPushdownOptimizer",
+    "CacheOptimizer",
+    "DataLocalityOptimizer",
+    "FusionStrategy",
+    "CacheStrategy",
+    "PipelineABTester",
 ]

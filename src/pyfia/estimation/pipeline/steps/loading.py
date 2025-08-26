@@ -20,7 +20,7 @@ import warnings
 import polars as pl
 
 from ....core import FIA
-from ....filters.evalid_filter import EvalidFilter
+# from ....filters.evalid_filter import EvalidFilter  # Module doesn't exist yet
 from ...lazy_evaluation import LazyFrameWrapper
 from ...query_builders import QueryBuilderFactory, TreeQueryBuilder, PlotQueryBuilder
 from ..core import ExecutionContext, PipelineException

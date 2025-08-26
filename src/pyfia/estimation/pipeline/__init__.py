@@ -176,6 +176,65 @@ from .builders import (
     # Step factories
     StepFactory,
     ConditionalStepFactory,
+    
+    # Quick creation functions
+    create_volume_pipeline,
+    create_biomass_pipeline,
+    create_tpa_pipeline,
+    create_area_pipeline,
+    create_growth_pipeline,
+    create_mortality_pipeline,
+)
+
+from .templates import (
+    # Template system
+    PipelineTemplate,
+    TemplateRegistry,
+    TemplateCategory,
+    TemplateCustomizer,
+    
+    # Template functions
+    get_template,
+    list_templates,
+    register_template,
+    select_template,
+    get_recommended_templates,
+)
+
+from .quick_start import (
+    # Quick start functions
+    create_volume_pipeline as quick_volume_pipeline,
+    create_biomass_pipeline as quick_biomass_pipeline,
+    create_tpa_pipeline as quick_tpa_pipeline,
+    create_area_pipeline as quick_area_pipeline,
+    create_growth_pipeline as quick_growth_pipeline,
+    create_mortality_pipeline as quick_mortality_pipeline,
+    create_pipeline_from_template,
+    
+    # Convenience functions
+    quick_volume,
+    quick_biomass,
+    quick_carbon_assessment,
+    quick_forest_inventory,
+    
+    # Migration helper
+    migrate_to_pipeline,
+)
+
+from .factory import (
+    # Factory system
+    EstimationPipelineFactory,
+    PipelineConfig,
+    EstimationType,
+    PipelineOptimizer as FactoryPipelineOptimizer,
+    
+    # Factory functions
+    create_pipeline,
+    create_from_config,
+    create_from_template as factory_create_from_template,
+    auto_detect_pipeline,
+    validate_config,
+    optimize_config,
 )
 
 from .extensions import (
@@ -377,6 +436,49 @@ __all__ = [
     "MortalityEstimationBuilder",
     "StepFactory",
     "ConditionalStepFactory",
+    "create_volume_pipeline",
+    "create_biomass_pipeline",
+    "create_tpa_pipeline",
+    "create_area_pipeline",
+    "create_growth_pipeline",
+    "create_mortality_pipeline",
+    
+    # Template system
+    "PipelineTemplate",
+    "TemplateRegistry",
+    "TemplateCategory",
+    "TemplateCustomizer",
+    "get_template",
+    "list_templates",
+    "register_template",
+    "select_template",
+    "get_recommended_templates",
+    
+    # Quick start
+    "quick_volume_pipeline",
+    "quick_biomass_pipeline",
+    "quick_tpa_pipeline",
+    "quick_area_pipeline",
+    "quick_growth_pipeline",
+    "quick_mortality_pipeline",
+    "create_pipeline_from_template",
+    "quick_volume",
+    "quick_biomass",
+    "quick_carbon_assessment",
+    "quick_forest_inventory",
+    "migrate_to_pipeline",
+    
+    # Factory system
+    "EstimationPipelineFactory",
+    "PipelineConfig",
+    "EstimationType",
+    "FactoryPipelineOptimizer",
+    "create_pipeline",
+    "create_from_config",
+    "factory_create_from_template",
+    "auto_detect_pipeline",
+    "validate_config",
+    "optimize_config",
     
     # Extensions
     "CustomStep",

@@ -484,6 +484,15 @@ class MortalityEstimationBuilder(PipelineBuilder):
             step_id="calculate_values",
             description=f"Calculate {mortality_type} mortality estimates"
         )
+    
+    def with_mortality_type(self, mortality_type: str) -> "MortalityEstimationBuilder":
+        """Specify mortality metric type."""
+        self._config_params["mortality_type"] = mortality_type
+        return self
+    
+    def by_disturbance_cause(self) -> "MortalityEstimationBuilder":
+        """Group by disturbance cause."""
+        return self.with_grouping(["DSTRBCD1", "DSTRBYR1"])
 
 
 # === Step Factories ===

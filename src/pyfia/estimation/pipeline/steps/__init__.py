@@ -82,14 +82,12 @@ with proper type safety, lazy evaluation, and FIA statistical methodology.
 """
 
 # Import data loading steps
-from .data_loading import (
+from .loading import (
     LoadTreeDataStep,
     LoadConditionDataStep,
     LoadPlotDataStep,
-    LoadStratumDataStep,
-    LoadSeedlingDataStep,
-    LoadPopEvalStep,
-    LoadRefSpeciesStep,
+    LoadTablesStep,
+    LoadStratificationDataStep,
     __all__ as data_loading_all
 )
 
@@ -97,52 +95,39 @@ from .data_loading import (
 from .filtering import (
     ApplyTreeDomainStep,
     ApplyAreaDomainStep,
-    ApplyPlotDomainStep,
-    ApplyLandTypeFilterStep,
-    ApplyOwnershipFilterStep,
-    ApplyForestTypeFilterStep,
-    ApplyStandSizeFilterStep,
-    CombinedDomainFilterStep,
+    FilterByLandTypeStep,
+    FilterByEvalidStep,
+    ApplyCombinedDomainsStep,
     __all__ as filtering_all
 )
 
 # Import joining steps
 from .joining import (
+    JoinPlotConditionStep,
+    JoinTreePlotStep,
     JoinTreeConditionStep,
-    JoinWithPlotStep,
-    JoinWithStratumStep,
-    OptimizedJoinStep,
-    JoinSeedlingConditionStep,
-    JoinWithPopEvalStep,
-    JoinWithRefSpeciesStep,
-    MultiTableJoinStep,
+    JoinStratificationStep,
+    OptimizedMultiJoinStep,
     __all__ as joining_all
 )
 
 # Import calculation steps
-from .calculation import (
-    CalculateVolumeStep,
-    CalculateBiomassStep,
+from .calculations import (
+    CalculateTreeVolumeStep,
+    CalculateTreeBiomassStep,
     CalculateTPAStep,
-    CalculateAreaStep,
+    CalculateBasalAreaStep,
     CalculateMortalityStep,
     CalculateGrowthStep,
-    CalculateCarbonStep,
-    CalculateBasalAreaStep,
-    CustomCalculationStep,
     __all__ as calculation_all
 )
 
 # Import aggregation steps
 from .aggregation import (
-    AggregateToPlotStep,
-    AggregateBySpeciesStep,
-    AggregateByDiameterClassStep,
-    AggregateByOwnershipStep,
-    GroupedAggregationStep,
-    AggregateByForestTypeStep,
-    AggregateByStandSizeStep,
-    CustomAggregationStep,
+    AggregateToPlotLevelStep,
+    GroupBySpeciesStep,
+    GroupByDiameterClassStep,
+    ApplyGroupingStep,
     __all__ as aggregation_all
 )
 
@@ -189,15 +174,8 @@ def create_standard_loading_steps(db, evalid=None, tables=None):
     if tables is None:
         tables = ["TREE", "COND", "PLOT"]
     
-    steps = []
-    if "TREE" in tables:
-        steps.append(LoadTreeDataStep(db, evalid=evalid))
-    if "COND" in tables:
-        steps.append(LoadConditionDataStep(db, evalid=evalid))
-    if "PLOT" in tables:
-        steps.append(LoadPlotDataStep(db, evalid=evalid))
-    
-    return steps
+    # Use LoadTablesStep for multiple tables at once
+    return [LoadTablesStep(tables=tables)]
 
 
 def create_standard_filtering_steps(tree_domain=None, area_domain=None, plot_domain=None):
@@ -224,8 +202,9 @@ def create_standard_filtering_steps(tree_domain=None, area_domain=None, plot_dom
         steps.append(ApplyTreeDomainStep(tree_domain=tree_domain))
     if area_domain:
         steps.append(ApplyAreaDomainStep(area_domain=area_domain))
+    # Note: ApplyPlotDomainStep doesn't exist, would need to use ApplyCombinedDomainsStep
     if plot_domain:
-        steps.append(ApplyPlotDomainStep(plot_domain=plot_domain))
+        steps.append(ApplyCombinedDomainsStep(tree_domain=tree_domain, area_domain=area_domain))
     
     return steps
 

@@ -794,18 +794,17 @@ def cached_operation(cache_params: Optional[List[str]] = None,
             )
             
             # Check cache
-            cached = self._cache.get(cache_key)
+            cached = self._cache.get(cache_key.key)
             if cached is not None:
                 return cached
             
             # Execute function
             result = func(self, *args, **kwargs)
             
-            # Cache result
+            # Cache result (remove persist_to_disk as it's not supported)
             self._cache.put(
-                cache_key, 
-                result,
-                persist_to_disk=persist_to_disk
+                cache_key.key, 
+                result
             )
             
             return result

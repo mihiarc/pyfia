@@ -12,7 +12,7 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from pyfia.core import FIA
-from ..base import BaseEstimator
+from ..base_estimator import BaseEstimator
 from ..config import EstimatorConfig
 from pyfia.filters.classification import assign_tree_basis
 
@@ -45,37 +45,47 @@ class TreeCountEstimator(BaseEstimator):
         return {"TREE_COUNT_VALUE": "TREE_COUNT"}
 
     def calculate_values(self, data: pl.DataFrame) -> pl.DataFrame:
-        # Ensure plot macro breakpoint is present and keep plots for basis assignment
-        plots = self.db.get_plots(columns=["CN", "MACRO_BREAKPOINT_DIA"])  # collects
+        # Check if we have tree data (has DIA column)
+        if "DIA" not in data.columns:
+            raise ValueError("Tree data missing DIA column - ensure TREE table is loaded")
+            
+        # Check if TPA_UNADJ is present
+        if "TPA_UNADJ" not in data.columns:
+            raise ValueError("Tree data missing TPA_UNADJ column")
+        
+        # Ensure plot macro breakpoint is present for basis assignment
         if "MACRO_BREAKPOINT_DIA" not in data.columns:
+            plots = self.db.get_plots(columns=["CN", "MACRO_BREAKPOINT_DIA"])
             data = data.join(
                 plots.select(["CN", "MACRO_BREAKPOINT_DIA"]).rename({"CN": "PLT_CN"}),
                 on="PLT_CN",
                 how="left",
             )
 
-        # Attach stratum adjustment factors to each plot via PPSA -> POP_STRATUM
-        ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"].collect()
-        pop_stratum = self.db.tables["POP_STRATUM"].collect()
-        # Apply RSCD filter if provided (e.g., 33 for GA/SC combined region)
-        rscd = self.config.extra_params.get("rscd") if hasattr(self, "config") else None
-        if rscd is not None and "RSCD" in pop_stratum.columns:
-            pop_stratum = pop_stratum.filter(pl.col("RSCD") == int(rscd))
-        strat = ppsa.join(
-            pop_stratum.select(["CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).rename(
-                {"CN": "STRATUM_CN"}
-            ),
-            on="STRATUM_CN",
-            how="inner",
-        )
-        data = data.join(
-            strat.select(["PLT_CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).unique(),
-            on="PLT_CN",
-            how="left",
-        )
+        # Attach stratum adjustment factors if not already present
+        if "ADJ_FACTOR_MICR" not in data.columns:
+            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"].collect()
+            pop_stratum = self.db.tables["POP_STRATUM"].collect()
+            
+            if self.db.evalid:
+                ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
+                pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
+            
+            strat = ppsa.join(
+                pop_stratum.select(["CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).rename(
+                    {"CN": "STRATUM_CN"}
+                ),
+                on="STRATUM_CN",
+                how="inner",
+            )
+            data = data.join(
+                strat.select(["PLT_CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]).unique(),
+                on="PLT_CN",
+                how="left",
+            )
 
-        # Assign tree basis (MICR/SUBP/MACR) for adjustment using plot macro breakpoint
-        data = assign_tree_basis(data, plot_df=plots, include_macro=True)
+        # Assign tree basis (MICR/SUBP/MACR) for adjustment
+        data = assign_tree_basis(data, include_macro=True)
 
         # Basis-specific adjustment factor
         adj_expr = (
@@ -115,125 +125,7 @@ class TreeCountEstimator(BaseEstimator):
             )
         return tree_df, cond_df
 
-    def _prepare_estimation_data(
-        self, tree_df: Optional[pl.DataFrame], cond_df: pl.DataFrame
-    ) -> pl.DataFrame:
-        """Prepare data, ensuring grouping columns from COND are present."""
-        if tree_df is not None:
-            # Determine additional condition columns needed for grouping
-            cond_cols = ["PLT_CN", "CONDID", "CONDPROP_UNADJ"]
-            extra_group_cols: List[str] = []
-            if self.config.grp_by:
-                extra_group_cols = (
-                    [self.config.grp_by]
-                    if isinstance(self.config.grp_by, str)
-                    else list(self.config.grp_by)
-                )
-            for col in extra_group_cols:
-                if col and col not in cond_cols and col in cond_df.columns:
-                    cond_cols.append(col)
 
-            data = tree_df.join(
-                cond_df.select(cond_cols), on=["PLT_CN", "CONDID"], how="inner"
-            )
-
-            # Set up grouping columns on the combined data
-            from pyfia.filters.common import setup_grouping_columns_common
-
-            data, group_cols = setup_grouping_columns_common(
-                data,
-                self.config.grp_by,
-                self.config.by_species,
-                self.config.by_size_class,
-                return_dataframe=True
-            )
-            self._group_cols = group_cols
-        else:
-            data = cond_df
-            self._group_cols = []
-
-            # Handle custom grouping columns
-            if self.config.grp_by:
-                if isinstance(self.config.grp_by, str):
-                    self._group_cols = [self.config.grp_by]
-                else:
-                    self._group_cols = list(self.config.grp_by)
-
-        return data
-
-    # Attach stratification identifiers/weights; don't expand at plot level
-    def _apply_stratification(self, plot_data: pl.DataFrame) -> pl.DataFrame:
-        ppsa = (
-            self.db.tables["POP_PLOT_STRATUM_ASSGN"]
-            .filter(pl.col("EVALID").is_in(self.db.evalid) if self.db.evalid else pl.lit(True))
-            .collect()
-        )
-        pop_stratum = self.db.tables["POP_STRATUM"].collect()
-        strat = ppsa.join(
-            pop_stratum.select(["CN", "EXPNS"]).rename({"CN": "STRATUM_CN"}),
-            on="STRATUM_CN",
-            how="inner",
-        )
-
-        # Join EXPNS and STRATUM_CN; one row per plot-stratum
-        plot_with_strat = plot_data.join(
-            strat.select(["PLT_CN", "STRATUM_CN", "EXPNS"]).unique(),
-            on="PLT_CN",
-            how="inner",
-        )
-
-        return plot_with_strat
-
-    # Sum stratum means times EXPNS to get population totals
-    def _calculate_population_estimates(self, plot_with_strat: pl.DataFrame) -> pl.DataFrame:
-        response_cols = self.get_response_columns()
-        output_name = list(response_cols.values())[0]
-
-        # Compute stratum means of plot-level metric
-        plot_col = f"PLOT_{output_name}"
-        strat_groups: List[str] = ["STRATUM_CN"]
-        if self._group_cols:
-            strat_groups.extend(self._group_cols)
-
-        stratum_est = plot_with_strat.group_by(strat_groups).agg(
-            [
-                pl.len().alias("n_h"),
-                pl.mean(plot_col).alias("y_bar_h"),
-                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),
-            ]
-        )
-
-        # Aggregate to population level
-        pop_groups: List[str] = list(self._group_cols) if self._group_cols else []
-        if pop_groups:
-            pop_estimates = stratum_est.group_by(pop_groups).agg(
-                [
-                    (pl.col("y_bar_h") * pl.col("w_h")).sum().alias(output_name),
-                    pl.col("n_h").sum().alias("nPlots"),
-                ]
-            )
-        else:
-            pop_estimates = stratum_est.select(
-                [
-                    (pl.col("y_bar_h") * pl.col("w_h")).sum().alias(output_name),
-                    pl.col("n_h").sum().alias("nPlots"),
-                ]
-            )
-
-        # Variance/SE for TREE_COUNT
-        pop_estimates = self.calculate_variance(pop_estimates, output_name)
-
-        # Add metadata columns
-        pop_estimates = pop_estimates.with_columns(
-            [
-                pl.lit(self._get_year()).alias("YEAR"),
-                pl.col("nPlots").alias("N"),
-                pl.col("nPlots").alias("nPlots_TREE"),
-                pl.col("nPlots").alias("nPlots_AREA"),
-            ]
-        )
-
-        return pop_estimates
 
     def get_output_columns(self) -> List[str]:
         cols = ["YEAR", "nPlots_TREE", "nPlots_AREA", "N", "TREE_COUNT"]
@@ -421,20 +313,20 @@ def tree_count(
         extra_params=extra_params,
     )
 
-    with TreeCountEstimator(fia, config) as estimator:
-        # Shortcut: totals on timberland with no grouping -> use SQL-style path for parity
-        if (
-            config.land_type == "timber"
-            and config.totals
-            and not config.grp_by
-            and not config.by_plot
-            and not config.variance
-        ):
-            try:
-                return estimator._estimate_totals_sql_style()
-            except Exception:
-                pass
-        return estimator.estimate()
+    estimator = TreeCountEstimator(fia, config)
+    # Shortcut: totals on timberland with no grouping -> use SQL-style path for parity
+    if (
+        config.land_type == "timber"
+        and config.totals
+        and not config.grp_by
+        and not config.by_plot
+        and not config.variance
+    ):
+        try:
+            return estimator._estimate_totals_sql_style()
+        except Exception:
+            pass
+    return estimator.estimate()
 
 
 def tree_count_simple(

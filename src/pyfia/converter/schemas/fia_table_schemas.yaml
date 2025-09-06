@@ -57,6 +57,10 @@ reference_tables:
       BARK_SPGR_MC12_DRYWT:
         type: "decimal(6,4)"
         nullable: true
+      SFTWD_HRDWD:
+        type: "varchar(2)"
+        nullable: true
+        description: "Softwood/hardwood indicator (S, H, or ?)"
 
   REF_FOREST_TYPE:
     description: "Forest type reference table"

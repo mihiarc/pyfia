@@ -222,7 +222,7 @@ COND:
       nullable: true
       description: "Present non-forest code"
     BALIVE:
-      type: "decimal(8,4)"
+      type: "decimal(12,4)"
       nullable: true
       description: "Basal area of live trees"
     FLDAGE:

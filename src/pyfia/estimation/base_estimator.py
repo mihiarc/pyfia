@@ -260,13 +260,24 @@ class BaseEstimator(ABC):
             )
             cond_wrapper = LazyFrameWrapper(pl.LazyFrame(cond_df))
         
-        # Apply module-specific filters if we have eager data
-        if not cond_wrapper.is_lazy:
-            tree_df = tree_wrapper.frame if tree_wrapper else None
-            tree_df, cond_df = self.apply_module_filters(tree_df, cond_wrapper.frame)
+        # Apply module-specific filters - ALWAYS apply for proper filtering
+        # Convert to eager if needed
+        if cond_wrapper.is_lazy:
+            cond_df = cond_wrapper.collect()
+        else:
+            cond_df = cond_wrapper.frame
             
-            tree_wrapper = LazyFrameWrapper(pl.LazyFrame(tree_df)) if tree_df is not None else None
-            cond_wrapper = LazyFrameWrapper(pl.LazyFrame(cond_df))
+        if tree_wrapper is not None and tree_wrapper.is_lazy:
+            tree_df = tree_wrapper.collect()
+        else:
+            tree_df = tree_wrapper.frame if tree_wrapper else None
+            
+        # Apply filters
+        tree_df, cond_df = self.apply_module_filters(tree_df, cond_df)
+        
+        # Convert back to lazy
+        tree_wrapper = LazyFrameWrapper(pl.LazyFrame(tree_df)) if tree_df is not None else None
+        cond_wrapper = LazyFrameWrapper(pl.LazyFrame(cond_df))
         
         return tree_wrapper, cond_wrapper
     

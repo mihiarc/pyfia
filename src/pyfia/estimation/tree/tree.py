@@ -109,13 +109,22 @@ class TreeCountEstimator(BaseEstimator):
         self, tree_df: Optional[pl.DataFrame], cond_df: pl.DataFrame
     ) -> tuple[Optional[pl.DataFrame], pl.DataFrame]:
         """
-        Enforce FIA minimum diameter thresholds for tree counting.
+        Enforce FIA minimum diameter thresholds for tree counting and filter conditions.
 
         Live trees: DIA >= 1.0 per FIA standard; dead trees: DIA >= 5.0.
         """
+        # Filter conditions for land_type
+        from pyfia.filters.common import apply_area_filters_common, apply_tree_filters_common
+        
+        cond_df = apply_area_filters_common(
+            cond_df,
+            land_type=self.config.land_type,
+            area_domain=self.config.area_domain,
+            area_estimation_mode=False
+        )
+        
+        # Filter trees
         if tree_df is not None:
-            from pyfia.filters.common import apply_tree_filters_common
-
             tree_df = apply_tree_filters_common(
                 tree_df,
                 tree_type=self.config.tree_type,

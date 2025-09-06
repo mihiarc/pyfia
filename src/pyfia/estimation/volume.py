@@ -1,7 +1,7 @@
 """
 Lazy volume estimation for pyFIA with optimized memory usage.
 
-This module implements VolumeEstimator which extends LazyBaseEstimator
+This module implements VolumeEstimator which extends BaseEstimator
 to provide lazy evaluation throughout the volume estimation workflow.
 It offers significant performance improvements through deferred computation and intelligent caching.
 """
@@ -11,18 +11,18 @@ import polars as pl
 
 from ..core import FIA
 from .config import EstimatorConfig
-from .lazy_base import LazyBaseEstimator
+from .base_estimator import BaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from ..filters.classification import assign_tree_basis
 
 
-class VolumeEstimator(EstimatorProgressMixin, LazyBaseEstimator):
+class VolumeEstimator(BaseEstimator):
     """
     Lazy volume estimator with optimized memory usage and performance.
     
-    This class extends LazyBaseEstimator to provide lazy evaluation throughout
+    This class extends BaseEstimator to provide lazy evaluation throughout
     the volume estimation workflow. It offers:
     - 60-70% reduction in memory usage through lazy evaluation
     - 2-3x performance improvement through optimized computation

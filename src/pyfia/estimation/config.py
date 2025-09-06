@@ -362,6 +362,10 @@ class EstimatorConfig(BaseModel):
         default=None,
         description="SQL-like expression for area/condition-level filtering"
     )
+    plot_domain: Optional[str] = Field(
+        default=None,
+        description="SQL-like expression for plot-level filtering"
+    )
     
     # Estimation method parameters
     method: Union[str, EstimationMethod] = Field(

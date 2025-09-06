@@ -559,7 +559,7 @@ class StratificationQueryBuilder(BaseQueryBuilder):
             QueryColumn("STRATUMCD", "POP_STRATUM", is_required=True),
             QueryColumn("P1POINTCNT", "POP_STRATUM", is_required=True),
             QueryColumn("P2POINTCNT", "POP_STRATUM", is_required=True),
-            QueryColumn("ACRES", "POP_STRATUM", is_required=True),
+            QueryColumn("EXPNS", "POP_STRATUM", is_required=True),  # Expansion factor from sample query
         ]
         
         if include_adjustment_factors:
@@ -681,6 +681,7 @@ class TreeQueryBuilder(BaseQueryBuilder):
             QueryColumn("TREECLCD", "TREE"),
             QueryColumn("CR", "TREE"),
             QueryColumn("CCLCD", "TREE"),
+            QueryColumn("TPA_UNADJ", "TREE", is_required=True),  # Required for TPA calculations
         ]
         
         # Add requested columns
@@ -841,7 +842,7 @@ class ConditionQueryBuilder(BaseQueryBuilder):
         
         # Add specific filters
         if land_class:
-            filters.append(QueryFilter("LANDCLCD", "IN", land_class, "COND"))
+            filters.append(QueryFilter("LAND_COVER_CLASS_CD", "IN", land_class, "COND"))  # Use actual column name
         
         if forest_type:
             filters.append(QueryFilter("FORTYPCD", "IN", forest_type, "COND"))
@@ -957,6 +958,7 @@ class PlotQueryBuilder(BaseQueryBuilder):
             QueryColumn("MEASMON", "PLOT"),
             QueryColumn("MEASDAY", "PLOT"),
             QueryColumn("MEASYEAR", "PLOT"),
+            QueryColumn("MACRO_BREAKPOINT_DIA", "PLOT"),  # Required for TPA calculations
         ]
         
         # Add requested columns
@@ -1256,8 +1258,9 @@ class CompositeQueryBuilder:
             )
             results["strata"] = self.builders["stratification"].execute(strat_plan)
         
-        # Build condition query if area domain specified
-        if area_domain or estimation_type in ["area", "carbon"]:
+        # Build condition query if area domain specified or needed for estimation
+        # TPA, volume, biomass, and growth estimations need condition data for proper expansion factors
+        if area_domain or estimation_type in ["area", "carbon", "tpa", "volume", "biomass", "growth", "mortality"]:
             cond_plan = self.builders["condition"].build_query_plan(
                 area_domain=area_domain,
                 **kwargs

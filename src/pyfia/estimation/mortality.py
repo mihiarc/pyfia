@@ -1,7 +1,7 @@
 """
 Mortality estimation for pyFIA with optimized memory usage.
 
-This module implements MortalityEstimator which extends LazyBaseEstimator
+This module implements MortalityEstimator which extends BaseEstimator
 to provide lazy evaluation throughout the mortality estimation workflow.
 It offers significant performance improvements through deferred computation and intelligent caching.
 """
@@ -12,18 +12,18 @@ import polars as pl
 from ..core import FIA
 from .config import EstimatorConfig
 from .config import MortalityConfig
-from .lazy_base import LazyBaseEstimator
+from .base_estimator import BaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from ..filters.common import apply_area_filters_common, apply_tree_filters_common
 
 
-class MortalityEstimator(EstimatorProgressMixin, LazyBaseEstimator):
+class MortalityEstimator(BaseEstimator):
     """
     Mortality estimator with optimized memory usage and performance.
     
-    This class extends LazyBaseEstimator to provide lazy evaluation throughout
+    This class extends BaseEstimator to provide lazy evaluation throughout
     the mortality estimation workflow. It offers:
     - 60-70% reduction in memory usage through lazy evaluation
     - 2-3x performance improvement through optimized computation

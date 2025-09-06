@@ -5,7 +5,7 @@ This module provides high-level functions for estimating various forest
 attributes from FIA data, following FIA statistical procedures.
 """
 
-from .base import BaseEstimator
+from .base_estimator import BaseEstimator
 
 from .config import (
     EstimatorConfig,
@@ -44,8 +44,6 @@ from .lazy_evaluation import (
     CollectionStrategy,
     LazyConfigMixin,
 )
-
-from .lazy_base import LazyBaseEstimator
 
 from .caching import (
     CacheKey,

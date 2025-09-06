@@ -658,12 +658,43 @@ class FIAConverter:
                 logger.info(f"Successfully read {table_name} using YAML predefined schema")
                 return df
             except Exception as e:
-                logger.error(f"YAML predefined schema failed for {table_name}: {e}")
+                logger.warning(f"YAML predefined schema failed for {table_name}: {e}")
                 logger.debug(f"Failed schema for {table_name}: {polars_schema}")
-                raise RuntimeError(f"Failed to read table {table_name} with YAML schema: {e}")
-        else:
-            logger.error(f"No YAML schema found for {table_name}")
-            raise RuntimeError(f"No YAML schema found for table {table_name}. Schema must be defined.")
+                logger.info(f"Falling back to auto-schema detection for {table_name}")
+                
+        # Strategy 2: Fallback to auto-detection with increased schema inference
+        try:
+            logger.info(f"Using auto-detection for {table_name} with increased infer_schema_length")
+            df = pl.read_database(
+                f"SELECT * FROM {table_name}",
+                sqlite_conn,
+                infer_schema_length=50000  # Increased from default to handle mixed types
+            )
+            logger.info(f"Successfully read {table_name} using auto-detection schema")
+            return df
+        except Exception as e:
+            logger.error(f"Auto-detection also failed for {table_name}: {e}")
+            
+        # Strategy 3: Final fallback - read as all strings and let DuckDB handle conversion
+        try:
+            logger.warning(f"Final fallback: reading {table_name} with minimal schema")
+            # Get column names first
+            cursor = sqlite_conn.cursor()
+            cursor.execute(f"PRAGMA table_info({table_name})")
+            columns = [row[1] for row in cursor.fetchall()]
+            
+            # Create minimal schema (all strings)
+            minimal_schema = {col: pl.Utf8 for col in columns}
+            df = pl.read_database(
+                f"SELECT * FROM {table_name}",
+                sqlite_conn,
+                schema_overrides=minimal_schema
+            )
+            logger.info(f"Successfully read {table_name} using minimal string schema")
+            return df
+        except Exception as e:
+            logger.error(f"All fallback strategies failed for {table_name}: {e}")
+            raise RuntimeError(f"Failed to read table {table_name} with any strategy: {e}")
 
     def _get_table_row_count(self, sqlite_conn, table_name: str) -> int:
         """Get row count for a table to determine if streaming is needed."""

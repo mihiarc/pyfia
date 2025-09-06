@@ -289,13 +289,30 @@ class BaseEstimator(ABC):
             Prepared data ready for value calculation
         """
         if tree_wrapper is not None:
-            # Join trees with conditions
-            joined = self._join_optimizer.execute_optimized_join(
-                tree_wrapper,
-                cond_wrapper.select(["PLT_CN", "CONDID", "CONDPROP_UNADJ"]),
-                join_keys=["PLT_CN", "CONDID"],
-                how="inner"
-            )
+            # Join trees with conditions - preserve all tree columns
+            # Select condition columns that don't conflict
+            cond_cols_to_join = cond_wrapper.select(["PLT_CN", "CONDID", "CONDPROP_UNADJ"])
+            
+            # Perform the join directly using LazyFrame methods
+            if tree_wrapper.is_lazy:
+                tree_frame = tree_wrapper.frame
+                cond_frame = cond_cols_to_join.frame if hasattr(cond_cols_to_join, 'frame') else cond_cols_to_join
+                joined_frame = tree_frame.join(
+                    cond_frame,
+                    on=["PLT_CN", "CONDID"],
+                    how="inner"
+                )
+                joined = LazyFrameWrapper(joined_frame)
+            else:
+                # Eager join
+                tree_df = tree_wrapper.frame
+                cond_df = cond_cols_to_join.collect() if hasattr(cond_cols_to_join, 'collect') else cond_cols_to_join
+                joined_df = tree_df.join(
+                    cond_df,
+                    on=["PLT_CN", "CONDID"],
+                    how="inner"
+                )
+                joined = LazyFrameWrapper(pl.LazyFrame(joined_df))
             
             # Set up grouping columns
             if self.config.grp_by or self.config.by_species or self.config.by_size_class:
@@ -487,6 +504,8 @@ class BaseEstimator(ABC):
             return 'biomass'
         elif 'tpa' in class_name:
             return 'tpa'
+        elif 'treecount' in class_name:
+            return 'tpa'  # TreeCountEstimator needs tree data like TPA
         elif 'mortality' in class_name:
             return 'mortality'
         elif 'growth' in class_name:

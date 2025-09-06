@@ -256,11 +256,13 @@ class TPAEstimator(EstimatorProgressMixin, LazyBaseEstimator):
             self._pop_stratum_cache = pop_stratum_lazy
         
         # Join stratification data
+        # PPSA has STRATUM_CN column that links to CN in POP_STRATUM
         strat_lazy = self._ppsa_cache.join(
             self._pop_stratum_cache.select([
                 "CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
-            ]).rename({"CN": "STRATUM_CN"}),
-            on="STRATUM_CN",
+            ]),
+            left_on="STRATUM_CN",
+            right_on="CN",
             how="inner"
         )
         

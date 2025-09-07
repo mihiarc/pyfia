@@ -46,7 +46,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
     performance.
     """
 
-    def __init__(self, db: Union[str, FIA], config: EstimatorConfig):
+    def __init__(self, db: Union[str, FIA], config: EstimatorConfig, by_land_type: bool = False):
         """
         Initialize the lazy area estimator.
         
@@ -56,6 +56,8 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
             FIA database object or path to database
         config : EstimatorConfig
             Configuration with estimation parameters
+        by_land_type : bool, optional
+            Whether to group by land type, default False
         """
         super().__init__(db, config)
 
@@ -64,7 +66,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
         self.console = Console()
 
         # Area-specific parameters
-        self.by_land_type = config.extra_params.get("by_land_type", False)
+        self.by_land_type = by_land_type
         self.land_type = config.land_type
 
         # Store whether we need tree filtering
@@ -551,7 +553,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
 
         # Build aggregation expressions
         agg_exprs = [
-            pl.sum("fa").alias("PLOT_AREA_NUMERATOR"),
+            pl.sum("fa_adj").alias("PLOT_AREA_NUMERATOR"),
             pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS"),
         ]
 
@@ -568,7 +570,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
 
         # Calculate denominator separately (not grouped by land type)
         plot_denom_lazy = data_wrapper.frame.group_by("PLT_CN").agg([
-            pl.sum("fad").alias("PLOT_AREA_DENOMINATOR"),
+            pl.sum("fad_adj").alias("PLOT_AREA_DENOMINATOR"),
         ])
 
         # Use optimized join for numerator and denominator
@@ -939,17 +941,19 @@ def area(
         lambda_=lambda_,
         totals=totals,
         variance=variance,
-        most_recent=most_recent,
-        extra_params={
-            "by_land_type": by_land_type,
-            "show_progress": show_progress,
-            "lazy_enabled": True,
-            "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
-        }
+        most_recent=most_recent
     )
+    
+    # Store extra parameters separately for the estimator
+    extra_params = {
+        "by_land_type": by_land_type,
+        "show_progress": show_progress,
+        "lazy_enabled": True,
+        "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
+    }
 
     # Create estimator and run estimation
-    estimator = AreaEstimator(db, config)
+    estimator = AreaEstimator(db, config, by_land_type=by_land_type)
     results = estimator.estimate()
 
     return results

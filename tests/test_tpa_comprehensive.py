@@ -258,7 +258,7 @@ class TestTPAIntegration:
         # Should produce valid result
         assert len(result) > 0
 
-    @patch('pyfia.tpa._prepare_tpa_data')
+    @patch('pyfia.estimation.base_estimator.BaseEstimator._prepare_estimation_data')
     def test_tpa_with_mocked_data_preparation(self, mock_prepare, sample_fia_instance, use_real_data):
         """Test TPA with mocked data preparation to test calculation logic."""
         # Mock the data preparation to return known data

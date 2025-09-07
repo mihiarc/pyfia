@@ -28,7 +28,7 @@ from .aggregation import (
 from .caching import cached_operation
 from .config import EstimatorConfig
 from .join import JoinManager, get_join_manager
-from .query_builders import CompositeQueryBuilder, FrameWrapper, MemoryCache
+from .builder import CompositeQueryBuilder, FrameWrapper, MemoryCache
 
 
 @dataclass

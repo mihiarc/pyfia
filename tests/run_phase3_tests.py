@@ -33,7 +33,7 @@ from pyfia.estimation.config import (
     ConfigFactory,
     VALID_FIA_GROUPING_COLUMNS
 )
-from pyfia.estimation.query_builders import (
+from pyfia.estimation.builder import (
     BaseQueryBuilder,
     QueryBuilderFactory,
     CompositeQueryBuilder,
@@ -213,7 +213,7 @@ class Phase3TestRunner:
     
     def test_query_filter_parsing(self):
         """Test query filter parsing functionality."""
-        from pyfia.estimation.query_builders import BaseQueryBuilder
+        from pyfia.estimation.builder import BaseQueryBuilder
         
         class TestBuilder(BaseQueryBuilder):
             def build_query_plan(self, **kwargs):

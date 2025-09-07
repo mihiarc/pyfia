@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pyfia.core import FIA
 from pyfia.estimation.config import EstimatorConfig, LazyEvaluationConfig
-from pyfia.estimation.query_builders import (
+from pyfia.estimation.builder import (
     QueryBuilderFactory,
     CompositeQueryBuilder,
     TreeQueryBuilder,
@@ -142,7 +142,7 @@ def example_composite_estimation(db: FIA, config: EstimatorConfig):
         print(f"  {name}: {len(df)} rows, {len(df.columns)} columns")
     
     # Example of join order optimization
-    from pyfia.estimation.query_builders import QueryJoin
+    from pyfia.estimation.builder import QueryJoin
     
     joins = [
         QueryJoin("TREE", "PLOT", "PLT_CN", "CN"),

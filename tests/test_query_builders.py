@@ -13,7 +13,7 @@ import polars as pl
 
 from pyfia.core import FIA
 from pyfia.estimation.config import EstimatorConfig, LazyEvaluationConfig
-from pyfia.estimation.query_builders import (
+from pyfia.estimation.builder import (
     # Base classes
     BaseQueryBuilder,
     QueryPlan,

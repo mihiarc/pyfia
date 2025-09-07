@@ -37,7 +37,7 @@ from .aggregation import (
     UnifiedAggregationConfig,
     UnifiedEstimationWorkflow,
 )
-from .base_estimator import BaseEstimator
+from .base import BaseEstimator
 from .caching import cached_operation
 from .config import EstimatorConfig
 from .domain import DomainIndicatorCalculator, LandTypeClassifier

@@ -11,7 +11,7 @@ import time
 from unittest.mock import Mock, MagicMock, patch
 from typing import Dict, List, Any, Optional
 
-from pyfia.estimation.query_builders import (
+from pyfia.estimation.builder import (
     BaseQueryBuilder,
     QueryBuilderFactory,
     CompositeQueryBuilder,

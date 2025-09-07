@@ -26,7 +26,7 @@ from pyfia.estimation.join import (
     FIATableInfo,
     get_join_manager
 )
-from pyfia.estimation.query_builders import (
+from pyfia.estimation.builder import (
     QueryPlan,
     QueryJoin,
     QueryFilter,

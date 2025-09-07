@@ -1,50 +1,18 @@
 """
-Configuration system for pyFIA estimation modules.
+Consolidated configuration system for pyFIA estimation modules.
 
-This module provides a modern configuration system that:
-1. Uses Pydantic v2 for validation and type safety
-2. Supports module-specific parameters without class proliferation
-3. Includes lazy evaluation settings for performance optimization
-4. Provides comprehensive validation for FIA-specific parameters
+This module provides a streamlined configuration system that eliminates redundancy
+and reduces configuration classes from 19 to 8 through composition and dynamic validation.
+No backward compatibility maintained - clean slate design.
 """
 
 from enum import Enum
-from typing import Any, Dict, Generic, List, Literal, Optional, TypeVar, Union
+from pathlib import Path
+from typing import Any, Dict, List, Literal, Optional, Union
 import warnings
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
-
-
-# === FIA Column Validation ===
-
-VALID_FIA_GROUPING_COLUMNS = {
-    # Core identifiers
-    "STATECD", "UNITCD", "COUNTYCD", "PLOT", "SUBP", "CONDID",
-    
-    # Species and tree attributes
-    "SPCD", "SPGRPCD", "STATUSCD", "DIA", "HT", "ACTUALHT",
-    
-    # Ownership and land use
-    "OWNCD", "OWNGRPCD", "LANDCLCD", "RESERVCD", "SITECLCD",
-    
-    # Forest type and stand attributes
-    "FORTYPCD", "STDSZCD", "FLDSZCD", "PHYSCLCD", "DSTRBCD1", "DSTRBCD2", "DSTRBCD3",
-    
-    # Disturbance and mortality
-    "AGENTCD", "SEVERITY1", "SEVERITY2", "SEVERITY3", "TREATCD1", "TREATCD2", "TREATCD3",
-    
-    # Temporal
-    "INVYR", "MEASYEAR", "MEASMON", "MEASDAY",
-    
-    # Geographic
-    "ECOSUBCD", "CONGCD", "MACROPLCD",
-    
-    # Growth accounting
-    "RECONCILECD", "PREVDIA", "P2A_GRM_FLG",
-    
-    # Custom groupings that may be added
-    "SIZE_CLASS", "BA_CLASS", "VOL_CLASS"
-}
+from pydantic_settings import BaseSettings
 
 
 # === Enums for Configuration Options ===
@@ -88,14 +56,102 @@ class LazyEvaluationMode(str, Enum):
     ADAPTIVE = "adaptive"  # Adaptive based on query complexity
 
 
-# === Lazy Evaluation Configuration ===
+# === FIA Column Validation (shared) ===
 
-class LazyEvaluationConfig(BaseModel):
+VALID_FIA_COLUMNS = {
+    # Core identifiers
+    "STATECD", "UNITCD", "COUNTYCD", "PLOT", "SUBP", "CONDID",
+    # Species and tree attributes
+    "SPCD", "SPGRPCD", "STATUSCD", "DIA", "HT", "ACTUALHT",
+    # Ownership and land use
+    "OWNCD", "OWNGRPCD", "LANDCLCD", "RESERVCD", "SITECLCD",
+    # Forest type and stand attributes
+    "FORTYPCD", "STDSZCD", "FLDSZCD", "PHYSCLCD",
+    # Disturbance and mortality
+    "AGENTCD", "DSTRBCD1", "DSTRBCD2", "DSTRBCD3",
+    "SEVERITY1", "SEVERITY2", "SEVERITY3",
+    "TREATCD1", "TREATCD2", "TREATCD3",
+    # Temporal
+    "INVYR", "MEASYEAR", "MEASMON", "MEASDAY",
+    # Geographic
+    "ECOSUBCD", "CONGCD", "MACROPLCD",
+    # Growth accounting
+    "RECONCILECD", "PREVDIA", "P2A_GRM_FLG",
+    # Custom groupings that may be added
+    "SIZE_CLASS", "BA_CLASS", "VOL_CLASS"
+}
+
+
+# === 1. SYSTEM CONFIGURATION ===
+
+class PyFIASettings(BaseSettings):
     """
-    Configuration for lazy evaluation behavior.
+    Global pyFIA system settings.
     
-    This configuration controls how and when lazy evaluation is used
-    in estimators, including thresholds, strategies, and performance tuning.
+    Consolidates system-wide settings from PyFIASettings and legacy Config class.
+    Environment variables can override these settings using PYFIA_ prefix.
+    """
+    
+    model_config = ConfigDict(
+        env_prefix="PYFIA_",
+        validate_assignment=True,
+        extra="forbid"
+    )
+    
+    # Database settings
+    database_path: Path = Field(
+        default=Path("fia.duckdb"),
+        description="Path to FIA database"
+    )
+    database_engine: Literal["sqlite", "duckdb"] = Field(
+        default="duckdb",
+        description="Database engine type"
+    )
+    
+    # Directory settings
+    cache_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".pyfia" / "cache",
+        description="Directory for cache storage"
+    )
+    log_dir: Path = Field(
+        default_factory=lambda: Path.home() / ".pyfia" / "logs",
+        description="Directory for log files"
+    )
+    
+    # Global behavior
+    type_check_on_load: bool = Field(
+        default=False,
+        description="Enable type checking when loading data"
+    )
+    cli_page_size: int = Field(
+        default=20,
+        ge=5,
+        le=100,
+        description="Number of rows per page in CLI output"
+    )
+    cli_max_width: int = Field(
+        default=120,
+        ge=80,
+        le=300,
+        description="Maximum width for CLI output"
+    )
+    
+    @model_validator(mode="after")
+    def create_directories(self) -> "PyFIASettings":
+        """Create necessary directories if they don't exist."""
+        self.cache_dir.mkdir(parents=True, exist_ok=True)
+        self.log_dir.mkdir(parents=True, exist_ok=True)
+        return self
+
+
+# === 2. PERFORMANCE CONFIGURATION ===
+
+class PerformanceConfig(BaseModel):
+    """
+    Unified performance and resource management configuration.
+    
+    Consolidates performance settings from LazyEvaluationConfig, ConverterConfig,
+    and PyFIASettings into a single comprehensive configuration.
     """
     
     model_config = ConfigDict(
@@ -103,316 +159,425 @@ class LazyEvaluationConfig(BaseModel):
         extra="forbid"
     )
     
-    # Core lazy settings
-    mode: LazyEvaluationMode = Field(
-        default=LazyEvaluationMode.AUTO,
-        description="Lazy evaluation mode"
+    # Threading and parallelization
+    max_threads: int = Field(
+        default=4,
+        ge=1,
+        le=32,
+        description="Maximum number of threads for parallel operations"
     )
-    
-    threshold_rows: int = Field(
-        default=10_000,
-        ge=0,
-        description="Row count threshold for automatic lazy evaluation"
-    )
-    
-    # Collection strategies
-    collection_strategy: Literal["sequential", "parallel", "streaming", "adaptive"] = Field(
-        default="adaptive",
-        description="Strategy for collecting lazy frames"
-    )
-    
-    max_parallel_collections: int = Field(
+    parallel_workers: int = Field(
         default=4,
         ge=1,
         le=16,
-        description="Maximum parallel collections when using parallel strategy"
+        description="Number of parallel workers for processing"
     )
     
     # Memory management
     memory_limit_mb: Optional[int] = Field(
         default=None,
         ge=100,
-        description="Memory limit in MB for lazy operations"
+        description="Memory limit in MB (None = no limit)"
     )
-    
     chunk_size: int = Field(
         default=50_000,
         ge=1000,
-        description="Chunk size for streaming operations"
+        description="Records per chunk for streaming operations"
+    )
+    batch_size: int = Field(
+        default=100_000,
+        ge=1000,
+        description="Records per batch for batch operations"
     )
     
-    # Optimization settings
+    # Lazy evaluation settings
+    lazy_mode: LazyEvaluationMode = Field(
+        default=LazyEvaluationMode.AUTO,
+        description="Lazy evaluation mode"
+    )
+    lazy_threshold_rows: int = Field(
+        default=10_000,
+        ge=0,
+        description="Row count threshold for automatic lazy evaluation"
+    )
+    collection_strategy: Literal["sequential", "parallel", "streaming", "adaptive"] = Field(
+        default="adaptive",
+        description="Strategy for collecting lazy frames"
+    )
+    
+    # Query optimization flags
     enable_predicate_pushdown: bool = Field(
         default=True,
         description="Enable predicate pushdown optimization"
     )
-    
     enable_projection_pushdown: bool = Field(
         default=True,
         description="Enable projection pushdown optimization"
     )
-    
     enable_slice_pushdown: bool = Field(
         default=True,
         description="Enable slice pushdown optimization"
     )
     
-    # Caching
-    enable_expression_caching: bool = Field(
-        default=True,
-        description="Cache intermediate expressions"
-    )
-    
-    cache_ttl_seconds: int = Field(
-        default=300,
-        ge=0,
-        description="Cache time-to-live in seconds (0 = no expiry)"
-    )
-    
     @model_validator(mode="after")
-    def validate_memory_settings(self) -> "LazyEvaluationConfig":
-        """Validate memory-related settings."""
+    def validate_memory_settings(self) -> "PerformanceConfig":
+        """Validate memory-related settings are consistent."""
         if self.memory_limit_mb:
-            # Check if chunk size might be too large (rough heuristic)
-            # Assume each row is about 1KB on average
+            # Estimate memory usage per chunk (rough heuristic: 1KB per row)
             estimated_chunk_mb = self.chunk_size / 1000
+            estimated_batch_mb = self.batch_size / 1000
+            
             if estimated_chunk_mb > self.memory_limit_mb / 2:
                 warnings.warn(
-                    f"Chunk size ({self.chunk_size}) may be too large for "
-                    f"memory limit ({self.memory_limit_mb}MB). Consider reducing chunk_size.",
+                    f"Chunk size ({self.chunk_size}) may exceed memory limit "
+                    f"({self.memory_limit_mb}MB). Consider reducing chunk_size.",
                     UserWarning
                 )
+            
+            if estimated_batch_mb > self.memory_limit_mb:
+                warnings.warn(
+                    f"Batch size ({self.batch_size}) may exceed memory limit "
+                    f"({self.memory_limit_mb}MB). Consider reducing batch_size.",
+                    UserWarning
+                )
+        
         return self
 
 
-# === Module-Specific Configuration Classes ===
+# === 3. CACHE CONFIGURATION ===
 
-class VolumeSpecificConfig(BaseModel):
-    """Volume estimation specific configuration."""
+class CacheConfig(BaseModel):
+    """
+    Unified caching configuration.
     
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+    Consolidates cache settings from CacheConfig, LazyEvaluationConfig,
+    and PyFIASettings into a single comprehensive configuration.
+    """
     
-    volume_equation: Literal["default", "regional", "custom"] = Field(
-        default="default",
-        description="Volume equation to use"
+    model_config = ConfigDict(
+        validate_assignment=True,
+        extra="forbid"
     )
     
-    include_sound: bool = Field(
+    # Memory cache settings
+    memory_cache_enabled: bool = Field(
         default=True,
-        description="Include sound volume"
+        description="Enable in-memory caching"
+    )
+    memory_cache_size_mb: int = Field(
+        default=512,
+        ge=0,
+        description="Maximum memory cache size in MB"
+    )
+    memory_cache_ttl_seconds: int = Field(
+        default=300,
+        ge=0,
+        description="Memory cache time-to-live in seconds (0 = no expiry)"
     )
     
-    include_rotten: bool = Field(
+    # Disk cache settings
+    disk_cache_enabled: bool = Field(
         default=False,
-        description="Include rotten/missing volume"
+        description="Enable disk-based caching"
     )
-    
-    merchantable_top_diameter: float = Field(
-        default=4.0,
-        ge=0.0,
-        description="Merchantable top diameter in inches"
-    )
-    
-    stump_height: float = Field(
+    disk_cache_size_gb: float = Field(
         default=1.0,
         ge=0.0,
-        description="Stump height in feet"
+        description="Maximum disk cache size in GB"
     )
-
-
-class BiomassSpecificConfig(BaseModel):
-    """Biomass estimation specific configuration."""
-    
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
-    
-    component: Literal["aboveground", "belowground", "total", "merchantable"] = Field(
-        default="aboveground",
-        description="Biomass component to estimate"
+    disk_cache_ttl_days: int = Field(
+        default=7,
+        ge=0,
+        description="Disk cache time-to-live in days (0 = no expiry)"
     )
     
-    include_foliage: bool = Field(
+    # Expression cache (for lazy evaluation)
+    expression_cache_enabled: bool = Field(
         default=True,
-        description="Include foliage in biomass estimates"
+        description="Cache intermediate expression results"
     )
     
-    include_saplings: bool = Field(
+    @model_validator(mode="after")
+    def validate_cache_settings(self) -> "CacheConfig":
+        """Validate cache settings are reasonable."""
+        if not self.memory_cache_enabled and not self.disk_cache_enabled:
+            warnings.warn(
+                "Both memory and disk caching are disabled. This may impact performance.",
+                UserWarning
+            )
+        
+        if self.memory_cache_size_mb > 2048:
+            warnings.warn(
+                f"Large memory cache size ({self.memory_cache_size_mb}MB) may impact system memory.",
+                UserWarning
+            )
+        
+        return self
+
+
+# === 4. LOGGING CONFIGURATION ===
+
+class LoggingConfig(BaseModel):
+    """
+    Unified logging and progress display configuration.
+    
+    Consolidates settings from ProgressConfig, ConverterConfig logging,
+    and PyFIASettings logging into a single configuration.
+    """
+    
+    model_config = ConfigDict(
+        validate_assignment=True,
+        extra="forbid"
+    )
+    
+    # Logging settings
+    log_level: Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"] = Field(
+        default="INFO",
+        description="Logging level"
+    )
+    log_to_file: bool = Field(
         default=False,
-        description="Include saplings in biomass estimates"
+        description="Write logs to file"
+    )
+    log_format: str = Field(
+        default="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+        description="Log message format"
     )
     
-    carbon_fraction: float = Field(
-        default=0.5,
-        ge=0.0,
+    # Progress display settings
+    show_progress: bool = Field(
+        default=True,
+        description="Show progress bars"
+    )
+    show_details: bool = Field(
+        default=False,
+        description="Show detailed progress information"
+    )
+    show_memory: bool = Field(
+        default=False,
+        description="Show memory usage in progress"
+    )
+    show_summary: bool = Field(
+        default=True,
+        description="Show operation summary after completion"
+    )
+    update_frequency: float = Field(
+        default=0.1,
+        ge=0.01,
         le=1.0,
-        description="Carbon fraction of biomass"
-    )
-    
-    units: Literal["tons", "kg", "lbs"] = Field(
-        default="tons",
-        description="Output units for biomass"
+        description="Progress update frequency in seconds"
     )
 
 
-class GrowthSpecificConfig(BaseModel):
-    """Growth estimation specific configuration."""
+# === 5. MODULE PARAMETERS ===
+
+class ModuleParameters(BaseModel):
+    """
+    Dynamic module-specific parameters with validation.
     
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
+    Replaces all module-specific config classes (VolumeSpecificConfig,
+    BiomassSpecificConfig, etc.) with a single flexible system.
+    """
     
-    growth_type: Literal["net", "gross", "components"] = Field(
-        default="net",
-        description="Type of growth to calculate"
+    model_config = ConfigDict(
+        validate_assignment=True,
+        extra="allow"  # Allow arbitrary parameters for flexibility
     )
     
-    include_ingrowth: bool = Field(
-        default=True,
-        description="Include ingrowth in calculations"
+    # Store parameters as a dictionary for maximum flexibility
+    parameters: Dict[str, Any] = Field(
+        default_factory=dict,
+        description="Module-specific parameters"
     )
     
-    include_mortality: bool = Field(
-        default=True,
-        description="Include mortality in net growth"
-    )
+    def validate_for_module(self, module_name: str) -> None:
+        """
+        Validate parameters based on module requirements.
+        
+        Parameters
+        ----------
+        module_name : str
+            Name of the module to validate for
+            
+        Raises
+        ------
+        ValueError
+            If parameters are invalid for the module
+        """
+        if module_name == "volume":
+            # Validate volume-specific parameters
+            if "volume_equation" in self.parameters:
+                valid_equations = ["default", "regional", "custom"]
+                if self.parameters["volume_equation"] not in valid_equations:
+                    raise ValueError(
+                        f"Invalid volume_equation: {self.parameters['volume_equation']}. "
+                        f"Must be one of {valid_equations}"
+                    )
+            
+            if "merchantable_top_diameter" in self.parameters:
+                if self.parameters["merchantable_top_diameter"] < 0:
+                    raise ValueError("merchantable_top_diameter must be >= 0")
+        
+        elif module_name == "biomass":
+            # Validate biomass-specific parameters
+            if "component" in self.parameters:
+                valid_components = ["aboveground", "belowground", "total", "merchantable"]
+                if self.parameters["component"] not in valid_components:
+                    raise ValueError(
+                        f"Invalid component: {self.parameters['component']}. "
+                        f"Must be one of {valid_components}"
+                    )
+            
+            if "carbon_fraction" in self.parameters:
+                cf = self.parameters["carbon_fraction"]
+                if not 0.0 <= cf <= 1.0:
+                    raise ValueError("carbon_fraction must be between 0.0 and 1.0")
+        
+        elif module_name == "growth":
+            # Validate growth-specific parameters
+            if "growth_type" in self.parameters:
+                valid_types = ["net", "gross", "components"]
+                if self.parameters["growth_type"] not in valid_types:
+                    raise ValueError(
+                        f"Invalid growth_type: {self.parameters['growth_type']}. "
+                        f"Must be one of {valid_types}"
+                    )
+        
+        elif module_name == "mortality":
+            # Validate mortality-specific parameters
+            if "mortality_type" in self.parameters:
+                valid_types = ["tpa", "volume", "both"]
+                if self.parameters["mortality_type"] not in valid_types:
+                    raise ValueError(
+                        f"Invalid mortality_type: {self.parameters['mortality_type']}. "
+                        f"Must be one of {valid_types}"
+                    )
+            
+            if "tree_class" in self.parameters:
+                valid_classes = ["all", "timber", "growing_stock"]
+                if self.parameters["tree_class"] not in valid_classes:
+                    raise ValueError(
+                        f"Invalid tree_class: {self.parameters['tree_class']}. "
+                        f"Must be one of {valid_classes}"
+                    )
+        
+        elif module_name == "area":
+            # Validate area-specific parameters
+            if "area_basis" in self.parameters:
+                valid_basis = ["condition", "forest", "land"]
+                if self.parameters["area_basis"] not in valid_basis:
+                    raise ValueError(
+                        f"Invalid area_basis: {self.parameters['area_basis']}. "
+                        f"Must be one of {valid_basis}"
+                    )
     
-    include_removals: bool = Field(
-        default=True,
-        description="Include removals in net growth"
-    )
+    def get(self, key: str, default: Any = None) -> Any:
+        """Get a parameter value with optional default."""
+        return self.parameters.get(key, default)
     
-    annual_only: bool = Field(
-        default=False,
-        description="Calculate annual growth only"
-    )
+    def set(self, key: str, value: Any) -> None:
+        """Set a parameter value."""
+        self.parameters[key] = value
 
 
-class AreaSpecificConfig(BaseModel):
-    """Area estimation specific configuration."""
-    
-    model_config = ConfigDict(validate_assignment=True, extra="forbid")
-    
-    area_basis: Literal["condition", "forest", "land"] = Field(
-        default="condition",
-        description="Basis for area estimation"
-    )
-    
-    include_nonforest: bool = Field(
-        default=False,
-        description="Include non-forest land in estimates"
-    )
-    
-    include_water: bool = Field(
-        default=False,
-        description="Include water areas"
-    )
-    
-    ownership_groups: Optional[List[int]] = Field(
-        default=None,
-        description="Ownership group codes to include"
-    )
-
-
-# Type variable for module-specific configs
-TModuleConfig = TypeVar("TModuleConfig", bound=BaseModel)
-
-
-# === Base Configuration ===
+# === 6. BASE ESTIMATOR CONFIGURATION ===
 
 class EstimatorConfig(BaseModel):
     """
-    Configuration for FIA estimation parameters using Pydantic v2.
+    Base configuration for all FIA estimators.
     
-    This configuration class provides validation and type safety for all
-    common estimation parameters across pyFIA modules.
+    Streamlined version that uses composition for performance, caching, and logging
+    instead of inheritance or duplication.
     """
     
     model_config = ConfigDict(
         validate_assignment=True,
         extra="forbid",
-        str_strip_whitespace=True,
-        use_enum_values=True
+        str_strip_whitespace=True
     )
     
-    # Grouping parameters
+    # Core FIA parameters
     grp_by: Optional[Union[str, List[str]]] = Field(
         default=None,
-        description="Column(s) to group estimates by. Must be valid FIA columns."
+        description="Column(s) to group estimates by"
     )
     by_species: bool = Field(
         default=False,
-        description="Whether to group by species code (SPCD)"
+        description="Group by species code (SPCD)"
     )
     by_size_class: bool = Field(
         default=False,
-        description="Whether to group by diameter size classes"
+        description="Group by diameter size classes"
     )
     
     # Domain filters
-    land_type: Union[str, LandType] = Field(
-        default="forest",
-        description="Land type filter for estimation"
+    land_type: LandType = Field(
+        default=LandType.FOREST,
+        description="Land type filter"
     )
-    tree_type: Union[str, TreeType] = Field(
-        default="live",
-        description="Tree type filter: live, dead, growing stock (gs), or all"
+    tree_type: TreeType = Field(
+        default=TreeType.LIVE,
+        description="Tree type filter"
     )
     tree_domain: Optional[str] = Field(
         default=None,
-        description="SQL-like expression for tree-level filtering"
+        description="SQL-like expression for tree filtering"
     )
     area_domain: Optional[str] = Field(
         default=None,
-        description="SQL-like expression for area/condition-level filtering"
+        description="SQL-like expression for area filtering"
     )
     plot_domain: Optional[str] = Field(
         default=None,
-        description="SQL-like expression for plot-level filtering"
+        description="SQL-like expression for plot filtering"
     )
     
-    # Estimation method parameters
-    method: Union[str, EstimationMethod] = Field(
-        default="TI",
-        description="Estimation method: Temporally Indifferent (TI) or moving averages"
+    # Estimation parameters
+    method: EstimationMethod = Field(
+        default=EstimationMethod.TI,
+        description="Estimation method"
     )
     lambda_: float = Field(
         default=0.5,
         ge=0.0,
         le=1.0,
-        description="Temporal weighting parameter for exponential moving average (EMA)"
+        description="Temporal weighting for EMA"
     )
     
     # Output options
     totals: bool = Field(
         default=False,
-        description="Whether to include total estimates in addition to per-acre values"
+        description="Include total estimates"
     )
     variance: bool = Field(
         default=False,
-        description="Whether to return variance instead of standard error"
+        description="Return variance instead of SE"
     )
     by_plot: bool = Field(
         default=False,
-        description="Whether to return plot-level estimates"
+        description="Return plot-level estimates"
     )
     most_recent: bool = Field(
         default=False,
-        description="Whether to use only the most recent evaluation"
+        description="Use only most recent evaluation"
     )
-    
-    # Variance calculation
-    variance_method: Union[str, VarianceMethod] = Field(
-        default="ratio",
+    variance_method: VarianceMethod = Field(
+        default=VarianceMethod.RATIO,
         description="Variance calculation method"
     )
     
-    # Lazy evaluation configuration
-    lazy_config: Optional[LazyEvaluationConfig] = Field(
-        default_factory=LazyEvaluationConfig,
-        description="Lazy evaluation configuration"
+    # Composed configurations
+    performance: PerformanceConfig = Field(
+        default_factory=PerformanceConfig,
+        description="Performance configuration"
     )
-    
-    # Additional parameters
-    extra_params: Dict[str, Any] = Field(
-        default_factory=dict,
-        description="Additional module-specific parameters"
+    caching: CacheConfig = Field(
+        default_factory=CacheConfig,
+        description="Cache configuration"
+    )
+    logging: LoggingConfig = Field(
+        default_factory=LoggingConfig,
+        description="Logging configuration"
     )
     
     @field_validator("grp_by")
@@ -421,70 +586,36 @@ class EstimatorConfig(BaseModel):
         """Validate grouping columns against known FIA columns."""
         if v is None:
             return v
-            
+        
         columns = [v] if isinstance(v, str) else v
-        invalid_cols = [col for col in columns if col not in VALID_FIA_GROUPING_COLUMNS]
+        invalid_cols = [col for col in columns if col not in VALID_FIA_COLUMNS]
         
         if invalid_cols:
-            # Don't fail for unknown columns, just warn - they might be custom derived columns
             warnings.warn(
-                f"Unknown grouping columns: {invalid_cols}. These may be valid derived columns.",
+                f"Unknown grouping columns: {invalid_cols}. May be valid derived columns.",
                 UserWarning
             )
-            
+        
         return v
     
-    @field_validator("tree_domain", "area_domain")
+    @field_validator("tree_domain", "area_domain", "plot_domain")
     @classmethod
     def validate_domain_expression(cls, v: Optional[str]) -> Optional[str]:
-        """Basic validation of domain expressions."""
+        """Validate domain expressions for SQL injection."""
         if v is None:
             return v
-            
-        # Remove extra whitespace
+        
+        # Clean whitespace
         v = " ".join(v.split())
         
-        # Check for basic SQL injection patterns
-        dangerous_patterns = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "EXEC", "EXECUTE", "--", "/*", "*/"]
+        # Check for dangerous SQL patterns
+        dangerous = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE", "EXEC", "--", "/*"]
         v_upper = v.upper()
-        for pattern in dangerous_patterns:
+        for pattern in dangerous:
             if pattern in v_upper:
                 raise ValueError(f"Domain expression contains forbidden keyword: {pattern}")
-                
-        return v
-    
-    @field_validator("land_type", "tree_type", "method", "variance_method", mode="before")
-    @classmethod
-    def convert_to_enum(cls, v: Union[str, Enum], info) -> Union[str, Enum]:
-        """Convert string values to enums if needed."""
-        if isinstance(v, str):
-            field_name = info.field_name
-            if field_name == "land_type" and v in ["forest", "timber", "all"]:
-                return v
-            elif field_name == "tree_type" and v in ["live", "dead", "gs", "all"]:
-                return v
-            elif field_name == "method" and v in ["TI", "SMA", "LMA", "EMA", "ANNUAL"]:
-                return v
-            elif field_name == "variance_method" and v in ["standard", "ratio", "hybrid"]:
-                return v
-        return v
-    
-    def to_dict(self) -> Dict[str, Any]:
-        """Convert to dictionary."""
-        data = self.model_dump(exclude_none=True)
         
-        # Flatten lazy_config if present
-        if "lazy_config" in data and data["lazy_config"]:
-            lazy_data = data.pop("lazy_config")
-            for key, value in lazy_data.items():
-                data[f"lazy_{key}"] = value
-        
-        # Merge extra_params
-        if "extra_params" in data:
-            extra = data.pop("extra_params")
-            data.update(extra)
-            
-        return data
+        return v
     
     def get_grouping_columns(self) -> List[str]:
         """Get all grouping columns based on configuration."""
@@ -495,260 +626,193 @@ class EstimatorConfig(BaseModel):
                 columns.append(self.grp_by)
             else:
                 columns.extend(self.grp_by)
-                
+        
         if self.by_species:
             columns.append("SPCD")
-            
+        
         # Remove duplicates while preserving order
         seen = set()
         return [x for x in columns if not (x in seen or seen.add(x))]
 
 
-# === Mortality Configuration ===
+# === 7. MODULE ESTIMATOR CONFIGURATION ===
 
-class MortalityConfig(EstimatorConfig):
+class ModuleEstimatorConfig(EstimatorConfig):
     """
-    Configuration specific to mortality estimation.
+    Configuration for any FIA estimation module.
     
-    Extends the base configuration with mortality-specific parameters
-    and validation rules.
+    Replaces all module-specific config classes (VolumeConfig, BiomassConfig, etc.)
+    with a single unified configuration that uses dynamic parameters.
     """
     
-    # Mortality-specific grouping options
-    group_by_species_group: bool = Field(
-        default=False,
-        description="Group by species group code (SPGRPCD)"
-    )
-    group_by_ownership: bool = Field(
-        default=False,
-        description="Group by ownership group code (OWNGRPCD)"
-    )
-    group_by_agent: bool = Field(
-        default=False,
-        description="Group by mortality agent code (AGENTCD)"
-    )
-    group_by_disturbance: bool = Field(
-        default=False,
-        description="Group by disturbance codes (DSTRBCD1, DSTRBCD2, DSTRBCD3)"
+    # Module identification
+    module_name: str = Field(
+        description="Name of the estimation module"
     )
     
-    # Mortality type and calculation options
-    mortality_type: Literal["tpa", "volume", "both"] = Field(
-        default="tpa",
-        description="Type of mortality to calculate: trees per acre, volume, or both"
-    )
-    tree_class: Literal["all", "timber", "growing_stock"] = Field(
-        default="all",
-        description="Tree classification for mortality calculation"
+    # Module-specific parameters
+    module_parameters: ModuleParameters = Field(
+        default_factory=ModuleParameters,
+        description="Module-specific parameters"
     )
     
-    # Component breakdown options
-    include_components: bool = Field(
-        default=False,
-        description="Include component breakdowns (BA, VOL) in addition to TPA"
-    )
-    include_natural: bool = Field(
-        default=True,
-        description="Include natural mortality in calculations"
-    )
-    include_harvest: bool = Field(
-        default=True,
-        description="Include harvest mortality in calculations"
-    )
+    @field_validator("module_name")
+    @classmethod
+    def validate_module_name(cls, v: str) -> str:
+        """Validate module name is recognized."""
+        valid_modules = {"area", "volume", "biomass", "growth", "mortality", "tpa"}
+        if v not in valid_modules:
+            raise ValueError(f"Unknown module: {v}. Valid modules: {valid_modules}")
+        return v
     
     @model_validator(mode="after")
-    def validate_mortality_options(self) -> "MortalityConfig":
-        """Validate mortality-specific option combinations."""
-        # If calculating volume mortality, ensure we're not filtering to live trees only
-        if self.mortality_type in ["volume", "both"] and self.tree_type == "live":
-            raise ValueError(
-                "Cannot calculate volume mortality with tree_type='live'. "
-                "Mortality requires dead trees. Use tree_type='dead' or 'all'."
-            )
-            
-        # Validate tree_class and land_type combination
-        if self.tree_class == "timber" and self.land_type not in ["timber", "all"]:
-            raise ValueError(
-                f"tree_class='timber' requires land_type='timber' or 'all', "
-                f"not '{self.land_type}'"
-            )
-            
-        return self
-    
-    def get_grouping_columns(self) -> List[str]:
-        """Get all grouping columns including mortality-specific ones."""
-        columns = super().get_grouping_columns()
+    def validate_module_combination(self) -> "ModuleEstimatorConfig":
+        """Validate module-specific parameter combinations."""
+        # Validate parameters for the specific module
+        self.module_parameters.validate_for_module(self.module_name)
         
-        if self.group_by_species_group:
-            columns.append("SPGRPCD")
-            
-        if self.group_by_ownership:
-            columns.append("OWNGRPCD")
-            
-        if self.group_by_agent:
-            columns.append("AGENTCD")
-            
-        if self.group_by_disturbance:
-            columns.extend(["DSTRBCD1", "DSTRBCD2", "DSTRBCD3"])
-            
-        # Add size class if requested
-        if self.by_size_class and "SIZE_CLASS" not in columns:
-            columns.append("SIZE_CLASS")
-            
-        # Remove duplicates while preserving order
-        seen = set()
-        return [x for x in columns if not (x in seen or seen.add(x))]
-    
-    def get_output_columns(self) -> List[str]:
-        """Get expected output columns based on configuration."""
-        columns = []
-        
-        # Base mortality columns
-        if self.mortality_type in ["tpa", "both"]:
-            columns.append("MORTALITY_TPA")
-            if self.variance:
-                columns.append("MORTALITY_TPA_VAR")
-            else:
-                columns.append("MORTALITY_TPA_SE")
-            if self.totals:
-                columns.append("MORTALITY_TPA_TOTAL")
-                
-        if self.mortality_type in ["volume", "both"]:
-            columns.append("MORTALITY_VOL")
-            if self.variance:
-                columns.append("MORTALITY_VOL_VAR")
-            else:
-                columns.append("MORTALITY_VOL_SE")
-            if self.totals:
-                columns.append("MORTALITY_VOL_TOTAL")
-                
-        # Component columns if requested
-        if self.include_components:
-            columns.extend([
-                "MORTALITY_BA",
-                "MORTALITY_BA_VAR" if self.variance else "MORTALITY_BA_SE"
-            ])
-            if self.totals:
-                columns.append("MORTALITY_BA_TOTAL")
-                
-        return columns
-    
-
-
-# === Module-Specific Configuration with Generic Support ===
-
-class ModularEstimatorConfig(EstimatorConfig, Generic[TModuleConfig]):
-    """
-    Configuration for pyFIA estimators with module-specific parameters.
-    
-    This configuration class provides:
-    1. Common parameters for all estimators (inherited from EstimatorConfig)
-    2. Module-specific parameters through generics
-    3. Lazy evaluation settings
-    4. Comprehensive validation for FIA parameters
-    """
-    
-    # Module-specific configuration
-    module_config: Optional[TModuleConfig] = Field(
-        default=None,
-        description="Module-specific configuration"
-    )
-    
-    def with_module_config(self, module_config: TModuleConfig) -> "ModularEstimatorConfig[TModuleConfig]":
-        """
-        Create a new config with module-specific configuration.
-        
-        Parameters
-        ----------
-        module_config : TModuleConfig
-            Module-specific configuration
-        
-        Returns
-        -------
-        ModularEstimatorConfig[TModuleConfig]
-            New configuration with module config
-        """
-        data = self.model_dump()
-        data["module_config"] = module_config
-        return ModularEstimatorConfig[type(module_config)](**data)
-    
-    
-    def validate_for_module(self, module_name: str) -> None:
-        """
-        Validate configuration for specific module requirements.
-        
-        Parameters
-        ----------
-        module_name : str
-            Name of the module (e.g., "volume", "biomass", "mortality")
-        
-        Raises
-        ------
-        ValueError
-            If configuration is invalid for the module
-        """
-        # Module-specific validation rules
-        if module_name == "mortality":
-            if self.tree_type == "live" or (isinstance(self.tree_type, TreeType) and self.tree_type == TreeType.LIVE):
+        # Module-specific validation of base parameters
+        if self.module_name == "mortality":
+            if self.tree_type == TreeType.LIVE:
                 raise ValueError(
                     "Mortality estimation requires tree_type='dead' or 'all', not 'live'"
                 )
         
-        elif module_name == "growth":
-            method_val = self.method if isinstance(self.method, str) else self.method.value
-            if method_val not in ["TI", "ANNUAL"]:
-                raise ValueError(
-                    f"Growth estimation typically uses TI or ANNUAL methods, not {method_val}"
+        elif self.module_name == "growth":
+            if self.method not in [EstimationMethod.TI, EstimationMethod.ANNUAL]:
+                warnings.warn(
+                    f"Growth estimation typically uses TI or ANNUAL methods, not {self.method}",
+                    UserWarning
                 )
         
-        elif module_name == "area":
+        elif self.module_name == "area":
             if self.tree_domain:
                 warnings.warn(
                     "Area estimation with tree_domain may not produce expected results. "
                     "Consider using area_domain instead.",
                     UserWarning
                 )
-
-
-# === Specialized Configurations ===
-
-class VolumeConfig(ModularEstimatorConfig[VolumeSpecificConfig]):
-    """Unified configuration for volume estimation."""
+        
+        return self
     
-    module_config: VolumeSpecificConfig = Field(
-        default_factory=VolumeSpecificConfig,
-        description="Volume-specific configuration"
-    )
-
-
-class BiomassConfig(ModularEstimatorConfig[BiomassSpecificConfig]):
-    """Unified configuration for biomass estimation."""
+    def get_module_param(self, key: str, default: Any = None) -> Any:
+        """Get a module-specific parameter value."""
+        return self.module_parameters.get(key, default)
     
-    module_config: BiomassSpecificConfig = Field(
-        default_factory=BiomassSpecificConfig,
-        description="Biomass-specific configuration"
-    )
+    def set_module_param(self, key: str, value: Any) -> None:
+        """Set a module-specific parameter value."""
+        self.module_parameters.set(key, value)
+        # Re-validate after setting
+        self.module_parameters.validate_for_module(self.module_name)
 
 
-class GrowthConfig(ModularEstimatorConfig[GrowthSpecificConfig]):
-    """Unified configuration for growth estimation."""
+# === 8. CONVERTER CONFIGURATION ===
+
+class ConverterConfig(BaseSettings):
+    """
+    Streamlined configuration for database conversion operations.
     
-    module_config: GrowthSpecificConfig = Field(
-        default_factory=GrowthSpecificConfig,
-        description="Growth-specific configuration"
-    )
-
-
-class AreaConfig(ModularEstimatorConfig[AreaSpecificConfig]):
-    """Unified configuration for area estimation."""
+    Uses composition for performance and logging settings instead of duplication.
+    """
     
-    module_config: AreaSpecificConfig = Field(
-        default_factory=AreaSpecificConfig,
-        description="Area-specific configuration"
+    model_config = ConfigDict(
+        env_prefix="PYFIA_CONVERTER_",
+        validate_assignment=True,
+        extra="forbid"
     )
-
-
-# MortalityConfig already has all the specific parameters it needs
+    
+    # File paths
+    source_dir: Path = Field(
+        default=Path("."),
+        description="Directory containing source SQLite files"
+    )
+    target_path: Path = Field(
+        default=Path("fia.duckdb"),
+        description="Path to target DuckDB database"
+    )
+    temp_dir: Optional[Path] = Field(
+        default=None,
+        description="Directory for temporary files"
+    )
+    
+    # Conversion settings
+    compression_level: Literal["none", "low", "medium", "high"] = Field(
+        default="medium",
+        description="DuckDB compression level"
+    )
+    validation_level: Literal["none", "basic", "standard", "comprehensive"] = Field(
+        default="standard",
+        description="Data validation level"
+    )
+    create_indexes: bool = Field(
+        default=True,
+        description="Create database indexes"
+    )
+    optimize_storage: bool = Field(
+        default=True,
+        description="Optimize storage layout"
+    )
+    
+    # Append mode settings
+    append_mode: bool = Field(
+        default=False,
+        description="Append to existing database"
+    )
+    dedupe_on_append: bool = Field(
+        default=False,
+        description="Remove duplicates when appending"
+    )
+    dedupe_keys: List[str] = Field(
+        default_factory=lambda: ["CN"],
+        description="Columns to use for deduplication"
+    )
+    
+    # State filtering
+    include_states: Optional[List[int]] = Field(
+        default=None,
+        description="State FIPS codes to include"
+    )
+    exclude_states: Optional[List[int]] = Field(
+        default=None,
+        description="State FIPS codes to exclude"
+    )
+    
+    # Table filtering
+    include_tables: Optional[List[str]] = Field(
+        default=None,
+        description="Tables to include"
+    )
+    exclude_tables: Optional[List[str]] = Field(
+        default=None,
+        description="Tables to exclude"
+    )
+    
+    # Composed configurations
+    performance: PerformanceConfig = Field(
+        default_factory=PerformanceConfig,
+        description="Performance configuration"
+    )
+    logging: LoggingConfig = Field(
+        default_factory=LoggingConfig,
+        description="Logging configuration"
+    )
+    
+    @model_validator(mode="after")
+    def validate_settings(self) -> "ConverterConfig":
+        """Validate converter settings."""
+        if self.include_states and self.exclude_states:
+            raise ValueError("Cannot specify both include_states and exclude_states")
+        
+        if self.include_tables and self.exclude_tables:
+            raise ValueError("Cannot specify both include_tables and exclude_tables")
+        
+        if self.dedupe_on_append and not self.append_mode:
+            warnings.warn(
+                "dedupe_on_append=True has no effect when append_mode=False",
+                UserWarning
+            )
+        
+        return self
 
 
 # === Configuration Factory ===
@@ -757,15 +821,55 @@ class ConfigFactory:
     """
     Factory for creating appropriate configuration objects.
     
-    This factory helps create the right configuration type based on
-    the module and input parameters.
+    Simplified factory that creates ModuleEstimatorConfig for all modules
+    with appropriate default parameters.
     """
     
-    @staticmethod
+    # Default module parameters for each module type
+    MODULE_DEFAULTS = {
+        "volume": {
+            "volume_equation": "default",
+            "include_sound": True,
+            "include_rotten": False,
+            "merchantable_top_diameter": 4.0,
+            "stump_height": 1.0
+        },
+        "biomass": {
+            "component": "aboveground",
+            "include_foliage": True,
+            "include_saplings": False,
+            "carbon_fraction": 0.5,
+            "units": "tons"
+        },
+        "growth": {
+            "growth_type": "net",
+            "include_ingrowth": True,
+            "include_mortality": True,
+            "include_removals": True,
+            "annual_only": False
+        },
+        "mortality": {
+            "mortality_type": "tpa",
+            "tree_class": "all",
+            "include_components": False,
+            "include_natural": True,
+            "include_harvest": True
+        },
+        "area": {
+            "area_basis": "condition",
+            "include_nonforest": False,
+            "include_water": False,
+            "ownership_groups": None
+        },
+        "tpa": {}  # TPA has no specific parameters
+    }
+    
+    @classmethod
     def create_config(
+        cls,
         module: str,
         **kwargs
-    ) -> EstimatorConfig:
+    ) -> ModuleEstimatorConfig:
         """
         Create appropriate configuration for a module.
         
@@ -775,70 +879,61 @@ class ConfigFactory:
             Module name (e.g., "volume", "biomass", "mortality")
         **kwargs
             Configuration parameters
-        
+            
         Returns
         -------
-        EstimatorConfig
-            Appropriate configuration for the module
+        ModuleEstimatorConfig
+            Configuration for the module with defaults applied
         """
-        # Return specialized config based on module
-        if module == "volume":
-            return VolumeConfig(**kwargs)
-        elif module == "biomass":
-            return BiomassConfig(**kwargs)
-        elif module == "growth":
-            return GrowthConfig(**kwargs)
-        elif module == "area":
-            return AreaConfig(**kwargs)
-        elif module == "mortality":
-            # Extract mortality-specific fields from extra_params if present
-            extra = kwargs.get("extra_params", {})
-            mortality_fields = [
-                "group_by_species_group", "group_by_ownership", "group_by_agent",
-                "group_by_disturbance", "mortality_type", "tree_class",
-                "include_components", "include_natural", "include_harvest"
-            ]
-            for field in mortality_fields:
-                if field in extra:
-                    kwargs[field] = extra.pop(field)
-            return MortalityConfig(**kwargs)
-        else:
-            return EstimatorConfig(**kwargs)
+        # Extract module-specific parameters from kwargs
+        module_params = kwargs.pop("module_parameters", {})
+        
+        # Apply module defaults
+        if module in cls.MODULE_DEFAULTS:
+            defaults = cls.MODULE_DEFAULTS[module].copy()
+            defaults.update(module_params)
+            module_params = defaults
+        
+        # Create module parameters object
+        params = ModuleParameters(parameters=module_params)
+        
+        # Create and return config
+        return ModuleEstimatorConfig(
+            module_name=module,
+            module_parameters=params,
+            **kwargs
+        )
 
 
-# === Export public API ===
+# === Export Public API ===
 
 __all__ = [
-    # Main configuration
+    # Settings
+    "PyFIASettings",
+    
+    # Component configurations  
+    "PerformanceConfig",
+    "CacheConfig",
+    "LoggingConfig",
+    
+    # Estimator configurations
     "EstimatorConfig",
-    "MortalityConfig",
+    "ModuleEstimatorConfig",
+    "ModuleParameters",
     
-    # Module-specific configurations
-    "ModularEstimatorConfig",
-    "VolumeConfig",
-    "BiomassConfig",
-    "GrowthConfig",
-    "AreaConfig",
+    # Converter configuration
+    "ConverterConfig",
     
-    # Module-specific parameter classes
-    "VolumeSpecificConfig",
-    "BiomassSpecificConfig",
-    "GrowthSpecificConfig",
-    "AreaSpecificConfig",
-    
-    # Lazy evaluation
-    "LazyEvaluationConfig",
-    "LazyEvaluationMode",
+    # Factory
+    "ConfigFactory",
     
     # Enums
     "EstimationMethod",
     "LandType",
     "TreeType",
     "VarianceMethod",
-    
-    # Factory
-    "ConfigFactory",
+    "LazyEvaluationMode",
     
     # Constants
-    "VALID_FIA_GROUPING_COLUMNS",
+    "VALID_FIA_COLUMNS",
 ]

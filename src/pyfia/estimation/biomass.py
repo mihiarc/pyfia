@@ -13,12 +13,12 @@ from ..core import FIA
 from ..constants.constants import MathConstants
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
-from .evaluation import operation, FrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 
 
-class BiomassEstimator(BaseEstimator):
+class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
     """
     Biomass estimator with optimized memory usage and performance.
     

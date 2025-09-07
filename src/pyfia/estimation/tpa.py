@@ -14,13 +14,12 @@ from ..constants.constants import MathConstants, PlotBasis
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
 from .join import JoinManager, get_join_manager
-from .evaluation import operation, FrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
-from .utils import ratio_var
 
 
-class TPAEstimator(BaseEstimator):
+class TPAEstimator(BaseEstimator, LazyEstimatorMixin):
     """
     Trees Per Acre (TPA) estimator with optimized memory usage and performance.
     
@@ -477,7 +476,7 @@ class TPAEstimator(BaseEstimator):
             tree_lazy = data_wrapper.frame
             
             # Need condition data for forest area proportion
-            cond_lazy = self.get_conditions().frame
+            cond_lazy = self.db.get_conditions().lazy()
             
             # Calculate forest area proportion for each plot
             area_by_plot = cond_lazy.group_by("PLT_CN").agg(
@@ -573,167 +572,9 @@ class TPAEstimator(BaseEstimator):
             return FrameWrapper(plot_est)
     
     @operation("calculate_stratum_estimates")
-    def calculate_stratum_estimates(self, plot_wrapper: FrameWrapper) -> FrameWrapper:
-        """
-        Calculate stratum-level estimates using lazy evaluation.
-        
-        Parameters
-        ----------
-        plot_wrapper : FrameWrapper
-            Plot-level estimates
-            
-        Returns
-        -------
-        FrameWrapper
-            Stratum-level estimates
-        """
-        with self._track_operation(OperationType.AGGREGATE, "Calculate stratum estimates"):
-            plot_lazy = plot_wrapper.frame
-            
-            # Prepare grouping columns
-            if self.config.grp_by:
-                grp_by = self.config.grp_by if isinstance(self.config.grp_by, list) else [self.config.grp_by]
-                strat_groups = ["STRATUM_CN"] + grp_by
-            else:
-                strat_groups = ["STRATUM_CN"]
-            
-            if self.config.by_species and "SPCD" not in strat_groups:
-                strat_groups.append("SPCD")
-                plot_schema = plot_lazy.collect_schema()
-                if "COMMON_NAME" in plot_schema.names():
-                    strat_groups.extend(["COMMON_NAME", "SCIENTIFIC_NAME"])
-            
-            if self.config.by_size_class and "SIZE_CLASS" not in strat_groups:
-                strat_groups.append("SIZE_CLASS")
-            
-            # Calculate stratum means and variance components
-            stratum_est = plot_lazy.group_by(strat_groups).agg([
-                # Sample size
-                pl.len().alias("n_h"),
-                # Tree estimates
-                pl.mean("TPA_PLT").alias("y_bar_h"),
-                pl.std("TPA_PLT", ddof=1).alias("s_yh"),
-                # Basal area estimates
-                pl.mean("BAA_PLT").alias("b_bar_h"),
-                pl.std("BAA_PLT", ddof=1).alias("s_bh"),
-                # Forest area
-                pl.mean("PROP_FOREST").alias("x_bar_h"),
-                pl.std("PROP_FOREST", ddof=1).alias("s_xh"),
-                # Covariances using correlation method
-                pl.corr("TPA_PLT", "PROP_FOREST").fill_null(0).alias("corr_yx"),
-                pl.corr("BAA_PLT", "PROP_FOREST").fill_null(0).alias("corr_bx"),
-                # Stratum weight
-                pl.first("EXPNS").alias("w_h"),
-            ])
-            
-            # Calculate covariances from correlations
-            stratum_est = stratum_est.with_columns([
-                (pl.col("corr_yx") * pl.col("s_yh") * pl.col("s_xh")).alias("s_yxh"),
-                (pl.col("corr_bx") * pl.col("s_bh") * pl.col("s_xh")).alias("s_bxh"),
-            ])
-            
-            # Replace null std devs with 0
-            stratum_est = stratum_est.with_columns([
-                pl.col(c).fill_null(0) for c in ["s_yh", "s_bh", "s_xh", "s_yxh", "s_bxh"]
-            ])
-            
-            self._update_progress(description="Stratum estimates calculated")
-            
-            return FrameWrapper(stratum_est)
+    # Stratum calculation now handled by unified aggregation system in BaseEstimator
     
-    def calculate_population_estimates(self, stratum_df: pl.DataFrame) -> pl.DataFrame:
-        """
-        Calculate population-level estimates using ratio-of-means estimator.
-        
-        This method works with eager DataFrames as it performs the final
-        aggregation after lazy evaluation has been collected.
-        
-        Parameters
-        ----------
-        stratum_df : pl.DataFrame
-            Stratum-level estimates
-            
-        Returns
-        -------
-        pl.DataFrame
-            Population-level estimates
-        """
-        with self._track_operation(OperationType.AGGREGATE, "Calculate population estimates"):
-            # Prepare grouping columns
-            if self.config.grp_by:
-                grp_by = self.config.grp_by if isinstance(self.config.grp_by, list) else [self.config.grp_by]
-                pop_groups = grp_by.copy()
-            else:
-                pop_groups = []
-            
-            if self.config.by_species and "SPCD" not in pop_groups:
-                pop_groups.append("SPCD")
-                if "COMMON_NAME" in stratum_df.columns:
-                    pop_groups.extend(["COMMON_NAME", "SCIENTIFIC_NAME"])
-            
-            if self.config.by_size_class and "SIZE_CLASS" not in pop_groups:
-                pop_groups.append("SIZE_CLASS")
-            
-            # Calculate totals across strata
-            w2 = (pl.col("w_h").cast(pl.Float64) ** 2.0)
-            agg_exprs = [
-                # Weighted means
-                (pl.col("y_bar_h").cast(pl.Float64) * pl.col("w_h").cast(pl.Float64)).sum().alias("TREE_TOTAL"),
-                (pl.col("b_bar_h").cast(pl.Float64) * pl.col("w_h").cast(pl.Float64)).sum().alias("BA_TOTAL"),
-                (pl.col("x_bar_h").cast(pl.Float64) * pl.col("w_h").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
-                # Variance components
-                (w2 * (pl.col("s_yh").cast(pl.Float64) ** 2.0) / pl.col("n_h")).sum().alias("TREE_VAR"),
-                (w2 * (pl.col("s_bh").cast(pl.Float64) ** 2.0) / pl.col("n_h")).sum().alias("BA_VAR"),
-                (w2 * (pl.col("s_xh").cast(pl.Float64) ** 2.0) / pl.col("n_h")).sum().alias("AREA_VAR"),
-                # Covariance terms for ratio variance
-                (w2 * pl.col("s_yxh").cast(pl.Float64) / pl.col("n_h")).sum().alias("COV_YX"),
-                (w2 * pl.col("s_bxh").cast(pl.Float64) / pl.col("n_h")).sum().alias("COV_BX"),
-                # Sample size
-                pl.col("n_h").sum().alias("N_PLOTS"),
-            ]
-            
-            if pop_groups:
-                pop_est = stratum_df.group_by(pop_groups).agg(agg_exprs)
-            else:
-                # No grouping - calculate overall totals
-                pop_est = stratum_df.select(agg_exprs)
-            
-            # Calculate ratios (per acre values)
-            pop_est = pop_est.with_columns([
-                (pl.col("TREE_TOTAL") / pl.col("AREA_TOTAL")).alias("TPA"),
-                (pl.col("BA_TOTAL") / pl.col("AREA_TOTAL")).alias("BAA"),
-            ])
-            
-            # Calculate ratio variances using delta method
-            pop_est = pop_est.with_columns([
-                ratio_var(
-                    pl.col("TREE_TOTAL"),
-                    pl.col("AREA_TOTAL"),
-                    pl.col("TREE_VAR"),
-                    pl.col("AREA_VAR"),
-                    pl.col("COV_YX"),
-                ).alias("TPA_VAR"),
-                ratio_var(
-                    pl.col("BA_TOTAL"),
-                    pl.col("AREA_TOTAL"),
-                    pl.col("BA_VAR"),
-                    pl.col("AREA_VAR"),
-                    pl.col("COV_BX"),
-                ).alias("BAA_VAR"),
-            ])
-            
-            # Calculate standard errors
-            pop_est = pop_est.with_columns([
-                (pl.col("TPA_VAR").sqrt() / pl.col("TPA") * 100).alias("TPA_SE"),
-                (pl.col("BAA_VAR").sqrt() / pl.col("BAA") * 100).alias("BAA_SE"),
-                (pl.col("TREE_VAR").sqrt() / pl.col("TREE_TOTAL") * 100).alias("TREE_TOTAL_SE"),
-                (pl.col("BA_VAR").sqrt() / pl.col("BA_TOTAL") * 100).alias("BA_TOTAL_SE"),
-                (pl.col("AREA_VAR").sqrt() / pl.col("AREA_TOTAL") * 100).alias("AREA_TOTAL_SE"),
-            ])
-            
-            self._update_progress(description="Population estimates calculated")
-            
-            return pop_est
+    # Population calculation now handled by unified aggregation system in BaseEstimator
     
     def get_output_columns(self) -> List[str]:
         """

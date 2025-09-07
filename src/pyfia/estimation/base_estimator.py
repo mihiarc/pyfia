@@ -493,22 +493,6 @@ class BaseEstimator(ABC):
 
     def _calculate_population_estimates(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
         """
-        Calculate final population-level estimates using the unified aggregation system.
-        
-        Parameters
-        ----------
-        expanded_data : pl.DataFrame
-            Data with expansion factors applied
-            
-        Returns
-        -------
-        pl.DataFrame
-            Population-level estimates with per-acre values and variance
-        """
-        return self._calculate_population_estimates_unified(expanded_data)
-
-    def _calculate_population_estimates_unified(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
-        """
         Calculate population estimates using the unified aggregation system.
         
         Parameters

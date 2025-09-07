@@ -22,14 +22,14 @@ from .caching import cached_operation
 from .config import EstimatorConfig
 from .domain import DomainIndicatorCalculator, LandTypeClassifier
 from .join import JoinManager, get_join_manager
-from .evaluation import FrameWrapper, operation
+from .evaluation import FrameWrapper, operation, LazyEstimatorMixin, CollectionStrategy
 
 # Import the area-specific components
 from .statistics import PercentageCalculator
 from .statistics.expressions import PolarsExpressionBuilder
 
 
-class AreaEstimator(BaseEstimator):
+class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
     """
     Lazy area estimator with optimized memory usage and performance.
     
@@ -83,6 +83,8 @@ class AreaEstimator(BaseEstimator):
             self._group_cols.append("LAND_TYPE")
 
         # Lazy evaluation is now built into the base estimator
+        # Set collection strategy for lazy frames
+        self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
 
         # Cache for reference tables and components
         self._pop_stratum_cache: Optional[pl.LazyFrame] = None
@@ -470,7 +472,7 @@ class AreaEstimator(BaseEstimator):
         )
 
         # Get condition data lazily
-        cond_wrapper = self.get_conditions()
+        cond_wrapper = FrameWrapper(self.db.get_conditions().lazy())
 
         # Apply area filters with area_estimation_mode=True
         # For now, we'll collect briefly to apply the filter function
@@ -487,7 +489,7 @@ class AreaEstimator(BaseEstimator):
         # Get tree data if needed
         tree_wrapper = None
         if "TREE" in self.get_required_tables():
-            tree_wrapper = self.get_trees()
+            tree_wrapper = FrameWrapper(self.db.get_trees().lazy())
             # For area estimation, don't apply tree domain filtering here
             # The domain calculator will handle tree domain filtering
             tree_df = tree_wrapper.collect()
@@ -780,45 +782,7 @@ class AreaEstimator(BaseEstimator):
 
         return expanded
 
-    def _calculate_population_estimates(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
-        """
-        Calculate population estimates using the unified aggregation system.
-        
-        This method now uses the unified workflow for consistent, well-tested
-        population estimation across all FIA estimation types.
-        
-        Parameters
-        ----------
-        expanded_data : pl.DataFrame
-            Expanded plot data
-            
-        Returns
-        -------
-        pl.DataFrame
-            Population estimates
-        """
-        # Configure unified aggregation workflow
-        config = UnifiedAggregationConfig(
-            estimation_type=EstimationType.AREA,
-            group_cols=self._group_cols,
-            by_land_type=self.by_land_type,
-            include_totals=self.config.totals,
-            include_variance=not hasattr(self.config, 'se') or not self.config.se,
-            use_rfia_variance=("POP_ESTN_UNIT" in self.db.tables)
-        )
-
-        # Create and execute unified workflow
-        workflow = UnifiedEstimationWorkflow(config)
-
-        # Validate input data
-        validation = workflow.validate_input_data(expanded_data)
-        if not validation["is_valid"]:
-            raise ValueError(f"Input validation failed: {validation['warnings']}")
-
-        # Execute unified workflow
-        return workflow.calculate_population_estimates(expanded_data)
-
-    # All legacy calculation methods removed - now using UnifiedEstimationWorkflow
+    # All calculation methods now inherited from BaseEstimator which uses UnifiedEstimationWorkflow
 
     def get_output_columns(self) -> List[str]:
         """Define the output column structure for area estimates."""

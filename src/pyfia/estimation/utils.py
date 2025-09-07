@@ -122,6 +122,10 @@ def calculate_stratum_estimates(
 ) -> pl.DataFrame:
     """
     Calculate stratum-level estimates.
+    
+    .. deprecated:: 1.0.0
+        This function is deprecated. Use the unified aggregation system via
+        BaseEstimator._calculate_population_estimates() instead.
 
     Args:
         data: Plot data with response variable and stratification
@@ -131,6 +135,13 @@ def calculate_stratum_estimates(
     Returns:
         Stratum-level estimates
     """
+    import warnings
+    warnings.warn(
+        "calculate_stratum_estimates is deprecated. Use the unified aggregation system instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     # Group by stratum
     stratum_stats = data.group_by("STRATUM_CN").agg(
         [
@@ -156,6 +167,10 @@ def calculate_stratum_estimates(
 def calculate_population_estimates(stratum_estimates: pl.DataFrame) -> Dict[str, float]:
     """
     Calculate population-level estimates from stratum estimates.
+    
+    .. deprecated:: 1.0.0
+        This function is deprecated. Use the unified aggregation system via
+        UnifiedEstimationWorkflow.calculate_population_estimates() instead.
 
     Args:
         stratum_estimates: Stratum-level statistics
@@ -163,6 +178,13 @@ def calculate_population_estimates(stratum_estimates: pl.DataFrame) -> Dict[str,
     Returns:
         Dictionary with population estimates and variance
     """
+    import warnings
+    warnings.warn(
+        "calculate_population_estimates is deprecated. Use the unified aggregation system instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     # Total area
     total_area = stratum_estimates["area"].sum()
 
@@ -232,6 +254,10 @@ def calculate_ratio_estimates(
 ) -> Dict[str, float]:
     """
     Calculate ratio estimates (e.g., volume per acre).
+    
+    .. deprecated:: 1.0.0
+        This function is deprecated. Use the unified aggregation system which
+        handles ratio-of-means estimation automatically.
 
     Args:
         numerator_data: Data for numerator (e.g., volume)
@@ -243,6 +269,12 @@ def calculate_ratio_estimates(
     Returns:
         Ratio estimates with variance
     """
+    import warnings
+    warnings.warn(
+        "calculate_ratio_estimates is deprecated. Use the unified aggregation system instead.",
+        DeprecationWarning,
+        stacklevel=2
+    )
     if by_stratum:
         # Calculate by stratum first
         # Ensure required columns exist; if missing, add dummy EXPNS/AREA_USED to satisfy API

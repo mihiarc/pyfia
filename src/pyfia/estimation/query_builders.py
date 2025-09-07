@@ -27,7 +27,7 @@ import polars as pl
 from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..core import FIA
-from .config import EstimatorConfig, LazyEvaluationConfig
+from .config import EstimatorConfig, PerformanceConfig
 from .evaluation import FrameWrapper, CollectionStrategy
 from .caching import CacheKey, MemoryCache
 

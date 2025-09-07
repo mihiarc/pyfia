@@ -178,7 +178,11 @@ class FIASchemaLoader:
         return polars_schema
 
     def _convert_yaml_schema_to_duckdb(self, table_def: Dict[str, Any]) -> Dict[str, str]:
-        """Convert YAML table definition to DuckDB schema."""
+        """
+        Convert YAML table definition to DuckDB schema.
+        
+        Prioritizes 'duckdb_type' field if present, otherwise uses 'type' field.
+        """
         duckdb_schema = {}
 
         columns = table_def.get("columns", {})

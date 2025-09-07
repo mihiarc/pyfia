@@ -11,6 +11,8 @@ import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
+# Import directly from utils module since these are internal functions
+# being tested specifically for their mathematical properties
 from pyfia.estimation.utils import (
     calculate_adjustment_factors,
     calculate_ratio_estimates,

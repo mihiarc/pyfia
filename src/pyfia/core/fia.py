@@ -155,7 +155,11 @@ class FIA:
 
         if eval_type is not None:
             # FIA uses 'EXP' prefix for evaluation types
-            eval_type_full = f"EXP{eval_type}"
+            # Special case: "ALL" maps to "EXPALL" for area estimation
+            if eval_type.upper() == "ALL":
+                eval_type_full = "EXPALL"
+            else:
+                eval_type_full = f"EXP{eval_type}"
             df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
 
         if most_recent:
@@ -190,7 +194,8 @@ class FIA:
         self.evalid = evalid
         return self
 
-    def clip_by_state(self, state: Union[int, List[int]], most_recent: bool = True) -> "FIA":
+    def clip_by_state(self, state: Union[int, List[int]], most_recent: bool = True, 
+                      eval_type: Optional[str] = "ALL") -> "FIA":
         """
         Filter FIA data by state code(s).
 
@@ -202,6 +207,8 @@ class FIA:
         Args:
             state: Single state FIPS code or list of codes
             most_recent: If True, use only most recent evaluations
+            eval_type: Evaluation type to use. Default "ALL" for EXPALL which is 
+                      appropriate for area estimation. Use None to get all types.
 
         Returns:
             Self for method chaining
@@ -211,10 +218,18 @@ class FIA:
 
         self.state_filter = state
 
-        # Also find and set EVALIDs for proper statistical grouping
-        evalids = self.find_evalid(state=state, most_recent=most_recent)
-        if evalids:
-            self.clip_by_evalid(evalids)
+        # Find EVALIDs for proper statistical grouping
+        if eval_type is not None:
+            # Get specific evaluation type (e.g., "ALL" for EXPALL)
+            evalids = self.find_evalid(state=state, most_recent=most_recent, eval_type=eval_type)
+            if evalids:
+                # Use only the first EVALID to ensure single evaluation
+                self.clip_by_evalid([evalids[0]] if len(evalids) > 1 else evalids)
+        else:
+            # Get all evaluation types (old behavior - can cause overcounting)
+            evalids = self.find_evalid(state=state, most_recent=most_recent)
+            if evalids:
+                self.clip_by_evalid(evalids)
 
         return self
 
@@ -229,11 +244,22 @@ class FIA:
             Self for method chaining
         """
         self.most_recent = True
-        evalids = self.find_evalid(most_recent=True, eval_type=eval_type)
+        # Include state filter if it exists
+        state_filter = getattr(self, 'state_filter', None)
+        evalids = self.find_evalid(
+            most_recent=True, 
+            eval_type=eval_type,
+            state=state_filter  # Pass state filter to find_evalid
+        )
 
         if not evalids:
             warnings.warn(f"No evaluations found for type {eval_type}")
             return self
+        
+        # Use only the first EVALID if multiple are returned
+        # This ensures we use only ONE EVALID per estimation
+        if len(evalids) > 1:
+            evalids = [evalids[0]]
 
         return self.clip_by_evalid(evalids)
 

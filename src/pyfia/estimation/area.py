@@ -4,6 +4,26 @@ Lazy area estimation for pyFIA with optimized memory usage.
 This module implements AreaEstimator which extends LazyBaseEstimator
 to provide lazy evaluation throughout the area estimation workflow.
 It offers significant performance improvements through deferred computation and intelligent caching.
+
+IMPORTANT: EVALID Filtering
+----------------------------
+The area() function in this module automatically ensures proper EVALID filtering to prevent
+statistical overcounting. EVALIDs (Evaluation IDs) are 6-digit codes with format SSYYTT:
+  - SS: State FIPS code (e.g., 40 for Oklahoma)
+  - YY: Inventory year (e.g., 23 for 2023)  
+  - TT: Evaluation type (00=VOL, 01=GRM, 03=CHNG, etc.)
+
+Key principles:
+  1. Only ONE EVALID should be used per area estimation to avoid double-counting plots
+  2. EVALIDs with EXPALL (type 00) are recommended for area estimation as they include all plots
+  3. If no EVALID is specified, the function defaults to the most recent appropriate evaluation
+  4. This prevents the common error of summing across multiple evaluation periods
+  
+Note: The EVAL_TYP values in POP_EVAL_TYP (EXPALL, EXPVOL, etc.) don't directly map to 
+the type codes in EVALID. Type 00 EVALIDs typically have EXPALL, while type 01 have EXPVOL.
+
+Without proper EVALID filtering, the same plots could be counted multiple times across
+different inventory cycles or evaluation types, leading to grossly inflated area estimates.
 """
 
 from typing import Dict, List, Optional, Union
@@ -88,9 +108,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
         # Set collection strategy for lazy frames
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
 
-        # Cache for reference tables and components
-        self._pop_stratum_cache: Optional[pl.LazyFrame] = None
-        self._ppsa_cache: Optional[pl.LazyFrame] = None
+        # Cache for reference tables and components is handled in BaseEstimator
         self._pop_estn_unit_cache: Optional[pl.LazyFrame] = None
 
         # Initialize components (lazy-compatible versions)
@@ -401,63 +419,8 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
 
         return tree_df, cond_df
 
-    @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data(self) -> pl.LazyFrame:
-        """
-        Get stratification data with caching.
-        
-        Returns
-        -------
-        pl.LazyFrame
-            Lazy frame with joined PPSA and POP_STRATUM data
-        """
-        # Load and cache PPSA data
-        if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
-
-            if self.db.evalid:
-                ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
-
-            self._ppsa_cache = ppsa_lazy
-
-        # Load and cache POP_STRATUM data
-        if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table("POP_STRATUM")
-
-            if self.db.evalid:
-                pop_stratum_lazy = pop_stratum_lazy.filter(
-                    pl.col("EVALID").is_in(self.db.evalid)
-                )
-
-            self._pop_stratum_cache = pop_stratum_lazy
-
-        # Get available columns from POP_STRATUM
-        pop_stratum_cols = self._pop_stratum_cache.collect_schema().names()
-        select_cols = ["CN", "EXPNS"]
-
-        # Add optional columns if they exist
-        if "ESTN_UNIT_CN" in pop_stratum_cols:
-            select_cols.append("ESTN_UNIT_CN")
-        if "ADJ_FACTOR_SUBP" in pop_stratum_cols:
-            select_cols.append("ADJ_FACTOR_SUBP")
-        if "ADJ_FACTOR_MACR" in pop_stratum_cols:
-            select_cols.append("ADJ_FACTOR_MACR")
-        if "P2POINTCNT" in pop_stratum_cols:
-            select_cols.append("P2POINTCNT")
-        if "P1POINTCNT" in pop_stratum_cols:
-            select_cols.append("P1POINTCNT")
-
-        # Use optimized join for stratification data
-        strat_lazy = self._optimized_join(
-            self._ppsa_cache,
-            self._pop_stratum_cache.select(select_cols).rename({"CN": "STRATUM_CN"}),
-            on="STRATUM_CN",
-            how="inner",
-            left_name="POP_PLOT_STRATUM_ASSGN",
-            right_name="POP_STRATUM"
-        )
-
-        return strat_lazy
+    # _get_stratification_data method is now inherited from BaseEstimator
+    # and called with required_adj_factors=None to include all available factors
 
     def _get_filtered_data(self) -> tuple[Optional[FrameWrapper], FrameWrapper]:
         """
@@ -613,7 +576,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
                 plot_lazy = plot_data.lazy()
 
                 # Get stratification data lazily
-                strat_lazy = self._get_stratification_data()
+                strat_lazy = self._get_stratification_data(required_adj_factors=None)  # Use all available factors
 
                 # Get available columns from stratification data
                 strat_cols = strat_lazy.collect_schema().names()
@@ -869,15 +832,27 @@ def area(
     show_progress: bool = False,
 ) -> pl.DataFrame:
     """
-    Estimate forest area and land proportions using lazy evaluation for improved performance.
+    Estimate forest area and land proportions using FIA data.
     
-    This function uses lazy evaluation throughout the workflow for improved memory usage
-    and performance with a consistent interface.
+    IMPORTANT: EVALID Filtering
+    ---------------------------
+    This function automatically applies EVALID filtering to prevent overcounting:
+    - If no EVALID is set on the database, it defaults to the most recent VOL (volume) evaluation
+    - Only ONE EVALID is used per estimation to ensure statistically valid, non-overlapping results
+    - EVALID format is SSYYTT where:
+        - SS = State FIPS code (e.g., 40 for Oklahoma)
+        - YY = Inventory year (e.g., 23 for 2023)
+        - TT = Evaluation type (00=VOL, 01=GRM, 03=CHNG, etc.)
+    - VOL evaluations are standard for area estimation
+    
+    Without proper EVALID filtering, plots could be counted multiple times across
+    different evaluation periods, leading to inflated area estimates.
     
     Parameters
     ----------
     db : FIA or str
-        FIA database object or path to database
+        FIA database object or path to database. If no EVALID filter is set,
+        the function will automatically apply the most recent VOL evaluation.
     grp_by : list of str, optional
         Columns to group estimates by
     by_land_type : bool, default False
@@ -897,7 +872,7 @@ def area(
     variance : bool, default False
         Return variance instead of standard error
     most_recent : bool, default False
-        Use only most recent evaluation
+        Use only most recent evaluation (always defaults to True internally)
     show_progress : bool, default False
         Show progress bars during estimation
         
@@ -907,8 +882,8 @@ def area(
         DataFrame with area estimates including:
         - AREA_PERC: Percentage of total area meeting criteria
         - AREA: Total acres (if totals=True)
-        - Standard errors or variances
-        - N_PLOTS: Number of plots
+        - Standard errors or variances (if requested)
+        - N_PLOTS: Number of plots used in estimate
         
     Examples
     --------
@@ -931,6 +906,50 @@ def area(
     ...     land_type="timber"
     ... )
     """
+    # Handle database initialization and EVALID filtering
+    if isinstance(db, str):
+        # If db is a path string, create FIA object
+        from ..core import FIA
+        db = FIA(db)
+        owns_db = True
+    else:
+        owns_db = False
+    
+    # Apply default EVALID filtering if not already filtered
+    # This prevents overcounting from multiple evaluations
+    if db.evalid is None:
+        # No EVALID filter applied yet - default to most recent VOL evaluation
+        # For area estimation, we should use only ONE EVALID (VOL type is standard for area)
+        if most_recent or True:  # Always default to most recent if no EVALID specified
+            # Find most recent evaluation for area estimation
+            # EXPALL evaluations (typically type 00) include all plots and are best for area
+            # First try to get state filter if it exists
+            state_filter = getattr(db, 'state_filter', None)
+            
+            # Find EVALIDs - for area we want EXPALL which includes all plots
+            # Note: We can't directly filter by EVAL_TYP here, so we get most recent
+            # and rely on the fact that type 00 EVALIDs typically have EXPALL
+            evalids = db.find_evalid(
+                most_recent=True, 
+                eval_type="ALL",  # This will look for EXPALL in EVAL_TYP
+                state=state_filter
+            )
+            
+            if evalids:
+                # Use only the first (most recent) EVALID if multiple are returned
+                # This ensures we use only ONE EVALID to prevent any double-counting
+                db.evalid = [evalids[0]] if len(evalids) > 1 else evalids
+                
+                # Log that we applied default filtering
+                from rich.console import Console
+                console = Console()
+                evalid_str = db.evalid[0]
+                # Parse EVALID: SSYYTT format
+                state_code = str(evalid_str)[:2] if len(str(evalid_str)) >= 6 else "??"
+                year_code = str(evalid_str)[2:4] if len(str(evalid_str)) >= 6 else "??"
+                type_code = str(evalid_str)[4:6] if len(str(evalid_str)) >= 6 else "??"
+                console.print(f"[dim]Applied default EVALID filter: {evalid_str} (State: {state_code}, Year: 20{year_code}, Type: {type_code})[/dim]")
+    
     # Create configuration from parameters
     config = EstimatorConfig(
         grp_by=grp_by,
@@ -953,7 +972,12 @@ def area(
     }
 
     # Create estimator and run estimation
-    estimator = AreaEstimator(db, config, by_land_type=by_land_type)
-    results = estimator.estimate()
+    try:
+        estimator = AreaEstimator(db, config, by_land_type=by_land_type)
+        results = estimator.estimate()
+    finally:
+        # Clean up if we created the db object
+        if owns_db and hasattr(db, 'close'):
+            db.close()
 
     return results

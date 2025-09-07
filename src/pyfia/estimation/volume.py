@@ -55,9 +55,6 @@ class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
         
-        # Cache for stratification tables (ref_species cache is in BaseEstimator)
-        self._pop_stratum_cache: Optional[pl.LazyFrame] = None
-        self._ppsa_cache: Optional[pl.LazyFrame] = None
     
     def get_required_tables(self) -> List[str]:
         """
@@ -211,7 +208,8 @@ class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
             Lazy frame with adjustment factors
         """
         # Get cached or load stratification data
-        strat_lazy = self._get_stratification_data()
+        # Volume uses all three adjustment factors (MICR, SUBP, MACR)
+        strat_lazy = self._get_stratification_data(["MICR", "SUBP", "MACR"])
         
         # Select needed columns
         strat_subset = strat_lazy.select([
@@ -229,51 +227,6 @@ class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
             right_name="STRATIFICATION"
         )
     
-    @cached_operation("stratification_data")
-    def _get_stratification_data(self) -> pl.LazyFrame:
-        """
-        Get stratification data with caching.
-        
-        Returns
-        -------
-        pl.LazyFrame
-            Lazy frame with joined PPSA and POP_STRATUM data
-        """
-        # Load tables lazily
-        if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
-            
-            # Apply EVALID filter if present
-            if self.db.evalid:
-                ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
-            
-            self._ppsa_cache = ppsa_lazy
-        
-        if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table("POP_STRATUM")
-            
-            # Apply EVALID filter if present
-            if self.db.evalid:
-                pop_stratum_lazy = pop_stratum_lazy.filter(
-                    pl.col("EVALID").is_in(self.db.evalid)
-                )
-            
-            self._pop_stratum_cache = pop_stratum_lazy
-        
-        # Join lazily
-        strat_lazy = self._optimized_join(
-            self._ppsa_cache,
-            self._pop_stratum_cache.select([
-                "CN", "EXPNS", 
-                "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
-            ]).rename({"CN": "STRATUM_CN"}),
-            on="STRATUM_CN",
-            how="inner",
-            left_name="POP_PLOT_STRATUM_ASSGN",
-            right_name="POP_STRATUM"
-        )
-        
-        return strat_lazy
     
     def _assign_tree_basis(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -640,6 +593,7 @@ def volume(
     ... )
     """
     # Create configuration from parameters
+    # Note: vol_type is handled separately as VolumeEstimator expects it
     config = EstimatorConfig(
         grp_by=grp_by,
         by_species=by_species,
@@ -653,14 +607,16 @@ def volume(
         totals=totals,
         variance=variance,
         by_plot=by_plot,
-        most_recent=mr,
-        extra_params={
-            "vol_type": vol_type,
-            "show_progress": show_progress,
-            "lazy_enabled": True,
-            "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
-        }
+        most_recent=mr
     )
+    
+    # Store volume-specific parameters separately for the estimator
+    config.extra_params = {
+        "vol_type": vol_type,
+        "show_progress": show_progress,
+        "lazy_enabled": True,
+        "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
+    }
     
     # Create estimator and run estimation
     with VolumeEstimator(db, config) as estimator:

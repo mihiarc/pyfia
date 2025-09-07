@@ -55,9 +55,7 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
         
-        # Cache for stratification tables (ref_species cache is in BaseEstimator)
-        self._pop_stratum_cache: Optional[pl.LazyFrame] = None
-        self._ppsa_cache: Optional[pl.LazyFrame] = None
+        # Cache for stratification tables is handled in BaseEstimator
     
     def get_required_tables(self) -> List[str]:
         """
@@ -252,46 +250,8 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         
         return component_map.get(component, f"DRYBIO_{component}")
     
-    @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data(self) -> pl.LazyFrame:
-        """
-        Get stratification data with caching.
-        
-        Returns
-        -------
-        pl.LazyFrame
-            Lazy frame with joined PPSA and POP_STRATUM data
-        """
-        # Load and cache PPSA data
-        if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
-            
-            if self.db.evalid:
-                ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
-            
-            self._ppsa_cache = ppsa_lazy
-        
-        # Load and cache POP_STRATUM data
-        if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table("POP_STRATUM")
-            
-            if self.db.evalid:
-                pop_stratum_lazy = pop_stratum_lazy.filter(
-                    pl.col("EVALID").is_in(self.db.evalid)
-                )
-            
-            self._pop_stratum_cache = pop_stratum_lazy
-        
-        # Join stratification data
-        strat_lazy = self._ppsa_cache.join(
-            self._pop_stratum_cache.select([
-                "CN", "EXPNS", "ADJ_FACTOR_SUBP"
-            ]).rename({"CN": "STRATUM_CN"}),
-            on="STRATUM_CN",
-            how="inner"
-        )
-        
-        return strat_lazy
+    # _get_stratification_data method is now inherited from BaseEstimator
+    # and called with required_adj_factors=["SUBP"] for biomass estimation
     
     def apply_module_filters(self, 
                            tree_df: Optional[pl.DataFrame],

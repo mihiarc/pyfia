@@ -182,14 +182,32 @@ class BaseEstimator(ABC):
         """
         # Load and cache PPSA data
         if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
+            # Load table from database
+            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
+                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
+            ppsa_lazy = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+            
+            # Ensure it's a LazyFrame
+            if not isinstance(ppsa_lazy, pl.LazyFrame):
+                ppsa_lazy = ppsa_lazy.lazy()
+            
+            # Apply EVALID filter if needed
             if self.db.evalid:
                 ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
             self._ppsa_cache = ppsa_lazy
 
         # Load and cache POP_STRATUM data
         if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table("POP_STRATUM")
+            # Load table from database
+            if "POP_STRATUM" not in self.db.tables:
+                self.db.load_table("POP_STRATUM")
+            pop_stratum_lazy = self.db.tables["POP_STRATUM"]
+            
+            # Ensure it's a LazyFrame
+            if not isinstance(pop_stratum_lazy, pl.LazyFrame):
+                pop_stratum_lazy = pop_stratum_lazy.lazy()
+            
+            # Apply EVALID filter if needed
             if self.db.evalid:
                 pop_stratum_lazy = pop_stratum_lazy.filter(
                     pl.col("EVALID").is_in(self.db.evalid)

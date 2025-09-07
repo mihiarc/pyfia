@@ -122,10 +122,10 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
         return tables
 
     def get_response_columns(self) -> Dict[str, str]:
-        """Define area response columns."""
+        """Define area response columns - maps semantic names to actual column names."""
         return {
-            "fa_adj": "AREA_NUMERATOR",
-            "fad_adj": "AREA_DENOMINATOR",
+            "AREA_NUMERATOR": "fa_adjusted",
+            "AREA_DENOMINATOR": "fad_adjusted",
         }
 
     @operation("calculate_area_values", cache_key_params=["by_land_type"])

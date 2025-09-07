@@ -199,7 +199,7 @@ class PercentageCalculator:
         # Calculate ratio variance
         result = result.with_columns(
             self.variance_calculator.calculate_ratio_variance(
-                "FA_TOTAL", "FAD_TOTAL", "FA_VAR", "FAD_VAR", "COV_FA_FAD"
+                "FA_TOTAL", "FAD_TOTAL", "FA_TOTAL_VAR", "FAD_TOTAL_VAR", "COV_FA_TOTAL_FAD"
             ).alias("PERC_VAR_RATIO")
         )
         

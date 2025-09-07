@@ -98,7 +98,17 @@ def cli():
 @click.option(
     '--append',
     is_flag=True,
-    help='Append to existing DuckDB database instead of overwriting'
+    help='Append data to existing tables without removing existing data'
+)
+@click.option(
+    '--dedupe',
+    is_flag=True,
+    help='Remove duplicate records when appending (requires --append)'
+)
+@click.option(
+    '--dedupe-keys',
+    type=str,
+    help='Comma-separated column names for deduplication (e.g., "CN,PLT_CN")'
 )
 @click.option(
     '--log-level',
@@ -119,6 +129,8 @@ def convert(
     no_progress: bool,
     temp_dir: Optional[Path],
     append: bool,
+    dedupe: bool,
+    dedupe_keys: Optional[str],
     log_level: str
 ):
     """Convert a single state SQLite database to DuckDB format."""
@@ -130,6 +142,18 @@ def convert(
         title="Conversion Started"
     ))
 
+    # Validate dedupe options
+    if dedupe and not append:
+        console.print("[red]Error: --dedupe requires --append flag[/red]")
+        sys.exit(1)
+    
+    # Parse dedupe keys if provided
+    dedupe_keys_list = None
+    if dedupe_keys:
+        dedupe_keys_list = [k.strip() for k in dedupe_keys.split(",")]
+        if dedupe and not dedupe_keys_list:
+            console.print("[yellow]Warning: --dedupe flag set but no dedupe keys provided[/yellow]")
+    
     try:
         # Create converter configuration
         config = ConverterConfig(
@@ -144,6 +168,8 @@ def convert(
             create_indexes=not no_indexes,
             show_progress=not no_progress,
             append_mode=append,
+            dedupe_on_append=dedupe,
+            dedupe_keys=dedupe_keys_list,
             log_level=log_level
         )
 

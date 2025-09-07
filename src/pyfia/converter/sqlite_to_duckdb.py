@@ -1104,6 +1104,128 @@ class ConversionPipeline:
             logger.debug(f"Error checking if table {table_name} exists: {e}")
             return False
 
+    def _ensure_schema_compatibility(
+        self, 
+        df: pl.DataFrame, 
+        conn: duckdb.DuckDBPyConnection, 
+        table_name: str
+    ) -> pl.DataFrame:
+        """
+        Ensure dataframe schema matches existing table schema with type casting.
+        
+        Parameters
+        ----------
+        df : pl.DataFrame
+            DataFrame to ensure compatibility for
+        conn : duckdb.DuckDBPyConnection
+            DuckDB connection
+        table_name : str
+            Name of the existing table
+            
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with schema adjusted to match target table
+        """
+        try:
+            existing_schema = conn.execute(f"DESCRIBE {table_name}").fetchall()
+            schema_map = {col[0]: col[1] for col in existing_schema}
+            
+            # Apply type casting to ensure schema compatibility
+            cast_exprs = []
+            for col in df.columns:
+                if col in schema_map:
+                    target_type = schema_map[col]
+                    if "TINYINT" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Int8).alias(col))
+                    elif "SMALLINT" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Int16).alias(col))
+                    elif "INTEGER" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Int32).alias(col))
+                    elif "BIGINT" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Int64).alias(col))
+                    elif "DECIMAL" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Float64).alias(col))
+                    elif "FLOAT" in target_type.upper() or "DOUBLE" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Float64).alias(col))
+                    elif "VARCHAR" in target_type.upper() or "TEXT" in target_type.upper():
+                        cast_exprs.append(pl.col(col).cast(pl.Utf8).alias(col))
+                    else:
+                        cast_exprs.append(pl.col(col))
+                else:
+                    # Column doesn't exist in target table - keep as is
+                    # The insertion strategy will handle missing columns
+                    cast_exprs.append(pl.col(col))
+            
+            if cast_exprs:
+                df = df.select(cast_exprs)
+                logger.debug(f"Applied schema compatibility casting for {table_name}")
+                
+        except Exception as e:
+            logger.warning(f"Schema compatibility check failed for {table_name}: {e}")
+            # Return original dataframe if compatibility check fails
+            
+        return df
+
+    def _remove_duplicates(
+        self,
+        new_df: pl.DataFrame,
+        conn: duckdb.DuckDBPyConnection,
+        table_name: str,
+        dedupe_keys: List[str]
+    ) -> pl.DataFrame:
+        """
+        Remove records from new_df that already exist in the table based on dedupe_keys.
+        
+        Parameters
+        ----------
+        new_df : pl.DataFrame
+            New data to be appended
+        conn : duckdb.DuckDBPyConnection
+            DuckDB connection
+        table_name : str
+            Name of the existing table
+        dedupe_keys : List[str]
+            Column names to use for identifying duplicates
+            
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with duplicates removed
+        """
+        try:
+            # Validate that dedupe keys exist in the new dataframe
+            missing_keys = [key for key in dedupe_keys if key not in new_df.columns]
+            if missing_keys:
+                logger.warning(f"Dedupe keys {missing_keys} not found in dataframe for {table_name}")
+                return new_df
+            
+            # Get existing key values from the table
+            key_columns = ", ".join(dedupe_keys)
+            existing_query = f"SELECT DISTINCT {key_columns} FROM {table_name}"
+            existing_df = conn.execute(existing_query).pl()
+            
+            if len(existing_df) == 0:
+                # No existing data, nothing to dedupe
+                return new_df
+            
+            # Perform anti-join to remove duplicates
+            # Anti-join returns rows from new_df that don't have matches in existing_df
+            deduplicated_df = new_df.join(
+                existing_df,
+                on=dedupe_keys,
+                how="anti"
+            )
+            
+            logger.info(f"Deduplication on {dedupe_keys} for {table_name}: "
+                       f"{len(new_df)} -> {len(deduplicated_df)} records")
+            
+            return deduplicated_df
+            
+        except Exception as e:
+            logger.warning(f"Deduplication failed for {table_name}: {e}. Proceeding without deduplication.")
+            return new_df
+
     def _convert_reference_tables(self, state_codes: List[int]) -> bool:
         """Convert reference tables (species, forest types, etc.)."""
         reference_tables = ["REF_SPECIES", "REF_FOREST_TYPE", "REF_HABITAT_TYPE"]
@@ -1240,8 +1362,6 @@ class ConversionPipeline:
 
         # Handle table creation and schema based on append mode
         if self.converter.config.append_mode:
-            # Get existing states if table exists
-            existing_states = self._get_existing_states(duck_conn, table_name) if table_exists else set()
             if not table_exists:
                 # New table: optimize schema normally
                 schema = self.converter.schema_optimizer.optimize_table_schema(
@@ -1251,54 +1371,25 @@ class ConversionPipeline:
                     table_name, schema
                 )
                 duck_conn.execute(create_sql)
-                logger.info(f"Created new table {table_name} in append mode")
+                logger.info(f"Created new table {table_name} for appending")
             else:
-                # Existing table: get existing schema and ensure compatibility
-                logger.info(f"Using existing table schema for {table_name} in append mode")
-
-                # Get existing table schema for type compatibility
-                try:
-                    existing_schema = duck_conn.execute(f"DESCRIBE {table_name}").fetchall()
-                    schema_map = {col[0]: col[1] for col in existing_schema}
-
-                    # Apply type casting to ensure schema compatibility
-                    cast_exprs = []
-                    for col in merged_df.columns:
-                        if col in schema_map:
-                            target_type = schema_map[col]
-                            if "SMALLINT" in target_type.upper():
-                                cast_exprs.append(pl.col(col).cast(pl.Int16).alias(col))
-                            elif "INTEGER" in target_type.upper():
-                                cast_exprs.append(pl.col(col).cast(pl.Int32).alias(col))
-                            elif "BIGINT" in target_type.upper():
-                                cast_exprs.append(pl.col(col).cast(pl.Int64).alias(col))
-                            elif "FLOAT" in target_type.upper() or "DOUBLE" in target_type.upper():
-                                cast_exprs.append(pl.col(col).cast(pl.Float64).alias(col))
-                            elif "VARCHAR" in target_type.upper() or "TEXT" in target_type.upper():
-                                cast_exprs.append(pl.col(col).cast(pl.Utf8).alias(col))
-                            else:
-                                cast_exprs.append(pl.col(col))
-                        else:
-                            cast_exprs.append(pl.col(col))
-
-                    if cast_exprs:
-                        merged_df = merged_df.select(cast_exprs)
-                        logger.info(f"Applied schema compatibility for {table_name}")
-
-                except Exception as e:
-                    logger.warning(f"Schema compatibility adjustment failed for {table_name}: {e}")
-
+                # Existing table: ensure schema compatibility
+                logger.info(f"Appending to existing table {table_name}")
+                
+                # Ensure schema compatibility
+                merged_df = self._ensure_schema_compatibility(merged_df, duck_conn, table_name)
+                
+                # Optional deduplication
+                if self.converter.config.dedupe_on_append and self.converter.config.dedupe_keys:
+                    original_count = len(merged_df)
+                    merged_df = self._remove_duplicates(
+                        merged_df, duck_conn, table_name, 
+                        self.converter.config.dedupe_keys
+                    )
+                    if original_count > len(merged_df):
+                        logger.info(f"Deduplication removed {original_count - len(merged_df)} duplicate records")
+                
                 schema = None
-
-                # Remove data for states we're about to re-add
-                new_states = set()
-                if "STATECD" in merged_df.columns:
-                    new_states = set(merged_df.select("STATECD").unique().drop_nulls().to_series().to_list())
-
-                for state in new_states:
-                    if state in existing_states:
-                        duck_conn.execute(f"DELETE FROM {table_name} WHERE STATECD = ?", [state])
-                        logger.info(f"Removed existing data for state {state} from {table_name}")
         else:
             # Original behavior: optimize schema and drop/recreate table
             schema = self.converter.schema_optimizer.optimize_table_schema(

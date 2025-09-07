@@ -68,7 +68,14 @@ class DirectInsertionStrategy(InsertionStrategy):
 
 
 class StagingTableStrategy(InsertionStrategy):
-    """Staging table approach to avoid DuckDB ART operator conflicts."""
+    """
+    Staging table approach to avoid DuckDB ART operator conflicts.
+    
+    This strategy is used for append operations where we need to add data to
+    an existing table. It creates a staging table, inserts new data there,
+    then uses UNION ALL to merge with the existing table atomically.
+    This avoids ART index conflicts that can occur with direct insertions.
+    """
 
     def insert(
         self,

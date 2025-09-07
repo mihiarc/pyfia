@@ -3,7 +3,7 @@ Comprehensive integration tests for pyFIA Phase 3 components.
 
 This test suite validates that all Phase 3 components work correctly together:
 1. Unified Configuration System (config.py)
-2. Query Builders (query_builders.py)
+2. Query Builders (builder.py)
 3. Join Optimizer (join_optimizer.py)
 4. End-to-end estimation workflows
 5. Performance improvements and memory usage
@@ -42,7 +42,7 @@ from pyfia.estimation.config import (
     VarianceMethod,
     VALID_FIA_GROUPING_COLUMNS
 )
-from pyfia.estimation.query_builders import (
+from pyfia.estimation.builder import (
     BaseQueryBuilder,
     QueryBuilderFactory,
     CompositeQueryBuilder,

@@ -11,7 +11,7 @@ import polars as pl
 
 from ..core import FIA
 from .config import ModuleEstimatorConfig, ConfigFactory
-from .base_estimator import BaseEstimator
+from .base import BaseEstimator
 from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation

@@ -12,7 +12,7 @@ import polars as pl
 from ..core import FIA
 from ..constants.constants import MathConstants, PlotBasis
 from .config import EstimatorConfig
-from .base_estimator import BaseEstimator
+from .base import BaseEstimator
 from .join import JoinManager, get_join_manager
 from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
 from .progress import OperationType, EstimatorProgressMixin

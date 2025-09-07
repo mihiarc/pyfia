@@ -5,7 +5,7 @@ This module provides high-level functions for estimating various forest
 attributes from FIA data, following FIA statistical procedures.
 """
 
-from .base_estimator import BaseEstimator
+from .base import BaseEstimator
 
 from .config import (
     EstimatorConfig,
@@ -24,7 +24,7 @@ from .biomass import biomass, BiomassEstimator
 from .growth import growth, GrowthEstimator
 from .mortality import mortality, MortalityEstimator
 from .tpa import tpa, TPAEstimator
-from .tree.tree import tree_count, tree_count_simple
+from .tree import tree_count, tree_count_simple
 from .volume import volume, VolumeEstimator
 
 # Lazy evaluation components
@@ -56,7 +56,7 @@ from .progress import (
 )
 
 # Query optimization components
-from .query_builders import (
+from .builder import (
     QueryBuilderFactory,
     CompositeQueryBuilder,
     BaseQueryBuilder,

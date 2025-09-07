@@ -27,7 +27,7 @@ from .aggregation import (
 )
 from .config import EstimatorConfig
 from .join import JoinManager, get_join_manager
-from .query_builders import CompositeQueryBuilder, LazyFrameWrapper, MemoryCache
+from .query_builders import CompositeQueryBuilder, FrameWrapper, MemoryCache
 
 
 @dataclass
@@ -117,41 +117,9 @@ class BaseEstimator(ABC):
         This replaces direct .join() calls with optimized versions.
         """
         result = self._join_manager.join(left, right, **kwargs)
-        # Convert LazyFrameWrapper back to LazyFrame for compatibility
+        # Convert FrameWrapper back to LazyFrame for compatibility
         return result.frame if hasattr(result, 'frame') else result
     
-    def _join_tree_plot(
-        self,
-        tree_df: Union[pl.DataFrame, pl.LazyFrame],
-        plot_df: Union[pl.DataFrame, pl.LazyFrame],
-        how: str = "inner"
-    ) -> pl.LazyFrame:
-        """Optimized tree-plot join."""
-        result = self._join_manager.join_tree_plot(tree_df, plot_df, how)
-        return result.frame if hasattr(result, 'frame') else result
-    
-    def _join_tree_condition(
-        self,
-        tree_df: Union[pl.DataFrame, pl.LazyFrame],
-        cond_df: Union[pl.DataFrame, pl.LazyFrame],
-        how: str = "inner"
-    ) -> pl.LazyFrame:
-        """Optimized tree-condition join."""
-        result = self._join_manager.join_tree_condition(tree_df, cond_df, how)
-        return result.frame if hasattr(result, 'frame') else result
-    
-    def _join_with_stratification(
-        self,
-        data_df: Union[pl.DataFrame, pl.LazyFrame],
-        ppsa_df: Union[pl.DataFrame, pl.LazyFrame],
-        pop_stratum_df: Union[pl.DataFrame, pl.LazyFrame],
-        data_name: str = "PLOT"
-    ) -> pl.LazyFrame:
-        """Optimized stratification join."""
-        result = self._join_manager.join_stratification(
-            data_df, ppsa_df, pop_stratum_df, data_name
-        )
-        return result.frame if hasattr(result, 'frame') else result
 
     # === Abstract Methods ===
 
@@ -230,23 +198,23 @@ class BaseEstimator(ABC):
 
             # Step 2: Get and filter data (lazy)
             self._update_progress("Filtering data...")
-            tree_wrapper, cond_wrapper = self._get_filtered_data_lazy()
+            tree_wrapper, cond_wrapper = self._get_filtered_data()
 
             # Step 3: Join and prepare data (lazy)
             self._update_progress("Preparing data...")
-            prepared_wrapper = self._prepare_estimation_data_lazy(tree_wrapper, cond_wrapper)
+            prepared_wrapper = self._prepare_estimation_data(tree_wrapper, cond_wrapper)
 
             # Step 4: Calculate module-specific values
             self._update_progress("Calculating values...")
-            valued_wrapper = self._calculate_values_lazy(prepared_wrapper)
+            valued_wrapper = self._calculate_values(prepared_wrapper)
 
             # Step 5: Calculate plot-level estimates (lazy)
             self._update_progress("Aggregating to plots...")
-            plot_wrapper = self._calculate_plot_estimates_lazy(valued_wrapper)
+            plot_wrapper = self._calculate_plot_estimates(valued_wrapper)
 
             # Step 6: Apply stratification (collection point)
             self._update_progress("Applying stratification...")
-            stratified_df = self._apply_stratification_lazy(plot_wrapper)
+            stratified_df = self._apply_stratification(plot_wrapper)
 
             # Step 7: Calculate population estimates
             self._update_progress("Calculating population estimates...")
@@ -274,13 +242,13 @@ class BaseEstimator(ABC):
         for table in self.get_required_tables():
             self.db.load_table(table)
 
-    def _get_filtered_data_lazy(self) -> Tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]:
+    def _get_filtered_data(self) -> Tuple[Optional[FrameWrapper], FrameWrapper]:
         """
         Get data from database using composite query builder.
         
         Returns
         -------
-        Tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]
+        Tuple[Optional[FrameWrapper], FrameWrapper]
             Filtered tree and condition frame wrappers
         """
         # Build estimation query using composite builder
@@ -315,7 +283,7 @@ class BaseEstimator(ABC):
                 getattr(self.config, 'land_type', None),
                 self.config.area_domain
             )
-            cond_wrapper = LazyFrameWrapper(pl.LazyFrame(cond_df))
+            cond_wrapper = FrameWrapper(pl.LazyFrame(cond_df))
 
         # Apply module-specific filters - ALWAYS apply for proper filtering
         # Convert to eager if needed
@@ -333,27 +301,27 @@ class BaseEstimator(ABC):
         tree_df, cond_df = self.apply_module_filters(tree_df, cond_df)
 
         # Convert back to lazy
-        tree_wrapper = LazyFrameWrapper(pl.LazyFrame(tree_df)) if tree_df is not None else None
-        cond_wrapper = LazyFrameWrapper(pl.LazyFrame(cond_df))
+        tree_wrapper = FrameWrapper(pl.LazyFrame(tree_df)) if tree_df is not None else None
+        cond_wrapper = FrameWrapper(pl.LazyFrame(cond_df))
 
         return tree_wrapper, cond_wrapper
 
-    def _prepare_estimation_data_lazy(self,
-                                     tree_wrapper: Optional[LazyFrameWrapper],
-                                     cond_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
+    def _prepare_estimation_data(self,
+                                     tree_wrapper: Optional[FrameWrapper],
+                                     cond_wrapper: FrameWrapper) -> FrameWrapper:
         """
         Join data and prepare for estimation using lazy evaluation.
         
         Parameters
         ----------
-        tree_wrapper : Optional[LazyFrameWrapper]
+        tree_wrapper : Optional[FrameWrapper]
             Tree data wrapper (None for area estimation)
-        cond_wrapper : LazyFrameWrapper
+        cond_wrapper : FrameWrapper
             Condition data wrapper
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Prepared data ready for value calculation
         """
         if tree_wrapper is not None:
@@ -370,7 +338,7 @@ class BaseEstimator(ABC):
                     on=["PLT_CN", "CONDID"],
                     how="inner"
                 )
-                joined = LazyFrameWrapper(joined_frame)
+                joined = FrameWrapper(joined_frame)
             else:
                 # Eager join
                 tree_df = tree_wrapper.frame
@@ -380,7 +348,7 @@ class BaseEstimator(ABC):
                     on=["PLT_CN", "CONDID"],
                     how="inner"
                 )
-                joined = LazyFrameWrapper(pl.LazyFrame(joined_df))
+                joined = FrameWrapper(pl.LazyFrame(joined_df))
 
             # Set up grouping columns
             if self.config.grp_by or self.config.by_species or self.config.by_size_class:
@@ -394,7 +362,7 @@ class BaseEstimator(ABC):
                     return_dataframe=True
                 )
                 self._group_cols = group_cols
-                return LazyFrameWrapper(pl.LazyFrame(data_df))
+                return FrameWrapper(pl.LazyFrame(data_df))
             else:
                 self._group_cols = []
                 return joined
@@ -411,18 +379,18 @@ class BaseEstimator(ABC):
 
             return cond_wrapper
 
-    def _calculate_values_lazy(self, data_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
+    def _calculate_values(self, data_wrapper: FrameWrapper) -> FrameWrapper:
         """
         Calculate module-specific values with lazy evaluation support.
         
         Parameters
         ----------
-        data_wrapper : LazyFrameWrapper
+        data_wrapper : FrameWrapper
             Prepared data wrapper
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Data with calculated values
         """
         # Some calculations may require eager mode
@@ -437,22 +405,22 @@ class BaseEstimator(ABC):
 
         # Return as lazy frame for continued processing
         if isinstance(valued_df, pl.LazyFrame):
-            return LazyFrameWrapper(valued_df)
+            return FrameWrapper(valued_df)
         else:
-            return LazyFrameWrapper(pl.LazyFrame(valued_df))
+            return FrameWrapper(pl.LazyFrame(valued_df))
 
-    def _calculate_plot_estimates_lazy(self, data_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
+    def _calculate_plot_estimates(self, data_wrapper: FrameWrapper) -> FrameWrapper:
         """
         Calculate plot-level estimates using lazy aggregation.
         
         Parameters
         ----------
-        data_wrapper : LazyFrameWrapper
+        data_wrapper : FrameWrapper
             Data with calculated values
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Plot-level estimates
         """
         # Determine grouping columns
@@ -485,13 +453,13 @@ class BaseEstimator(ABC):
 
         return plot_estimates
 
-    def _apply_stratification_lazy(self, plot_wrapper: LazyFrameWrapper) -> pl.DataFrame:
+    def _apply_stratification(self, plot_wrapper: FrameWrapper) -> pl.DataFrame:
         """
         Apply stratification and calculate expansion factors.
         
         Parameters
         ----------
-        plot_wrapper : LazyFrameWrapper
+        plot_wrapper : FrameWrapper
             Plot-level estimates
             
         Returns

@@ -13,7 +13,7 @@ from ..core import FIA
 from .config import EstimatorConfig
 from .config import MortalityConfig
 from .base_estimator import BaseEstimator
-from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from ..filters.common import apply_area_filters, apply_tree_filters
@@ -162,22 +162,22 @@ class MortalityEstimator(BaseEstimator):
                 
                 return result
     
-    @lazy_operation("get_filtered_data", cache_key_params=["tree_domain", "area_domain"])
-    def _get_filtered_data(self) -> tuple[LazyFrameWrapper, LazyFrameWrapper]:
+    @operation("get_filtered_data", cache_key_params=["tree_domain", "area_domain"])
+    def _get_filtered_data(self) -> tuple[FrameWrapper, FrameWrapper]:
         """
         Get data from database and apply filters using lazy evaluation.
         
         Returns
         -------
-        tuple[LazyFrameWrapper, LazyFrameWrapper]
+        tuple[FrameWrapper, FrameWrapper]
             Tuple of (tree_wrapper, cond_wrapper) with filtered lazy data
         """
         # Get condition data lazily
-        cond_wrapper = self.get_conditions_lazy()
+        cond_wrapper = self.get_conditions()
         
         # Apply area filters lazily
         if self.mortality_config.area_domain:
-            cond_wrapper = self.apply_filters_lazy(
+            cond_wrapper = self.apply_filters(
                 cond_wrapper,
                 filter_expr=self.mortality_config.area_domain
             )
@@ -186,14 +186,14 @@ class MortalityEstimator(BaseEstimator):
         if self.mortality_config.land_type != "all":
             land_filter = self._get_land_type_filter(self.mortality_config.land_type)
             if land_filter:
-                cond_wrapper = self.apply_filters_lazy(cond_wrapper, filter_expr=land_filter)
+                cond_wrapper = self.apply_filters(cond_wrapper, filter_expr=land_filter)
         
         # Get tree data lazily
-        tree_wrapper = self.get_trees_lazy()
+        tree_wrapper = self.get_trees()
         
         # Apply tree filters lazily
         if self.mortality_config.tree_domain:
-            tree_wrapper = self.apply_filters_lazy(
+            tree_wrapper = self.apply_filters(
                 tree_wrapper,
                 filter_expr=self.mortality_config.tree_domain
             )
@@ -202,33 +202,33 @@ class MortalityEstimator(BaseEstimator):
         if self.mortality_config.tree_class != "all":
             tree_filter = self._get_tree_class_filter(self.mortality_config.tree_class)
             if tree_filter:
-                tree_wrapper = self.apply_filters_lazy(tree_wrapper, filter_expr=tree_filter)
+                tree_wrapper = self.apply_filters(tree_wrapper, filter_expr=tree_filter)
         
         return tree_wrapper, cond_wrapper
     
-    @lazy_operation("prepare_estimation_data")
+    @operation("prepare_estimation_data")
     def _prepare_estimation_data(
         self,
-        tree_wrapper: LazyFrameWrapper,
-        cond_wrapper: LazyFrameWrapper
-    ) -> LazyFrameWrapper:
+        tree_wrapper: FrameWrapper,
+        cond_wrapper: FrameWrapper
+    ) -> FrameWrapper:
         """
         Join data and prepare for estimation using lazy evaluation.
         
         Parameters
         ----------
-        tree_wrapper : LazyFrameWrapper
+        tree_wrapper : FrameWrapper
             Tree data wrapper
-        cond_wrapper : LazyFrameWrapper
+        cond_wrapper : FrameWrapper
             Condition data wrapper
         
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Prepared data ready for calculation
         """
         # Select only needed columns from conditions
-        cond_select_wrapper = self.select_columns_lazy(
+        cond_select_wrapper = self.select_columns(
             cond_wrapper,
             ["PLT_CN", "CONDID", "CONDPROP_UNADJ"]
         )
@@ -248,7 +248,7 @@ class MortalityEstimator(BaseEstimator):
         pop_stratum_wrapper = self._get_pop_stratum()
         
         # Join with stratum data
-        strat_select_wrapper = self.select_columns_lazy(
+        strat_select_wrapper = self.select_columns(
             pop_stratum_wrapper,
             ["CN", "EXPNS"]
         )
@@ -283,25 +283,25 @@ class MortalityEstimator(BaseEstimator):
         
         return data_wrapper
     
-    @lazy_operation("calculate_plot_mortality", cache_key_params=["group_cols"])
+    @operation("calculate_plot_mortality", cache_key_params=["group_cols"])
     def _calculate_plot_mortality(
         self,
-        data_wrapper: LazyFrameWrapper,
+        data_wrapper: FrameWrapper,
         group_cols: Optional[List[str]] = None
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Calculate plot-level mortality using lazy evaluation.
         
         Parameters
         ----------
-        data_wrapper : LazyFrameWrapper
+        data_wrapper : FrameWrapper
             DataFrame wrapper with tree and plot data
         group_cols : Optional[List[str]]
             Optional grouping columns
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Plot-level mortality wrapper
         """
         # Define mortality column based on type
@@ -321,7 +321,7 @@ class MortalityEstimator(BaseEstimator):
         ]
         
         # Aggregate using lazy evaluation
-        plot_mortality_wrapper = self.aggregate_lazy(
+        plot_mortality_wrapper = self.aggregate(
             data_wrapper,
             group_by,
             agg_exprs
@@ -329,25 +329,25 @@ class MortalityEstimator(BaseEstimator):
         
         return plot_mortality_wrapper
     
-    @lazy_operation("calculate_stratum_mortality", cache_key_params=["group_cols"])
+    @operation("calculate_stratum_mortality", cache_key_params=["group_cols"])
     def _calculate_stratum_mortality(
         self,
-        plot_wrapper: LazyFrameWrapper,
+        plot_wrapper: FrameWrapper,
         group_cols: Optional[List[str]] = None
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Calculate stratum-level mortality using lazy evaluation.
         
         Parameters
         ----------
-        plot_wrapper : LazyFrameWrapper
+        plot_wrapper : FrameWrapper
             Plot-level mortality wrapper
         group_cols : Optional[List[str]]
             Optional grouping columns
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Stratum-level mortality wrapper
         """
         # Build grouping columns
@@ -367,7 +367,7 @@ class MortalityEstimator(BaseEstimator):
         ]
         
         # Aggregate using lazy evaluation
-        stratum_mortality_wrapper = self.aggregate_lazy(
+        stratum_mortality_wrapper = self.aggregate(
             plot_wrapper,
             group_by,
             agg_exprs
@@ -377,8 +377,8 @@ class MortalityEstimator(BaseEstimator):
     
     def _calculate_population_mortality(
         self,
-        stratum_wrapper: LazyFrameWrapper,
-        pop_stratum_wrapper: LazyFrameWrapper,
+        stratum_wrapper: FrameWrapper,
+        pop_stratum_wrapper: FrameWrapper,
         group_cols: Optional[List[str]] = None
     ) -> pl.DataFrame:
         """
@@ -388,9 +388,9 @@ class MortalityEstimator(BaseEstimator):
         
         Parameters
         ----------
-        stratum_wrapper : LazyFrameWrapper
+        stratum_wrapper : FrameWrapper
             Stratum-level mortality wrapper
-        pop_stratum_wrapper : LazyFrameWrapper
+        pop_stratum_wrapper : FrameWrapper
             Population stratum wrapper
         group_cols : Optional[List[str]]
             Optional grouping columns
@@ -401,7 +401,7 @@ class MortalityEstimator(BaseEstimator):
             Population-level mortality estimates
         """
         # Select needed columns from pop_stratum
-        pop_select = self.select_columns_lazy(
+        pop_select = self.select_columns(
             pop_stratum_wrapper,
             ["CN", "P2POINTCNT", "P1POINTCNT", "EXPNS"]
         )
@@ -440,7 +440,7 @@ class MortalityEstimator(BaseEstimator):
             ])
         
         # Aggregate
-        pop_mortality_wrapper = self.aggregate_lazy(
+        pop_mortality_wrapper = self.aggregate(
             data_wrapper,
             group_by,
             agg_exprs
@@ -493,7 +493,7 @@ class MortalityEstimator(BaseEstimator):
         
         return self._ref_species_cache
     
-    def _get_ppsa(self) -> LazyFrameWrapper:
+    def _get_ppsa(self) -> FrameWrapper:
         """Get plot-stratum assignments lazily."""
         if self._ppsa_cache is None:
             ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
@@ -504,9 +504,9 @@ class MortalityEstimator(BaseEstimator):
             
             self._ppsa_cache = ppsa if isinstance(ppsa, pl.LazyFrame) else ppsa.lazy()
         
-        return LazyFrameWrapper(self._ppsa_cache)
+        return FrameWrapper(self._ppsa_cache)
     
-    def _get_pop_stratum(self) -> LazyFrameWrapper:
+    def _get_pop_stratum(self) -> FrameWrapper:
         """Get population stratum data lazily."""
         if self._pop_stratum_cache is None:
             pop_stratum = self.db.tables["POP_STRATUM"]
@@ -515,7 +515,7 @@ class MortalityEstimator(BaseEstimator):
                 else pop_stratum.lazy()
             )
         
-        return LazyFrameWrapper(self._pop_stratum_cache)
+        return FrameWrapper(self._pop_stratum_cache)
     
     def _get_mortality_column(self) -> str:
         """Get appropriate mortality column based on configuration."""

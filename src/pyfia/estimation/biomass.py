@@ -13,7 +13,7 @@ from ..core import FIA
 from ..constants.constants import MathConstants
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
-from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 
@@ -87,7 +87,7 @@ class BiomassEstimator(BaseEstimator):
             "CARB_TOTAL": "CARB_TOTAL"
         }
     
-    @lazy_operation("calculate_biomass_values", cache_key_params=["component"])
+    @operation("calculate_biomass_values", cache_key_params=["component"])
     def calculate_values(self, data: Union[pl.DataFrame, pl.LazyFrame]) -> pl.LazyFrame:
         """
         Calculate biomass values per acre using lazy evaluation.
@@ -114,21 +114,21 @@ class BiomassEstimator(BaseEstimator):
         # Track operation progress
         with self._track_operation(OperationType.COMPUTE, "Calculate biomass values"):
             # Step 1: Apply biomass component calculations
-            lazy_data = self._calculate_biomass_component_lazy(lazy_data)
+            lazy_data = self._calculate_biomass_component(lazy_data)
             self._update_progress(description="Biomass component calculated")
             
             # Step 2: Calculate biomass per acre
-            lazy_data = self._calculate_biomass_per_acre_lazy(lazy_data)
+            lazy_data = self._calculate_biomass_per_acre(lazy_data)
             self._update_progress(description="Per-acre biomass calculated")
             
             # Step 3: Calculate carbon values (47% of biomass)
-            lazy_data = self._calculate_carbon_values_lazy(lazy_data)
+            lazy_data = self._calculate_carbon_values(lazy_data)
             self._update_progress(description="Carbon values calculated")
         
         return lazy_data
     
-    @lazy_operation("calculate_biomass_component")
-    def _calculate_biomass_component_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("calculate_biomass_component")
+    def _calculate_biomass_component(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate biomass component values using lazy evaluation.
         
@@ -186,8 +186,8 @@ class BiomassEstimator(BaseEstimator):
         
         return lazy_data
     
-    @lazy_operation("calculate_biomass_per_acre")
-    def _calculate_biomass_per_acre_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("calculate_biomass_per_acre")
+    def _calculate_biomass_per_acre(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate biomass per acre using lazy evaluation.
         
@@ -212,8 +212,8 @@ class BiomassEstimator(BaseEstimator):
         
         return lazy_data
     
-    @lazy_operation("calculate_carbon_values")
-    def _calculate_carbon_values_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("calculate_carbon_values")
+    def _calculate_carbon_values(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate carbon values as 47% of biomass.
         
@@ -254,7 +254,7 @@ class BiomassEstimator(BaseEstimator):
         return component_map.get(component, f"DRYBIO_{component}")
     
     @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data_lazy(self) -> pl.LazyFrame:
+    def _get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
         
@@ -265,7 +265,7 @@ class BiomassEstimator(BaseEstimator):
         """
         # Load and cache PPSA data
         if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table_lazy("POP_PLOT_STRATUM_ASSGN")
+            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
             
             if self.db.evalid:
                 ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
@@ -274,7 +274,7 @@ class BiomassEstimator(BaseEstimator):
         
         # Load and cache POP_STRATUM data
         if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table_lazy("POP_STRATUM")
+            pop_stratum_lazy = self.load_table("POP_STRATUM")
             
             if self.db.evalid:
                 pop_stratum_lazy = pop_stratum_lazy.filter(

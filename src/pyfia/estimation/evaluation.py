@@ -295,7 +295,7 @@ class LazyEstimatorMixin:
             return lazy_frame.collect()
     
     @staticmethod
-    def lazy_operation(operation_name: str, 
+    def operation(operation_name: str, 
                       cache_key_params: Optional[List[str]] = None,
                       supports_lazy: bool = True):
         """
@@ -396,7 +396,7 @@ class LazyEstimatorMixin:
         return decorator
 
 
-class LazyFrameWrapper:
+class FrameWrapper:
     """
     Wrapper for frame-agnostic operations that work with both DataFrame and LazyFrame.
     
@@ -445,7 +445,7 @@ class LazyFrameWrapper:
                        operation: Callable,
                        *args,
                        maintain_type: bool = True,
-                       **kwargs) -> 'LazyFrameWrapper':
+                       **kwargs) -> 'FrameWrapper':
         """
         Apply an operation to the frame while maintaining type consistency.
         
@@ -462,7 +462,7 @@ class LazyFrameWrapper:
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             New wrapper with the result
         """
         result = operation(self._frame, *args, **kwargs)
@@ -473,7 +473,7 @@ class LazyFrameWrapper:
         elif maintain_type and self._is_lazy and isinstance(result, pl.DataFrame):
             result = result.lazy()
         
-        return LazyFrameWrapper(result)
+        return FrameWrapper(result)
     
     def __getattr__(self, name: str) -> Any:
         """Delegate attribute access to the underlying frame."""
@@ -481,7 +481,7 @@ class LazyFrameWrapper:
 
 
 # Export the decorator for external use
-lazy_operation = LazyEstimatorMixin.lazy_operation
+operation = LazyEstimatorMixin.operation
 
 
 class LazyConfigMixin(BaseModel):
@@ -509,7 +509,7 @@ class LazyConfigMixin(BaseModel):
         description="Maximum number of parallel collections"
     )
     
-    cache_lazy_operations: bool = Field(
+    cache_operations: bool = Field(
         default=True,
         description="Cache results of lazy operations"
     )

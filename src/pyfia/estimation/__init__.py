@@ -29,11 +29,11 @@ from .tree.tree import tree_count, tree_count_simple
 from .volume import volume, VolumeEstimator
 
 # Lazy evaluation components
-from .lazy_evaluation import (
+from .evaluation import (
     LazyComputationNode,
     LazyEstimatorMixin,
-    LazyFrameWrapper,
-    lazy_operation,
+    FrameWrapper,
+    operation,
     CollectionStrategy,
     LazyConfigMixin,
 )
@@ -44,7 +44,7 @@ from .caching import (
     LazyFrameCache,
     QueryPlanCache,
     cached_operation,
-    cached_lazy_operation,
+    cached_operation,
     CacheConfig,
 )
 
@@ -125,8 +125,8 @@ __all__ = [
     # Lazy evaluation
     "LazyComputationNode",
     "LazyEstimatorMixin",
-    "LazyFrameWrapper",
-    "lazy_operation",
+    "FrameWrapper",
+    "operation",
     "CollectionStrategy",
     
     # Caching
@@ -135,7 +135,7 @@ __all__ = [
     "LazyFrameCache",
     "QueryPlanCache",
     "cached_operation",
-    "cached_lazy_operation",
+    "cached_operation",
     
     # Progress tracking
     "LazyOperationProgress",

@@ -76,26 +76,25 @@ from .query_builders import (
     QueryColumn,
     QueryFilter,
     QueryJoin,
-    JoinStrategy,
+    QueryJoinStrategy,
     FilterPushDownLevel,
 )
 
-from .join_optimizer import (
+from .join import (
+    JoinManager,
     JoinOptimizer,
-    OptimizedQueryExecutor,
-    JoinNode,
-    JoinCostEstimator,
-    FilterPushDown,
-    JoinRewriter,
-    FIAJoinPatterns,
+    JoinPlan,
     JoinType,
-    JoinStatistics,
+    JoinStrategy,
+    TableStatistics,
+    FIATableInfo,
+    get_join_manager,
+    optimized_join,
 )
 
 __all__ = [
     # Base classes
     "BaseEstimator",
-    "LazyBaseEstimator",
     
     # Configs
     "EstimatorConfig",
@@ -168,17 +167,17 @@ __all__ = [
     "QueryColumn",
     "QueryFilter",
     "QueryJoin",
-    "JoinStrategy",
+    "QueryJoinStrategy",
     "FilterPushDownLevel",
     
     # Join optimization
+    "JoinManager",
     "JoinOptimizer",
-    "OptimizedQueryExecutor",
-    "JoinNode",
-    "JoinCostEstimator",
-    "FilterPushDown",
-    "JoinRewriter",
-    "FIAJoinPatterns",
+    "JoinPlan",
     "JoinType",
-    "JoinStatistics",
+    "JoinStrategy",
+    "TableStatistics",
+    "FIATableInfo",
+    "get_join_manager",
+    "optimized_join",
 ]

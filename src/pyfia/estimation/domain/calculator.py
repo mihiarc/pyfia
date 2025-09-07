@@ -11,6 +11,7 @@ from typing import Dict, Optional, Any
 import polars as pl
 
 from ...constants.constants import LandStatus
+from ...filters.domain_parser import DomainExpressionParser
 from .land_types import LandTypeClassifier
 
 
@@ -131,7 +132,9 @@ class DomainIndicatorCalculator:
         tree_df = self.data_cache["TREE"]
         
         # Filter trees by domain
-        qualifying_trees = tree_df.filter(pl.sql_expr(self.tree_domain))
+        qualifying_trees = DomainExpressionParser.apply_to_dataframe(
+            tree_df, self.tree_domain, "tree"
+        )
         
         # Get unique PLT_CN/CONDID combinations with qualifying trees
         qualifying_conds = (
@@ -191,12 +194,10 @@ class DomainIndicatorCalculator:
         """
         if self.area_domain is not None:
             # Apply area domain filtering as an indicator
-            return cond_df.with_columns(
-                pl.when(pl.sql_expr(self.area_domain))
-                .then(1)
-                .otherwise(0)
-                .alias("aD")
+            indicator_expr = DomainExpressionParser.create_indicator(
+                self.area_domain, "area", "aD"
             )
+            return cond_df.with_columns(indicator_expr)
         else:
             # No area domain filtering - all conditions qualify
             return cond_df.with_columns(pl.lit(1).alias("aD"))

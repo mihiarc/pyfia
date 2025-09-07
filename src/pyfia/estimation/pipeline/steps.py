@@ -20,7 +20,7 @@ from ...filters.common import (
 from ..config import EstimatorConfig
 from ..lazy_evaluation import LazyFrameWrapper
 from ..query_builders import QueryBuilderFactory, CompositeQueryBuilder
-from ..join_optimizer import JoinOptimizer, OptimizedQueryExecutor
+from ..join import JoinManager, JoinOptimizer
 from ..caching import MemoryCache
 
 from .core import (
@@ -458,31 +458,25 @@ class JoinDataStep(PipelineStep[FilteredDataContract, JoinedDataContract]):
             
             # Use optimized join if available
             if self.join_strategy == "optimized":
-                # Initialize join optimizer
+                # Initialize join manager
                 cache = MemoryCache(max_size_mb=256, max_entries=100) 
-                join_optimizer = JoinOptimizer(context.config, cache)
+                join_manager = JoinManager(config=context.config, cache=cache)
                 
                 # Convert to LazyFrameWrapper for optimizer
                 tree_wrapper = LazyFrameWrapper(tree_df.lazy())
                 cond_wrapper = LazyFrameWrapper(cond_df.lazy())
                 
-                # Create join node
-                from ..join_optimizer import JoinNode, JoinType
-                join_node = JoinNode(
-                    node_id="tree_cond_join",
-                    left_input="TREE",
-                    right_input="COND",
-                    join_keys_left=["PLT_CN", "CONDID"],
-                    join_keys_right=["PLT_CN", "CONDID"],
-                    join_type=JoinType.INNER,
-                    strategy=join_optimizer._determine_join_strategy(tree_wrapper, cond_wrapper)
-                )
-                
                 # Execute optimized join
-                joined_wrapper = join_optimizer.execute_optimized_join(
-                    tree_wrapper, cond_wrapper, join_node
+                joined_wrapper = join_manager.join(
+                    tree_wrapper,
+                    cond_wrapper,
+                    left_on=["PLT_CN", "CONDID"],
+                    right_on=["PLT_CN", "CONDID"],
+                    how="inner",
+                    left_name="TREE",
+                    right_name="COND"
                 )
-                joined_df = joined_wrapper.collect()
+                joined_df = joined_wrapper.collect() if hasattr(joined_wrapper, 'collect') else joined_wrapper
             else:
                 # Standard join
                 joined_df = tree_df.join(

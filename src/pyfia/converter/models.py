@@ -148,7 +148,15 @@ class ConverterConfig(BaseSettings):
     )
     append_mode: bool = Field(
         default=False,
-        description="Append to existing database instead of overwriting"
+        description="Append data to existing tables without removing existing data"
+    )
+    dedupe_on_append: bool = Field(
+        default=False,
+        description="Remove duplicate records when appending based on dedupe_keys"
+    )
+    dedupe_keys: Optional[List[str]] = Field(
+        default=None,
+        description="Column names to use for identifying duplicates during append (e.g., ['CN'] for unique records)"
     )
 
     # State filtering

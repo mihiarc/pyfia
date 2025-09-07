@@ -1,8 +1,8 @@
 #!/usr/bin/env python
 """
-Demonstration of the JoinOptimizer for pyFIA Phase 3.
+Demonstration of the JoinManager for pyFIA.
 
-This example shows how the JoinOptimizer improves performance for complex
+This example shows how the JoinManager improves performance for complex
 FIA queries by optimizing join order, pushing filters, and selecting
 appropriate join strategies.
 """
@@ -16,13 +16,15 @@ from rich.table import Table
 from rich.panel import Panel
 
 # Import pyFIA components
-from pyfia.estimation.join_optimizer import (
+from pyfia.estimation.join import (
+    JoinManager,
     JoinOptimizer,
-    JoinNode,
+    JoinPlan,
     JoinType,
-    JoinStatistics,
-    FIAJoinPatterns,
-    OptimizedQueryExecutor
+    JoinStrategy as JoinStrategyType,
+    TableStatistics,
+    FIATableInfo,
+    get_join_manager
 )
 from pyfia.estimation.query_builders import (
     QueryPlan,

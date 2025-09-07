@@ -30,7 +30,7 @@ from pyfia import FIA
 from pyfia.estimation import (
     area, biomass, tpa, volume, growth, mortality
 )
-from pyfia.estimation.base import EstimatorConfig
+from pyfia.estimation.config import EstimatorConfig
 
 
 class TestIntegratedLazyEstimators:

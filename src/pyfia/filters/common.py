@@ -11,6 +11,8 @@ from typing import List, Optional, Union
 
 import polars as pl
 
+from .domain_parser import DomainExpressionParser
+from .grouping import create_size_class_expr
 from pyfia.constants import (
     DiameterBreakpoints,
     LandStatus,
@@ -127,11 +129,7 @@ def apply_tree_filters_common(
 
     # Apply user-defined tree domain
     if tree_domain:
-        try:
-            tree_df = tree_df.filter(pl.sql_expr(tree_domain))
-        except Exception as exc:
-            # Normalize parsing errors to ValueError for consistent error handling in tests
-            raise ValueError(f"Invalid tree_domain expression: {tree_domain}") from exc
+        tree_df = DomainExpressionParser.apply_to_dataframe(tree_df, tree_domain, "tree")
 
     return tree_df
 
@@ -198,10 +196,7 @@ def apply_area_filters_common(
     # Apply user-defined area domain
     # In area estimation mode, area domain is handled through domain indicators
     if area_domain and not area_estimation_mode:
-        try:
-            cond_df = cond_df.filter(pl.sql_expr(area_domain))
-        except Exception as exc:
-            raise ValueError(f"Invalid area_domain expression: {area_domain}") from exc
+        cond_df = DomainExpressionParser.apply_to_dataframe(cond_df, area_domain, "area")
 
     return cond_df
 
@@ -282,19 +277,9 @@ def setup_grouping_columns_common(
 
     # Add size class grouping
     if by_size_class:
-        # Add size class based on diameter (following FIA standards)
-        data_df = data_df.with_columns(
-            pl.when(pl.col("DIA") < 5.0)
-            .then(pl.lit("1.0-4.9"))
-            .when(pl.col("DIA") < 10.0)
-            .then(pl.lit("5.0-9.9"))
-            .when(pl.col("DIA") < 20.0)
-            .then(pl.lit("10.0-19.9"))
-            .when(pl.col("DIA") < 30.0)
-            .then(pl.lit("20.0-29.9"))
-            .otherwise(pl.lit("30.0+"))
-            .alias("SIZE_CLASS")
-        )
+        # Use centralized size class function from grouping module
+        size_class_expr = create_size_class_expr("DIA", "standard")
+        data_df = data_df.with_columns(size_class_expr)
         group_cols.append("SIZE_CLASS")
 
     # Return based on requested format

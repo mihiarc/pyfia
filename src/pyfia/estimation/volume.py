@@ -184,10 +184,13 @@ class VolumeEstimator(BaseEstimator):
         plots_subset = plots_subset.rename({"CN": "PLT_CN"})
         
         # Perform lazy join
-        return lazy_data.join(
+        return self._optimized_join(
+            lazy_data,
             plots_subset,
             on="PLT_CN",
-            how="left"
+            how="left",
+            left_name="TREE",
+            right_name="PLOT"
         )
     
     @lazy_operation("attach_stratum_adjustments")
@@ -218,10 +221,13 @@ class VolumeEstimator(BaseEstimator):
         ]).unique()
         
         # Perform lazy join
-        return lazy_data.join(
+        return self._optimized_join(
+            lazy_data,
             strat_subset,
             on="PLT_CN",
-            how="left"
+            how="left",
+            left_name="TREE",
+            right_name="STRATIFICATION"
         )
     
     @cached_operation("stratification_data")
@@ -256,13 +262,16 @@ class VolumeEstimator(BaseEstimator):
             self._pop_stratum_cache = pop_stratum_lazy
         
         # Join lazily
-        strat_lazy = self._ppsa_cache.join(
+        strat_lazy = self._optimized_join(
+            self._ppsa_cache,
             self._pop_stratum_cache.select([
                 "CN", "EXPNS", 
                 "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
             ]).rename({"CN": "STRATUM_CN"}),
             on="STRATUM_CN",
-            how="inner"
+            how="inner",
+            left_name="POP_PLOT_STRATUM_ASSGN",
+            right_name="POP_STRATUM"
         )
         
         return strat_lazy
@@ -385,11 +394,15 @@ class VolumeEstimator(BaseEstimator):
                 # Select only needed columns for join
                 species_subset = species.select(["SPCD", "WOODLAND"])
                 
-                tree_df = tree_df.join(
+                tree_df = self._optimized_join(
+                    tree_df,
                     species_subset,
                     on="SPCD",
-                    how="left"
-                ).filter(pl.col("WOODLAND") == "N")
+                    how="left",
+                    left_name="TREE",
+                    right_name="REF_SPECIES"
+                ).collect()
+                tree_df = tree_df.filter(pl.col("WOODLAND") == "N")
         except Exception:
             # If reference table not available, proceed without filter
             pass

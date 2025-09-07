@@ -20,7 +20,7 @@ import time
 import polars as pl
 
 from ...lazy_evaluation import LazyFrameWrapper
-from ...join_optimizer import JoinOptimizer, JoinNode
+from ...join import JoinManager, JoinOptimizer
 from ..core import ExecutionContext, PipelineException
 from ..contracts import FilteredDataContract, JoinedDataContract
 from ..base_steps import JoiningStep
@@ -361,30 +361,34 @@ class JoinTreePlotStep(JoiningStep):
         plot_frame: pl.LazyFrame,
         context: ExecutionContext
     ) -> pl.LazyFrame:
-        """Perform optimized join using join optimizer."""
-        # Create join optimizer
-        optimizer = JoinOptimizer()
+        """Perform optimized join using join manager."""
+        # Create join manager
+        from ...caching import MemoryCache
+        cache = MemoryCache(max_size_mb=256, max_entries=100)
+        join_manager = JoinManager(config=context.config, cache=cache)
         
-        # Create join nodes
-        tree_node = JoinNode("TREE", estimated_rows=1000000)  # Estimate
-        plot_node = JoinNode("PLOT", estimated_rows=10000)    # Estimate
+        # Wrap frames
+        tree_wrapper = LazyFrameWrapper(tree_frame)
+        plot_wrapper = LazyFrameWrapper(plot_frame)
         
-        # Add to graph
-        optimizer.add_table(tree_node)
-        optimizer.add_table(plot_node)
-        optimizer.add_join(tree_node, plot_node, ["PLT_CN"])
-        
-        # Get optimal plan
-        join_order = optimizer.get_optimal_join_order()
+        # Execute optimized join
+        result = join_manager.join(
+            tree_wrapper,
+            plot_wrapper,
+            on="PLT_CN",
+            how="inner",
+            left_name="TREE",
+            right_name="PLOT"
+        )
         
         if context.debug:
             warnings.warn(
-                f"Using optimized join order: {' -> '.join(join_order)}",
+                f"Optimized join completed for TREE-PLOT",
                 category=UserWarning
             )
         
-        # Execute join
-        return tree_frame.join(plot_frame, on="PLT_CN", how="inner")
+        # Return the frame
+        return result.frame if hasattr(result, 'frame') else result
 
 
 class JoinTreeConditionStep(JoiningStep):
@@ -770,42 +774,51 @@ class OptimizedMultiJoinStep(JoiningStep):
                     step_id=self.step_id
                 )
             
-            # Create join optimizer
-            optimizer = JoinOptimizer()
+            # Create join manager
+            from ...caching import MemoryCache
+            cache = MemoryCache(max_size_mb=256, max_entries=100)
+            join_manager = JoinManager(config=context.config, cache=cache)
             
-            # Add tables to optimizer with cardinality estimates
-            table_nodes = {}
+            # Wrap tables
+            wrapped_tables = {}
             for table_name, frame in available_tables.items():
-                if self.estimate_cardinalities:
-                    # Estimate cardinality
-                    if isinstance(frame, pl.LazyFrame):
-                        cardinality = frame.select(pl.count()).collect().item()
-                    else:
-                        cardinality = len(frame)
-                else:
-                    # Use default estimates
-                    cardinality = {"TREE": 1000000, "COND": 100000, "PLOT": 10000}.get(table_name, 50000)
+                if not isinstance(frame, pl.LazyFrame):
+                    frame = frame.lazy()
+                wrapped_tables[table_name] = LazyFrameWrapper(frame)
+            
+            # Execute joins sequentially (join manager will optimize internally)
+            # Start with the first table
+            tables_list = list(wrapped_tables.keys())
+            result_frame = wrapped_tables[tables_list[0]]
+            
+            # Join remaining tables
+            for i in range(1, len(tables_list)):
+                right_table = tables_list[i]
+                # Find join keys for this pair
+                join_keys = None
+                for (t1, t2), keys in self.join_keys.items():
+                    if (tables_list[0] in [t1, t2]) and (right_table in [t1, t2]):
+                        join_keys = keys
+                        break
                 
-                node = JoinNode(table_name, estimated_rows=cardinality)
-                table_nodes[table_name] = node
-                optimizer.add_table(node)
-            
-            # Add joins to optimizer
-            for (table1, table2), keys in self.join_keys.items():
-                if table1 in table_nodes and table2 in table_nodes:
-                    optimizer.add_join(table_nodes[table1], table_nodes[table2], keys)
-            
-            # Get optimal join order
-            join_order = optimizer.get_optimal_join_order()
+                if join_keys:
+                    result_frame = join_manager.join(
+                        result_frame,
+                        wrapped_tables[right_table],
+                        on=join_keys if isinstance(join_keys, list) else [join_keys],
+                        how="inner",
+                        left_name=tables_list[0],
+                        right_name=right_table
+                    )
             
             if context.debug:
                 warnings.warn(
-                    f"Optimal join order: {' -> '.join(join_order)}",
+                    f"Multi-table join completed using optimized join manager",
                     category=UserWarning
                 )
             
-            # Execute joins in optimal order
-            result_frame = self._execute_join_plan(available_tables, join_order, context)
+            # Get the lazy frame
+            result_frame = result_frame.frame if hasattr(result_frame, 'frame') else result_frame
             
             join_time = time.time() - start_time
             

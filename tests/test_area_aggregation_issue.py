@@ -72,7 +72,7 @@ def test_area_lazy_collection_points(sample_fia_instance):
     
     with sample_fia_instance as db:
         from pyfia.estimation import AreaEstimator
-        from pyfia.estimation.base import EstimatorConfig
+        from pyfia.estimation.config import EstimatorConfig
         
         # Create estimator with by_land_type
         config = EstimatorConfig(by_land_type=True)

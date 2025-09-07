@@ -26,7 +26,7 @@ from .aggregation import (
     UnifiedEstimationWorkflow,
 )
 from .config import EstimatorConfig
-from .join_optimizer import JoinOptimizer
+from .join import JoinManager, get_join_manager
 from .query_builders import CompositeQueryBuilder, LazyFrameWrapper, MemoryCache
 from .statistics.variance_calculator import VarianceCalculator
 
@@ -90,7 +90,13 @@ class BaseEstimator(ABC):
             self.config,
             cache=MemoryCache(max_size_mb=512, max_entries=200)
         )
-        self._join_optimizer = JoinOptimizer()
+        # Use the new JoinManager instead of JoinOptimizer
+        self._join_manager = JoinManager(
+            config=self.config,
+            cache=MemoryCache(max_size_mb=256),
+            enable_optimization=True,
+            enable_caching=True
+        )
         self._metrics = EstimationMetrics()
 
         # Variance calculator
@@ -100,6 +106,56 @@ class BaseEstimator(ABC):
         self.console = Console()
         self._progress: Optional[Progress] = None
         self._task_id: Optional[int] = None
+
+    # === Join Helper Methods (using new JoinManager) ===
+    
+    def _optimized_join(
+        self,
+        left: Union[pl.DataFrame, pl.LazyFrame],
+        right: Union[pl.DataFrame, pl.LazyFrame],
+        **kwargs
+    ) -> pl.LazyFrame:
+        """
+        Perform an optimized join using the JoinManager.
+        
+        This replaces direct .join() calls with optimized versions.
+        """
+        result = self._join_manager.join(left, right, **kwargs)
+        # Convert LazyFrameWrapper back to LazyFrame for compatibility
+        return result.frame if hasattr(result, 'frame') else result
+    
+    def _join_tree_plot(
+        self,
+        tree_df: Union[pl.DataFrame, pl.LazyFrame],
+        plot_df: Union[pl.DataFrame, pl.LazyFrame],
+        how: str = "inner"
+    ) -> pl.LazyFrame:
+        """Optimized tree-plot join."""
+        result = self._join_manager.join_tree_plot(tree_df, plot_df, how)
+        return result.frame if hasattr(result, 'frame') else result
+    
+    def _join_tree_condition(
+        self,
+        tree_df: Union[pl.DataFrame, pl.LazyFrame],
+        cond_df: Union[pl.DataFrame, pl.LazyFrame],
+        how: str = "inner"
+    ) -> pl.LazyFrame:
+        """Optimized tree-condition join."""
+        result = self._join_manager.join_tree_condition(tree_df, cond_df, how)
+        return result.frame if hasattr(result, 'frame') else result
+    
+    def _join_with_stratification(
+        self,
+        data_df: Union[pl.DataFrame, pl.LazyFrame],
+        ppsa_df: Union[pl.DataFrame, pl.LazyFrame],
+        pop_stratum_df: Union[pl.DataFrame, pl.LazyFrame],
+        data_name: str = "PLOT"
+    ) -> pl.LazyFrame:
+        """Optimized stratification join."""
+        result = self._join_manager.join_stratification(
+            data_df, ppsa_df, pop_stratum_df, data_name
+        )
+        return result.frame if hasattr(result, 'frame') else result
 
     # === Abstract Methods ===
 
@@ -592,16 +648,20 @@ class BaseEstimator(ABC):
     def prepare_stratification_data(self, ppsa: pl.DataFrame,
                                    pop_stratum: pl.DataFrame) -> pl.DataFrame:
         """Prepare stratification data for joining with plots."""
-        # Join assignment with stratum info
-        strat_df = ppsa.join(
+        # Use optimized join through JoinManager
+        strat_lazy = self._optimized_join(
+            ppsa,
             pop_stratum.select([
                 "CN", "EXPNS", "ADJ_FACTOR_MACR", "ADJ_FACTOR_SUBP",
                 "ESTN_UNIT_CN", "EVALID"
             ]),
             left_on="STRATUM_CN",
             right_on="CN",
-            how="inner"
+            how="inner",
+            left_name="POP_PLOT_STRATUM_ASSGN",
+            right_name="POP_STRATUM"
         )
+        strat_df = strat_lazy.collect() if hasattr(strat_lazy, 'collect') else strat_lazy
 
         # Rename CN to avoid conflicts
         strat_df = strat_df.rename({"CN": "STRATUM_CN_FINAL"})
@@ -611,11 +671,15 @@ class BaseEstimator(ABC):
     def _join_plot_with_stratification(self, plot_data: pl.DataFrame,
                                       strat_df: pl.DataFrame) -> pl.DataFrame:
         """Join plot data with stratification information."""
-        return plot_data.join(
+        result = self._optimized_join(
+            plot_data,
             strat_df,
             on="PLT_CN",
-            how="inner"
+            how="inner",
+            left_name="PLOT",
+            right_name="STRATIFICATION"
         )
+        return result.collect() if hasattr(result, 'collect') else result
 
     def _apply_basis_adjustments(self, data: pl.DataFrame) -> pl.DataFrame:
         """Apply MACR/SUBP basis adjustments if needed."""

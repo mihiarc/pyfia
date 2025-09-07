@@ -32,7 +32,7 @@ from pyfia.estimation.query_builders import (
     CompositeQueryBuilder,
     
     # Enums
-    JoinStrategy,
+    QueryJoinStrategy,
     FilterPushDownLevel,
 )
 from pyfia.estimation.lazy_evaluation import LazyFrameWrapper
@@ -406,23 +406,23 @@ class TestBaseQueryBuilder:
         
         # Small right table - broadcast join
         strategy = builder._optimize_join_strategy(100000, 1000)
-        assert strategy == JoinStrategy.BROADCAST
+        assert strategy == QueryJoinStrategy.BROADCAST
         
         # Small both tables - hash join
         strategy = builder._optimize_join_strategy(5000, 5000)
-        assert strategy == JoinStrategy.HASH
+        assert strategy == QueryJoinStrategy.HASH
         
         # Large similar-sized tables - sort-merge
         strategy = builder._optimize_join_strategy(1000000, 800000)
-        assert strategy == JoinStrategy.SORT_MERGE
+        assert strategy == QueryJoinStrategy.SORT_MERGE
         
         # Very skewed sizes with tiny right table - broadcast join
         strategy = builder._optimize_join_strategy(1000000, 100)
-        assert strategy == JoinStrategy.BROADCAST  # 100 rows is small enough for broadcast
+        assert strategy == QueryJoinStrategy.BROADCAST  # 100 rows is small enough for broadcast
         
         # Very skewed sizes with larger right table - hash join
         strategy = builder._optimize_join_strategy(1000000, 50000)
-        assert strategy == JoinStrategy.HASH
+        assert strategy == QueryJoinStrategy.HASH
 
 
 # === Test Specialized Query Builders ===

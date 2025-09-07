@@ -12,7 +12,7 @@ import polars as pl
 
 from pyfia import FIA
 from pyfia.estimation import volume, volume_lazy
-from pyfia.estimation.base import EstimatorConfig
+from pyfia.estimation.config import EstimatorConfig
 from pyfia.estimation.volume import VolumeEstimator
 from pyfia.estimation.volume_lazy import LazyVolumeEstimator
 

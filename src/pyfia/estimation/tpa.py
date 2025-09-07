@@ -51,10 +51,6 @@ class TPAEstimator(BaseEstimator, LazyEstimatorMixin):
         
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
-        
-        # Cache for stratification tables (ref_species cache is in BaseEstimator)
-        self._pop_stratum_cache: Optional[pl.LazyFrame] = None
-        self._ppsa_cache: Optional[pl.LazyFrame] = None
     
     def get_required_tables(self) -> List[str]:
         """
@@ -215,7 +211,8 @@ class TPAEstimator(BaseEstimator, LazyEstimatorMixin):
             Lazy frame with stratification data
         """
         # Get cached stratification data
-        strat_lazy = self._get_stratification_data()
+        # TPA uses all three adjustment factors (MICR, SUBP, MACR)
+        strat_lazy = self._get_stratification_data(["MICR", "SUBP", "MACR"])
         
         # Select needed columns and ensure uniqueness
         strat_subset = strat_lazy.select([
@@ -233,51 +230,6 @@ class TPAEstimator(BaseEstimator, LazyEstimatorMixin):
             right_name="STRATIFICATION"
         )
     
-    @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data(self) -> pl.LazyFrame:
-        """
-        Get stratification data with caching.
-        
-        Returns
-        -------
-        pl.LazyFrame
-            Lazy frame with joined PPSA and POP_STRATUM data
-        """
-        # Load and cache PPSA data
-        if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
-            
-            if self.db.evalid:
-                ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
-            
-            self._ppsa_cache = ppsa_lazy
-        
-        # Load and cache POP_STRATUM data
-        if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table("POP_STRATUM")
-            
-            if self.db.evalid:
-                pop_stratum_lazy = pop_stratum_lazy.filter(
-                    pl.col("EVALID").is_in(self.db.evalid)
-                )
-            
-            self._pop_stratum_cache = pop_stratum_lazy
-        
-        # Join stratification data
-        # PPSA has STRATUM_CN column that links to CN in POP_STRATUM
-        strat_lazy = self._optimized_join(
-            self._ppsa_cache,
-            self._pop_stratum_cache.select([
-                "CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
-            ]),
-            left_on="STRATUM_CN",
-            right_on="CN",
-            how="inner",
-            left_name="POP_PLOT_STRATUM_ASSGN",
-            right_name="POP_STRATUM"
-        )
-        
-        return strat_lazy
     
     @operation("apply_adjustment_factors")
     def _apply_adjustment_factors(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:

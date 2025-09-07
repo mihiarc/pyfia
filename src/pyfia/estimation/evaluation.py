@@ -294,6 +294,36 @@ class LazyEstimatorMixin:
         else:
             return lazy_frame.collect()
     
+    def load_table(self, table_name: str) -> pl.LazyFrame:
+        """
+        Load a table from the database as a LazyFrame.
+        
+        This is a helper method that provides consistent table loading
+        across all estimators.
+        
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to load
+            
+        Returns
+        -------
+        pl.LazyFrame
+            The table as a lazy frame
+        """
+        # Load table if not already loaded
+        if table_name not in self.db.tables:
+            self.db.load_table(table_name)
+        
+        # Get the table
+        table = self.db.tables[table_name]
+        
+        # Ensure it's a LazyFrame
+        if not isinstance(table, pl.LazyFrame):
+            table = table.lazy()
+        
+        return table
+    
     @staticmethod
     def operation(operation_name: str, 
                       cache_key_params: Optional[List[str]] = None,

@@ -7,21 +7,26 @@ It offers significant performance improvements through deferred computation and 
 """
 
 from typing import Dict, List, Optional, Union
+
 import polars as pl
 
-from ..core import FIA
 from ..constants.constants import PlotBasis
-from .config import EstimatorConfig
+from ..core import FIA
+from .aggregation import (
+    EstimationType,
+    UnifiedAggregationConfig,
+    UnifiedEstimationWorkflow,
+)
 from .base_estimator import BaseEstimator
-from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .caching import cached_operation
+from .config import EstimatorConfig
+from .domain import DomainIndicatorCalculator, LandTypeClassifier
+from .lazy_evaluation import LazyFrameWrapper, lazy_operation
 
 # Import the area-specific components
-from .statistics import VarianceCalculator, PercentageCalculator
+from .statistics import PercentageCalculator, VarianceCalculator
 from .statistics.expressions import PolarsExpressionBuilder
 from .statistics.rfia_variance import RFIAVarianceCalculator
-from .domain import DomainIndicatorCalculator, LandTypeClassifier
-from .aggregation import PopulationEstimationWorkflow, AreaAggregationBuilder, AggregationConfig
 from .stratification import AreaStratificationHandler
 
 
@@ -41,7 +46,7 @@ class AreaEstimator(BaseEstimator):
     absolutely necessary, collecting all operations at once for optimal
     performance.
     """
-    
+
     def __init__(self, db: Union[str, FIA], config: EstimatorConfig):
         """
         Initialize the lazy area estimator.
@@ -54,18 +59,18 @@ class AreaEstimator(BaseEstimator):
             Configuration with estimation parameters
         """
         super().__init__(db, config)
-        
+
         # Initialize console for progress tracking
         from rich.console import Console
         self.console = Console()
-        
+
         # Area-specific parameters
         self.by_land_type = config.extra_params.get("by_land_type", False)
         self.land_type = config.land_type
-        
+
         # Store whether we need tree filtering
         self._needs_tree_filtering = config.tree_domain is not None
-        
+
         # Initialize group columns early
         self._group_cols = []
         if self.config.grp_by:
@@ -73,21 +78,21 @@ class AreaEstimator(BaseEstimator):
                 self._group_cols = [self.config.grp_by]
             else:
                 self._group_cols = list(self.config.grp_by)
-        
+
         # Add LAND_TYPE to group cols if using by_land_type
         if self.by_land_type and "LAND_TYPE" not in self._group_cols:
             self._group_cols.append("LAND_TYPE")
-        
+
         # Lazy evaluation is now built into the base estimator
-        
+
         # Cache for reference tables and components
         self._pop_stratum_cache: Optional[pl.LazyFrame] = None
         self._ppsa_cache: Optional[pl.LazyFrame] = None
         self._pop_estn_unit_cache: Optional[pl.LazyFrame] = None
-        
+
         # Initialize components (lazy-compatible versions)
         self._init_components()
-    
+
     def _init_components(self):
         """Initialize lazy-compatible components."""
         # Create domain calculator with appropriate configuration
@@ -98,7 +103,7 @@ class AreaEstimator(BaseEstimator):
             area_domain=self.config.area_domain,
             data_cache=None  # No longer using data cache
         )
-        
+
         # Create other components
         self.land_type_classifier = LandTypeClassifier()
         self.variance_calculator = VarianceCalculator()
@@ -106,30 +111,23 @@ class AreaEstimator(BaseEstimator):
         self.percentage_calculator = PercentageCalculator()
         self.expression_builder = PolarsExpressionBuilder()
         self.stratification_handler = AreaStratificationHandler(self.db)
-        
-        # Create aggregation configuration
-        agg_config = AggregationConfig(
-            group_cols=self._group_cols,
-            by_land_type=self.by_land_type,
-            include_totals=self.config.totals,
-            include_variance=self.config.variance
-        )
-        self.population_workflow = PopulationEstimationWorkflow(agg_config)
-    
+
+        # All aggregation is now handled by the unified system
+
     def get_required_tables(self) -> List[str]:
         """Return required database tables for area estimation."""
         tables = ["PLOT", "COND", "POP_STRATUM", "POP_PLOT_STRATUM_ASSGN", "POP_ESTN_UNIT"]
         if self._needs_tree_filtering:
             tables.append("TREE")
         return tables
-    
+
     def get_response_columns(self) -> Dict[str, str]:
         """Define area response columns."""
         return {
             "fa_adj": "AREA_NUMERATOR",
             "fad_adj": "AREA_DENOMINATOR",
         }
-    
+
     @lazy_operation("calculate_area_values", cache_key_params=["by_land_type"])
     def calculate_values(self, data: Union[pl.DataFrame, pl.LazyFrame]) -> pl.LazyFrame:
         """
@@ -153,35 +151,35 @@ class AreaEstimator(BaseEstimator):
             lazy_data = data.lazy()
         else:
             lazy_data = data
-        
+
         # Step 1: Add PROP_BASIS if not present
         if "PROP_BASIS" not in lazy_data.collect_schema().names():
             lazy_data = self._add_prop_basis_lazy(lazy_data)
-        
+
         # Step 2: Add land type categories if requested
         if self.by_land_type:
             lazy_data = self._classify_land_types_lazy(lazy_data)
-        
+
         # Step 3: Calculate domain indicators
         lazy_data = self._calculate_domain_indicators_lazy(lazy_data)
-        
+
         # Step 4: Join with stratification data to get adjustment factors
         # Get the stratification data
         if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
             self.db.load_table("POP_PLOT_STRATUM_ASSGN")
         if "POP_STRATUM" not in self.db.tables:
             self.db.load_table("POP_STRATUM")
-        
+
         # Get plot-stratum assignments
         ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
         if self.db.evalid:
             ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
-        
+
         # Get stratum data with adjustment factors
         pop_stratum = self.db.tables["POP_STRATUM"]
         if self.db.evalid:
             pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
-        
+
         # Join to get adjustment factors
         strat_data = ppsa.join(
             pop_stratum.select(["CN", "ADJ_FACTOR_MACR", "ADJ_FACTOR_SUBP"]),
@@ -189,34 +187,34 @@ class AreaEstimator(BaseEstimator):
             right_on="CN",
             how="inner"
         )
-        
+
         # Convert to lazy and join with condition data
         strat_lazy = strat_data.lazy().select([
             "PLT_CN", "ADJ_FACTOR_MACR", "ADJ_FACTOR_SUBP"
         ])
-        
+
         lazy_data = lazy_data.join(strat_lazy, on="PLT_CN", how="left")
-        
+
         # Step 5: Calculate adjusted area values using proper adjustment factors
         lazy_data = lazy_data.with_columns([
             # Apply adjustment based on PROP_BASIS
-            (pl.col("CONDPROP_UNADJ") * 
+            (pl.col("CONDPROP_UNADJ") *
              pl.when(pl.col("PROP_BASIS") == "MACR")
              .then(pl.col("ADJ_FACTOR_MACR"))
              .otherwise(pl.col("ADJ_FACTOR_SUBP"))
              * pl.col("aDI")
             ).alias("fa_adj"),
-            
-            (pl.col("CONDPROP_UNADJ") * 
+
+            (pl.col("CONDPROP_UNADJ") *
              pl.when(pl.col("PROP_BASIS") == "MACR")
              .then(pl.col("ADJ_FACTOR_MACR"))
              .otherwise(pl.col("ADJ_FACTOR_SUBP"))
              * pl.col("pDI")
             ).alias("fad_adj"),
         ])
-        
+
         return lazy_data
-    
+
     @lazy_operation("add_prop_basis")
     def _add_prop_basis_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -238,13 +236,13 @@ class AreaEstimator(BaseEstimator):
             if "PLOT" not in self.db.tables:
                 self.db.load_table("PLOT")
             plots_df = self.db.get_plots()
-            
+
             # Convert to lazy and select only needed columns
             plots_lazy = pl.LazyFrame(plots_df).select(["PLT_CN", "MACRO_BREAKPOINT_DIA"])
-            
+
             # Join with condition data
             lazy_data = lazy_data.join(plots_lazy, on="PLT_CN", how="left")
-        
+
         # Create PROP_BASIS expression based on MACRO_BREAKPOINT_DIA
         # Following the logic from filters/classification.py
         prop_basis_expr = (
@@ -253,9 +251,9 @@ class AreaEstimator(BaseEstimator):
             .otherwise(pl.lit(PlotBasis.SUBPLOT))
             .alias("PROP_BASIS")
         )
-        
+
         return lazy_data.with_columns(prop_basis_expr)
-    
+
     @lazy_operation("classify_land_types")
     def _classify_land_types_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -273,11 +271,11 @@ class AreaEstimator(BaseEstimator):
         """
         # Use the land type classifier in a lazy-compatible way
         # We need to build expressions for land type classification
-        
+
         # For now, delegate to the component which should handle lazy frames
         # In a full implementation, we'd make LandTypeClassifier lazy-aware
         # For this migration, we'll use a simplified approach
-        
+
         if self.land_type == "all":
             # Comprehensive land type classification
             land_type_expr = (
@@ -302,9 +300,9 @@ class AreaEstimator(BaseEstimator):
                 .otherwise(pl.lit("Other"))
                 .alias("LAND_TYPE")
             )
-        
+
         return lazy_data.with_columns(land_type_expr)
-    
+
     @lazy_operation("calculate_domain_indicators")
     def _calculate_domain_indicators_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -333,7 +331,7 @@ class AreaEstimator(BaseEstimator):
             # Timber land is forest land (COND_STATUS_CD == 1) with productive sites
             adi_expr = (
                 pl.when(
-                    (pl.col("COND_STATUS_CD") == 1) & 
+                    (pl.col("COND_STATUS_CD") == 1) &
                     pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])
                 )
                 .then(pl.lit(1.0))
@@ -351,18 +349,18 @@ class AreaEstimator(BaseEstimator):
                 .otherwise(pl.lit(0.0))
                 .alias("aDI")
             )
-        
+
         # Plot domain indicator (pDI) - all plots are included for denominator
         pdi_expr = pl.lit(1.0).alias("pDI")
-        
+
         # Apply additional area domain if specified
         if self.config.area_domain:
             # Parse area domain as additional filter
             # This would need proper expression parsing in production
             pass
-        
+
         return lazy_data.with_columns([adi_expr, pdi_expr])
-    
+
     def apply_module_filters(self, tree_df: Optional[pl.DataFrame],
                             cond_df: pl.DataFrame) -> tuple[Optional[pl.DataFrame], pl.DataFrame]:
         """
@@ -386,17 +384,17 @@ class AreaEstimator(BaseEstimator):
         with self._track_operation(OperationType.FILTER, "Apply area filters"):
             # For area estimation, we typically don't filter trees here
             # The domain filtering happens during indicator calculation
-            
+
             # Store tree data for domain calculator if needed
             if tree_df is not None:
                 self._data_cache["TREE"] = tree_df
-            
+
             self._update_progress(
                 description=f"Prepared {len(cond_df):,} conditions for area estimation"
             )
-        
+
         return tree_df, cond_df
-    
+
     @cached_operation("stratification_data", ttl_seconds=1800)
     def _get_stratification_data_lazy(self) -> pl.LazyFrame:
         """
@@ -410,27 +408,27 @@ class AreaEstimator(BaseEstimator):
         # Load and cache PPSA data
         if self._ppsa_cache is None:
             ppsa_lazy = self.load_table_lazy("POP_PLOT_STRATUM_ASSGN")
-            
+
             if self.db.evalid:
                 ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
-            
+
             self._ppsa_cache = ppsa_lazy
-        
+
         # Load and cache POP_STRATUM data
         if self._pop_stratum_cache is None:
             pop_stratum_lazy = self.load_table_lazy("POP_STRATUM")
-            
+
             if self.db.evalid:
                 pop_stratum_lazy = pop_stratum_lazy.filter(
                     pl.col("EVALID").is_in(self.db.evalid)
                 )
-            
+
             self._pop_stratum_cache = pop_stratum_lazy
-        
+
         # Get available columns from POP_STRATUM
         pop_stratum_cols = self._pop_stratum_cache.collect_schema().names()
         select_cols = ["CN", "EXPNS"]
-        
+
         # Add optional columns if they exist
         if "ESTN_UNIT_CN" in pop_stratum_cols:
             select_cols.append("ESTN_UNIT_CN")
@@ -442,16 +440,16 @@ class AreaEstimator(BaseEstimator):
             select_cols.append("P2POINTCNT")
         if "P1POINTCNT" in pop_stratum_cols:
             select_cols.append("P1POINTCNT")
-        
+
         # Join stratification data
         strat_lazy = self._ppsa_cache.join(
             self._pop_stratum_cache.select(select_cols).rename({"CN": "STRATUM_CN"}),
             on="STRATUM_CN",
             how="inner"
         )
-        
+
         return strat_lazy
-    
+
     def _get_filtered_data(self) -> tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]:
         """
         Override base class to use area_estimation_mode filtering with lazy evaluation.
@@ -461,11 +459,14 @@ class AreaEstimator(BaseEstimator):
         tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]
             Lazy wrappers for tree and condition data
         """
-        from ..filters.common import apply_area_filters_common, apply_tree_filters_common
-        
+        from ..filters.common import (
+            apply_area_filters_common,
+            apply_tree_filters_common,
+        )
+
         # Get condition data lazily
         cond_wrapper = self.get_conditions_lazy()
-        
+
         # Apply area filters with area_estimation_mode=True
         # For now, we'll collect briefly to apply the filter function
         # In a full implementation, the filter functions would be made lazy-aware
@@ -477,7 +478,7 @@ class AreaEstimator(BaseEstimator):
             area_estimation_mode=True
         )
         cond_wrapper = LazyFrameWrapper(cond_df.lazy())
-        
+
         # Get tree data if needed
         tree_wrapper = None
         if "TREE" in self.get_required_tables():
@@ -491,9 +492,9 @@ class AreaEstimator(BaseEstimator):
                 tree_domain=None  # Don't filter by tree domain here
             )
             tree_wrapper = LazyFrameWrapper(tree_df.lazy())
-        
+
         return tree_wrapper, cond_wrapper
-    
+
     def _prepare_estimation_data(self, tree_wrapper: Optional[LazyFrameWrapper],
                                 cond_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
         """
@@ -516,10 +517,10 @@ class AreaEstimator(BaseEstimator):
             # For domain calculator compatibility, we need to collect tree data
             # In a full implementation, the domain calculator would work with lazy frames
             self._data_cache["TREE"] = tree_wrapper.collect()
-        
+
         # Return condition wrapper as-is for lazy processing
         return cond_wrapper
-    
+
     def _calculate_plot_estimates(self, data_wrapper: LazyFrameWrapper) -> pl.DataFrame:
         """
         Calculate plot-level area estimates.
@@ -540,13 +541,13 @@ class AreaEstimator(BaseEstimator):
         plot_groups = ["PLT_CN"]
         if self._group_cols:
             plot_groups.extend(self._group_cols)
-        
+
         # Build aggregation expressions
         agg_exprs = [
             pl.sum("fa").alias("PLOT_AREA_NUMERATOR"),
             pl.col("PROP_BASIS").mode().first().alias("PROP_BASIS"),
         ]
-        
+
         # Check if PROP_BASIS exists before trying to aggregate it
         if "PROP_BASIS" not in data_wrapper.frame.collect_schema().names():
             # If PROP_BASIS doesn't exist, provide a default
@@ -554,31 +555,31 @@ class AreaEstimator(BaseEstimator):
                 pl.sum("fa").alias("PLOT_AREA_NUMERATOR"),
                 pl.lit(PlotBasis.SUBPLOT).alias("PROP_BASIS"),  # Default to subplot
             ]
-        
+
         # Aggregate area values to plot level
         plot_estimates_lazy = data_wrapper.frame.group_by(plot_groups).agg(agg_exprs)
-        
+
         # Calculate denominator separately (not grouped by land type)
         plot_denom_lazy = data_wrapper.frame.group_by("PLT_CN").agg([
             pl.sum("fad").alias("PLOT_AREA_DENOMINATOR"),
         ])
-        
+
         # Join numerator and denominator
         plot_estimates_lazy = plot_estimates_lazy.join(
             plot_denom_lazy,
             on="PLT_CN",
             how="left"
         )
-        
+
         # Fill nulls with zeros
         plot_estimates_lazy = plot_estimates_lazy.with_columns([
             pl.col("PLOT_AREA_NUMERATOR").fill_null(0),
             pl.col("PLOT_AREA_DENOMINATOR").fill_null(0),
         ])
-        
+
         # Collect for compatibility with base class
         return plot_estimates_lazy.collect()
-    
+
     def _apply_stratification(self, plot_data: pl.DataFrame) -> pl.DataFrame:
         """
         Apply stratification using lazy evaluation where possible.
@@ -598,27 +599,27 @@ class AreaEstimator(BaseEstimator):
             if "POP_ESTN_UNIT" in self.db.tables:
                 # Convert to lazy for processing
                 plot_lazy = plot_data.lazy()
-                
+
                 # Get stratification data lazily
                 strat_lazy = self._get_stratification_data_lazy()
-                
+
                 # Get available columns from stratification data
                 strat_cols = strat_lazy.collect_schema().names()
                 select_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"]
-                
+
                 # Add optional columns if they exist
                 if "ADJ_FACTOR_SUBP" in strat_cols:
                     select_cols.append("ADJ_FACTOR_SUBP")
                 if "ADJ_FACTOR_MACR" in strat_cols:
                     select_cols.append("ADJ_FACTOR_MACR")
-                
+
                 # Join with stratification data
                 plot_with_strat_lazy = plot_lazy.join(
                     strat_lazy.select(select_cols),
                     on="PLT_CN",
                     how="inner"
                 )
-                
+
                 # Calculate adjustment factor based on plot basis
                 # Check if adjustment factor columns exist
                 if "ADJ_FACTOR_SUBP" in strat_cols and "ADJ_FACTOR_MACR" in strat_cols:
@@ -639,9 +640,9 @@ class AreaEstimator(BaseEstimator):
                 else:
                     # No adjustment factors - use 1.0
                     adj_expr = pl.lit(1.0).alias("ADJ_FACTOR")
-                
+
                 plot_with_strat_lazy = plot_with_strat_lazy.with_columns(adj_expr)
-                
+
                 # Calculate expanded values
                 expanded_lazy = plot_with_strat_lazy.with_columns([
                     # Adjusted values
@@ -653,36 +654,36 @@ class AreaEstimator(BaseEstimator):
                     (pl.col("PLOT_AREA_DENOMINATOR") * pl.col("ADJ_FACTOR") * pl.col("EXPNS"))
                         .alias("TOTAL_AREA_DENOMINATOR"),
                 ])
-                
+
                 # Collect and return
                 return expanded_lazy.collect()
-                
+
         except Exception:
             # If any issue, fall through to minimal fallback
             pass
-        
+
         # Minimal stratification fallback (same as original area.py)
         return self._apply_minimal_stratification(plot_data)
-    
+
     def _apply_minimal_stratification(self, plot_data: pl.DataFrame) -> pl.DataFrame:
         """Apply minimal stratification for testing compatibility."""
         # This is the same fallback logic from area.py
         # Maintain consistent interface
-        
+
         if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables or "POP_STRATUM" not in self.db.tables:
             raise ValueError("Missing required population tables for stratification")
-        
+
         ppsa_df = (
             self.db.tables["POP_PLOT_STRATUM_ASSGN"]
             .filter(pl.col("EVALID").is_in(self.db.evalid) if self.db.evalid else pl.lit(True))
             .collect()
         )
         pop_stratum_df = self.db.tables["POP_STRATUM"].collect()
-        
+
         # Get available columns
         pop_stratum_cols = pop_stratum_df.columns
         select_cols = ["CN", "EXPNS"]
-        
+
         # Add optional columns if they exist
         if "ESTN_UNIT_CN" in pop_stratum_cols:
             select_cols.append("ESTN_UNIT_CN")
@@ -694,7 +695,7 @@ class AreaEstimator(BaseEstimator):
             select_cols.append("P2POINTCNT")
         if "P1POINTCNT" in pop_stratum_cols:
             select_cols.append("P1POINTCNT")
-        
+
         # Join stratification data
         strat_df = ppsa_df.join(
             pop_stratum_df.select(select_cols),
@@ -702,11 +703,11 @@ class AreaEstimator(BaseEstimator):
             right_on="CN",
             how="inner"
         )
-        
+
         # Get available columns from strat_df
         strat_cols = strat_df.columns
         select_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"]
-        
+
         # Add optional columns if they exist
         if "ESTN_UNIT_CN" in strat_cols:
             select_cols.append("ESTN_UNIT_CN")
@@ -716,14 +717,14 @@ class AreaEstimator(BaseEstimator):
             select_cols.append("ADJ_FACTOR_MACR")
         if "P2POINTCNT" in strat_cols:
             select_cols.append("P2POINTCNT")
-        
+
         # Join with plot data
         plot_with_strat = plot_data.join(
             strat_df.select(select_cols),
             on="PLT_CN",
             how="inner",
         )
-        
+
         # Add adjustment factor based on PROP_BASIS
         # Check if adjustment factor columns exist
         if "ADJ_FACTOR_SUBP" in plot_with_strat.columns and "ADJ_FACTOR_MACR" in plot_with_strat.columns:
@@ -749,7 +750,7 @@ class AreaEstimator(BaseEstimator):
             plot_with_strat = plot_with_strat.with_columns([
                 pl.lit(1.0).alias("ADJ_FACTOR")
             ])
-        
+
         # Calculate expanded values
         expanded = plot_with_strat.with_columns([
             (pl.col("PLOT_AREA_NUMERATOR") * pl.col("ADJ_FACTOR")).alias("fa_adjusted"),
@@ -759,14 +760,15 @@ class AreaEstimator(BaseEstimator):
             (pl.col("PLOT_AREA_DENOMINATOR") * pl.col("ADJ_FACTOR") * pl.col("EXPNS"))
                 .alias("TOTAL_AREA_DENOMINATOR"),
         ])
-        
+
         return expanded
-    
+
     def _calculate_population_estimates(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
         """
-        Calculate population estimates.
+        Calculate population estimates using the unified aggregation system.
         
-        This method maintains compatibility with the original area.py implementation.
+        This method now uses the unified workflow for consistent, well-tested
+        population estimation across all FIA estimation types.
         
         Parameters
         ----------
@@ -778,179 +780,36 @@ class AreaEstimator(BaseEstimator):
         pl.DataFrame
             Population estimates
         """
-        if "POP_ESTN_UNIT" in self.db.tables:
-            # Check if we have required columns for rFIA variance calculation
-            required_cols = ["ESTN_UNIT_CN", "STRATUM_CN", "P2POINTCNT"]
-            missing_cols = [col for col in required_cols if col not in expanded_data.columns]
-            
-            if missing_cols:
-                # Fall back to minimal calculation if columns are missing
-                # Note: console attribute might not be available in all contexts
-                if hasattr(self, 'console') and self.console:
-                    self.console.print(
-                        f"[yellow]Warning: Missing columns for full variance calculation: {missing_cols}[/yellow]"
-                    )
-                return self._calculate_population_estimates_minimal(expanded_data)
-            
-            # Ensure we have proper group columns for rFIA variance calculation
-            grouping_cols_to_use = self._group_cols.copy() if self._group_cols else []
-            
-            # Make sure LAND_TYPE is in the group columns if by_land_type is True
-            if self.by_land_type and "LAND_TYPE" in expanded_data.columns and "LAND_TYPE" not in grouping_cols_to_use:
-                grouping_cols_to_use.append("LAND_TYPE")
-            
-            # Use rFIA variance calculator for complete calculation
-            variance_results = self.rfia_variance_calculator.calculate_area_variance(
-                expanded_data, 
-                grouping_cols=grouping_cols_to_use
-            )
-            
-            # Calculate percentage with proper handling for by_land_type
-            if self.by_land_type and "LAND_TYPE" in variance_results.columns:
-                return self._calculate_land_type_percentages_rfia(variance_results)
-            else:
-                return self._calculate_standard_percentages_rfia(variance_results)
-        else:
-            # Minimal fallback (same as original area.py)
-            return self._calculate_population_estimates_minimal(expanded_data)
-    
-    def _calculate_population_estimates_minimal(self, expanded_data: pl.DataFrame) -> pl.DataFrame:
-        """Minimal population estimation for testing compatibility."""
-        # Direct aggregation - use STRATUM columns which are present in the data
-        agg_exprs = [
-            pl.col("STRATUM_AREA_NUMERATOR").sum().alias("FA_TOTAL"),
-            pl.col("STRATUM_AREA_DENOMINATOR").sum().alias("FAD_TOTAL"),
-            pl.col("N_PLOTS").sum().alias("N_PLOTS"),
-        ]
-        
-        # Ensure we have proper group columns for aggregation
-        group_cols_to_use = self._group_cols.copy() if self._group_cols else []
-        
-        # Make sure LAND_TYPE is in the group columns if by_land_type is True
-        if self.by_land_type and "LAND_TYPE" in expanded_data.columns and "LAND_TYPE" not in group_cols_to_use:
-            group_cols_to_use.append("LAND_TYPE")
-        
-        if group_cols_to_use:
-            pop_est = expanded_data.group_by(group_cols_to_use).agg(agg_exprs)
-        else:
-            pop_est = expanded_data.select(agg_exprs)
-        
-        # Calculate percentage
-        if self.by_land_type and "LAND_TYPE" in pop_est.columns:
-            # Land type percentage calculation
-            land_area_total = (
-                pop_est.filter(~pl.col("LAND_TYPE").str.contains("Water"))
-                .select(pl.sum("FAD_TOTAL").alias("TOTAL_LAND_AREA"))
-            )
-            land_area_total_val = float(land_area_total[0, 0]) if land_area_total.height > 0 else 0.0
-            
-            pop_est = pop_est.with_columns([
-                pl.when(land_area_total_val > 0)
-                .then((pl.col("FA_TOTAL") / land_area_total_val * 100))
-                .otherwise(0.0)
-                .alias("AREA_PERC"),
-                pl.lit(0.0).alias("AREA_PERC_VAR"),
-                pl.lit(0.0).alias("AREA_PERC_SE"),
-            ])
-        else:
-            # Standard percentage
-            pop_est = pop_est.with_columns([
-                pl.when(pl.col("FAD_TOTAL") > 0)
-                .then((pl.col("FA_TOTAL") / pl.col("FAD_TOTAL") * 100))
-                .otherwise(0.0)
-                .alias("AREA_PERC"),
-                pl.lit(0.0).alias("AREA_PERC_VAR"),
-                pl.lit(0.0).alias("AREA_PERC_SE"),
-            ])
-        
-        # Add totals if requested
-        if self.config.totals:
-            pop_est = pop_est.with_columns([
-                pl.col("FA_TOTAL").alias("AREA"),
-                pl.lit(0.0).alias("AREA_VAR"),
-                pl.lit(0.0).alias("AREA_SE"),
-            ])
-        
-        return pop_est
-    
-    def _calculate_land_type_percentages_rfia(self, variance_results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate land type percentages using rFIA-compatible variance results."""
-        # This is the same logic as in area.py
-        renamed = variance_results.rename({
-            "AREA_TOTAL": "FA_TOTAL",
-            "AREA_TOTAL_DEN": "FAD_TOTAL",
-            "AREA_TOTAL_VAR": "FA_VAR",
-            "AREA_PERC_VAR": "AREA_PERC_VAR",
-            "AREA_TOTAL_SE_ACRES": "FA_SE",
-            "AREA_PERC_SE": "AREA_PERC_SE",
-            "total_plots": "N_PLOTS",
-        })
-        
-        # Compute denominators
-        land_area_total = (
-            renamed.filter(~pl.col("LAND_TYPE").str.contains("Water"))
-            .select(pl.col("FAD_TOTAL").cast(pl.Float64).sum().alias("TOTAL_LAND_AREA"))
+        # Configure unified aggregation workflow
+        config = UnifiedAggregationConfig(
+            estimation_type=EstimationType.AREA,
+            group_cols=self._group_cols,
+            by_land_type=self.by_land_type,
+            include_totals=self.config.totals,
+            include_variance=not hasattr(self.config, 'se') or not self.config.se,
+            use_rfia_variance=("POP_ESTN_UNIT" in self.db.tables)
         )
-        land_area_total_val = float(land_area_total[0, 0]) if land_area_total.height > 0 else 0.0
-        
-        water_area_total = (
-            renamed.filter(pl.col("LAND_TYPE").str.contains("Water"))
-            .select(pl.col("FA_TOTAL").cast(pl.Float64).sum().alias("TOTAL_WATER_AREA"))
-        )
-        water_area_total_val = float(water_area_total[0, 0]) if water_area_total.height > 0 else 0.0
-        
-        total_area_val = land_area_total_val + water_area_total_val
-        
-        # Safe percentage calculation
-        def _compute_pct(row: dict) -> float:
-            lt = row.get("LAND_TYPE")
-            fa_total = float(row.get("FA_TOTAL") or 0.0)
-            if lt is not None and "Water" in str(lt):
-                denom = total_area_val
-            else:
-                denom = land_area_total_val
-            if denom <= 0.0:
-                return 0.0
-            pct = (fa_total / denom) * 100.0
-            # Clip to [0, 100]
-            if pct < 0.0:
-                return 0.0
-            if pct > 100.0:
-                return 100.0
-            return pct
-        
-        result = renamed.with_columns(
-            pl.struct(["LAND_TYPE", "FA_TOTAL"]).map_elements(_compute_pct, return_dtype=pl.Float64).alias("AREA_PERC")
-        )
-        
-        # Add totals columns
-        result = result.with_columns([
-            pl.col("FA_TOTAL").alias("AREA"),
-            pl.col("FA_VAR").alias("AREA_VAR"),
-            pl.col("FA_SE").alias("AREA_SE"),
-        ])
-        
-        return result
-    
-    def _calculate_standard_percentages_rfia(self, variance_results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate standard percentages using rFIA-compatible variance results."""
-        return variance_results.rename({
-            "AREA_TOTAL": "AREA",
-            "AREA_TOTAL_DEN": "AREA_DEN",
-            "AREA_TOTAL_VAR": "AREA_VAR", 
-            "AREA_PERC_VAR": "AREA_PERC_VAR",
-            "AREA_TOTAL_SE_ACRES": "AREA_SE",
-            "AREA_PERC_SE": "AREA_PERC_SE",
-            "total_plots": "N_PLOTS"
-        })
-    
+
+        # Create and execute unified workflow
+        workflow = UnifiedEstimationWorkflow(config)
+
+        # Validate input data
+        validation = workflow.validate_input_data(expanded_data)
+        if not validation["is_valid"]:
+            raise ValueError(f"Input validation failed: {validation['warnings']}")
+
+        # Execute unified workflow
+        return workflow.calculate_population_estimates(expanded_data)
+
+    # All legacy calculation methods removed - now using UnifiedEstimationWorkflow
+
     def get_output_columns(self) -> List[str]:
         """Define the output column structure for area estimates."""
         output_cols = ["AREA_PERC"]
-        
+
         if self.config.totals:
             output_cols.append("AREA")
-        
+
         if self.config.variance:
             output_cols.append("AREA_PERC_VAR")
             if self.config.totals:
@@ -959,28 +818,28 @@ class AreaEstimator(BaseEstimator):
             output_cols.append("AREA_PERC_SE")
             if self.config.totals:
                 output_cols.append("AREA_SE")
-        
+
         output_cols.append("N_PLOTS")
         return output_cols
-    
+
     def format_output(self, estimates: pl.DataFrame) -> pl.DataFrame:
         """Format output to match rFIA area() function structure."""
         # Ensure we have the expected aggregated data
         # The estimates should already be aggregated from _calculate_population_estimates
         # If not, there's an issue in the pipeline
-        
+
         output_cols = []
-        
+
         # Add grouping columns first
         if self._group_cols:
             output_cols.extend(self._group_cols)
-        
+
         # Add primary estimates
         output_cols.append("AREA_PERC")
-        
+
         if self.config.totals:
             output_cols.append("AREA")
-        
+
         # Add uncertainty measures
         if self.config.variance:
             output_cols.append("AREA_PERC_VAR")
@@ -990,15 +849,15 @@ class AreaEstimator(BaseEstimator):
             output_cols.append("AREA_PERC_SE")
             if self.config.totals:
                 output_cols.append("AREA_SE")
-        
+
         # Add metadata
         output_cols.append("N_PLOTS")
-        
+
         # Select only columns that exist
         available_cols = [col for col in output_cols if col in estimates.columns]
-        
+
         result = estimates.select(available_cols)
-        
+
         # Verify we have properly aggregated data
         # When by_land_type=True, we should have a small number of rows (one per land type)
         if self.by_land_type and "LAND_TYPE" in result.columns:
@@ -1009,7 +868,7 @@ class AreaEstimator(BaseEstimator):
                     f"Expected aggregated data by LAND_TYPE but got {result.height} rows "
                     f"for {unique_land_types} land types. Check aggregation pipeline."
                 )
-        
+
         return result
 
 
@@ -1108,9 +967,9 @@ def area(
             "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
         }
     )
-    
+
     # Create estimator and run estimation
     estimator = AreaEstimator(db, config)
     results = estimator.estimate()
-    
+
     return results

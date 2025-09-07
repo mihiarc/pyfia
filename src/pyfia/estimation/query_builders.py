@@ -259,14 +259,9 @@ class BaseQueryBuilder(ABC):
         self.config = config
         self.cache = cache or MemoryCache(max_size_mb=256, max_entries=100)
         
-        # Query optimization settings
-        self.enable_pushdown = getattr(
-            config.lazy_config, 'enable_predicate_pushdown', True
-        ) if config.lazy_config else True
-        
-        self.enable_projection = getattr(
-            config.lazy_config, 'enable_projection_pushdown', True
-        ) if config.lazy_config else True
+        # Query optimization settings - always enable for lazy evaluation
+        self.enable_pushdown = True
+        self.enable_projection = True
         
         # Statistics for optimization decisions
         self._table_stats: Dict[str, Dict[str, Any]] = {}

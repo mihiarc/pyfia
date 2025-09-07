@@ -848,7 +848,6 @@ class AreaEstimator(BaseEstimator):
         """Format output to match rFIA area() function structure."""
         # Ensure we have the expected aggregated data
         # The estimates should already be aggregated from _calculate_population_estimates
-        # If not, there's an issue in the pipeline
 
         output_cols = []
 
@@ -888,7 +887,7 @@ class AreaEstimator(BaseEstimator):
                 # This suggests data wasn't properly aggregated
                 raise ValueError(
                     f"Expected aggregated data by LAND_TYPE but got {result.height} rows "
-                    f"for {unique_land_types} land types. Check aggregation pipeline."
+                    f"for {unique_land_types} land types. Check data aggregation."
                 )
 
         return result

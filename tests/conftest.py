@@ -15,7 +15,6 @@ import polars as pl
 import pytest
 
 from pyfia import FIA
-from pyfia.models import EvaluationInfo
 
 # Import centralized fixtures to make them available globally
 from fixtures import *
@@ -77,15 +76,15 @@ def sample_fia_instance(sample_fia_db, use_real_data):
 
 @pytest.fixture
 def sample_evaluation():
-    """Create a sample evaluation info object."""
-    return EvaluationInfo(
-        evalid=372301,
-        statecd=37,
-        eval_typ="VOL",
-        start_invyr=2018,
-        end_invyr=2023,
-        nplots=10
-    )
+    """Create a sample evaluation info dict."""
+    return {
+        "evalid": 372301,
+        "statecd": 37,
+        "eval_typ": "VOL",
+        "start_invyr": 2018,
+        "end_invyr": 2023,
+        "nplots": 10
+    }
 
 
 

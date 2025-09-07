@@ -18,7 +18,7 @@ from pyfia.estimation.utils import (
     calculate_ratio_estimates,
     calculate_stratum_estimates,
 )
-from pyfia.models import EvaluationInfo
+# EvaluationInfo model removed - using simple dicts for test data
 
 
 # Custom strategies for FIA-specific data
@@ -208,44 +208,7 @@ class TestEstimationProperties:
             assert original_order.to_list() == adjusted_order.to_list()
 
 
-class TestModelValidation:
-    """Test Pydantic model validation properties."""
-
-    @given(
-        evalid=evalid_strategy(),
-        statecd=st.integers(min_value=1, max_value=99),
-        start_year=st.integers(min_value=1990, max_value=2020),
-    )
-    def test_evaluation_info_validation(self, evalid, statecd, start_year):
-        """EvaluationInfo should validate correct data."""
-        end_year = start_year + 5  # FIA evaluations typically span 5-10 years
-
-        eval_info = EvaluationInfo(
-            evalid=evalid,
-            statecd=statecd,
-            eval_typ="VOL",
-            start_invyr=start_year,
-            end_invyr=end_year,
-        )
-
-        # Basic invariants
-        assert eval_info.evalid == evalid
-        assert eval_info.statecd == statecd
-        assert eval_info.start_invyr <= eval_info.end_invyr
-
-    @given(st.text(min_size=1))
-    def test_invalid_eval_type_rejected(self, invalid_type):
-        """Invalid evaluation types should be rejected."""
-        assume(invalid_type not in ["VOL", "GRM", "CHNG", "DWM", "INVASIVE"])
-
-        with pytest.raises(ValueError):
-            EvaluationInfo(
-                evalid=123456,
-                statecd=12,
-                eval_typ=invalid_type,
-                start_invyr=2020,
-                end_invyr=2025,
-            )
+# TestModelValidation class removed - models no longer exist
 
 
 class TestDataIntegrity:

@@ -379,6 +379,11 @@ class BaseEstimator(ABC):
         if hasattr(self.db, 'evalid'):
             evalid = self.db.evalid
 
+        # Get tree columns if the subclass defines them
+        tree_columns = None
+        if hasattr(self, 'get_tree_columns'):
+            tree_columns = self.get_tree_columns()
+        
         # Build optimized query
         query_results = self._composite_builder.build_estimation_query(
             estimation_type=estimation_type,
@@ -387,7 +392,8 @@ class BaseEstimator(ABC):
             area_domain=self.config.area_domain,
             plot_domain=self.config.plot_domain,
             tree_type=getattr(self.config, 'tree_type', None),
-            land_type=getattr(self.config, 'land_type', None)
+            land_type=getattr(self.config, 'land_type', None),
+            tree_columns=tree_columns  # Pass tree columns if available
         )
 
         # Extract results
@@ -760,14 +766,22 @@ class BaseEstimator(ABC):
 
         # Build aggregation expressions
         agg_exprs = []
-        for _, output_name in response_cols.items():
+        rename_exprs = []
+        
+        for internal_col, output_name in response_cols.items():
             plot_col = f"PLOT_{output_name}"
             if plot_col in data.columns:
-                # Apply expansion factor
+                # Apply expansion factor and aggregate
+                stratum_col = f"STRATUM_{output_name}"
                 agg_exprs.append(
-                    (pl.col(plot_col) * pl.col("EXPNS")).sum().alias(f"STRATUM_{output_name}")
+                    (pl.col(plot_col) * pl.col("EXPNS")).sum().alias(stratum_col)
                 )
+                # Create rename expression to match expected column names
+                rename_exprs.append(pl.col(stratum_col).alias(internal_col))
 
+        # Add EXPNS as sum of expansion factors for the stratum
+        agg_exprs.append(pl.col("EXPNS").sum().alias("EXPNS"))
+        
         # Add sample size tracking
         agg_exprs.append(pl.count().alias("N_PLOTS"))
 
@@ -777,6 +791,13 @@ class BaseEstimator(ABC):
             group_cols.extend(self._group_cols)
 
         stratum_estimates = data.group_by(group_cols).agg(agg_exprs)
+        
+        # Rename STRATUM_CN_FINAL to STRATUM_CN for workflow compatibility
+        stratum_estimates = stratum_estimates.rename({"STRATUM_CN_FINAL": "STRATUM_CN"})
+        
+        # Add renamed columns to match response column names
+        if rename_exprs:
+            stratum_estimates = stratum_estimates.with_columns(rename_exprs)
 
         return stratum_estimates
 

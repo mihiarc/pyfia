@@ -60,8 +60,9 @@ class UnifiedEstimationWorkflow(IEstimationWorkflow):
         # Step 1: Calculate stratum-level statistics
         stratum_est = self._calculate_stratum_statistics(expanded_data)
 
-        # Step 2: Add covariance calculations
-        stratum_est = self._add_covariance_calculations(stratum_est)
+        # Step 2: Add covariance calculations (skip for response column-based estimation)
+        if not self.config.response_columns:
+            stratum_est = self._add_covariance_calculations(stratum_est)
 
         # Step 3: Aggregate to population level
         pop_est = self._aggregate_to_population_level(stratum_est)
@@ -88,24 +89,27 @@ class UnifiedEstimationWorkflow(IEstimationWorkflow):
         pl.DataFrame
             Stratum-level statistics
         """
-        # Determine appropriate columns based on estimation type
-        numerator_col, denominator_col = self._get_adjusted_columns()
-
         # Build aggregation expressions
-        builder = (self.aggregation_builder
-                  .reset()
-                  .with_totals(
-                      self._get_numerator_column(),
-                      self._get_denominator_column()
-                  )
-                  .with_variance_statistics(
-                      numerator_col=numerator_col,
-                      denominator_col=denominator_col
-                  ))
-
-        # Add response variable aggregations if configured
+        builder = self.aggregation_builder.reset()
+        
+        # For response column-based estimations, don't use hardcoded totals
         if self.config.response_columns:
+            # Use response columns directly - they are the primary values
             builder = builder.with_response_variables(self.config.response_columns)
+            # For now, skip variance statistics for response column-based estimation
+            # as the adjusted columns don't exist in the current workflow
+        else:
+            # Original logic for area estimation
+            numerator_col, denominator_col = self._get_adjusted_columns()
+            builder = (builder
+                      .with_totals(
+                          self._get_numerator_column(),
+                          self._get_denominator_column()
+                      )
+                      .with_variance_statistics(
+                          numerator_col=numerator_col,
+                          denominator_col=denominator_col
+                      ))
 
         if self.config.group_cols:
             builder = builder.group_by(*self.config.group_cols)
@@ -283,40 +287,77 @@ class UnifiedEstimationWorkflow(IEstimationWorkflow):
             "statistics": {}
         }
 
-        # Base required columns for all estimation types
-        required_cols = [
-            self._get_numerator_column(),
-            self._get_denominator_column(),
-            "EXPNS",
-            "STRATUM_CN"
-        ]
+        # For estimations with response columns (volume, biomass, tpa), 
+        # validate based on actual response columns instead of hardcoded names
+        if self.config.response_columns:
+            # Check that at least one response column exists
+            response_cols_present = [col for col in self.config.response_columns.keys() 
+                                    if col in data.columns]
+            if not response_cols_present:
+                validation_results["is_valid"] = False
+                validation_results["warnings"].append(
+                    f"No response columns found. Expected: {list(self.config.response_columns.keys())}"
+                )
+            
+            # Essential columns for all estimations
+            required_cols = ["EXPNS", "STRATUM_CN"]
+            missing_cols = [col for col in required_cols if col not in data.columns]
+            if missing_cols:
+                validation_results["is_valid"] = False
+                validation_results["warnings"].append(f"Missing required columns: {missing_cols}")
+                
+        else:
+            # Fall back to original validation for area estimation
+            required_cols = [
+                self._get_numerator_column(),
+                self._get_denominator_column(),
+                "EXPNS",
+                "STRATUM_CN"
+            ]
+            
+            # Add adjusted columns for variance calculation
+            numerator_adj, denominator_adj = self._get_adjusted_columns()
+            required_cols.extend([numerator_adj, denominator_adj])
 
-        # Add adjusted columns for variance calculation
-        numerator_adj, denominator_adj = self._get_adjusted_columns()
-        required_cols.extend([numerator_adj, denominator_adj])
-
-        missing_cols = [col for col in required_cols if col not in data.columns]
-        if missing_cols:
-            validation_results["is_valid"] = False
-            validation_results["warnings"].append(f"Missing required columns: {missing_cols}")
+            missing_cols = [col for col in required_cols if col not in data.columns]
+            if missing_cols:
+                validation_results["is_valid"] = False
+                validation_results["warnings"].append(f"Missing required columns: {missing_cols}")
 
         if validation_results["is_valid"]:
-            # Check for data quality issues
-            stats_exprs = [
-                pl.col(self._get_numerator_column()).is_null().sum().alias("null_numerator"),
-                pl.col(self._get_denominator_column()).is_null().sum().alias("null_denominator"),
-                pl.col("EXPNS").is_null().sum().alias("null_expns"),
-                pl.len().alias("total_rows")
-            ]
+            # Check for data quality issues - use response columns if available
+            if self.config.response_columns and len(self.config.response_columns) > 0:
+                # For response column-based estimation, check the first response column
+                first_response_col = list(self.config.response_columns.keys())[0]
+                stats_exprs = [
+                    pl.col(first_response_col).is_null().sum().alias("null_values"),
+                    pl.col("EXPNS").is_null().sum().alias("null_expns"),
+                    pl.len().alias("total_rows")
+                ]
+            else:
+                # Original validation for area estimation
+                stats_exprs = [
+                    pl.col(self._get_numerator_column()).is_null().sum().alias("null_numerator"),
+                    pl.col(self._get_denominator_column()).is_null().sum().alias("null_denominator"),
+                    pl.col("EXPNS").is_null().sum().alias("null_expns"),
+                    pl.len().alias("total_rows")
+                ]
 
             stats = data.select(stats_exprs).to_dicts()[0]
             validation_results["statistics"] = stats
 
             # Add warnings for data quality issues
-            if stats["null_numerator"] > 0:
-                validation_results["warnings"].append(f"Found {stats['null_numerator']} null numerator values")
-            if stats["null_denominator"] > 0:
-                validation_results["warnings"].append(f"Found {stats['null_denominator']} null denominator values")
+            if self.config.response_columns:
+                # For response column-based estimation
+                if "null_values" in stats and stats["null_values"] > 0:
+                    validation_results["warnings"].append(f"Found {stats['null_values']} null values in response columns")
+            else:
+                # For area estimation
+                if "null_numerator" in stats and stats["null_numerator"] > 0:
+                    validation_results["warnings"].append(f"Found {stats['null_numerator']} null numerator values")
+                if "null_denominator" in stats and stats["null_denominator"] > 0:
+                    validation_results["warnings"].append(f"Found {stats['null_denominator']} null denominator values")
+            
             if stats["null_expns"] > 0:
                 validation_results["warnings"].append(f"Found {stats['null_expns']} null expansion factors")
 

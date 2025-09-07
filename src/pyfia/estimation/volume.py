@@ -18,7 +18,7 @@ from .caching import cached_operation
 from ..filters.classification import assign_tree_basis
 
 
-class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
+class VolumeEstimator(BaseEstimator, LazyEstimatorMixin, EstimatorProgressMixin):
     """
     Lazy volume estimator with optimized memory usage and performance.
     
@@ -35,7 +35,7 @@ class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
     performance.
     """
     
-    def __init__(self, db: Union[str, FIA], config: EstimatorConfig):
+    def __init__(self, db: Union[str, FIA], config: EstimatorConfig, vol_type: str = "net"):
         """
         Initialize the lazy volume estimator.
         
@@ -44,16 +44,22 @@ class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
         db : Union[str, FIA]
             FIA database object or path to database
         config : EstimatorConfig
-            Configuration with estimation parameters including vol_type
+            Configuration with estimation parameters
+        vol_type : str, optional
+            Volume type ("net", "gross", "sound", "sawlog"), default "net"
         """
         super().__init__(db, config)
         
         # Volume-specific parameters
-        self.vol_type = config.extra_params.get("vol_type", "net").upper()
+        self.vol_type = vol_type.upper()
         self.volume_columns = self._get_volume_columns()
         
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
+        
+        # Initialize progress tracking
+        self._enable_progress = True  # Can be configured via config
+        self._progress_tracker = None
         
     
     def get_required_tables(self) -> List[str]:
@@ -66,6 +72,51 @@ class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
             ["PLOT", "TREE", "COND", "POP_STRATUM", "POP_PLOT_STRATUM_ASSGN"]
         """
         return ["PLOT", "TREE", "COND", "POP_STRATUM", "POP_PLOT_STRATUM_ASSGN"]
+    
+    def get_tree_columns(self) -> List[str]:
+        """
+        Get required tree columns for volume estimation.
+        
+        Returns
+        -------
+        List[str]
+            List of required TREE table columns including volume columns
+        """
+        # Base columns always needed
+        tree_columns = [
+            "CN",
+            "PLT_CN", 
+            "CONDID",
+            "STATUSCD",
+            "SPCD",
+            "DIA",
+            "HT",
+            "ACTUALHT",
+            "TPA_UNADJ",
+            "SUBP",
+            "TREE",
+            "PLOT",
+            "TREECLCD",
+            "CCLCD",
+            "CR"
+        ]
+        
+        # Add all volume columns we might need based on vol_type
+        volume_cols = [
+            "VOLCFNET", "VOLCFGRS", "VOLCFSND",  # Bole cubic feet
+            "VOLCSNET", "VOLCSGRS", "VOLCSSND",  # Sawlog cubic feet  
+            "VOLBFNET", "VOLBFGRS",              # Board feet
+            "VOLBSNET", "VOLBSGRS"               # Additional volume measures
+        ]
+        
+        tree_columns.extend(volume_cols)
+        
+        # Add grouping columns if specified
+        if self.config.grp_by:
+            grp_cols = [self.config.grp_by] if isinstance(self.config.grp_by, str) else self.config.grp_by
+            tree_columns.extend([col for col in grp_cols if col not in tree_columns])
+        
+        return tree_columns
     
     def get_response_columns(self) -> Dict[str, str]:
         """
@@ -593,7 +644,6 @@ def volume(
     ... )
     """
     # Create configuration from parameters
-    # Note: vol_type is handled separately as VolumeEstimator expects it
     config = EstimatorConfig(
         grp_by=grp_by,
         by_species=by_species,
@@ -610,17 +660,9 @@ def volume(
         most_recent=mr
     )
     
-    # Store volume-specific parameters separately for the estimator
-    config.extra_params = {
-        "vol_type": vol_type,
-        "show_progress": show_progress,
-        "lazy_enabled": True,
-        "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
-    }
-    
-    # Create estimator and run estimation
-    with VolumeEstimator(db, config) as estimator:
-        results = estimator.estimate()
+    # Create estimator with vol_type parameter and run estimation
+    estimator = VolumeEstimator(db, config, vol_type=vol_type)
+    results = estimator.estimate()
     
     # Handle special cases for parameter consistency
     if by_plot:

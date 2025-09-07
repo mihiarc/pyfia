@@ -127,8 +127,26 @@ uv run mkdocs build
 
 ### EVALID System
 - 6-digit codes identifying statistically valid plot groupings
+- Format: SSYYTT where:
+  - SS = State FIPS code (e.g., 40 for Oklahoma)
+  - YY = Inventory year (e.g., 23 for 2023)
+  - TT = Evaluation type code (00, 01, 03, 07, 09, etc.)
+- **CRITICAL**: Only ONE EVALID should be used per estimation to prevent overcounting
 - Must filter by EVALID for proper statistical estimates
 - Use `most_recent=True` for latest evaluations by default
+
+### EVAL_TYP Values in POP_EVAL_TYP Table
+The evaluation type codes in EVALID don't directly map to EVAL_TYP values:
+- **EXPALL**: All data types (typically EVALID type 00) - recommended for area estimation
+- **EXPVOL**: Volume/biomass data (typically EVALID type 01)
+- **EXPGROW**: Growth data
+- **EXPMORT**: Mortality data
+- **EXPREMV**: Removal data
+- **EXPCHNG**: Change data (typically EVALID type 03)
+- **EXPDWM**: Down woody materials (typically EVALID type 07)
+- **EXPINV**: Inventory data (typically EVALID type 09)
+
+For area estimation, use EVALIDs with EXPALL (type 00) as they include all plots
 
 ### Domain Filtering
 - `treeDomain`: SQL-like conditions for tree-level filtering (e.g., "STATUSCD == 1")

@@ -154,11 +154,13 @@ class UnifiedAggregationBuilder(IAggregationBuilder):
         UnifiedAggregationBuilder
             Builder instance for method chaining
         """
-        for response_name, col_name in response_cols.items():
-            if col_name:  # Only add if column name is provided
-                # Add stratum-level total
+        # response_cols is a dict where keys are internal column names (e.g., BOLE_CF_ACRE)
+        # and values are output names (e.g., VOLCFNET_ACRE)
+        for internal_col, output_name in response_cols.items():
+            if internal_col:  # Only add if column name is provided
+                # Add stratum-level total - sum the internal column that exists in data
                 self.aggregations.append(
-                    pl.sum(col_name).alias(f"STRATUM_{response_name.upper()}")
+                    pl.sum(internal_col).alias(f"STRATUM_{output_name.upper()}")
                 )
 
         return self

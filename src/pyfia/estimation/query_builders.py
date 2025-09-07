@@ -1264,9 +1264,14 @@ class CompositeQueryBuilder:
         
         # Build tree query if tree domain specified or needed for estimation
         if tree_domain or estimation_type in ["volume", "biomass", "tpa", "growth", "mortality"]:
+            # Extract tree_columns from kwargs if provided
+            tree_kwargs = kwargs.copy()
+            if 'tree_columns' in tree_kwargs:
+                tree_kwargs['columns'] = tree_kwargs.pop('tree_columns')
+            
             tree_plan = self.builders["tree"].build_query_plan(
                 tree_domain=tree_domain,
-                **kwargs
+                **tree_kwargs
             )
             results["trees"] = self.builders["tree"].execute(tree_plan)
         

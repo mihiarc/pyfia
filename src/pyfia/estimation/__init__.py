@@ -28,13 +28,6 @@ from .tpa import tpa, TPAEstimator
 from .tree.tree import tree_count, tree_count_simple
 from .volume import volume, VolumeEstimator
 
-# Variance calculation components
-from .variance_calculator import (
-    FIAVarianceCalculator,
-    calculate_cv,
-    calculate_relative_se,
-)
-
 # Lazy evaluation components
 from .lazy_evaluation import (
     LazyComputationNode,
@@ -128,11 +121,6 @@ __all__ = [
     "tree_count_simple",
     "volume",
     "VolumeEstimator",
-    
-    # Variance calculation
-    "FIAVarianceCalculator",
-    "calculate_cv",
-    "calculate_relative_se",
     
     # Lazy evaluation
     "LazyComputationNode",

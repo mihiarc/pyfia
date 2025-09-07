@@ -28,7 +28,6 @@ from .aggregation import (
 from .config import EstimatorConfig
 from .join import JoinManager, get_join_manager
 from .query_builders import CompositeQueryBuilder, LazyFrameWrapper, MemoryCache
-from .statistics.variance_calculator import VarianceCalculator
 
 
 @dataclass
@@ -98,9 +97,6 @@ class BaseEstimator(ABC):
             enable_caching=True
         )
         self._metrics = EstimationMetrics()
-
-        # Variance calculator
-        self.variance_calculator = VarianceCalculator()
 
         # Progress tracking
         self.console = Console()

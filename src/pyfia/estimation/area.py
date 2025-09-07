@@ -25,10 +25,8 @@ from .join import JoinManager, get_join_manager
 from .lazy_evaluation import LazyFrameWrapper, lazy_operation
 
 # Import the area-specific components
-from .statistics import PercentageCalculator, VarianceCalculator
+from .statistics import PercentageCalculator
 from .statistics.expressions import PolarsExpressionBuilder
-from .statistics.rfia_variance import RFIAVarianceCalculator
-from .stratification import AreaStratificationHandler
 
 
 class AreaEstimator(BaseEstimator):
@@ -107,11 +105,8 @@ class AreaEstimator(BaseEstimator):
 
         # Create other components
         self.land_type_classifier = LandTypeClassifier()
-        self.variance_calculator = VarianceCalculator()
-        self.rfia_variance_calculator = RFIAVarianceCalculator(self.db)
         self.percentage_calculator = PercentageCalculator()
         self.expression_builder = PolarsExpressionBuilder()
-        self.stratification_handler = AreaStratificationHandler(self.db)
 
         # All aggregation is now handled by the unified system
 

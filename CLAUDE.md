@@ -354,6 +354,65 @@ append_to_database(
 4. **For Performance**: Set `validation_level="none"` during conversion if data is trusted
 5. **For Large Datasets**: Adjust `batch_size` based on available memory
 
+#### Checking Database Contents
+
+```python
+# Quick check: Which states are in the database?
+import duckdb
+
+with duckdb.connect("nfi_south.duckdb", read_only=True) as conn:
+    states = conn.execute("""
+        SELECT 
+            STATECD as state_code,
+            COUNT(*) as plot_count
+        FROM PLOT
+        GROUP BY STATECD
+        ORDER BY STATECD
+    """).fetchall()
+    
+    print("States in database:")
+    for state_code, count in states:
+        print(f"  State {state_code}: {count:,} plots")
+
+# More detailed check with state names
+from pyfia import FIA
+
+with FIA("nfi_south.duckdb") as db:
+    conn = db.reader.conn if hasattr(db, 'reader') else duckdb.connect("nfi_south.duckdb", read_only=True)
+    
+    # State FIPS codes to names mapping
+    state_names = {
+        1: "Alabama", 2: "Alaska", 4: "Arizona", 5: "Arkansas", 6: "California",
+        8: "Colorado", 9: "Connecticut", 10: "Delaware", 12: "Florida", 13: "Georgia",
+        15: "Hawaii", 16: "Idaho", 17: "Illinois", 18: "Indiana", 19: "Iowa",
+        20: "Kansas", 21: "Kentucky", 22: "Louisiana", 23: "Maine", 24: "Maryland",
+        25: "Massachusetts", 26: "Michigan", 27: "Minnesota", 28: "Mississippi",
+        29: "Missouri", 30: "Montana", 31: "Nebraska", 32: "Nevada", 33: "New Hampshire",
+        34: "New Jersey", 35: "New Mexico", 36: "New York", 37: "North Carolina",
+        38: "North Dakota", 39: "Ohio", 40: "Oklahoma", 41: "Oregon", 42: "Pennsylvania",
+        44: "Rhode Island", 45: "South Carolina", 46: "South Dakota", 47: "Tennessee",
+        48: "Texas", 49: "Utah", 50: "Vermont", 51: "Virginia", 53: "Washington",
+        54: "West Virginia", 55: "Wisconsin", 56: "Wyoming"
+    }
+    
+    result = conn.execute("""
+        SELECT 
+            STATECD,
+            COUNT(DISTINCT CN) as plots,
+            COUNT(DISTINCT INVYR) as years,
+            MIN(INVYR) as earliest_year,
+            MAX(INVYR) as latest_year
+        FROM PLOT
+        GROUP BY STATECD
+        ORDER BY STATECD
+    """).fetchall()
+    
+    print("\nDetailed state inventory:")
+    for state_code, plots, years, min_year, max_year in result:
+        name = state_names.get(state_code, f"Unknown ({state_code})")
+        print(f"  {name}: {plots:,} plots, {years} inventory years ({min_year}-{max_year})")
+```
+
 #### Troubleshooting
 
 ```python

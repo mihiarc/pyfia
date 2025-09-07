@@ -8,11 +8,58 @@ mathematical operations with safety protections.
 
 from contextlib import contextmanager
 from decimal import Decimal, ROUND_HALF_UP, localcontext
-from typing import Optional
+from typing import Optional, Union
 
 import polars as pl
 
-from ..utils import ratio_var
+
+def ratio_var(
+    numerator: Union[float, pl.Expr],
+    denominator: Union[float, pl.Expr],
+    var_num: Union[float, pl.Expr],
+    var_den: Union[float, pl.Expr],
+    covar: Union[float, pl.Expr],
+) -> Union[float, pl.Expr]:
+    """
+    Calculate variance of a ratio using the delta method.
+
+    For ratio R = Y/X, the variance is:
+    Var(R) = (1/X²) * [Var(Y) + R² * Var(X) - 2 * R * Cov(Y,X)]
+
+    Parameters
+    ----------
+    numerator : float or pl.Expr
+        The numerator value (Y)
+    denominator : float or pl.Expr
+        The denominator value (X)
+    var_num : float or pl.Expr
+        Variance of the numerator
+    var_den : float or pl.Expr
+        Variance of the denominator
+    covar : float or pl.Expr
+        Covariance between numerator and denominator
+
+    Returns
+    -------
+    float or pl.Expr
+        Variance of the ratio
+    """
+    if isinstance(numerator, (int, float)):
+        if denominator == 0:
+            return 0.0
+        ratio = numerator / denominator
+        return (1 / denominator**2) * (var_num + ratio**2 * var_den - 2 * ratio * covar)
+    else:
+        # Polars expression
+        ratio = numerator / denominator
+        return (
+            pl.when(denominator == 0)
+            .then(0.0)
+            .otherwise(
+                (1 / denominator**2)
+                * (var_num + ratio**2 * var_den - 2 * ratio * covar)
+            )
+        )
 
 
 @contextmanager

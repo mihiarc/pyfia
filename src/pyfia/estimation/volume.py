@@ -12,13 +12,13 @@ import polars as pl
 from ..core import FIA
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
-from .evaluation import operation, FrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from ..filters.classification import assign_tree_basis
 
 
-class VolumeEstimator(BaseEstimator):
+class VolumeEstimator(BaseEstimator, LazyEstimatorMixin):
     """
     Lazy volume estimator with optimized memory usage and performance.
     

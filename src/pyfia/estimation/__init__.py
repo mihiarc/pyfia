@@ -9,12 +9,11 @@ from .base_estimator import BaseEstimator
 
 from .config import (
     EstimatorConfig,
-    MortalityConfig,
-    ModularEstimatorConfig,
-    VolumeConfig,
-    BiomassConfig,
-    GrowthConfig,
-    AreaConfig,
+    ModuleEstimatorConfig,
+    ModuleParameters,
+    PerformanceConfig,
+    CacheConfig,
+    LoggingConfig,
     ConfigFactory,
 )
 

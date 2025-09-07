@@ -10,16 +10,15 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from ..core import FIA
-from .config import EstimatorConfig
-from .config import MortalityConfig
+from .config import ModuleEstimatorConfig, ConfigFactory
 from .base_estimator import BaseEstimator
-from .evaluation import operation, FrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from ..filters.common import apply_area_filters, apply_tree_filters
 
 
-class MortalityEstimator(BaseEstimator):
+class MortalityEstimator(BaseEstimator, LazyEstimatorMixin):
     """
     Mortality estimator with optimized memory usage and performance.
     
@@ -36,7 +35,7 @@ class MortalityEstimator(BaseEstimator):
     performance.
     """
     
-    def __init__(self, db: Union[str, FIA], config: MortalityConfig):
+    def __init__(self, db: Union[str, FIA], config: ModuleEstimatorConfig):
         """
         Initialize the mortality estimator.
         
@@ -44,10 +43,12 @@ class MortalityEstimator(BaseEstimator):
         ----------
         db : Union[str, FIA]
             FIA database object or path to database
-        config : MortalityConfig
+        config : ModuleEstimatorConfig
             Configuration with estimation parameters
         """
-        # Convert MortalityConfig to EstimatorConfig
+        # Validate configuration for mortality module
+        if config.module_name != "mortality":
+            raise ValueError(f"Expected mortality module config, got {config.module_name}")
         estimator_config = EstimatorConfig(
             grp_by=config.grp_by,
             tree_domain=config.tree_domain,
@@ -173,7 +174,7 @@ class MortalityEstimator(BaseEstimator):
             Tuple of (tree_wrapper, cond_wrapper) with filtered lazy data
         """
         # Get condition data lazily
-        cond_wrapper = self.get_conditions()
+        cond_wrapper = FrameWrapper(self.db.get_conditions().lazy())
         
         # Apply area filters lazily
         if self.mortality_config.area_domain:
@@ -189,7 +190,7 @@ class MortalityEstimator(BaseEstimator):
                 cond_wrapper = self.apply_filters(cond_wrapper, filter_expr=land_filter)
         
         # Get tree data lazily
-        tree_wrapper = self.get_trees()
+        tree_wrapper = FrameWrapper(self.db.get_trees().lazy())
         
         # Apply tree filters lazily
         if self.mortality_config.tree_domain:
@@ -542,7 +543,7 @@ class MortalityEstimator(BaseEstimator):
 
 def mortality(
     db: Union[str, FIA],
-    config: MortalityConfig = None,
+    config: ModuleEstimatorConfig = None,
     by_species: bool = None,
     by_size_class: bool = None,
     tree_domain: Optional[str] = None,
@@ -576,7 +577,7 @@ def mortality(
     ----------
     db : Union[str, FIA]
         FIA database instance or path to database
-    config : MortalityConfig, optional
+    config : ModuleEstimatorConfig, optional
         Configuration for mortality estimation. If provided, individual
         parameters will override config values when specified.
     by_species : bool, optional
@@ -707,7 +708,8 @@ def mortality(
     # Determine which usage pattern we're in
     if config is None:
         # Parameters only - create config from provided parameters
-        final_config = MortalityConfig(**provided_params)
+        # Create mortality config using factory
+        final_config = ConfigFactory.create_config("mortality", **provided_params)
     elif not provided_params:
         # Config only - use as is
         final_config = config
@@ -718,11 +720,11 @@ def mortality(
         # Update with provided parameters
         config_dict.update(provided_params)
         # Create new config
-        final_config = MortalityConfig(**config_dict)
+        # Create mortality config using factory with overrides
+        final_config = ConfigFactory.create_config("mortality", **config_dict)
     
-    # Add show_progress to extra params
-    final_config.extra_params = final_config.extra_params or {}
-    final_config.extra_params["show_progress"] = show_progress
+    # Add show_progress to logging config
+    final_config.logging.show_progress = show_progress
     
     # Use estimator
     with MortalityEstimator(db, final_config) as estimator:

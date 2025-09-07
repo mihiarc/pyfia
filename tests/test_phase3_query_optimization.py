@@ -23,19 +23,17 @@ from pyfia.estimation.query_builders import (
     QueryColumn,
     QueryFilter,
     QueryJoin,
-    JoinStrategy,
+    QueryJoinStrategy,
     FilterPushDownLevel
 )
-from pyfia.estimation.join_optimizer import (
+from pyfia.estimation.join import (
+    JoinManager,
     JoinOptimizer,
-    JoinNode,
-    JoinCostEstimator,
-    FilterPushDown,
-    JoinRewriter,
-    FIAJoinPatterns,
-    OptimizedQueryExecutor,
+    JoinPlan,
     JoinType,
-    JoinStatistics
+    JoinStrategy as JoinStrategyType,
+    TableStatistics,
+    FIATableInfo
 )
 from pyfia.estimation.config import EstimatorConfig, LazyEvaluationConfig
 from pyfia.estimation.caching import MemoryCache, CacheKey
@@ -268,7 +266,7 @@ class TestQueryPlanCreation:
         ]
         
         joins = [
-            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", JoinStrategy.HASH)
+            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", QueryJoinStrategy.HASH)
         ]
         
         plan = QueryPlan(
@@ -903,11 +901,11 @@ class TestFilterSelectivityEstimation:
         # Test different size combinations
         test_cases = [
             # (left_size, right_size, expected_strategy_type)
-            (1000, 100000, JoinStrategy.BROADCAST),      # Small left table
-            (100000, 1000, JoinStrategy.BROADCAST),      # Small right table
-            (50000, 60000, JoinStrategy.HASH),           # Medium similar sizes
-            (1000000, 1200000, JoinStrategy.SORT_MERGE), # Large similar sizes
-            (10000, 10000, JoinStrategy.HASH),           # Small similar sizes
+            (1000, 100000, QueryJoinStrategy.BROADCAST),      # Small left table
+            (100000, 1000, QueryJoinStrategy.BROADCAST),      # Small right table
+            (50000, 60000, QueryJoinStrategy.HASH),           # Medium similar sizes
+            (1000000, 1200000, QueryJoinStrategy.SORT_MERGE), # Large similar sizes
+            (10000, 10000, QueryJoinStrategy.HASH),           # Small similar sizes
         ]
         
         for left_size, right_size, expected in test_cases:
@@ -915,7 +913,7 @@ class TestFilterSelectivityEstimation:
             
             # Allow some flexibility in strategy selection
             # The exact strategy might vary based on detailed heuristics
-            assert strategy in [expected, JoinStrategy.HASH, JoinStrategy.AUTO]
+            assert strategy in [expected, QueryJoinStrategy.HASH, QueryJoinStrategy.AUTO]
     
     def test_table_statistics_caching(self):
         """Test that table statistics are cached for performance."""

@@ -41,14 +41,15 @@ from pyfia.estimation.query_builders import (
     QueryColumn,
     QueryFilter,
     QueryJoin,
-    JoinStrategy
+    QueryJoinStrategy
 )
-from pyfia.estimation.join_optimizer import (
+from pyfia.estimation.join import (
+    JoinManager,
     JoinOptimizer,
-    JoinCostEstimator,
-    JoinNode,
+    JoinPlan,
     JoinType,
-    FIAJoinPatterns
+    TableStatistics,
+    FIATableInfo
 )
 from pyfia.estimation.caching import MemoryCache
 from pyfia.estimation.lazy_evaluation import LazyFrameWrapper
@@ -304,7 +305,7 @@ class Phase3TestRunner:
         ]
         
         joins = [
-            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", JoinStrategy.HASH)
+            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", QueryJoinStrategy.HASH)
         ]
         
         plan = QueryPlan(
@@ -350,9 +351,9 @@ class Phase3TestRunner:
         left_size, right_size = 100000, 10000
         
         # Test different strategies
-        hash_cost = estimator.estimate_join_cost(node, left_size, right_size, JoinStrategy.HASH)
-        broadcast_cost = estimator.estimate_join_cost(node, left_size, right_size, JoinStrategy.BROADCAST)
-        sort_cost = estimator.estimate_join_cost(node, left_size, right_size, JoinStrategy.SORT_MERGE)
+        hash_cost = estimator.estimate_join_cost(node, left_size, right_size, QueryJoinStrategy.HASH)
+        broadcast_cost = estimator.estimate_join_cost(node, left_size, right_size, QueryJoinStrategy.BROADCAST)
+        sort_cost = estimator.estimate_join_cost(node, left_size, right_size, QueryJoinStrategy.SORT_MERGE)
         
         assert hash_cost > 0
         assert broadcast_cost > 0
@@ -414,7 +415,7 @@ class Phase3TestRunner:
         
         # Test species reference pattern
         species_pattern = FIAJoinPatterns.species_reference_pattern()
-        assert species_pattern.strategy == JoinStrategy.BROADCAST
+        assert species_pattern.strategy == QueryJoinStrategy.BROADCAST
         assert species_pattern.join_type == JoinType.LEFT
     
     def test_memory_cache(self):

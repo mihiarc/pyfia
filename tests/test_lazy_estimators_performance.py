@@ -36,7 +36,7 @@ from pyfia.estimation import (
     area_lazy, biomass_lazy, tpa, volume_lazy, mortality_lazy
 from pyfia.estimation import growth
 )
-from pyfia.estimation.base import EstimatorConfig
+from pyfia.estimation.config import EstimatorConfig
 from pyfia.estimation.lazy_evaluation import CollectionStrategy
 
 # Import mortality functions separately

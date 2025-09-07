@@ -4,7 +4,6 @@ Data filtering and processing utilities for pyFIA.
 This module provides:
 - Domain filtering functions
 - Data grouping utilities
-- Common join operations
 - Adjustment factor calculations
 - Classification functions
 - EVALID selection and filtering
@@ -19,11 +18,12 @@ from .common import (
     setup_grouping_columns_common,
 )
 from .domain import *
+from .domain_parser import DomainExpressionParser
 from .grouping import *
-from .joins import *
 
 __all__ = [
     "apply_tree_filters_common",
     "apply_area_filters_common",
     "setup_grouping_columns_common",
+    "DomainExpressionParser",
 ]  # Individual modules define their own exports

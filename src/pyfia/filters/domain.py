@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Tuple
 
 import polars as pl
 
+from .domain_parser import DomainExpressionParser
 from ..constants.constants import (
     LandStatus,
     ReserveStatus,
@@ -221,7 +222,7 @@ def apply_tree_filters(
 
     # Apply custom domain filter if provided
     if tree_domain:
-        tree_df = parse_domain_expression(tree_df, tree_domain, "tree")
+        tree_df = DomainExpressionParser.apply_to_dataframe(tree_df, tree_domain, "tree")
         assumptions_made.append(f"Custom tree filter applied: {tree_domain}")
 
     if track_assumptions:
@@ -314,7 +315,7 @@ def apply_area_filters(
 
     # Apply custom domain filter if provided
     if area_domain:
-        cond_df = parse_domain_expression(cond_df, area_domain, "area")
+        cond_df = DomainExpressionParser.apply_to_dataframe(cond_df, area_domain, "area")
         assumptions.assumptions_made.append(f"Custom area filter applied: {area_domain}")
 
     # Update assumptions object
@@ -327,34 +328,6 @@ def apply_area_filters(
     return cond_df, None
 
 
-def parse_domain_expression(
-    df: pl.DataFrame | str,
-    domain: str,
-    domain_type: str = "tree",
-) -> pl.DataFrame | pl.Expr:
-    """
-    Parse custom domain expressions.
-
-    Supports two call styles for backward compatibility:
-    - parse_domain_expression(df, domain, domain_type) -> filtered DataFrame
-    - parse_domain_expression(domain, domain_type) -> Polars Expr
-    """
-    # Overload: if first argument is actually the domain string, return Expr
-    if not isinstance(df, pl.DataFrame):
-        domain_str = str(df)
-        # domain parameter may actually be the domain_type in this usage
-        # Keep API tolerant and ignore here
-        try:
-            return pl.sql_expr(domain_str)
-        except Exception as e:
-            raise ValueError(f"Invalid {domain_type} domain expression: {domain_str}") from e
-
-    # Regular: filter the provided DataFrame
-    try:
-        expr = pl.sql_expr(domain)
-        return df.filter(expr)
-    except Exception as e:
-        raise ValueError(f"Invalid {domain_type} domain expression: {domain}") from e
 
 
 def apply_growing_stock_filter(
@@ -379,26 +352,22 @@ def apply_growing_stock_filter(
     pl.DataFrame
         Filtered tree dataframe
     """
-    # Base growing stock filter
+    # Base growing stock filter - check for column existence
     gs_filter = (
         (pl.col("STATUSCD") == TreeStatus.LIVE)  # Live
         & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)  # Growing stock class
-        & (pl.col("AGENTCD") < 30)  # No severe damage
     )
+    
+    # Add AGENTCD filter only if column exists
+    if "AGENTCD" in tree_df.columns:
+        gs_filter = gs_filter & (pl.col("AGENTCD") < 30)  # No severe damage
 
     if gs_type == "merchantable":
         # Additional filters for merchantable volume
-        # If AGENTCD not present, skip that component gracefully
-        gs_filter = (
-            (pl.col("STATUSCD") == TreeStatus.LIVE)
-            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
-        ) & (pl.col("DIA") >= 5.0)
+        gs_filter = gs_filter & (pl.col("DIA") >= 5.0)
     elif gs_type == "board_foot":
         # Board foot requires larger diameter
-        gs_filter = (
-            (pl.col("STATUSCD") == TreeStatus.LIVE)
-            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
-        ) & (pl.col("DIA") >= 9.0)
+        gs_filter = gs_filter & (pl.col("DIA") >= 9.0)
     elif gs_type != "standard":
         raise ValueError(f"Invalid gs_type: {gs_type}")
 

@@ -29,7 +29,7 @@ import pytest
 from pyfia import FIA
 # Import the main estimator functions with integrated lazy evaluation
 from pyfia.estimation import area, tpa, volume, growth, mortality, biomass
-from pyfia.estimation.base import EstimatorConfig
+from pyfia.estimation.config import EstimatorConfig
 from pyfia.estimation.lazy_evaluation import CollectionStrategy, LazyEstimatorMixin
 from pyfia.estimation.progress import OperationType
 from pyfia.estimation.lazy_base import LazyBaseEstimator

@@ -21,9 +21,9 @@ import polars as pl
 
 from ....filters.common import (
     apply_tree_filters_common,
-    apply_area_filters_common,
-    parse_domain_expression
+    apply_area_filters_common
 )
+from ....filters.domain_parser import DomainExpressionParser
 from ....filters.evalid_filter import EvalidFilter
 from ...lazy_evaluation import LazyFrameWrapper
 from ..core import ExecutionContext, PipelineException
@@ -194,7 +194,7 @@ class ApplyTreeDomainStep(FilteringStep):
         
         # Parse expression to check for invalid columns
         try:
-            parsed = parse_domain_expression(expression)
+            parsed = DomainExpressionParser.parse(expression, "custom")
             # This is a simplified validation - could be more sophisticated
             for token in expression.split():
                 if token.upper() in ["AND", "OR", "NOT", "IN", "BETWEEN", "IS", "NULL"]:
@@ -364,7 +364,7 @@ class ApplyAreaDomainStep(FilteringStep):
         
         # Similar validation as tree domain
         try:
-            parsed = parse_domain_expression(expression)
+            parsed = DomainExpressionParser.parse(expression, "custom")
         except Exception as e:
             raise ValueError(f"Invalid area domain expression: {e}")
 

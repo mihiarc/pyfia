@@ -8,7 +8,7 @@ the existing estimator framework.
 
 import pytest
 from pyfia.estimation.config import MortalityConfig, EstimatorConfigV2, VALID_FIA_GROUPING_COLUMNS
-from pyfia.estimation.base import EstimatorConfig
+from pyfia.estimation.config import EstimatorConfig
 
 
 class TestMortalityConfig:

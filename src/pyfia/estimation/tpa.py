@@ -13,6 +13,7 @@ from ..core import FIA
 from ..constants.constants import MathConstants, PlotBasis
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
+from .join import JoinManager, get_join_manager
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
@@ -176,7 +177,13 @@ class TPAEstimator(BaseEstimator):
             # Join with PLOT to get MACRO_BREAKPOINT_DIA
             plots_lazy = self.load_table_lazy("PLOT")
             plots_subset = plots_lazy.select(["CN", "MACRO_BREAKPOINT_DIA"]).rename({"CN": "PLT_CN"})
-            lazy_data = lazy_data.join(plots_subset, on="PLT_CN", how="left")
+            lazy_data = self._optimized_join(
+                lazy_data, plots_subset,
+                on="PLT_CN",
+                how="left",
+                left_name="TREE",
+                right_name="PLOT"
+            )
         
         # Create basis assignment expression
         macro_bp = pl.col("MACRO_BREAKPOINT_DIA").fill_null(pl.lit(9999.0))
@@ -219,10 +226,13 @@ class TPAEstimator(BaseEstimator):
         ]).unique()
         
         # Perform lazy join
-        return lazy_data.join(
+        return self._optimized_join(
+            lazy_data,
             strat_subset,
             on="PLT_CN",
-            how="left"
+            how="left",
+            left_name="TREE",
+            right_name="STRATIFICATION"
         )
     
     @cached_operation("stratification_data", ttl_seconds=1800)
@@ -257,13 +267,16 @@ class TPAEstimator(BaseEstimator):
         
         # Join stratification data
         # PPSA has STRATUM_CN column that links to CN in POP_STRATUM
-        strat_lazy = self._ppsa_cache.join(
+        strat_lazy = self._optimized_join(
+            self._ppsa_cache,
             self._pop_stratum_cache.select([
                 "CN", "EXPNS", "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"
             ]),
             left_on="STRATUM_CN",
             right_on="CN",
-            how="inner"
+            how="inner",
+            left_name="POP_PLOT_STRATUM_ASSGN",
+            right_name="POP_STRATUM"
         )
         
         return strat_lazy
@@ -403,10 +416,13 @@ class TPAEstimator(BaseEstimator):
         ])
         
         # Join with species info
-        return lazy_data.join(
+        return self._optimized_join(
+            lazy_data,
             species_subset.lazy() if isinstance(species_subset, pl.DataFrame) else species_subset,
             on="SPCD",
-            how="left"
+            how="left",
+            left_name="TREE",
+            right_name="REF_SPECIES"
         )
     
     def get_tree_columns(self) -> List[str]:
@@ -481,10 +497,13 @@ class TPAEstimator(BaseEstimator):
                 if missing_cols:
                     # Join with conditions to get missing columns
                     cond_cols = ["PLT_CN", "CONDID"] + missing_cols
-                    tree_lazy = tree_lazy.join(
+                    tree_lazy = self._optimized_join(
+                        tree_lazy,
                         cond_lazy.select(cond_cols),
                         on=["PLT_CN", "CONDID"],
-                        how="left"
+                        how="left",
+                        left_name="TREE",
+                        right_name="COND"
                     )
                 
                 tree_groups = ["PLT_CN", "TREE_BASIS"] + grp_by
@@ -534,7 +553,13 @@ class TPAEstimator(BaseEstimator):
             ])
             
             # Join with forest area proportion
-            plot_est = plot_est.join(area_by_plot, on="PLT_CN", how="left")
+            plot_est = self._optimized_join(
+                plot_est, area_by_plot,
+                on="PLT_CN",
+                how="left",
+                left_name="PLOT_ESTIMATES",
+                right_name="AREA_BY_PLOT"
+            ).collect()
             
             # Fill missing values with 0
             plot_est = plot_est.with_columns([

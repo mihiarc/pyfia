@@ -54,19 +54,17 @@ from pyfia.estimation.query_builders import (
     QueryColumn,
     QueryFilter,
     QueryJoin,
-    JoinStrategy,
+    QueryJoinStrategy,
     FilterPushDownLevel
 )
-from pyfia.estimation.join_optimizer import (
+from pyfia.estimation.join import (
+    JoinManager,
     JoinOptimizer,
-    JoinNode,
-    JoinCostEstimator,
-    FilterPushDown,
-    JoinRewriter,
-    FIAJoinPatterns,
-    OptimizedQueryExecutor,
+    JoinPlan,
     JoinType,
-    JoinStatistics
+    JoinStrategy as JoinStrategyType,
+    TableStatistics,
+    FIATableInfo
 )
 from pyfia.estimation.caching import MemoryCache, CacheKey
 from pyfia.estimation.lazy_evaluation import LazyFrameWrapper
@@ -466,7 +464,7 @@ class TestQueryBuilders:
         
         # Create joins
         joins = [
-            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", JoinStrategy.HASH)
+            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", QueryJoinStrategy.HASH)
         ]
         
         # Create query plan
@@ -755,15 +753,15 @@ class TestQueryBuilders:
         
         # Test different size combinations
         test_cases = [
-            (1000, 100000, JoinStrategy.BROADCAST),    # Small right table
-            (100000, 1000, JoinStrategy.BROADCAST),    # Small left table
-            (50000, 60000, JoinStrategy.HASH),         # Medium tables
-            (1000000, 1200000, JoinStrategy.SORT_MERGE),  # Large tables
+            (1000, 100000, QueryJoinStrategy.BROADCAST),    # Small right table
+            (100000, 1000, QueryJoinStrategy.BROADCAST),    # Small left table
+            (50000, 60000, QueryJoinStrategy.HASH),         # Medium tables
+            (1000000, 1200000, QueryJoinStrategy.SORT_MERGE),  # Large tables
         ]
         
         for left_size, right_size, expected_strategy in test_cases:
             strategy = builder._optimize_join_strategy(left_size, right_size)
-            assert strategy == expected_strategy or strategy == JoinStrategy.HASH  # Hash is often a good fallback
+            assert strategy == expected_strategy or strategy == QueryJoinStrategy.HASH  # Hash is often a good fallback
 
 
 class TestJoinOptimizer:
@@ -786,10 +784,10 @@ class TestJoinOptimizer:
         # Test cost estimation for different strategies
         left_rows, right_rows = 100000, 10000
         
-        hash_cost = estimator.estimate_join_cost(node, left_rows, right_rows, JoinStrategy.HASH)
-        sort_merge_cost = estimator.estimate_join_cost(node, left_rows, right_rows, JoinStrategy.SORT_MERGE)
-        broadcast_cost = estimator.estimate_join_cost(node, left_rows, right_rows, JoinStrategy.BROADCAST)
-        nested_loop_cost = estimator.estimate_join_cost(node, left_rows, right_rows, JoinStrategy.NESTED_LOOP)
+        hash_cost = estimator.estimate_join_cost(node, left_rows, right_rows, QueryJoinStrategy.HASH)
+        sort_merge_cost = estimator.estimate_join_cost(node, left_rows, right_rows, QueryJoinStrategy.SORT_MERGE)
+        broadcast_cost = estimator.estimate_join_cost(node, left_rows, right_rows, QueryJoinStrategy.BROADCAST)
+        nested_loop_cost = estimator.estimate_join_cost(node, left_rows, right_rows, QueryJoinStrategy.NESTED_LOOP)
         
         # Nested loop should be most expensive
         assert nested_loop_cost > hash_cost
@@ -892,7 +890,7 @@ class TestJoinOptimizer:
         )
         
         optimized = rewriter.rewrite_plan(tree_plot_join)
-        assert optimized.strategy == JoinStrategy.HASH
+        assert optimized.strategy == QueryJoinStrategy.HASH
         assert optimized.optimization_hints["fia_pattern"] == "tree_plot"
         
         # Test stratification join pattern
@@ -916,7 +914,7 @@ class TestJoinOptimizer:
         )
         
         optimized = rewriter.rewrite_plan(strat_join)
-        assert optimized.strategy == JoinStrategy.BROADCAST
+        assert optimized.strategy == QueryJoinStrategy.BROADCAST
         assert optimized.optimization_hints["fia_pattern"] == "stratification"
         
         # Test reference table join
@@ -930,7 +928,7 @@ class TestJoinOptimizer:
         )
         
         optimized = rewriter.rewrite_plan(ref_join)
-        assert optimized.strategy == JoinStrategy.BROADCAST
+        assert optimized.strategy == QueryJoinStrategy.BROADCAST
         assert optimized.optimization_hints["fia_pattern"] == "reference"
     
     def test_main_join_optimizer(self):
@@ -952,7 +950,7 @@ class TestJoinOptimizer:
         ]
         
         joins = [
-            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", JoinStrategy.AUTO)
+            QueryJoin("TREE", "PLOT", "PLT_CN", "CN", "inner", QueryJoinStrategy.AUTO)
         ]
         
         plan = QueryPlan(
@@ -999,7 +997,7 @@ class TestJoinOptimizer:
         
         # Test species reference pattern
         species_pattern = FIAJoinPatterns.species_reference_pattern()
-        assert species_pattern.strategy == JoinStrategy.BROADCAST
+        assert species_pattern.strategy == QueryJoinStrategy.BROADCAST
         assert species_pattern.join_type == JoinType.LEFT
 
 

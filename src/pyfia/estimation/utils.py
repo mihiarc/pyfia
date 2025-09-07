@@ -10,6 +10,8 @@ from typing import Dict, List, Optional, Union
 import numpy as np
 import polars as pl
 
+from ..filters.domain_parser import DomainExpressionParser
+
 
 def merge_estimation_data(data: Dict[str, pl.DataFrame]) -> pl.DataFrame:
     """
@@ -213,16 +215,10 @@ def apply_domain_filter(
 
     # Apply SQL-like expressions if provided
     if tree_domain:
-        try:
-            result = result.filter(pl.sql_expr(tree_domain))
-        except Exception as exc:
-            raise ValueError(f"Invalid tree_domain expression: {tree_domain}") from exc
+        result = DomainExpressionParser.apply_to_dataframe(result, tree_domain, "tree")
 
     if area_domain:
-        try:
-            result = result.filter(pl.sql_expr(area_domain))
-        except Exception as exc:
-            raise ValueError(f"Invalid area_domain expression: {area_domain}") from exc
+        result = DomainExpressionParser.apply_to_dataframe(result, area_domain, "area")
 
     return result
 

@@ -21,6 +21,7 @@ from .base_estimator import BaseEstimator
 from .caching import cached_operation
 from .config import EstimatorConfig
 from .domain import DomainIndicatorCalculator, LandTypeClassifier
+from .join import JoinManager, get_join_manager
 from .lazy_evaluation import LazyFrameWrapper, lazy_operation
 
 # Import the area-specific components
@@ -180,20 +181,29 @@ class AreaEstimator(BaseEstimator):
         if self.db.evalid:
             pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
 
-        # Join to get adjustment factors
-        strat_data = ppsa.join(
+        # Use optimized join to get adjustment factors
+        strat_data = self._optimized_join(
+            ppsa,
             pop_stratum.select(["CN", "ADJ_FACTOR_MACR", "ADJ_FACTOR_SUBP"]),
             left_on="STRATUM_CN",
             right_on="CN",
-            how="inner"
-        )
+            how="inner",
+            left_name="POP_PLOT_STRATUM_ASSGN",
+            right_name="POP_STRATUM"
+        ).collect()
 
         # Convert to lazy and join with condition data
         strat_lazy = strat_data.lazy().select([
             "PLT_CN", "ADJ_FACTOR_MACR", "ADJ_FACTOR_SUBP"
         ])
 
-        lazy_data = lazy_data.join(strat_lazy, on="PLT_CN", how="left")
+        lazy_data = self._optimized_join(
+            lazy_data, strat_lazy, 
+            on="PLT_CN", 
+            how="left",
+            left_name="COND",
+            right_name="STRATIFICATION"
+        )
 
         # Step 5: Calculate adjusted area values using proper adjustment factors
         lazy_data = lazy_data.with_columns([
@@ -240,8 +250,14 @@ class AreaEstimator(BaseEstimator):
             # Convert to lazy and select only needed columns
             plots_lazy = pl.LazyFrame(plots_df).select(["PLT_CN", "MACRO_BREAKPOINT_DIA"])
 
-            # Join with condition data
-            lazy_data = lazy_data.join(plots_lazy, on="PLT_CN", how="left")
+            # Use optimized join with condition data
+            lazy_data = self._optimized_join(
+                lazy_data, plots_lazy,
+                on="PLT_CN",
+                how="left",
+                left_name="COND",
+                right_name="PLOT"
+            )
 
         # Create PROP_BASIS expression based on MACRO_BREAKPOINT_DIA
         # Following the logic from filters/classification.py
@@ -381,17 +397,8 @@ class AreaEstimator(BaseEstimator):
         tuple[Optional[pl.DataFrame], pl.DataFrame]
             Filtered tree and condition dataframes
         """
-        with self._track_operation(OperationType.FILTER, "Apply area filters"):
-            # For area estimation, we typically don't filter trees here
-            # The domain filtering happens during indicator calculation
-
-            # Store tree data for domain calculator if needed
-            if tree_df is not None:
-                self._data_cache["TREE"] = tree_df
-
-            self._update_progress(
-                description=f"Prepared {len(cond_df):,} conditions for area estimation"
-            )
+        # For area estimation, we typically don't filter trees here
+        # The domain filtering happens during indicator calculation
 
         return tree_df, cond_df
 
@@ -441,11 +448,14 @@ class AreaEstimator(BaseEstimator):
         if "P1POINTCNT" in pop_stratum_cols:
             select_cols.append("P1POINTCNT")
 
-        # Join stratification data
-        strat_lazy = self._ppsa_cache.join(
+        # Use optimized join for stratification data
+        strat_lazy = self._optimized_join(
+            self._ppsa_cache,
             self._pop_stratum_cache.select(select_cols).rename({"CN": "STRATUM_CN"}),
             on="STRATUM_CN",
-            how="inner"
+            how="inner",
+            left_name="POP_PLOT_STRATUM_ASSGN",
+            right_name="POP_STRATUM"
         )
 
         return strat_lazy
@@ -564,11 +574,14 @@ class AreaEstimator(BaseEstimator):
             pl.sum("fad").alias("PLOT_AREA_DENOMINATOR"),
         ])
 
-        # Join numerator and denominator
-        plot_estimates_lazy = plot_estimates_lazy.join(
+        # Use optimized join for numerator and denominator
+        plot_estimates_lazy = self._optimized_join(
+            plot_estimates_lazy,
             plot_denom_lazy,
             on="PLT_CN",
-            how="left"
+            how="left",
+            left_name="PLOT_ESTIMATES",
+            right_name="PLOT_DENOMINATOR"
         )
 
         # Fill nulls with zeros
@@ -613,11 +626,14 @@ class AreaEstimator(BaseEstimator):
                 if "ADJ_FACTOR_MACR" in strat_cols:
                     select_cols.append("ADJ_FACTOR_MACR")
 
-                # Join with stratification data
-                plot_with_strat_lazy = plot_lazy.join(
+                # Use optimized join with stratification data
+                plot_with_strat_lazy = self._optimized_join(
+                    plot_lazy,
                     strat_lazy.select(select_cols),
                     on="PLT_CN",
-                    how="inner"
+                    how="inner",
+                    left_name="PLOT",
+                    right_name="STRATIFICATION"
                 )
 
                 # Calculate adjustment factor based on plot basis
@@ -696,13 +712,16 @@ class AreaEstimator(BaseEstimator):
         if "P1POINTCNT" in pop_stratum_cols:
             select_cols.append("P1POINTCNT")
 
-        # Join stratification data
-        strat_df = ppsa_df.join(
+        # Use optimized join for stratification data
+        strat_df = self._optimized_join(
+            ppsa_df,
             pop_stratum_df.select(select_cols),
             left_on="STRATUM_CN",
             right_on="CN",
-            how="inner"
-        )
+            how="inner",
+            left_name="POP_PLOT_STRATUM_ASSGN",
+            right_name="POP_STRATUM"
+        ).collect()
 
         # Get available columns from strat_df
         strat_cols = strat_df.columns
@@ -718,12 +737,15 @@ class AreaEstimator(BaseEstimator):
         if "P2POINTCNT" in strat_cols:
             select_cols.append("P2POINTCNT")
 
-        # Join with plot data
-        plot_with_strat = plot_data.join(
+        # Use optimized join with plot data
+        plot_with_strat = self._optimized_join(
+            plot_data,
             strat_df.select(select_cols),
             on="PLT_CN",
             how="inner",
-        )
+            left_name="PLOT",
+            right_name="STRATIFICATION"
+        ).collect()
 
         # Add adjustment factor based on PROP_BASIS
         # Check if adjustment factor columns exist

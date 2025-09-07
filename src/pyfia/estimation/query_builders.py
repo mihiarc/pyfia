@@ -34,7 +34,7 @@ from .caching import CacheKey, MemoryCache
 
 # === Query Optimization Enums ===
 
-class JoinStrategy(Enum):
+class QueryJoinStrategy(Enum):
     """Join strategies for query optimization."""
     HASH = auto()        # Hash join for large datasets
     SORT_MERGE = auto()  # Sort-merge for pre-sorted data
@@ -139,7 +139,7 @@ class QueryJoin:
     left_on: Union[str, List[str]]
     right_on: Union[str, List[str]]
     how: str = "inner"
-    strategy: JoinStrategy = JoinStrategy.AUTO
+    strategy: QueryJoinStrategy = QueryJoinStrategy.AUTO
     
     def get_join_keys(self) -> Tuple[List[str], List[str]]:
         """Get normalized join keys."""
@@ -168,7 +168,7 @@ class QueryPlan:
     # Optimization hints
     estimated_rows: Optional[int] = None
     filter_selectivity: Optional[float] = None
-    preferred_strategy: Optional[JoinStrategy] = None
+    preferred_strategy: Optional[QueryJoinStrategy] = None
     cache_key: Optional[str] = None
     
     def __post_init__(self):
@@ -448,7 +448,7 @@ class BaseQueryBuilder(ABC):
     def _optimize_join_strategy(self, 
                                left_size: int,
                                right_size: int,
-                               join_type: str = "inner") -> JoinStrategy:
+                               join_type: str = "inner") -> QueryJoinStrategy:
         """
         Determine optimal join strategy based on table sizes.
         
@@ -463,7 +463,7 @@ class BaseQueryBuilder(ABC):
             
         Returns
         -------
-        JoinStrategy
+        QueryJoinStrategy
             Recommended join strategy
         """
         ratio = right_size / left_size if left_size > 0 else 1.0
@@ -471,19 +471,19 @@ class BaseQueryBuilder(ABC):
         # Heuristics for join strategy selection
         if right_size < 10000 and ratio < 0.1:
             # Small right table - use broadcast join
-            return JoinStrategy.BROADCAST
+            return QueryJoinStrategy.BROADCAST
         elif left_size < 100000 and right_size < 100000:
             # Both tables small - use hash join
-            return JoinStrategy.HASH
+            return QueryJoinStrategy.HASH
         elif ratio > 100 or ratio < 0.1:  # Changed from 0.01 to 0.1
             # Very skewed sizes - use broadcast for very small or hash for moderate
             if right_size < 10000:
-                return JoinStrategy.BROADCAST
+                return QueryJoinStrategy.BROADCAST
             else:
-                return JoinStrategy.HASH
+                return QueryJoinStrategy.HASH
         else:
             # Large, similar-sized tables - use sort-merge
-            return JoinStrategy.SORT_MERGE
+            return QueryJoinStrategy.SORT_MERGE
     
     @lru_cache(maxsize=128)
     def _get_table_stats(self, table_name: str) -> Dict[str, Any]:
@@ -998,7 +998,7 @@ class PlotQueryBuilder(BaseQueryBuilder):
                 left_on="CN",
                 right_on="PLT_CN",
                 how="inner",
-                strategy=JoinStrategy.HASH  # Usually efficient for this join
+                strategy=QueryJoinStrategy.HASH  # Usually efficient for this join
             ))
             
             # Add EVALID filter on the assignment table
@@ -1338,6 +1338,6 @@ __all__ = [
     "CompositeQueryBuilder",
     
     # Enums
-    "JoinStrategy",
+    "QueryJoinStrategy",
     "FilterPushDownLevel",
 ]

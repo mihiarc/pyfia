@@ -114,9 +114,9 @@ class TreeCountEstimator(BaseEstimator):
         Live trees: DIA >= 1.0 per FIA standard; dead trees: DIA >= 5.0.
         """
         # Filter conditions for land_type
-        from pyfia.filters.common import apply_area_filters_common, apply_tree_filters_common
+        from pyfia.filters.common import apply_area_filters, apply_tree_filters
         
-        cond_df = apply_area_filters_common(
+        cond_df = apply_area_filters(
             cond_df,
             land_type=self.config.land_type,
             area_domain=self.config.area_domain,
@@ -125,7 +125,7 @@ class TreeCountEstimator(BaseEstimator):
         
         # Filter trees
         if tree_df is not None:
-            tree_df = apply_tree_filters_common(
+            tree_df = apply_tree_filters(
                 tree_df,
                 tree_type=self.config.tree_type,
                 tree_domain=self.config.tree_domain,

@@ -18,8 +18,8 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
 from ..core import FIA
-from ..filters import apply_area_filters_common
-from ..filters.common import setup_grouping_columns_common
+from ..filters import apply_area_filters
+from ..filters.common import setup_grouping_columns
 from .aggregation import (
     EstimationType,
     UnifiedAggregationConfig,
@@ -314,7 +314,7 @@ class BaseEstimator(ABC):
         if cond_wrapper is None:
             # Fall back to getting conditions directly
             cond_df = self.db.get_conditions()
-            cond_df = apply_area_filters_common(
+            cond_df = apply_area_filters(
                 cond_df,
                 getattr(self.config, 'land_type', None),
                 self.config.area_domain
@@ -390,7 +390,7 @@ class BaseEstimator(ABC):
             if self.config.grp_by or self.config.by_species or self.config.by_size_class:
                 # Need to collect for grouping setup
                 data_df = joined.collect()
-                data_df, group_cols = setup_grouping_columns_common(
+                data_df, group_cols = setup_grouping_columns(
                     data_df,
                     self.config.grp_by,
                     self.config.by_species,

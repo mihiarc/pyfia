@@ -344,7 +344,7 @@ class TPAEstimator(BaseEstimator):
         """
         with self._track_operation(OperationType.FILTER, "Apply TPA filters"):
             # TPA estimation requires diameter thresholds to be applied
-            # This is handled in apply_tree_filters_common with require_diameter_thresholds=True
+            # This is handled in apply_tree_filters with require_diameter_thresholds=True
             # No additional module-specific filtering needed
             
             if tree_df is not None:

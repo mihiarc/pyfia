@@ -13,17 +13,20 @@ This module provides:
 from .adjustment import *
 from .classification import *
 from .common import (
-    apply_area_filters_common,
-    apply_tree_filters_common,
-    setup_grouping_columns_common,
+    apply_area_filters,
+    apply_tree_filters,
+    setup_grouping_columns,
 )
 from .domain import *
 from .domain_parser import DomainExpressionParser
 from .grouping import *
 
 __all__ = [
-    "apply_tree_filters_common",
-    "apply_area_filters_common",
-    "setup_grouping_columns_common",
+    # Standard filtering functions
+    "apply_tree_filters",
+    "apply_area_filters", 
+    "setup_grouping_columns",
+    
+    # Domain parsing and utilities
     "DomainExpressionParser",
 ]  # Individual modules define their own exports

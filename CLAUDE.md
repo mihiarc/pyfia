@@ -169,75 +169,209 @@ db = FIA("path/to/fia.db").clip_by_state([37, 45]).clip_most_recent("VOL")
 results = volume(db, treeDomain="DIA >= 10.0", bySpecies=True)
 ```
 
-## Database Conversion
+## Database Conversion and Management
 
 ### SQLite to DuckDB Converter
 
-pyFIA includes a comprehensive converter for transforming FIA DataMart SQLite databases to optimized DuckDB format:
+pyFIA includes a comprehensive converter for transforming FIA DataMart SQLite databases to DuckDB format. The converter uses FIA standard schemas directly without type "optimizations", ensuring data integrity while leveraging DuckDB's automatic compression.
 
-#### API Usage
+#### Simple Conversion (Single State)
 ```python
-from pyfia import convert_sqlite_to_duckdb, merge_state_databases, append_to_database
-from pyfia import FIA
-from pyfia.converter import ConverterConfig
+from pyfia import convert_sqlite_to_duckdb
 
-# Simple conversion
-convert_sqlite_to_duckdb("OR_FIA.db", "oregon.duckdb")
-
-# With configuration
-convert_sqlite_to_duckdb(
-    "OR_FIA.db",
-    "oregon.duckdb",
-    compression_level="high",
-    validation_level="comprehensive"
+# Convert a single state database
+result = convert_sqlite_to_duckdb(
+    source_path="SQLite_FIADB_OK.db",
+    target_path="oklahoma.duckdb",
+    state_code=40  # Oklahoma FIPS code
 )
 
-# Merge multiple states
+print(f"Converted {result.stats.source_records_processed:,} records")
+print(f"Compression ratio: {result.compression_ratio:.2f}x")
+```
+
+#### Building Multi-State Databases
+
+##### Option 1: Merge Multiple States at Once
+```python
+from pyfia import merge_state_databases
+
+# Create a multi-state database from multiple SQLite files
 merge_state_databases(
-    ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
-    "pacific_states.duckdb"
+    source_paths=["SQLite_FIADB_OK.db", "SQLite_FIADB_TX.db", "SQLite_FIADB_AL.db"],
+    target_path="nfi_south.duckdb",
+    state_codes=[40, 48, 1]  # Oklahoma, Texas, Alabama
+)
+```
+
+##### Option 2: Build Incrementally with Append
+```python
+from pyfia import convert_sqlite_to_duckdb, append_to_database
+
+# Step 1: Create initial database with first state
+convert_sqlite_to_duckdb(
+    source_path="SQLite_FIADB_OK.db",
+    target_path="nfi_south.duckdb",
+    state_code=40
 )
 
-# Append data to existing database
-append_to_database("oregon.duckdb", "OR_FIA_update.db", dedupe=True)
+# Step 2: Append additional states
+append_to_database(
+    target_db="nfi_south.duckdb",
+    source_path="SQLite_FIADB_TX.db",
+    state_code=48,
+    dedupe=False  # No deduplication needed for new states
+)
 
-# Or use the FIA class methods directly
-result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb")
+# Step 3: Continue appending
+append_to_database(
+    target_db="nfi_south.duckdb",
+    source_path="SQLite_FIADB_AL.db",
+    state_code=1
+)
+```
 
-# Advanced: with custom configuration
+#### Handling Updates and Deduplication
+
+```python
+# When appending updated data for an existing state, use deduplication
+append_to_database(
+    target_db="nfi_south.duckdb",
+    source_path="SQLite_FIADB_TX_2024_update.db",
+    state_code=48,
+    dedupe=True,
+    dedupe_keys=["CN"]  # Remove duplicates based on CN field
+)
+```
+
+#### Advanced Configuration
+
+```python
+from pyfia.converter import FIAConverter, ConverterConfig
+from pathlib import Path
+
+# Create custom configuration
 config = ConverterConfig(
     source_dir=Path("/data/fia/sqlite"),
-    target_path=Path("/data/fia/oregon.duckdb"),
-    compression_level="medium",
-    validation_level="standard",
-    append_mode=True,
-    dedupe_on_append=True
+    target_path=Path("/data/fia/regional.duckdb"),
+    compression_level="medium",    # Compression: none, low, medium, high
+    validation_level="none",       # Validation: none, basic, standard, comprehensive
+    append_mode=True,              # True for append, False for new database
+    dedupe_on_append=False,        # Remove duplicates when appending
+    dedupe_keys=["CN"],           # Fields to check for duplicates
+    batch_size=100_000,           # Records per batch
+    show_progress=True            # Show progress bars
 )
-result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb", config=config)
+
+# Use converter directly for more control
+converter = FIAConverter(config)
+
+# Convert/append a state
+result = converter.convert_state(
+    sqlite_path=Path("SQLite_FIADB_GA.db"),
+    state_code=13,  # Georgia
+    target_path=Path("/data/fia/regional.duckdb")
+)
+
+print(f"Processed: {result.stats.source_records_processed:,} records")
+print(f"Written: {result.stats.target_records_written:,} records")
+print(f"Time: {result.stats.total_time:.1f} seconds")
+```
+
+#### Practical Examples
+
+##### Example 1: Create Regional Database
+```python
+from pyfia import convert_sqlite_to_duckdb, append_to_database
+
+# Create Southern region database
+states = {
+    "SQLite_FIADB_AL.db": 1,   # Alabama
+    "SQLite_FIADB_GA.db": 13,  # Georgia  
+    "SQLite_FIADB_FL.db": 12,  # Florida
+    "SQLite_FIADB_MS.db": 28,  # Mississippi
+    "SQLite_FIADB_LA.db": 22   # Louisiana
+}
+
+# Start with first state
+first_state = list(states.items())[0]
+convert_sqlite_to_duckdb(
+    source_path=first_state[0],
+    target_path="nfi_south.duckdb",
+    state_code=first_state[1]
+)
+
+# Append remaining states
+for sqlite_file, state_code in list(states.items())[1:]:
+    append_to_database(
+        target_db="nfi_south.duckdb",
+        source_path=sqlite_file,
+        state_code=state_code
+    )
+```
+
+##### Example 2: Update Existing State Data
+```python
+# Replace existing state data with fresh download
+# First, check what's currently in the database
+from pyfia import FIA
+
+with FIA("nfi_south.duckdb") as db:
+    db_conn = db.conn
+    current_plots = db_conn.execute(
+        "SELECT COUNT(*) FROM PLOT WHERE STATECD = 48"
+    ).fetchone()[0]
+    print(f"Current Texas plots: {current_plots:,}")
+
+# Append with deduplication to update
+append_to_database(
+    target_db="nfi_south.duckdb",
+    source_path="SQLite_FIADB_TX_latest.db",
+    state_code=48,
+    dedupe=True,
+    dedupe_keys=["CN"]
+)
 ```
 
 #### Performance Benefits
 - **5-10x faster** analytical queries using DuckDB's columnar storage
-- **30-50% smaller** database size through compression and optimization
-- **Optimized indexing** for common FIA query patterns (EVALID, STATECD, spatial)
-- **Memory efficiency** with lazy evaluation and batch processing
+- **30-50% smaller** database size through automatic compression (typically 5-6x compression ratio)
+- **True append mode** adds new states without removing existing data
+- **Memory efficiency** with streaming processing and batch operations
 
-#### Conversion Features
-- **Schema optimization**: Automatic data type optimization for FIA columns
-- **Multi-state merging**: Intelligent conflict resolution for boundary plots
-- **Data validation**: Comprehensive integrity checks and statistical validation
-- **Error recovery**: Checkpointing and rollback capabilities
-- **Progress tracking**: Rich progress bars and detailed reporting
+#### Key Features
+- **FIA Standard Schemas**: Uses official FIA data types from YAML definitions
+- **Automatic Compression**: DuckDB applies optimal compression regardless of declared types
+- **Multi-state Support**: Build regional or national databases incrementally
+- **Deduplication**: Optional duplicate removal when updating existing data
+- **Progress Tracking**: Rich progress bars show conversion status
 
-#### Configuration Options
+#### Best Practices
+
+1. **For New Databases**: Use `convert_sqlite_to_duckdb()` for the first state
+2. **For Adding States**: Use `append_to_database()` with `dedupe=False`
+3. **For Updates**: Use `append_to_database()` with `dedupe=True` and specify `dedupe_keys`
+4. **For Performance**: Set `validation_level="none"` during conversion if data is trusted
+5. **For Large Datasets**: Adjust `batch_size` based on available memory
+
+#### Troubleshooting
+
 ```python
-config = ConverterConfig(  
-    batch_size=100_000,           # Records per batch
-    parallel_workers=4,           # Parallel processing threads
-    memory_limit="4GB",           # DuckDB memory limit
-    compression_level="medium",   # none, low, medium, high, adaptive
-    validation_level="standard",  # none, basic, standard, comprehensive
-    create_indexes=True,          # Create optimized indexes
-    show_progress=True           # Display progress bars
+# If append shows 0 records processed, use the converter directly:
+from pyfia.converter import FIAConverter, ConverterConfig
+
+config = ConverterConfig(
+    source_dir=Path("."),
+    target_path=Path("database.duckdb"),
+    append_mode=True,
+    show_progress=True,
+    validation_level="none"
+)
+
+converter = FIAConverter(config)
+result = converter.convert_state(
+    sqlite_path=Path("state_data.db"),
+    state_code=state_fips_code,
+    target_path=Path("database.duckdb")
 )
 ```

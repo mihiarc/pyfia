@@ -12,7 +12,7 @@ import polars as pl
 from ..core import FIA
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
-from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from ..filters.classification import assign_tree_basis
@@ -88,7 +88,7 @@ class VolumeEstimator(BaseEstimator):
         
         return response_mapping
     
-    @lazy_operation("calculate_volume_values", cache_key_params=["vol_type"])
+    @operation("calculate_volume_values", cache_key_params=["vol_type"])
     def calculate_values(self, data: Union[pl.DataFrame, pl.LazyFrame]) -> pl.LazyFrame:
         """
         Calculate volume values per acre using lazy evaluation.
@@ -115,13 +115,13 @@ class VolumeEstimator(BaseEstimator):
         # Track operation progress
         with self._track_operation(OperationType.COMPUTE, "Calculate volume values"):
             # Get plot macro breakpoints (lazy)
-            lazy_data = self._attach_plot_breakpoints_lazy(lazy_data)
+            lazy_data = self._attach_plot_breakpoints(lazy_data)
             
             # Attach stratum adjustment factors (lazy)
-            lazy_data = self._attach_stratum_adjustments_lazy(lazy_data)
+            lazy_data = self._attach_stratum_adjustments(lazy_data)
             
             # Assign tree basis (lazy-compatible)
-            lazy_data = self._assign_tree_basis_lazy(lazy_data)
+            lazy_data = self._assign_tree_basis(lazy_data)
             
             # Calculate adjustment factors based on tree basis
             adj_expr = (
@@ -155,8 +155,8 @@ class VolumeEstimator(BaseEstimator):
         
         return lazy_data
     
-    @lazy_operation("attach_plot_breakpoints")
-    def _attach_plot_breakpoints_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("attach_plot_breakpoints")
+    def _attach_plot_breakpoints(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Attach plot macro breakpoints using lazy evaluation.
         
@@ -175,7 +175,7 @@ class VolumeEstimator(BaseEstimator):
             return lazy_data
         
         # Load plots table lazily
-        plots_lazy = self.load_table_lazy("PLOT")
+        plots_lazy = self.load_table("PLOT")
         
         # Select only needed columns
         plots_subset = plots_lazy.select(["CN", "MACRO_BREAKPOINT_DIA"])
@@ -193,8 +193,8 @@ class VolumeEstimator(BaseEstimator):
             right_name="PLOT"
         )
     
-    @lazy_operation("attach_stratum_adjustments")
-    def _attach_stratum_adjustments_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("attach_stratum_adjustments")
+    def _attach_stratum_adjustments(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Attach stratum adjustment factors using lazy evaluation.
         
@@ -212,7 +212,7 @@ class VolumeEstimator(BaseEstimator):
             Lazy frame with adjustment factors
         """
         # Get cached or load stratification data
-        strat_lazy = self._get_stratification_data_lazy()
+        strat_lazy = self._get_stratification_data()
         
         # Select needed columns
         strat_subset = strat_lazy.select([
@@ -231,7 +231,7 @@ class VolumeEstimator(BaseEstimator):
         )
     
     @cached_operation("stratification_data")
-    def _get_stratification_data_lazy(self) -> pl.LazyFrame:
+    def _get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
         
@@ -242,7 +242,7 @@ class VolumeEstimator(BaseEstimator):
         """
         # Load tables lazily
         if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table_lazy("POP_PLOT_STRATUM_ASSGN")
+            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
             
             # Apply EVALID filter if present
             if self.db.evalid:
@@ -251,7 +251,7 @@ class VolumeEstimator(BaseEstimator):
             self._ppsa_cache = ppsa_lazy
         
         if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table_lazy("POP_STRATUM")
+            pop_stratum_lazy = self.load_table("POP_STRATUM")
             
             # Apply EVALID filter if present
             if self.db.evalid:
@@ -276,7 +276,7 @@ class VolumeEstimator(BaseEstimator):
         
         return strat_lazy
     
-    def _assign_tree_basis_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    def _assign_tree_basis(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Assign tree basis using lazy-compatible expressions.
         

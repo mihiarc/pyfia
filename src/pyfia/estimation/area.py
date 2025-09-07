@@ -22,7 +22,7 @@ from .caching import cached_operation
 from .config import EstimatorConfig
 from .domain import DomainIndicatorCalculator, LandTypeClassifier
 from .join import JoinManager, get_join_manager
-from .lazy_evaluation import LazyFrameWrapper, lazy_operation
+from .evaluation import FrameWrapper, operation
 
 # Import the area-specific components
 from .statistics import PercentageCalculator
@@ -124,7 +124,7 @@ class AreaEstimator(BaseEstimator):
             "fad_adj": "AREA_DENOMINATOR",
         }
 
-    @lazy_operation("calculate_area_values", cache_key_params=["by_land_type"])
+    @operation("calculate_area_values", cache_key_params=["by_land_type"])
     def calculate_values(self, data: Union[pl.DataFrame, pl.LazyFrame]) -> pl.LazyFrame:
         """
         Calculate area values and domain indicators using lazy evaluation.
@@ -150,14 +150,14 @@ class AreaEstimator(BaseEstimator):
 
         # Step 1: Add PROP_BASIS if not present
         if "PROP_BASIS" not in lazy_data.collect_schema().names():
-            lazy_data = self._add_prop_basis_lazy(lazy_data)
+            lazy_data = self._add_prop_basis(lazy_data)
 
         # Step 2: Add land type categories if requested
         if self.by_land_type:
-            lazy_data = self._classify_land_types_lazy(lazy_data)
+            lazy_data = self._classify_land_types(lazy_data)
 
         # Step 3: Calculate domain indicators
-        lazy_data = self._calculate_domain_indicators_lazy(lazy_data)
+        lazy_data = self._calculate_domain_indicators(lazy_data)
 
         # Step 4: Join with stratification data to get adjustment factors
         # Get the stratification data
@@ -220,8 +220,8 @@ class AreaEstimator(BaseEstimator):
 
         return lazy_data
 
-    @lazy_operation("add_prop_basis")
-    def _add_prop_basis_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("add_prop_basis")
+    def _add_prop_basis(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Add PROP_BASIS to condition data based on MACRO_BREAKPOINT_DIA.
         
@@ -265,8 +265,8 @@ class AreaEstimator(BaseEstimator):
 
         return lazy_data.with_columns(prop_basis_expr)
 
-    @lazy_operation("classify_land_types")
-    def _classify_land_types_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("classify_land_types")
+    def _classify_land_types(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Classify land types using lazy evaluation.
         
@@ -314,8 +314,8 @@ class AreaEstimator(BaseEstimator):
 
         return lazy_data.with_columns(land_type_expr)
 
-    @lazy_operation("calculate_domain_indicators")
-    def _calculate_domain_indicators_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("calculate_domain_indicators")
+    def _calculate_domain_indicators(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate domain indicators using lazy evaluation.
         
@@ -398,7 +398,7 @@ class AreaEstimator(BaseEstimator):
         return tree_df, cond_df
 
     @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data_lazy(self) -> pl.LazyFrame:
+    def _get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
         
@@ -409,7 +409,7 @@ class AreaEstimator(BaseEstimator):
         """
         # Load and cache PPSA data
         if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table_lazy("POP_PLOT_STRATUM_ASSGN")
+            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
 
             if self.db.evalid:
                 ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
@@ -418,7 +418,7 @@ class AreaEstimator(BaseEstimator):
 
         # Load and cache POP_STRATUM data
         if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table_lazy("POP_STRATUM")
+            pop_stratum_lazy = self.load_table("POP_STRATUM")
 
             if self.db.evalid:
                 pop_stratum_lazy = pop_stratum_lazy.filter(
@@ -455,13 +455,13 @@ class AreaEstimator(BaseEstimator):
 
         return strat_lazy
 
-    def _get_filtered_data(self) -> tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]:
+    def _get_filtered_data(self) -> tuple[Optional[FrameWrapper], FrameWrapper]:
         """
         Override base class to use area_estimation_mode filtering with lazy evaluation.
         
         Returns
         -------
-        tuple[Optional[LazyFrameWrapper], LazyFrameWrapper]
+        tuple[Optional[FrameWrapper], FrameWrapper]
             Lazy wrappers for tree and condition data
         """
         from ..filters.common import (
@@ -470,7 +470,7 @@ class AreaEstimator(BaseEstimator):
         )
 
         # Get condition data lazily
-        cond_wrapper = self.get_conditions_lazy()
+        cond_wrapper = self.get_conditions()
 
         # Apply area filters with area_estimation_mode=True
         # For now, we'll collect briefly to apply the filter function
@@ -482,12 +482,12 @@ class AreaEstimator(BaseEstimator):
             self.config.area_domain,
             area_estimation_mode=True
         )
-        cond_wrapper = LazyFrameWrapper(cond_df.lazy())
+        cond_wrapper = FrameWrapper(cond_df.lazy())
 
         # Get tree data if needed
         tree_wrapper = None
         if "TREE" in self.get_required_tables():
-            tree_wrapper = self.get_trees_lazy()
+            tree_wrapper = self.get_trees()
             # For area estimation, don't apply tree domain filtering here
             # The domain calculator will handle tree domain filtering
             tree_df = tree_wrapper.collect()
@@ -496,25 +496,25 @@ class AreaEstimator(BaseEstimator):
                 tree_type="all",
                 tree_domain=None  # Don't filter by tree domain here
             )
-            tree_wrapper = LazyFrameWrapper(tree_df.lazy())
+            tree_wrapper = FrameWrapper(tree_df.lazy())
 
         return tree_wrapper, cond_wrapper
 
-    def _prepare_estimation_data(self, tree_wrapper: Optional[LazyFrameWrapper],
-                                cond_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
+    def _prepare_estimation_data(self, tree_wrapper: Optional[FrameWrapper],
+                                cond_wrapper: FrameWrapper) -> FrameWrapper:
         """
         Override base class to handle area-specific data preparation with lazy evaluation.
         
         Parameters
         ----------
-        tree_wrapper : Optional[LazyFrameWrapper]
+        tree_wrapper : Optional[FrameWrapper]
             Lazy wrapper for tree data
-        cond_wrapper : LazyFrameWrapper
+        cond_wrapper : FrameWrapper
             Lazy wrapper for condition data
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Prepared condition data for estimation
         """
         # Store tree data for domain filtering if available
@@ -526,7 +526,7 @@ class AreaEstimator(BaseEstimator):
         # Return condition wrapper as-is for lazy processing
         return cond_wrapper
 
-    def _calculate_plot_estimates(self, data_wrapper: LazyFrameWrapper) -> pl.DataFrame:
+    def _calculate_plot_estimates(self, data_wrapper: FrameWrapper) -> pl.DataFrame:
         """
         Calculate plot-level area estimates.
         
@@ -534,7 +534,7 @@ class AreaEstimator(BaseEstimator):
         
         Parameters
         ----------
-        data_wrapper : LazyFrameWrapper
+        data_wrapper : FrameWrapper
             Lazy wrapper with calculated area values
             
         Returns
@@ -609,7 +609,7 @@ class AreaEstimator(BaseEstimator):
                 plot_lazy = plot_data.lazy()
 
                 # Get stratification data lazily
-                strat_lazy = self._get_stratification_data_lazy()
+                strat_lazy = self._get_stratification_data()
 
                 # Get available columns from stratification data
                 strat_cols = strat_lazy.collect_schema().names()

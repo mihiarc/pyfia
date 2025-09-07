@@ -26,7 +26,7 @@ import hashlib
 import polars as pl
 import numpy as np
 
-from .lazy_evaluation import LazyFrameWrapper
+from .evaluation import FrameWrapper
 from .caching import CacheKey, MemoryCache
 from .config import EstimatorConfig
 
@@ -514,8 +514,8 @@ class JoinManager:
     
     def join(
         self,
-        left: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        right: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
+        left: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        right: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
         on: Union[str, List[str], None] = None,
         left_on: Union[str, List[str], None] = None,
         right_on: Union[str, List[str], None] = None,
@@ -524,7 +524,7 @@ class JoinManager:
         optimize: bool = True,
         left_name: Optional[str] = None,
         right_name: Optional[str] = None
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Perform an optimized join operation.
         
@@ -532,9 +532,9 @@ class JoinManager:
         
         Parameters
         ----------
-        left : Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper]
+        left : Union[pl.DataFrame, pl.LazyFrame, FrameWrapper]
             Left side of join
-        right : Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper]
+        right : Union[pl.DataFrame, pl.LazyFrame, FrameWrapper]
             Right side of join
         on : Union[str, List[str], None]
             Column(s) to join on (same in both tables)
@@ -555,7 +555,7 @@ class JoinManager:
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Join result as lazy frame wrapper
         """
         start_time = time.time()
@@ -580,7 +580,7 @@ class JoinManager:
             cached = self.cache.get(cache_key)
             if cached is not None:
                 self.stats["cache_hits"] += 1
-                return LazyFrameWrapper(cached)
+                return FrameWrapper(cached)
         
         # Optimize if enabled
         if optimize and self.optimizer and left_name and right_name:
@@ -609,16 +609,16 @@ class JoinManager:
         if self.collect_statistics:
             self.stats["total_time"] += time.time() - start_time
         
-        return LazyFrameWrapper(result_lazy)
+        return FrameWrapper(result_lazy)
     
     # === FIA-Specific Join Functions ===
     
     def join_tree_plot(
         self,
-        tree_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        plot_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
+        tree_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        plot_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
         how: str = "inner"
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Join tree and plot tables.
         
@@ -633,10 +633,10 @@ class JoinManager:
     
     def join_tree_condition(
         self,
-        tree_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        cond_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
+        tree_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        cond_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
         how: str = "inner"
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Join tree and condition tables.
         
@@ -651,10 +651,10 @@ class JoinManager:
     
     def join_plot_condition(
         self,
-        plot_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        cond_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
+        plot_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        cond_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
         how: str = "inner"
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Join plot and condition tables.
         
@@ -669,11 +669,11 @@ class JoinManager:
     
     def join_stratification(
         self,
-        data_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        ppsa_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        pop_stratum_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
+        data_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        ppsa_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        pop_stratum_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
         data_name: str = "PLOT"
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Join data with stratification tables.
         
@@ -704,13 +704,13 @@ class JoinManager:
     
     def join_reference(
         self,
-        data_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
-        ref_df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper],
+        data_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
+        ref_df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper],
         data_col: str,
         ref_col: str,
         data_name: str,
         ref_name: str
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Join with reference table.
         
@@ -727,16 +727,16 @@ class JoinManager:
     
     def join_multi(
         self,
-        tables: Dict[str, Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper]],
+        tables: Dict[str, Union[pl.DataFrame, pl.LazyFrame, FrameWrapper]],
         join_sequence: List[Tuple[str, str, Union[str, List[str]]]],
         optimize_order: bool = True
-    ) -> LazyFrameWrapper:
+    ) -> FrameWrapper:
         """
         Perform multiple joins in sequence.
         
         Parameters
         ----------
-        tables : Dict[str, Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper]]
+        tables : Dict[str, Union[pl.DataFrame, pl.LazyFrame, FrameWrapper]]
             Dictionary of table name to dataframe
         join_sequence : List[Tuple[str, str, Union[str, List[str]]]]
             Sequence of (left_table, right_table, join_keys)
@@ -745,7 +745,7 @@ class JoinManager:
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Result of all joins
         """
         if not join_sequence:
@@ -795,10 +795,10 @@ class JoinManager:
     
     def _to_lazy(
         self,
-        df: Union[pl.DataFrame, pl.LazyFrame, LazyFrameWrapper]
+        df: Union[pl.DataFrame, pl.LazyFrame, FrameWrapper]
     ) -> pl.LazyFrame:
         """Convert input to lazy frame."""
-        if isinstance(df, LazyFrameWrapper):
+        if isinstance(df, FrameWrapper):
             return df.frame
         elif isinstance(df, pl.DataFrame):
             return df.lazy()
@@ -996,7 +996,7 @@ def optimized_join(
     left: Union[pl.DataFrame, pl.LazyFrame],
     right: Union[pl.DataFrame, pl.LazyFrame],
     **kwargs
-) -> LazyFrameWrapper:
+) -> FrameWrapper:
     """Convenience function for optimized join using global manager."""
     manager = get_join_manager()
     return manager.join(left, right, **kwargs)

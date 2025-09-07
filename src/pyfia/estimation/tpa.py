@@ -14,7 +14,7 @@ from ..constants.constants import MathConstants, PlotBasis
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
 from .join import JoinManager, get_join_manager
-from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 from .utils import ratio_var
@@ -83,7 +83,7 @@ class TPAEstimator(BaseEstimator):
             "BAA": "BAA",
         }
     
-    @lazy_operation("calculate_tpa_values", cache_key_params=[])
+    @operation("calculate_tpa_values", cache_key_params=[])
     def calculate_values(self, data: Union[pl.DataFrame, pl.LazyFrame]) -> pl.LazyFrame:
         """
         Calculate TPA and BAA values using lazy evaluation.
@@ -110,25 +110,25 @@ class TPAEstimator(BaseEstimator):
         # Track operation progress
         with self._track_operation(OperationType.COMPUTE, "Calculate TPA values"):
             # Step 1: Calculate basal area for each tree
-            lazy_data = self._calculate_basal_area_lazy(lazy_data)
+            lazy_data = self._calculate_basal_area(lazy_data)
             self._update_progress(description="Basal area calculated")
             
             # Step 2: Apply tree basis assignment
-            lazy_data = self._assign_tree_basis_lazy(lazy_data)
+            lazy_data = self._assign_tree_basis(lazy_data)
             self._update_progress(description="Tree basis assigned")
             
             # Step 3: Attach stratification data
-            lazy_data = self._attach_stratification_lazy(lazy_data)
+            lazy_data = self._attach_stratification(lazy_data)
             self._update_progress(description="Stratification attached")
             
             # Step 4: Apply adjustment factors
-            lazy_data = self._apply_adjustment_factors_lazy(lazy_data)
+            lazy_data = self._apply_adjustment_factors(lazy_data)
             self._update_progress(description="Adjustment factors applied")
         
         return lazy_data
     
-    @lazy_operation("calculate_basal_area")
-    def _calculate_basal_area_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("calculate_basal_area")
+    def _calculate_basal_area(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate basal area for each tree using lazy evaluation.
         
@@ -152,8 +152,8 @@ class TPAEstimator(BaseEstimator):
         
         return lazy_data
     
-    @lazy_operation("assign_tree_basis")
-    def _assign_tree_basis_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("assign_tree_basis")
+    def _assign_tree_basis(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Assign tree basis using lazy-compatible expressions.
         
@@ -175,7 +175,7 @@ class TPAEstimator(BaseEstimator):
         # Ensure MACRO_BREAKPOINT_DIA is available
         if "MACRO_BREAKPOINT_DIA" not in schema.names():
             # Join with PLOT to get MACRO_BREAKPOINT_DIA
-            plots_lazy = self.load_table_lazy("PLOT")
+            plots_lazy = self.load_table("PLOT")
             plots_subset = plots_lazy.select(["CN", "MACRO_BREAKPOINT_DIA"]).rename({"CN": "PLT_CN"})
             lazy_data = self._optimized_join(
                 lazy_data, plots_subset,
@@ -201,8 +201,8 @@ class TPAEstimator(BaseEstimator):
         
         return lazy_data.with_columns(basis_expr)
     
-    @lazy_operation("attach_stratification")
-    def _attach_stratification_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("attach_stratification")
+    def _attach_stratification(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Attach stratification data using lazy evaluation.
         
@@ -217,7 +217,7 @@ class TPAEstimator(BaseEstimator):
             Lazy frame with stratification data
         """
         # Get cached stratification data
-        strat_lazy = self._get_stratification_data_lazy()
+        strat_lazy = self._get_stratification_data()
         
         # Select needed columns and ensure uniqueness
         strat_subset = strat_lazy.select([
@@ -236,7 +236,7 @@ class TPAEstimator(BaseEstimator):
         )
     
     @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data_lazy(self) -> pl.LazyFrame:
+    def _get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
         
@@ -247,7 +247,7 @@ class TPAEstimator(BaseEstimator):
         """
         # Load and cache PPSA data
         if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table_lazy("POP_PLOT_STRATUM_ASSGN")
+            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
             
             if self.db.evalid:
                 ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
@@ -256,7 +256,7 @@ class TPAEstimator(BaseEstimator):
         
         # Load and cache POP_STRATUM data
         if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table_lazy("POP_STRATUM")
+            pop_stratum_lazy = self.load_table("POP_STRATUM")
             
             if self.db.evalid:
                 pop_stratum_lazy = pop_stratum_lazy.filter(
@@ -281,8 +281,8 @@ class TPAEstimator(BaseEstimator):
         
         return strat_lazy
     
-    @lazy_operation("apply_adjustment_factors")
-    def _apply_adjustment_factors_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    @operation("apply_adjustment_factors")
+    def _apply_adjustment_factors(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Apply adjustment factors based on tree basis using lazy evaluation.
         
@@ -384,7 +384,7 @@ class TPAEstimator(BaseEstimator):
         
         return self._ref_species_cache
     
-    def _add_species_info_lazy(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
+    def _add_species_info(self, lazy_data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Add species common and scientific names using lazy evaluation.
         
@@ -454,8 +454,8 @@ class TPAEstimator(BaseEstimator):
         
         return tree_columns
     
-    @lazy_operation("calculate_plot_estimates")
-    def _calculate_plot_estimates_lazy(self, data_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
+    @operation("calculate_plot_estimates")
+    def _calculate_plot_estimates(self, data_wrapper: FrameWrapper) -> FrameWrapper:
         """
         Calculate plot-level TPA and BAA estimates using lazy evaluation.
         
@@ -464,12 +464,12 @@ class TPAEstimator(BaseEstimator):
         
         Parameters
         ----------
-        data_wrapper : LazyFrameWrapper
+        data_wrapper : FrameWrapper
             Wrapped tree data with calculated values (TPA_ADJ, BAA_ADJ)
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Plot-level estimates ready for stratification
         """
         with self._track_operation(OperationType.AGGREGATE, "Calculate plot estimates"):
@@ -477,7 +477,7 @@ class TPAEstimator(BaseEstimator):
             tree_lazy = data_wrapper.frame
             
             # Need condition data for forest area proportion
-            cond_lazy = self.get_conditions_lazy().frame
+            cond_lazy = self.get_conditions().frame
             
             # Calculate forest area proportion for each plot
             area_by_plot = cond_lazy.group_by("PLT_CN").agg(
@@ -488,7 +488,7 @@ class TPAEstimator(BaseEstimator):
             if self.config.grp_by:
                 # Add species info if needed
                 if self.config.by_species and "SPCD" not in self.config.grp_by:
-                    tree_lazy = self._add_species_info_lazy(tree_lazy)
+                    tree_lazy = self._add_species_info(tree_lazy)
                 
                 # Ensure grouping columns are present on tree data
                 grp_by = self.config.grp_by if isinstance(self.config.grp_by, list) else [self.config.grp_by]
@@ -570,21 +570,21 @@ class TPAEstimator(BaseEstimator):
             
             self._update_progress(description="Plot estimates prepared")
             
-            return LazyFrameWrapper(plot_est)
+            return FrameWrapper(plot_est)
     
-    @lazy_operation("calculate_stratum_estimates")
-    def calculate_stratum_estimates(self, plot_wrapper: LazyFrameWrapper) -> LazyFrameWrapper:
+    @operation("calculate_stratum_estimates")
+    def calculate_stratum_estimates(self, plot_wrapper: FrameWrapper) -> FrameWrapper:
         """
         Calculate stratum-level estimates using lazy evaluation.
         
         Parameters
         ----------
-        plot_wrapper : LazyFrameWrapper
+        plot_wrapper : FrameWrapper
             Plot-level estimates
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Stratum-level estimates
         """
         with self._track_operation(OperationType.AGGREGATE, "Calculate stratum estimates"):
@@ -639,7 +639,7 @@ class TPAEstimator(BaseEstimator):
             
             self._update_progress(description="Stratum estimates calculated")
             
-            return LazyFrameWrapper(stratum_est)
+            return FrameWrapper(stratum_est)
     
     def calculate_population_estimates(self, stratum_df: pl.DataFrame) -> pl.DataFrame:
         """

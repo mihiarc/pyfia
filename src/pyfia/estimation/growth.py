@@ -13,7 +13,7 @@ from ..core import FIA
 from ..constants.constants import PlotBasis
 from .config import EstimatorConfig
 from .base_estimator import BaseEstimator
-from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
+from .evaluation import operation, FrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
 
@@ -109,7 +109,7 @@ class GrowthEstimator(BaseEstimator):
             "BIO_GROWTH": "BIO_GROWTH"        # Biomass growth per acre
         }
     
-    @lazy_operation("calculate_growth_values")
+    @operation("calculate_growth_values")
     def calculate_values(self, data: Union[pl.DataFrame, pl.LazyFrame]) -> pl.LazyFrame:
         """
         Calculate growth values using lazy evaluation.
@@ -133,15 +133,15 @@ class GrowthEstimator(BaseEstimator):
         with self._track_operation(OperationType.COMPUTE, "Calculate growth components", total=4):
             
             # Load GRM tables lazily
-            tree_grm_component = self._get_tree_grm_component_lazy()
-            tree_grm_begin = self._get_tree_grm_begin_lazy()
-            tree_grm_midpt = self._get_tree_grm_midpt_lazy()
+            tree_grm_component = self._get_tree_grm_component()
+            tree_grm_begin = self._get_tree_grm_begin()
+            tree_grm_midpt = self._get_tree_grm_midpt()
             
             # Get stratification data
-            strat_data = self._get_stratification_data_lazy()
+            strat_data = self._get_stratification_data()
             
             # 1. Calculate recruitment (ingrowth)
-            recruitment_lazy = self._calculate_recruitment_lazy(
+            recruitment_lazy = self._calculate_recruitment(
                 tree_grm_component,
                 tree_grm_begin,
                 strat_data
@@ -149,7 +149,7 @@ class GrowthEstimator(BaseEstimator):
             self._update_progress(completed=1, description="Recruitment calculated")
             
             # 2. Calculate diameter growth
-            dia_growth_lazy = self._calculate_diameter_growth_lazy(
+            dia_growth_lazy = self._calculate_diameter_growth(
                 tree_grm_component,
                 tree_grm_begin,
                 tree_grm_midpt,
@@ -158,7 +158,7 @@ class GrowthEstimator(BaseEstimator):
             self._update_progress(completed=2, description="Diameter growth calculated")
             
             # 3. Calculate volume growth
-            vol_growth_lazy = self._calculate_volume_growth_lazy(
+            vol_growth_lazy = self._calculate_volume_growth(
                 tree_grm_component,
                 tree_grm_begin,
                 tree_grm_midpt,
@@ -167,7 +167,7 @@ class GrowthEstimator(BaseEstimator):
             self._update_progress(completed=3, description="Volume growth calculated")
             
             # 4. Calculate biomass growth  
-            bio_growth_lazy = self._calculate_biomass_growth_lazy(
+            bio_growth_lazy = self._calculate_biomass_growth(
                 tree_grm_component,
                 tree_grm_begin,
                 tree_grm_midpt,
@@ -178,7 +178,7 @@ class GrowthEstimator(BaseEstimator):
             # Combine all growth components
             # TODO: Implement proper combination of growth components
             # For now, return a placeholder combining the results
-            combined_lazy = self._combine_growth_components_lazy(
+            combined_lazy = self._combine_growth_components(
                 recruitment_lazy,
                 dia_growth_lazy,
                 vol_growth_lazy,
@@ -188,10 +188,10 @@ class GrowthEstimator(BaseEstimator):
         return combined_lazy
     
     @cached_operation("tree_grm_component", ttl_seconds=1800)
-    def _get_tree_grm_component_lazy(self) -> pl.LazyFrame:
+    def _get_tree_grm_component(self) -> pl.LazyFrame:
         """Get TREE_GRM_COMPONENT table with caching."""
         if self._tree_grm_component_cache is None:
-            grm_lazy = self.load_table_lazy("TREE_GRM_COMPONENT")
+            grm_lazy = self.load_table("TREE_GRM_COMPONENT")
             
             # Apply EVALID filter if present
             if self.db.evalid:
@@ -202,10 +202,10 @@ class GrowthEstimator(BaseEstimator):
         return self._tree_grm_component_cache
     
     @cached_operation("tree_grm_begin", ttl_seconds=1800)
-    def _get_tree_grm_begin_lazy(self) -> pl.LazyFrame:
+    def _get_tree_grm_begin(self) -> pl.LazyFrame:
         """Get TREE_GRM_BEGIN table with caching."""
         if self._tree_grm_begin_cache is None:
-            begin_lazy = self.load_table_lazy("TREE_GRM_BEGIN")
+            begin_lazy = self.load_table("TREE_GRM_BEGIN")
             
             # Apply EVALID filter if present  
             if self.db.evalid:
@@ -216,10 +216,10 @@ class GrowthEstimator(BaseEstimator):
         return self._tree_grm_begin_cache
     
     @cached_operation("tree_grm_midpt", ttl_seconds=1800)
-    def _get_tree_grm_midpt_lazy(self) -> pl.LazyFrame:
+    def _get_tree_grm_midpt(self) -> pl.LazyFrame:
         """Get TREE_GRM_MIDPT table with caching."""
         if self._tree_grm_midpt_cache is None:
-            midpt_lazy = self.load_table_lazy("TREE_GRM_MIDPT")
+            midpt_lazy = self.load_table("TREE_GRM_MIDPT")
             
             # Apply EVALID filter if present
             if self.db.evalid:
@@ -230,7 +230,7 @@ class GrowthEstimator(BaseEstimator):
         return self._tree_grm_midpt_cache
     
     @cached_operation("stratification_data", ttl_seconds=1800)
-    def _get_stratification_data_lazy(self) -> pl.LazyFrame:
+    def _get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with caching.
         
@@ -241,7 +241,7 @@ class GrowthEstimator(BaseEstimator):
         """
         # Load and cache PPSA data
         if self._ppsa_cache is None:
-            ppsa_lazy = self.load_table_lazy("POP_PLOT_STRATUM_ASSGN")
+            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
             
             if self.db.evalid:
                 ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
@@ -250,7 +250,7 @@ class GrowthEstimator(BaseEstimator):
         
         # Load and cache POP_STRATUM data
         if self._pop_stratum_cache is None:
-            pop_stratum_lazy = self.load_table_lazy("POP_STRATUM")
+            pop_stratum_lazy = self.load_table("POP_STRATUM")
             
             if self.db.evalid:
                 pop_stratum_lazy = pop_stratum_lazy.filter(
@@ -270,8 +270,8 @@ class GrowthEstimator(BaseEstimator):
         
         return strat_lazy
     
-    @lazy_operation("calculate_recruitment")
-    def _calculate_recruitment_lazy(
+    @operation("calculate_recruitment")
+    def _calculate_recruitment(
         self,
         tree_grm_component: pl.LazyFrame,
         tree_grm_begin: pl.LazyFrame,
@@ -333,8 +333,8 @@ class GrowthEstimator(BaseEstimator):
         # For now, return the adjusted values
         return ingrowth
     
-    @lazy_operation("calculate_diameter_growth")
-    def _calculate_diameter_growth_lazy(
+    @operation("calculate_diameter_growth")
+    def _calculate_diameter_growth(
         self,
         tree_grm_component: pl.LazyFrame,
         tree_grm_begin: pl.LazyFrame,
@@ -393,8 +393,8 @@ class GrowthEstimator(BaseEstimator):
         
         return survivors
     
-    @lazy_operation("calculate_volume_growth")
-    def _calculate_volume_growth_lazy(
+    @operation("calculate_volume_growth")
+    def _calculate_volume_growth(
         self,
         tree_grm_component: pl.LazyFrame,
         tree_grm_begin: pl.LazyFrame,
@@ -455,8 +455,8 @@ class GrowthEstimator(BaseEstimator):
         
         return survivors
     
-    @lazy_operation("calculate_biomass_growth")
-    def _calculate_biomass_growth_lazy(
+    @operation("calculate_biomass_growth")
+    def _calculate_biomass_growth(
         self,
         tree_grm_component: pl.LazyFrame,
         tree_grm_begin: pl.LazyFrame,
@@ -493,8 +493,8 @@ class GrowthEstimator(BaseEstimator):
         
         return survivors
     
-    @lazy_operation("combine_growth_components")
-    def _combine_growth_components_lazy(
+    @operation("combine_growth_components")
+    def _combine_growth_components(
         self,
         recruitment: pl.LazyFrame,
         dia_growth: pl.LazyFrame,

@@ -11,7 +11,7 @@ Key features:
 - Optimized column selection to minimize data transfer
 - Query plan caching with LRU eviction
 - Join strategy optimization based on data characteristics
-- Integration with LazyFrameWrapper for deferred execution
+- Integration with FrameWrapper for deferred execution
 """
 
 from abc import ABC, abstractmethod
@@ -28,7 +28,7 @@ from pydantic import BaseModel, Field, ConfigDict, field_validator
 
 from ..core import FIA
 from .config import EstimatorConfig, LazyEvaluationConfig
-from .lazy_evaluation import LazyFrameWrapper, CollectionStrategy
+from .evaluation import FrameWrapper, CollectionStrategy
 from .caching import CacheKey, MemoryCache
 
 
@@ -285,7 +285,7 @@ class BaseQueryBuilder(ABC):
         pass
     
     @abstractmethod
-    def execute(self, plan: QueryPlan) -> LazyFrameWrapper:
+    def execute(self, plan: QueryPlan) -> FrameWrapper:
         """
         Execute query plan and return results.
         
@@ -296,7 +296,7 @@ class BaseQueryBuilder(ABC):
             
         Returns
         -------
-        LazyFrameWrapper
+        FrameWrapper
             Query results wrapped for lazy evaluation
         """
         pass
@@ -588,13 +588,13 @@ class StratificationQueryBuilder(BaseQueryBuilder):
         
         return plan
     
-    def execute(self, plan: QueryPlan) -> LazyFrameWrapper:
+    def execute(self, plan: QueryPlan) -> FrameWrapper:
         """Execute stratification query plan."""
         # Check cache
         cache_key = CacheKey("stratification", {"plan": plan.cache_key})
         cached_result = self.cache.get(cache_key.key)
         if cached_result is not None:
-            return LazyFrameWrapper(cached_result)
+            return FrameWrapper(cached_result)
         
         # Load base table with column selection
         required_cols = list(plan.get_required_columns("POP_STRATUM"))
@@ -620,7 +620,7 @@ class StratificationQueryBuilder(BaseQueryBuilder):
                 df = df.filter(filt.to_polars_expr())
         
         # Cache and return
-        result = LazyFrameWrapper(df)
+        result = FrameWrapper(df)
         self.cache.put(cache_key.key, df, ttl_seconds=300)
         
         return result
@@ -724,13 +724,13 @@ class TreeQueryBuilder(BaseQueryBuilder):
         
         return plan
     
-    def execute(self, plan: QueryPlan) -> LazyFrameWrapper:
+    def execute(self, plan: QueryPlan) -> FrameWrapper:
         """Execute tree query plan with optimizations."""
         # Check cache
         cache_key = CacheKey("tree", {"plan": plan.cache_key})
         cached_result = self.cache.get(cache_key.key)
         if cached_result is not None:
-            return LazyFrameWrapper(cached_result)
+            return FrameWrapper(cached_result)
         
         # Get required columns
         required_cols = list(plan.get_required_columns("TREE"))
@@ -762,7 +762,7 @@ class TreeQueryBuilder(BaseQueryBuilder):
                 df = df.filter(filt.to_polars_expr())
         
         # Cache and return
-        result = LazyFrameWrapper(df)
+        result = FrameWrapper(df)
         self.cache.put(cache_key.key, df, ttl_seconds=300)
         
         return result
@@ -866,13 +866,13 @@ class ConditionQueryBuilder(BaseQueryBuilder):
         
         return plan
     
-    def execute(self, plan: QueryPlan) -> LazyFrameWrapper:
+    def execute(self, plan: QueryPlan) -> FrameWrapper:
         """Execute condition query plan."""
         # Check cache
         cache_key = CacheKey("condition", {"plan": plan.cache_key})
         cached_result = self.cache.get(cache_key.key)
         if cached_result is not None:
-            return LazyFrameWrapper(cached_result)
+            return FrameWrapper(cached_result)
         
         # Get required columns
         required_cols = list(plan.get_required_columns("COND"))
@@ -898,7 +898,7 @@ class ConditionQueryBuilder(BaseQueryBuilder):
                 df = df.filter(filt.to_polars_expr())
         
         # Cache and return
-        result = LazyFrameWrapper(df)
+        result = FrameWrapper(df)
         self.cache.put(cache_key.key, df, ttl_seconds=300)
         
         return result
@@ -1025,13 +1025,13 @@ class PlotQueryBuilder(BaseQueryBuilder):
         
         return plan
     
-    def execute(self, plan: QueryPlan) -> LazyFrameWrapper:
+    def execute(self, plan: QueryPlan) -> FrameWrapper:
         """Execute plot query plan with joins."""
         # Check cache
         cache_key = CacheKey("plot", {"plan": plan.cache_key})
         cached_result = self.cache.get(cache_key.key)
         if cached_result is not None:
-            return LazyFrameWrapper(cached_result)
+            return FrameWrapper(cached_result)
         
         # Load PLOT table
         plot_cols = list(plan.get_required_columns("PLOT"))
@@ -1084,7 +1084,7 @@ class PlotQueryBuilder(BaseQueryBuilder):
         # This avoids issues with lazy frames where we can't check columns
         
         # Cache and return
-        result = LazyFrameWrapper(result_df)
+        result = FrameWrapper(result_df)
         self.cache.put(cache_key.key, result_df, ttl_seconds=300)
         
         return result
@@ -1215,7 +1215,7 @@ class CompositeQueryBuilder:
                               tree_domain: Optional[str] = None,
                               area_domain: Optional[str] = None,
                               plot_domain: Optional[str] = None,
-                              **kwargs) -> Dict[str, LazyFrameWrapper]:
+                              **kwargs) -> Dict[str, FrameWrapper]:
         """
         Build complete query for an estimation task.
         
@@ -1236,7 +1236,7 @@ class CompositeQueryBuilder:
             
         Returns
         -------
-        Dict[str, LazyFrameWrapper]
+        Dict[str, FrameWrapper]
             Dictionary of query results by table name
         """
         results = {}

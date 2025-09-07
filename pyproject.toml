@@ -124,10 +124,6 @@ module = "pyfia.config"
 disallow_untyped_defs = true
 disallow_incomplete_defs = true
 
-[[tool.mypy.overrides]]
-module = "pyfia.models"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
 
 [[tool.mypy.overrides]]
 module = "pyfia.constants"

@@ -9,13 +9,13 @@ It offers significant performance improvements through deferred computation and 
 from typing import Dict, List, Optional, Union
 import polars as pl
 
-from ..core import FIA
-from ..constants.constants import MathConstants
-from .config import EstimatorConfig
-from .base import BaseEstimator
-from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
-from .progress import OperationType, EstimatorProgressMixin
-from .caching import cached_operation
+from ...core import FIA
+from ...constants.constants import MathConstants
+from ..framework.config import EstimatorConfig
+from ..framework.base import BaseEstimator
+from ..infrastructure.evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
+from ..infrastructure.progress import OperationType, EstimatorProgressMixin
+from ..infrastructure.caching import cached_operation
 
 
 class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):

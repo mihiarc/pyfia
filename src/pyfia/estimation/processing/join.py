@@ -26,9 +26,9 @@ import hashlib
 import polars as pl
 import numpy as np
 
-from .evaluation import FrameWrapper
-from .caching import CacheKey, MemoryCache
-from .config import EstimatorConfig
+from ..infrastructure.evaluation import FrameWrapper
+from ..infrastructure.caching import CacheKey, MemoryCache
+from ..framework.config import EstimatorConfig
 
 logger = logging.getLogger(__name__)
 

@@ -5,9 +5,9 @@ This module provides high-level functions for estimating various forest
 attributes from FIA data, following FIA statistical procedures.
 """
 
-from .base import BaseEstimator
+from .framework.base import BaseEstimator
 
-from .config import (
+from .framework.config import (
     EstimatorConfig,
     ModuleEstimatorConfig,
     ModuleParameters,
@@ -17,18 +17,18 @@ from .config import (
     ConfigFactory,
 )
 
-from .formatters import OutputFormatter, format_estimation_output
+from .infrastructure.formatters import OutputFormatter, format_estimation_output
 
-from .area import area, AreaEstimator
-from .biomass import biomass, BiomassEstimator
-from .growth import growth, GrowthEstimator
-from .mortality import mortality, MortalityEstimator
-from .tpa import tpa, TPAEstimator
-from .tree import tree_count, tree_count_simple
-from .volume import volume, VolumeEstimator
+from .api.area import area, AreaEstimator
+from .api.biomass import biomass, BiomassEstimator
+from .api.growth import growth, GrowthEstimator
+from .api.mortality import mortality, MortalityEstimator
+from .api.tpa import tpa, TPAEstimator
+from .api.tree import tree_count, tree_count_simple
+from .api.volume import volume, VolumeEstimator
 
 # Lazy evaluation components
-from .evaluation import (
+from .infrastructure.evaluation import (
     LazyComputationNode,
     LazyEstimatorMixin,
     FrameWrapper,
@@ -37,7 +37,7 @@ from .evaluation import (
     LazyConfigMixin,
 )
 
-from .caching import (
+from .infrastructure.caching import (
     CacheKey,
     CacheEntry,
     LazyFrameCache,
@@ -47,7 +47,7 @@ from .caching import (
     CacheConfig,
 )
 
-from .progress import (
+from .infrastructure.progress import (
     LazyOperationProgress,
     EstimatorProgressMixin,
     CollectionProgress,
@@ -56,7 +56,7 @@ from .progress import (
 )
 
 # Query optimization components
-from .builder import (
+from .framework.builder import (
     QueryBuilderFactory,
     CompositeQueryBuilder,
     BaseQueryBuilder,
@@ -72,7 +72,7 @@ from .builder import (
     FilterPushDownLevel,
 )
 
-from .join import (
+from .processing.join import (
     JoinManager,
     JoinOptimizer,
     JoinPlan,

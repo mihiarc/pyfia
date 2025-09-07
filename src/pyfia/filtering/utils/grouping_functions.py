@@ -10,7 +10,7 @@ from typing import Dict, List, Literal, Optional, Union
 
 import polars as pl
 
-from ..constants.constants import (
+from ...constants.constants import (
     DESCRIPTIVE_SIZE_CLASSES,
     STANDARD_SIZE_CLASSES,
     DiameterBreakpoints,

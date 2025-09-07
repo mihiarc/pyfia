@@ -8,7 +8,7 @@ ensuring consistent column naming, variance/SE handling, and metadata.
 from typing import Dict, List, Optional, Union
 import polars as pl
 
-from ..constants.constants import EstimatorType
+from ...constants.constants import EstimatorType
 
 
 class OutputFormatter:

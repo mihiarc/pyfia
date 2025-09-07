@@ -30,23 +30,23 @@ from typing import Dict, List, Optional, Union
 
 import polars as pl
 
-from ..constants.constants import PlotBasis
-from ..core import FIA
-from .aggregation import (
+from ...constants.constants import PlotBasis
+from ...core import FIA
+from ..processing.aggregation import (
     EstimationType,
     UnifiedAggregationConfig,
     UnifiedEstimationWorkflow,
 )
-from .base import BaseEstimator
-from .caching import cached_operation
-from .config import EstimatorConfig
-from .domain import DomainIndicatorCalculator, LandTypeClassifier
-from .join import JoinManager, get_join_manager
-from .evaluation import FrameWrapper, operation, LazyEstimatorMixin, CollectionStrategy
+from ..framework.base import BaseEstimator
+from ..infrastructure.caching import cached_operation
+from ..framework.config import EstimatorConfig
+from ...filtering.indicators import DomainIndicatorCalculator, LandTypeClassifier
+from ..processing.join import JoinManager, get_join_manager
+from ..infrastructure.evaluation import FrameWrapper, operation, LazyEstimatorMixin, CollectionStrategy
 
 # Import the area-specific components
-from .statistics import PercentageCalculator
-from .statistics.expressions import PolarsExpressionBuilder
+from ..processing.statistics import PercentageCalculator
+from ..processing.statistics.expressions import PolarsExpressionBuilder
 
 
 class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
@@ -431,7 +431,7 @@ class AreaEstimator(BaseEstimator, LazyEstimatorMixin):
         tuple[Optional[FrameWrapper], FrameWrapper]
             Lazy wrappers for tree and condition data
         """
-        from ..filters.common import (
+        from ...filtering import (
             apply_area_filters,
             apply_tree_filters,
         )
@@ -909,7 +909,7 @@ def area(
     # Handle database initialization and EVALID filtering
     if isinstance(db, str):
         # If db is a path string, create FIA object
-        from ..core import FIA
+        from ...core import FIA
         db = FIA(db)
         owns_db = True
     else:

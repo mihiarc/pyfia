@@ -174,9 +174,9 @@ with FIA("path/to/fia.duckdb") as db:  # or .db for SQLite
     db.clip_by_state(37, most_recent=True)
     
     # Get estimates
-    tpa_results = tpa(db, treeDomain="STATUSCD == 1")
-    vol_results = volume(db, bySpecies=True)
-    area_results = area(db, landType='timber')
+    tpa_results = tpa(db, tree_domain="STATUSCD == 1")
+    vol_results = volume(db, by_species=True)
+    area_results = area(db, land_type='timber')
 
 # Explicit backend selection
 db_sqlite = FIA("path/to/fia.db", engine="sqlite")
@@ -184,7 +184,85 @@ db_duckdb = FIA("path/to/fia.duckdb", engine="duckdb")
 
 # Method chaining pattern works with both backends
 db = FIA("path/to/fia.db").clip_by_state([37, 45]).clip_most_recent("VOL")
-results = volume(db, treeDomain="DIA >= 10.0", bySpecies=True)
+results = volume(db, tree_domain="DIA >= 10.0", by_species=True)
+```
+
+### Volume Estimation
+
+The `volume()` function calculates tree volume (in cubic feet) with proper FIA expansion factors:
+
+```python
+from pyfia import FIA, volume
+
+# Connect to database and filter to state
+with FIA("nfi_south.duckdb") as db:
+    # Filter to specific state (e.g., Texas = 48)
+    db.clip_by_state(48, most_recent=True, eval_type="EXPVOL")
+    
+    # Basic volume estimation on forestland
+    vol_results = volume(
+        db,
+        land_type="forest",     # "forest" or "timber"
+        tree_type="live",       # "live", "dead", "gs", or "all"
+        vol_type="net"          # "net", "gross", "sound", or "sawlog"
+    )
+    
+    # Volume by species
+    vol_by_species = volume(
+        db,
+        land_type="forest",
+        tree_type="live",
+        by_species=True         # Group by species code (SPCD)
+    )
+    
+    # Volume with custom filters
+    vol_large_trees = volume(
+        db,
+        tree_domain="DIA >= 20.0",     # Custom tree-level filter
+        area_domain="SLOPE < 30",      # Custom area-level filter
+        land_type="timber"
+    )
+    
+    # Volume by custom grouping
+    vol_by_forest_type = volume(
+        db,
+        grp_by="FORTYPCD",      # Group by forest type code
+        land_type="forest"
+    )
+```
+
+**Note**: The volume function uses snake_case parameters (e.g., `tree_domain`, not `treeDomain`).
+
+**Direct SQL Alternative**: For complex queries or debugging, you can also use direct SQL:
+
+```python
+import duckdb
+
+with duckdb.connect("nfi_south.duckdb", read_only=True) as conn:
+    # Calculate volume with FIA expansion factors
+    query = """
+    SELECT 
+        SUM(CAST(tree.TPA_UNADJ AS DOUBLE) * 
+            CAST(tree.VOLCFNET AS DOUBLE) * 
+            CAST(pop_stratum.EXPNS AS DOUBLE) * 
+            CAST(CASE 
+                WHEN tree.DIA < 5.0 THEN pop_stratum.ADJ_FACTOR_MICR
+                WHEN tree.DIA < COALESCE(plot.MACRO_BREAKPOINT_DIA, 9999) 
+                    THEN pop_stratum.ADJ_FACTOR_SUBP
+                ELSE pop_stratum.ADJ_FACTOR_MACR
+            END AS DOUBLE)
+        ) as total_volume
+    FROM pop_stratum
+    JOIN pop_plot_stratum_assgn ON (pop_plot_stratum_assgn.STRATUM_CN = pop_stratum.CN)
+    JOIN plot ON (pop_plot_stratum_assgn.PLT_CN = plot.CN)
+    JOIN cond ON (cond.PLT_CN = plot.CN)
+    JOIN tree ON (tree.PLT_CN = cond.PLT_CN AND tree.CONDID = cond.CONDID)
+    WHERE tree.STATUSCD = 1 AND cond.COND_STATUS_CD = 1
+        AND plot.STATECD = 48  -- Texas
+    """
+    
+    result = conn.execute(query).fetchone()
+    total_volume = result[0]
 ```
 
 ## Database Conversion and Management

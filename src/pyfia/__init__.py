@@ -74,6 +74,10 @@ __all__ = [
     "apply_domain_filter",
     "calculate_ratio_estimates",
     "summarize_by_groups",
+    # Conversion functions
+    "convert_sqlite_to_duckdb",
+    "merge_state_databases",
+    "append_to_database",
 ]
 
 # Add converter classes to __all__ if available
@@ -109,3 +113,107 @@ def get_fia(db_path=None, engine=None):
 # Provide a dummy attribute for tests that patch 'pyfia.tpa._prepare_tpa_data'
 # Tests reference a legacy path; expose a no-op placeholder to keep them working.
 setattr(tpa, "_prepare_tpa_data", None)
+
+
+# High-level conversion API functions
+def convert_sqlite_to_duckdb(
+    source_path,
+    target_path,
+    state_code=None,
+    config=None,
+    **kwargs
+):
+    """
+    Convert a SQLite FIA database to DuckDB format.
+
+    Args:
+        source_path: Path to source SQLite database
+        target_path: Path to target DuckDB database
+        state_code: Optional FIPS state code (auto-detected if not provided)
+        config: Optional ConverterConfig object or dict of config parameters
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        ConversionResult with conversion details
+
+    Example:
+        # Simple conversion
+        convert_sqlite_to_duckdb("OR_FIA.db", "oregon.duckdb")
+        
+        # With configuration
+        convert_sqlite_to_duckdb(
+            "OR_FIA.db",
+            "oregon.duckdb",
+            compression_level="high",
+            validation_level="comprehensive"
+        )
+    """
+    return FIA.convert_from_sqlite(source_path, target_path, state_code, config, **kwargs)
+
+
+def merge_state_databases(
+    source_paths,
+    target_path,
+    state_codes=None,
+    config=None,
+    **kwargs
+):
+    """
+    Merge multiple state SQLite databases into a single DuckDB database.
+
+    Args:
+        source_paths: List of paths to source SQLite databases
+        target_path: Path to target DuckDB database
+        state_codes: Optional list of state codes to include
+        config: Optional ConverterConfig object or dict of config parameters
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        ConversionResult with merge details
+
+    Example:
+        merge_state_databases(
+            ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
+            "pacific_states.duckdb"
+        )
+    """
+    return FIA.merge_states(source_paths, target_path, state_codes, config, **kwargs)
+
+
+def append_to_database(
+    target_db,
+    source_path,
+    state_code=None,
+    dedupe=False,
+    dedupe_keys=None,
+    **kwargs
+):
+    """
+    Append data from a SQLite database to an existing DuckDB database.
+
+    Args:
+        target_db: Path to target DuckDB database or FIA instance
+        source_path: Path to source SQLite database
+        state_code: Optional FIPS state code (auto-detected if not provided)
+        dedupe: Whether to remove duplicate records
+        dedupe_keys: Column names to use for deduplication
+        **kwargs: Additional configuration parameters
+
+    Returns:
+        ConversionResult with append details
+
+    Example:
+        # Append to existing database
+        append_to_database("oregon.duckdb", "OR_FIA_update.db", dedupe=True)
+        
+        # Or use with FIA instance
+        db = FIA("oregon.duckdb")
+        append_to_database(db, "OR_FIA_update.db", dedupe=True)
+    """
+    from pyfia.core.fia import FIA as FIAClass
+    if isinstance(target_db, FIAClass):
+        return target_db.append_data(source_path, state_code, dedupe, dedupe_keys, **kwargs)
+    else:
+        # Create FIA instance for the target database
+        db = FIA(target_db)
+        return db.append_data(source_path, state_code, dedupe, dedupe_keys, **kwargs)

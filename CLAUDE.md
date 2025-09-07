@@ -14,8 +14,8 @@ uv venv
 source .venv/bin/activate  # or .venv\Scripts\activate on Windows
 uv pip install -e .[dev]
 
-# Setup pre-commit hooks
-uv run pyfia-setup-precommit
+# Setup pre-commit hooks (if needed)
+pre-commit install
 ```
 
 ### Essential Commands
@@ -175,40 +175,45 @@ results = volume(db, treeDomain="DIA >= 10.0", bySpecies=True)
 
 pyFIA includes a comprehensive converter for transforming FIA DataMart SQLite databases to optimized DuckDB format:
 
-#### CLI Usage
-```bash
-# Convert single state database
-uv run pyfia-convert convert --source OR_FIA.db --target oregon.duckdb --state-code 41
+#### API Usage
+```python
+from pyfia import convert_sqlite_to_duckdb, merge_state_databases, append_to_database
+from pyfia import FIA
+from pyfia.converter import ConverterConfig
+
+# Simple conversion
+convert_sqlite_to_duckdb("OR_FIA.db", "oregon.duckdb")
+
+# With configuration
+convert_sqlite_to_duckdb(
+    "OR_FIA.db",
+    "oregon.duckdb",
+    compression_level="high",
+    validation_level="comprehensive"
+)
 
 # Merge multiple states
-uv run pyfia-convert merge --source-dir /data/fia/ --target pacific_states.duckdb --states "6,41,53"
+merge_state_databases(
+    ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
+    "pacific_states.duckdb"
+)
 
-# Validate converted database
-uv run pyfia-convert validate --database oregon.duckdb --validation comprehensive
+# Append data to existing database
+append_to_database("oregon.duckdb", "OR_FIA_update.db", dedupe=True)
 
-# Get database information
-uv run pyfia-convert info --database oregon.duckdb
-```
+# Or use the FIA class methods directly
+result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb")
 
-#### Programmatic Usage
-```python
-from pyfia.converter import FIAConverter, ConverterConfig
-
-# Single state conversion
+# Advanced: with custom configuration
 config = ConverterConfig(
     source_dir=Path("/data/fia/sqlite"),
     target_path=Path("/data/fia/oregon.duckdb"),
     compression_level="medium",
-    validation_level="standard"
+    validation_level="standard",
+    append_mode=True,
+    dedupe_on_append=True
 )
-
-converter = FIAConverter(config)
-result = converter.convert_state(
-    sqlite_path=Path("/data/fia/sqlite/OR_FIA.db"),
-    state_code=41
-)
-
-print(result.summary())
+result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb", config=config)
 ```
 
 #### Performance Benefits

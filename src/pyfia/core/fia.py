@@ -377,6 +377,154 @@ class FIA:
 
         return conds.collect()
 
+    @classmethod
+    def convert_from_sqlite(
+        cls,
+        source_path: Union[str, Path],
+        target_path: Union[str, Path],
+        state_code: Optional[int] = None,
+        config: Optional[Dict] = None,
+        **kwargs
+    ) -> "ConversionResult":
+        """
+        Convert a SQLite FIA database to DuckDB format.
+
+        Args:
+            source_path: Path to source SQLite database
+            target_path: Path to target DuckDB database
+            state_code: Optional FIPS state code (auto-detected if not provided)
+            config: Optional configuration dict or ConverterConfig object
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            ConversionResult with conversion details
+
+        Example:
+            result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb")
+        """
+        from ..converter import FIAConverter, ConverterConfig
+        
+        # Build configuration
+        if config is None:
+            config = {}
+        
+        # Merge kwargs into config if it's a dict
+        if isinstance(config, dict):
+            config.update(kwargs)
+            # Create ConverterConfig from dict
+            source_path = Path(source_path)
+            converter_config = ConverterConfig(
+                source_dir=source_path.parent,
+                target_path=Path(target_path),
+                **config
+            )
+        else:
+            converter_config = config
+        
+        # Create converter and perform conversion
+        converter = FIAConverter(converter_config)
+        result = converter.convert_state(Path(source_path), state_code, Path(target_path))
+        
+        return result
+
+    @classmethod
+    def merge_states(
+        cls,
+        source_paths: List[Union[str, Path]],
+        target_path: Union[str, Path],
+        state_codes: Optional[List[int]] = None,
+        config: Optional[Dict] = None,
+        **kwargs
+    ) -> "ConversionResult":
+        """
+        Merge multiple state SQLite databases into a single DuckDB database.
+
+        Args:
+            source_paths: List of paths to source SQLite databases
+            target_path: Path to target DuckDB database
+            state_codes: Optional list of state codes to include
+            config: Optional configuration dict or ConverterConfig object
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            ConversionResult with merge details
+
+        Example:
+            result = FIA.merge_states(
+                ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
+                "pacific_states.duckdb"
+            )
+        """
+        from ..converter import FIAConverter, ConverterConfig
+        
+        # Build configuration
+        if config is None:
+            config = {}
+        
+        # Merge kwargs into config if it's a dict
+        if isinstance(config, dict):
+            config.update(kwargs)
+            # Determine source directory from first path
+            source_paths = [Path(p) for p in source_paths]
+            converter_config = ConverterConfig(
+                source_dir=source_paths[0].parent,
+                target_path=Path(target_path),
+                include_states=state_codes,
+                **config
+            )
+        else:
+            converter_config = config
+        
+        # Create converter and perform merge
+        converter = FIAConverter(converter_config)
+        result = converter.merge_states(source_paths, Path(target_path))
+        
+        return result
+
+    def append_data(
+        self,
+        source_path: Union[str, Path],
+        state_code: Optional[int] = None,
+        dedupe: bool = False,
+        dedupe_keys: Optional[List[str]] = None,
+        **kwargs
+    ) -> "ConversionResult":
+        """
+        Append data from a SQLite database to this DuckDB database.
+
+        Args:
+            source_path: Path to source SQLite database
+            state_code: Optional FIPS state code (auto-detected if not provided)
+            dedupe: Whether to remove duplicate records
+            dedupe_keys: Column names to use for deduplication
+            **kwargs: Additional configuration parameters
+
+        Returns:
+            ConversionResult with append details
+
+        Example:
+            with FIA("oregon.duckdb") as db:
+                result = db.append_data("OR_FIA_update.db", dedupe=True)
+        """
+        from ..converter import FIAConverter, ConverterConfig
+        
+        # Build configuration for append mode
+        source_path = Path(source_path)
+        converter_config = ConverterConfig(
+            source_dir=source_path.parent,
+            target_path=self.db_path,
+            append_mode=True,
+            dedupe_on_append=dedupe,
+            dedupe_keys=dedupe_keys,
+            **kwargs
+        )
+        
+        # Create converter and perform append
+        converter = FIAConverter(converter_config)
+        result = converter.convert_state(source_path, state_code, self.db_path)
+        
+        return result
+
     def prepare_estimation_data(self) -> Dict[str, pl.DataFrame]:
         """
         Prepare standard set of tables for estimation functions.

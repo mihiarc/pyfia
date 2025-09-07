@@ -383,7 +383,7 @@ class RFIAVarianceCalculator:
         Calculate complete area variance using rFIA methodology.
         
         This method implements the complete rFIA area variance calculation
-        pipeline including proper stratification, design factors, and 
+        process including proper stratification, design factors, and 
         ratio variance for percentage calculations.
         
         Parameters

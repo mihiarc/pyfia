@@ -10,7 +10,7 @@ from typing import List, Optional
 
 import polars as pl
 
-from ..constants.constants import (
+from ...constants.constants import (
     DiameterBreakpoints,
     PlotBasis,
 )

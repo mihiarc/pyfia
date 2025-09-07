@@ -11,7 +11,7 @@ from typing import Dict, Optional, Any
 import polars as pl
 
 from ...constants.constants import LandStatus
-from ...filters.domain_parser import DomainExpressionParser
+from ..core.parser import DomainExpressionParser
 from .land_types import LandTypeClassifier
 
 

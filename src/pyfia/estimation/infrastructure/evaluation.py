@@ -17,7 +17,7 @@ from datetime import datetime
 import polars as pl
 from pydantic import BaseModel, Field
 
-from ..core import FIA
+from ...core import FIA
 
 
 class ComputationStatus(Enum):

@@ -17,18 +17,18 @@ import polars as pl
 from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, TextColumn, TimeElapsedColumn
 
-from ..core import FIA
-from ..filters import apply_area_filters
-from ..filters.common import setup_grouping_columns
-from .aggregation import (
+from ...core import FIA
+from ...filtering import apply_area_filters
+from ...filtering import setup_grouping_columns
+from ..processing.aggregation import (
     EstimationType,
     UnifiedAggregationConfig,
     UnifiedEstimationWorkflow,
 )
-from .caching import cached_operation
-from .config import EstimatorConfig
-from .join import JoinManager, get_join_manager
-from .builder import CompositeQueryBuilder, FrameWrapper, MemoryCache
+from ..infrastructure.caching import cached_operation
+from ..framework.config import EstimatorConfig
+from ..processing.join import JoinManager, get_join_manager
+from ..framework.builder import CompositeQueryBuilder, FrameWrapper, MemoryCache
 
 
 @dataclass

@@ -12,9 +12,9 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from pyfia.core import FIA
-from .base import BaseEstimator
-from .config import EstimatorConfig
-from pyfia.filters.classification import assign_tree_basis
+from ..framework.base import BaseEstimator
+from ..framework.config import EstimatorConfig
+from pyfia.filtering.utils.classification import assign_tree_basis
 
 
 class TreeCountEstimator(BaseEstimator):
@@ -114,7 +114,7 @@ class TreeCountEstimator(BaseEstimator):
         Live trees: DIA >= 1.0 per FIA standard; dead trees: DIA >= 5.0.
         """
         # Filter conditions for land_type
-        from pyfia.filters.common import apply_area_filters, apply_tree_filters
+        from pyfia.filtering import apply_area_filters, apply_tree_filters
         
         cond_df = apply_area_filters(
             cond_df,

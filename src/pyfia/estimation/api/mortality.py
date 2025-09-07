@@ -9,13 +9,13 @@ It offers significant performance improvements through deferred computation and 
 from typing import Dict, List, Optional, Union
 import polars as pl
 
-from ..core import FIA
-from .config import ModuleEstimatorConfig, ConfigFactory
-from .base import BaseEstimator
-from .evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
-from .progress import OperationType, EstimatorProgressMixin
-from .caching import cached_operation
-from ..filters.common import apply_area_filters, apply_tree_filters
+from ...core import FIA
+from ..framework.config import ModuleEstimatorConfig, ConfigFactory
+from ..framework.base import BaseEstimator
+from ..infrastructure.evaluation import operation, FrameWrapper, CollectionStrategy, LazyEstimatorMixin
+from ..infrastructure.progress import OperationType, EstimatorProgressMixin
+from ..infrastructure.caching import cached_operation
+from ...filtering import apply_area_filters, apply_tree_filters
 
 
 class MortalityEstimator(BaseEstimator, LazyEstimatorMixin):

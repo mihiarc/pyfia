@@ -27,125 +27,6 @@ class SchemaOptimizer:
     and compression configuration tailored for FIA data patterns.
     """
 
-    # Optimized data types for common FIA columns
-    OPTIMIZED_TYPES = {
-        # CN (Control Number) fields - Use BIGINT for better performance
-        "CN": "BIGINT",
-        "PLT_CN": "BIGINT",
-        "PREV_PLT_CN": "BIGINT",
-        "TREE_CN": "BIGINT",
-        "COND_CN": "BIGINT",
-        "SUBP_CN": "BIGINT",
-        "EVAL_CN": "BIGINT",
-        "STRATUM_CN": "BIGINT",
-        "ESTN_UNIT_CN": "BIGINT",
-
-        # State and administrative codes
-        "STATECD": "TINYINT",
-        "UNITCD": "TINYINT",
-        "COUNTYCD": "SMALLINT",
-        "PLOT": "INTEGER",
-        "SUBPLOT": "TINYINT",
-
-        # Status and classification codes
-        "STATUSCD": "TINYINT",
-        "COND_STATUS_CD": "TINYINT",
-        "PLOT_STATUS_CD": "TINYINT",
-        "TREECLCD": "TINYINT",
-        "CCLCD": "TINYINT",
-        "OWNGRPCD": "TINYINT",
-        "RESERVCD": "TINYINT",
-        "SITECLCD": "TINYINT",
-        "LANDCLCD": "TINYINT",
-
-        # Species and forest type codes
-        "SPCD": "SMALLINT",
-        "FORTYPCD": "SMALLINT",
-        "SPGRPCD": "TINYINT",
-
-        # Measurements with appropriate precision
-        "DIA": "DECIMAL(6,2)",
-        "HT": "DECIMAL(7,2)",
-        "ACTUALHT": "DECIMAL(7,2)",
-        "CR": "DECIMAL(4,1)",
-        "CDENCD": "DECIMAL(4,1)",
-
-        # Coordinates with sufficient precision
-        "LAT": "DECIMAL(9,6)",
-        "LON": "DECIMAL(10,6)",
-        "ELEV": "DECIMAL(8,2)",
-
-        # Area and proportion fields
-        "CONDPROP_UNADJ": "DECIMAL(8,6)",
-        "SUBPPROP_UNADJ": "DECIMAL(8,6)",
-        "MICRPROP_UNADJ": "DECIMAL(8,6)",
-        "MACRPROP_UNADJ": "DECIMAL(8,6)",
-
-        # Biomass and volume measurements
-        "DRYBIO_AG": "DECIMAL(10,3)",
-        "DRYBIO_BG": "DECIMAL(10,3)",
-        "DRYBIO_BOLE": "DECIMAL(10,3)",
-        "DRYBIO_STUMP": "DECIMAL(10,3)",
-        "DRYBIO_SAPLING": "DECIMAL(10,3)",
-        "DRYBIO_WDLD_SPP": "DECIMAL(10,3)",
-
-        "VOLCFNET": "DECIMAL(10,3)",
-        "VOLCSNET": "DECIMAL(10,3)",
-        "VOLBFNET": "DECIMAL(10,3)",
-        "VOLCFGRS": "DECIMAL(10,3)",
-        "VOLCSGRS": "DECIMAL(10,3)",
-        "VOLBFGRS": "DECIMAL(10,3)",
-
-        # Carbon measurements
-        "CARBON_AG": "DECIMAL(10,3)",
-        "CARBON_BG": "DECIMAL(10,3)",
-        "CARBON_DOWN_DEAD": "DECIMAL(10,3)",
-        "CARBON_LITTER": "DECIMAL(10,3)",
-        "CARBON_SOIL_ORG": "DECIMAL(10,3)",
-
-        # TPA and expansion factors
-        "TPA_UNADJ": "DECIMAL(8,4)",
-        "EXPNS": "DECIMAL(12,4)",
-        "ADJ_FACTOR_SUBP": "DECIMAL(8,6)",
-        "ADJ_FACTOR_MICR": "DECIMAL(8,6)",
-        "ADJ_FACTOR_MACR": "DECIMAL(8,6)",
-
-        # Date and time fields
-        "INVYR": "SMALLINT",
-        "MEASYEAR": "SMALLINT",
-        "MEASMON": "TINYINT",
-        "MEASDAY": "TINYINT",
-
-        # Evaluation fields
-        "EVALID": "INTEGER",
-        "EVAL_GRP": "VARCHAR(50)",
-        "EVAL_TYP": "VARCHAR(20)",
-        "EVAL_DESCR": "VARCHAR(200)",
-        "START_INVYR": "SMALLINT",
-        "END_INVYR": "SMALLINT",
-
-        # Point counts and statistics
-        "P2POINTCNT": "INTEGER",
-        "P1POINTCNT": "INTEGER",
-        "P1PNTCNT_EU": "INTEGER",
-        "AREA_USED": "DECIMAL(15,4)",
-
-        # Agent and damage codes
-        "AGENTCD": "TINYINT",
-        "DAMAGE_AGENT_CD1": "TINYINT",
-        "DAMAGE_AGENT_CD2": "TINYINT",
-        "DAMAGE_AGENT_CD3": "TINYINT",
-        "DSTRBCD1": "TINYINT",
-        "DSTRBCD2": "TINYINT",
-        "DSTRBCD3": "TINYINT",
-
-        # Text fields
-        "LOCATION_NM": "VARCHAR(100)",
-        "COMMON_NAME": "VARCHAR(100)",
-        "SCIENTIFIC_NAME": "VARCHAR(100)",
-        "GENUS": "VARCHAR(50)",
-        "SPECIES": "VARCHAR(50)",
-    }
 
     # Index configurations for FIA tables
     INDEX_CONFIGS = {
@@ -259,15 +140,11 @@ class SchemaOptimizer:
         original_types = dict(zip(df.columns, [str(dtype) for dtype in df.dtypes]))
 
         for column in df.columns:
-            # Priority 1: Use hardcoded optimized types (these are DuckDB-optimized)
-            if column in self.OPTIMIZED_TYPES:
-                optimized_types[column] = self.OPTIMIZED_TYPES[column]
-                logger.debug(f"Using optimized schema for {table_name}.{column}: {self.OPTIMIZED_TYPES[column]}")
-            # Priority 2: Use YAML-defined type if no optimization exists
-            elif yaml_duckdb_schema and column in yaml_duckdb_schema:
+            # Use YAML-defined type if available (FIA standard)
+            if yaml_duckdb_schema and column in yaml_duckdb_schema:
                 optimized_types[column] = yaml_duckdb_schema[column]
-                logger.debug(f"Using YAML schema for {table_name}.{column}: {yaml_duckdb_schema[column]}")
-            # Priority 3: Infer optimal type from data
+                logger.debug(f"Using FIA standard schema for {table_name}.{column}: {yaml_duckdb_schema[column]}")
+            # Otherwise infer type from data
             else:
                 optimized_types[column] = self._infer_optimal_type(
                     column, df.select(column), original_types[column]
@@ -475,10 +352,6 @@ class SchemaOptimizer:
         str
             Optimal DuckDB data type
         """
-        # If we have a predefined optimization, use it
-        if column_name in self.OPTIMIZED_TYPES:
-            return self.OPTIMIZED_TYPES[column_name]
-
         # Analyze data characteristics
         col = column_data.get_column(column_name)
 

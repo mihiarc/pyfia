@@ -22,17 +22,20 @@ from pyfia.estimation.mortality import mortality
 from pyfia.estimation.tpa import tpa
 from pyfia.estimation.tree import tree_count
 
-# Utility functions
-from pyfia.estimation.utils import (
-    apply_domain_filter,
-    calculate_adjustment_factors,
-    calculate_population_estimates,
-    calculate_ratio_estimates,
-    calculate_stratum_estimates,
-    merge_estimation_data,
-    summarize_by_groups,
-)
+# Volume estimation (moved here for better organization)
 from pyfia.estimation.volume import volume
+
+# Reference table utilities - Useful for adding descriptive names to results
+from pyfia.utils.reference_tables import (
+    join_forest_type_names,
+    join_species_names,
+    join_state_names,
+    join_multiple_references,
+)
+
+# Note: Statistical utility functions (merge_estimation_data, calculate_stratum_estimates, etc.)
+# are internal to the estimators. Users should use the high-level estimation functions 
+# (area, volume, tpa, etc.) which handle all statistical calculations internally.
 
 # Converter functionality - Import only if needed to avoid heavy dependencies
 try:
@@ -66,14 +69,11 @@ __all__ = [
     "mortality",
     "growth",
     "tree_count",
-    # Utility functions
-    "merge_estimation_data",
-    "calculate_adjustment_factors",
-    "calculate_stratum_estimates",
-    "calculate_population_estimates",
-    "apply_domain_filter",
-    "calculate_ratio_estimates",
-    "summarize_by_groups",
+    # Reference table utilities
+    "join_forest_type_names",
+    "join_species_names",
+    "join_state_names",
+    "join_multiple_references",
     # Conversion functions
     "convert_sqlite_to_duckdb",
     "merge_state_databases",

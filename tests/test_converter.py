@@ -616,5 +616,294 @@ class TestAppendFunctionality:
                 assert [s[0] for s in species_codes] == [110, 131, 802, 833]
 
 
+class TestConverterAPI:
+    """Test the new API-based conversion functions."""
+    
+    @patch('pyfia.converter.sqlite_to_duckdb.FIAConverter')
+    def test_convert_sqlite_to_duckdb_api(self, mock_converter_class):
+        """Test the high-level convert_sqlite_to_duckdb function."""
+        from pyfia import convert_sqlite_to_duckdb
+        from pyfia.converter import ConverterConfig
+        from pyfia.converter.models import ConversionResult, ConversionStatus, ConversionStats
+        from datetime import datetime
+        
+        # Setup mock
+        mock_converter = Mock()
+        mock_converter_class.return_value = mock_converter
+        
+        # Create test config
+        test_config = ConverterConfig(source_dir=Path("/tmp"))
+        
+        # Create mock result
+        mock_result = ConversionResult(
+            status=ConversionStatus.COMPLETED,
+            config=test_config,
+            stats=ConversionStats(
+                start_time=datetime.now(),
+                source_file_count=1,
+                source_total_size_bytes=1000000,
+                source_tables_processed=10,
+                source_records_processed=50000
+            ),
+            source_paths=[Path("test.db")],
+            target_path=Path("test.duckdb")
+        )
+        mock_converter.convert_state.return_value = mock_result
+        
+        # Call the API function
+        result = convert_sqlite_to_duckdb(
+            "test.db",
+            "test.duckdb",
+            state_code=41,
+            compression_level="high"
+        )
+        
+        # Verify converter was created and called correctly
+        mock_converter_class.assert_called_once()
+        mock_converter.convert_state.assert_called_once()
+        assert result == mock_result
+    
+    @patch('pyfia.converter.sqlite_to_duckdb.FIAConverter')
+    def test_merge_state_databases_api(self, mock_converter_class):
+        """Test the high-level merge_state_databases function."""
+        from pyfia import merge_state_databases
+        from pyfia.converter import ConverterConfig
+        from pyfia.converter.models import ConversionResult, ConversionStatus, ConversionStats
+        from datetime import datetime
+        
+        # Setup mock
+        mock_converter = Mock()
+        mock_converter_class.return_value = mock_converter
+        
+        # Create test config
+        test_config = ConverterConfig(source_dir=Path("/tmp"))
+        
+        # Create mock result
+        mock_result = ConversionResult(
+            status=ConversionStatus.COMPLETED,
+            config=test_config,
+            stats=ConversionStats(
+                start_time=datetime.now(),
+                source_file_count=2,
+                source_total_size_bytes=2000000,
+                source_tables_processed=20,
+                source_records_processed=100000
+            ),
+            source_paths=[Path("OR.db"), Path("WA.db")],
+            target_path=Path("pacific.duckdb")
+        )
+        mock_converter.merge_states.return_value = mock_result
+        
+        # Call the API function
+        result = merge_state_databases(
+            ["OR.db", "WA.db"],
+            "pacific.duckdb",
+            state_codes=[41, 53]
+        )
+        
+        # Verify converter was created and called correctly
+        mock_converter_class.assert_called_once()
+        mock_converter.merge_states.assert_called_once()
+        assert result == mock_result
+    
+    @patch('pyfia.converter.sqlite_to_duckdb.FIAConverter')
+    def test_fia_class_convert_method(self, mock_converter_class):
+        """Test the FIA.convert_from_sqlite class method."""
+        from pyfia import FIA
+        from pyfia.converter import ConverterConfig
+        from pyfia.converter.models import ConversionResult, ConversionStatus, ConversionStats
+        from datetime import datetime
+        
+        # Setup mock
+        mock_converter = Mock()
+        mock_converter_class.return_value = mock_converter
+        
+        # Create test config
+        test_config = ConverterConfig(source_dir=Path("/tmp"))
+        
+        # Create mock result
+        mock_result = ConversionResult(
+            status=ConversionStatus.COMPLETED,
+            config=test_config,
+            stats=ConversionStats(
+                start_time=datetime.now(),
+                source_file_count=1,
+                source_total_size_bytes=1000000,
+                source_tables_processed=10,
+                source_records_processed=50000
+            ),
+            source_paths=[Path("test.db")],
+            target_path=Path("test.duckdb")
+        )
+        mock_converter.convert_state.return_value = mock_result
+        
+        # Call the class method
+        result = FIA.convert_from_sqlite(
+            "test.db",
+            "test.duckdb",
+            compression_level="medium"
+        )
+        
+        # Verify converter was created and called
+        mock_converter_class.assert_called_once()
+        mock_converter.convert_state.assert_called_once()
+        assert result == mock_result
+    
+    @patch('pyfia.converter.sqlite_to_duckdb.FIAConverter')
+    @patch('pyfia.core.fia.FIADataReader')
+    def test_fia_append_data_method(self, mock_reader_class, mock_converter_class):
+        """Test the FIA.append_data instance method."""
+        from pyfia import FIA
+        from pyfia.converter import ConverterConfig
+        from pyfia.converter.models import ConversionResult, ConversionStatus, ConversionStats
+        from datetime import datetime
+        import tempfile
+        
+        # Setup mocks
+        mock_reader = Mock()
+        mock_reader_class.return_value = mock_reader
+        
+        mock_converter = Mock()
+        mock_converter_class.return_value = mock_converter
+        
+        # Create test config
+        test_config = ConverterConfig(source_dir=Path("/tmp"), append_mode=True)
+        
+        # Create a temporary database file
+        with tempfile.NamedTemporaryFile(suffix=".duckdb") as temp_file:
+            # Create mock result
+            mock_result = ConversionResult(
+                status=ConversionStatus.COMPLETED,
+                config=test_config,
+                stats=ConversionStats(
+                    start_time=datetime.now(),
+                    source_file_count=1,
+                    source_total_size_bytes=500000,
+                    source_tables_processed=10,
+                    source_records_processed=25000
+                ),
+                source_paths=[Path("update.db")],
+                target_path=Path(temp_file.name)
+            )
+            mock_converter.convert_state.return_value = mock_result
+            
+            # Create FIA instance and call append_data
+            db = FIA(temp_file.name)
+            result = db.append_data(
+                "update.db",
+                dedupe=True,
+                dedupe_keys=["CN"]
+            )
+            
+            # Verify converter was created with append mode
+            mock_converter_class.assert_called_once()
+            config_call = mock_converter_class.call_args[0][0]
+            assert config_call.append_mode is True
+            assert config_call.dedupe_on_append is True
+            assert config_call.dedupe_keys == ["CN"]
+            
+            # Verify convert_state was called
+            mock_converter.convert_state.assert_called_once()
+            assert result == mock_result
+    
+    @patch('pyfia.FIA')
+    def test_append_to_database_with_path(self, mock_fia_class):
+        """Test append_to_database with database path."""
+        from pyfia import append_to_database
+        from pyfia.converter import ConverterConfig
+        from pyfia.converter.models import ConversionResult, ConversionStatus, ConversionStats
+        from datetime import datetime
+        
+        # Setup mock
+        mock_db = Mock()
+        mock_fia_class.return_value = mock_db
+        
+        # Create test config
+        test_config = ConverterConfig(source_dir=Path("/tmp"), append_mode=True)
+        
+        # Create mock result
+        mock_result = ConversionResult(
+            status=ConversionStatus.COMPLETED,
+            config=test_config,
+            stats=ConversionStats(
+                start_time=datetime.now(),
+                source_file_count=1,
+                source_total_size_bytes=500000,
+                source_tables_processed=10,
+                source_records_processed=25000
+            ),
+            source_paths=[Path("update.db")],
+            target_path=Path("target.duckdb")
+        )
+        mock_db.append_data.return_value = mock_result
+        
+        # Call with database path
+        result = append_to_database(
+            "target.duckdb",
+            "update.db",
+            dedupe=True
+        )
+        
+        # Verify FIA was created and append_data was called
+        mock_fia_class.assert_called_once_with("target.duckdb")
+        mock_db.append_data.assert_called_once_with(
+            "update.db",
+            None,  # state_code
+            True,  # dedupe
+            None   # dedupe_keys
+        )
+        assert result == mock_result
+    
+    def test_append_to_database_with_fia_instance(self):
+        """Test append_to_database with FIA instance."""
+        from pyfia import append_to_database, FIA
+        from pyfia.converter import ConverterConfig
+        from pyfia.converter.models import ConversionResult, ConversionStatus, ConversionStats
+        from datetime import datetime
+        import tempfile
+        
+        # Create a temporary database file
+        with tempfile.NamedTemporaryFile(suffix=".duckdb") as temp_file:
+            # Create mock FIA instance
+            with patch('pyfia.core.fia.FIADataReader'):
+                db = FIA(temp_file.name)
+                
+                # Create test config
+                test_config = ConverterConfig(source_dir=Path("/tmp"), append_mode=True)
+                
+                # Mock the append_data method
+                mock_result = ConversionResult(
+                    status=ConversionStatus.COMPLETED,
+                    config=test_config,
+                    stats=ConversionStats(
+                        start_time=datetime.now(),
+                        source_file_count=1,
+                        source_total_size_bytes=500000,
+                        source_tables_processed=10,
+                        source_records_processed=25000
+                    ),
+                    source_paths=[Path("update.db")],
+                    target_path=Path(temp_file.name)
+                )
+                db.append_data = Mock(return_value=mock_result)
+                
+                # Call with FIA instance
+                result = append_to_database(
+                    db,
+                    "update.db",
+                    state_code=41,
+                    dedupe=False
+                )
+                
+                # Verify append_data was called on the instance
+                db.append_data.assert_called_once_with(
+                    "update.db",
+                    41,     # state_code
+                    False,  # dedupe
+                    None    # dedupe_keys
+                )
+                assert result == mock_result
+
+
 if __name__ == '__main__':
     pytest.main([__file__])

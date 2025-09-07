@@ -23,7 +23,7 @@ from pyfia.constants import (
 )
 
 
-def apply_tree_filters_common(
+def apply_tree_filters(
     tree_df: pl.DataFrame,
     tree_type: str = "all",
     tree_domain: Optional[str] = None,
@@ -134,7 +134,7 @@ def apply_tree_filters_common(
     return tree_df
 
 
-def apply_area_filters_common(
+def apply_area_filters(
     cond_df: pl.DataFrame,
     land_type: str = "all",
     area_domain: Optional[str] = None,
@@ -201,7 +201,7 @@ def apply_area_filters_common(
     return cond_df
 
 
-def setup_grouping_columns_common(
+def setup_grouping_columns(
     data_df: pl.DataFrame,
     grp_by: Optional[Union[str, List[str]]] = None,
     by_species: bool = False,

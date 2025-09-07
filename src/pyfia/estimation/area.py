@@ -470,8 +470,8 @@ class AreaEstimator(BaseEstimator):
             Lazy wrappers for tree and condition data
         """
         from ..filters.common import (
-            apply_area_filters_common,
-            apply_tree_filters_common,
+            apply_area_filters,
+            apply_tree_filters,
         )
 
         # Get condition data lazily
@@ -481,7 +481,7 @@ class AreaEstimator(BaseEstimator):
         # For now, we'll collect briefly to apply the filter function
         # In a full implementation, the filter functions would be made lazy-aware
         cond_df = cond_wrapper.collect()
-        cond_df = apply_area_filters_common(
+        cond_df = apply_area_filters(
             cond_df,
             self.config.land_type,
             self.config.area_domain,
@@ -496,7 +496,7 @@ class AreaEstimator(BaseEstimator):
             # For area estimation, don't apply tree domain filtering here
             # The domain calculator will handle tree domain filtering
             tree_df = tree_wrapper.collect()
-            tree_df = apply_tree_filters_common(
+            tree_df = apply_tree_filters(
                 tree_df,
                 tree_type="all",
                 tree_domain=None  # Don't filter by tree domain here

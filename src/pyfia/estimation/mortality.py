@@ -16,7 +16,7 @@ from .base_estimator import BaseEstimator
 from .lazy_evaluation import lazy_operation, LazyFrameWrapper, CollectionStrategy
 from .progress import OperationType, EstimatorProgressMixin
 from .caching import cached_operation
-from ..filters.common import apply_area_filters_common, apply_tree_filters_common
+from ..filters.common import apply_area_filters, apply_tree_filters
 
 
 class MortalityEstimator(BaseEstimator):

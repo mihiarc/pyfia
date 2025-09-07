@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Tuple
 import polars as pl
 
 from .domain_parser import DomainExpressionParser
+from .common import apply_tree_filters as apply_tree_filters_base, apply_area_filters as apply_area_filters_base
 from ..constants.constants import (
     LandStatus,
     ReserveStatus,
@@ -173,57 +174,63 @@ def apply_tree_filters(
     defaults_applied = []
 
     # Apply intelligent defaults if requested
+    original_tree_type = tree_type
     if tree_type == "auto":
         intelligent_defaults = get_intelligent_defaults(query_context, "general")
         tree_type = intelligent_defaults["tree_type"]
         defaults_applied.append(f"Tree type defaulted to '{tree_type}' based on context")
 
-    # Apply tree type filters
-    if tree_type == "live":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.LIVE)
-        assumptions_made.append("Live trees defined as STATUSCD == 1")
-    elif tree_type == "dead":
-        tree_df = tree_df.filter(pl.col("STATUSCD") == TreeStatus.DEAD)
-        assumptions_made.append("Dead trees defined as STATUSCD == 2")
-    elif tree_type == "gs":
-        # Growing stock: live, sound, commercial species
-        tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == TreeStatus.LIVE)  # Live
-            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)  # Growing stock
-            & (pl.col("AGENTCD") < 30)  # No severe damage
-        )
-        assumptions_made.extend([
-            "Growing stock defined as live trees (STATUSCD == 1)",
-            "Growing stock class (TREECLCD == 2)",
-            "No severe damage (AGENTCD < 30)"
-        ])
-    elif tree_type == "live_gs":
-        tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == TreeStatus.LIVE)
-            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
-            & (pl.col("AGENTCD") < 30)
-        )
-        assumptions_made.extend([
-            "Live growing stock: STATUSCD == 1, TREECLCD == 2, AGENTCD < 30"
-        ])
-    elif tree_type == "dead_gs":
-        tree_df = tree_df.filter(
-            (pl.col("STATUSCD") == TreeStatus.DEAD)
-            & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
-            & (pl.col("AGENTCD") < 30)
-        )
-        assumptions_made.extend([
-            "Dead growing stock: STATUSCD == 2, TREECLCD == 2, AGENTCD < 30"
-        ])
-    elif tree_type == "all":
-        assumptions_made.append("Including all tree types (no STATUSCD filter)")
+    # Map enhanced tree types to common function compatible types
+    # Handle the enhanced types (live_gs, dead_gs) that common function doesn't support
+    if tree_type in ["live_gs", "dead_gs"]:
+        # For these enhanced types, we need custom logic
+        if tree_type == "live_gs":
+            tree_df = tree_df.filter(
+                (pl.col("STATUSCD") == TreeStatus.LIVE)
+                & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
+                & (pl.col("AGENTCD") < 30)
+            )
+            assumptions_made.extend([
+                "Live growing stock: STATUSCD == 1, TREECLCD == 2, AGENTCD < 30"
+            ])
+        elif tree_type == "dead_gs":
+            tree_df = tree_df.filter(
+                (pl.col("STATUSCD") == TreeStatus.DEAD)
+                & (pl.col("TREECLCD") == TreeClass.GROWING_STOCK)
+                & (pl.col("AGENTCD") < 30)
+            )
+            assumptions_made.extend([
+                "Dead growing stock: STATUSCD == 2, TREECLCD == 2, AGENTCD < 30"
+            ])
+        
+        # Still apply domain filter if provided
+        if tree_domain:
+            tree_df = DomainExpressionParser.apply_to_dataframe(tree_df, tree_domain, "tree")
+            assumptions_made.append(f"Custom tree filter applied: {tree_domain}")
     else:
-        raise ValueError(f"Invalid tree_type: {tree_type}")
-
-    # Apply custom domain filter if provided
-    if tree_domain:
-        tree_df = DomainExpressionParser.apply_to_dataframe(tree_df, tree_domain, "tree")
-        assumptions_made.append(f"Custom tree filter applied: {tree_domain}")
+        # Use common function for standard tree types (live, dead, gs, all)
+        tree_df = apply_tree_filters_base(
+            tree_df=tree_df,
+            tree_type=tree_type,
+            tree_domain=tree_domain,
+            require_volume=False,
+            require_diameter_thresholds=False
+        )
+        
+        # Add assumptions based on what the common function did
+        if tree_type == "live":
+            assumptions_made.append("Live trees defined as STATUSCD == 1")
+        elif tree_type == "dead":
+            assumptions_made.append("Dead trees defined as STATUSCD == 2") 
+        elif tree_type == "gs":
+            assumptions_made.extend([
+                "Growing stock trees (includes live and dead with STATUSCD filtering)"
+            ])
+        elif tree_type == "all":
+            assumptions_made.append("Including all tree types (no STATUSCD filter)")
+        
+        if tree_domain:
+            assumptions_made.append(f"Custom tree filter applied: {tree_domain}")
 
     if track_assumptions:
         filter_assumptions = FilterAssumptions(
@@ -291,17 +298,18 @@ def apply_area_filters(
         land_type = intelligent_defaults["land_type"]
         assumptions.defaults_applied.append(f"Land type defaulted to '{land_type}' based on context")
 
-    # Apply land type filters
+    # Use common function for area filtering, but keep assumption tracking
+    cond_df = apply_area_filters_base(
+        cond_df=cond_df,
+        land_type=land_type, 
+        area_domain=area_domain,
+        area_estimation_mode=False
+    )
+    
+    # Add assumptions based on what the common function did
     if land_type == "forest":
-        cond_df = cond_df.filter(pl.col("COND_STATUS_CD") == LandStatus.FOREST)
         assumptions.assumptions_made.append("Forest land defined as COND_STATUS_CD == 1")
     elif land_type == "timber":
-        # Timberland: forest + productive + unreserved
-        cond_df = cond_df.filter(
-            (pl.col("COND_STATUS_CD") == LandStatus.FOREST)  # Forest
-            & (pl.col("SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES))  # Productive
-            & (pl.col("RESERVCD") == ReserveStatus.NOT_RESERVED)  # Not reserved
-        )
         assumptions.assumptions_made.extend([
             "Timberland defined as:",
             "  - Forest land (COND_STATUS_CD == 1)",
@@ -310,12 +318,8 @@ def apply_area_filters(
         ])
     elif land_type == "all":
         assumptions.assumptions_made.append("Including all land types (no COND_STATUS_CD filter)")
-    else:
-        raise ValueError(f"Invalid land_type: {land_type}")
-
-    # Apply custom domain filter if provided
+    
     if area_domain:
-        cond_df = DomainExpressionParser.apply_to_dataframe(cond_df, area_domain, "area")
         assumptions.assumptions_made.append(f"Custom area filter applied: {area_domain}")
 
     # Update assumptions object

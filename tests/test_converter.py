@@ -368,5 +368,253 @@ class TestIntegration:
         assert schema.optimized_types["LON"] == "DECIMAL(10,6)"
 
 
+class TestAppendFunctionality:
+    """Test new append mode functionality without state replacement."""
+    
+    def test_true_append_mode(self):
+        """Test that append mode truly appends without deleting existing data."""
+        import tempfile
+        import duckdb
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test.duckdb"
+            
+            # Create initial database with data
+            with duckdb.connect(str(db_path)) as conn:
+                # Create table with NC data
+                conn.execute("""
+                    CREATE TABLE PLOT (
+                        CN BIGINT,
+                        STATECD TINYINT,
+                        INVYR SMALLINT,
+                        LAT DECIMAL(9,6),
+                        LON DECIMAL(10,6)
+                    )
+                """)
+                conn.execute("""
+                    INSERT INTO PLOT VALUES 
+                    (1001, 37, 2020, 35.123, -80.123),
+                    (1002, 37, 2020, 35.234, -80.234)
+                """)
+            
+            # Create config for append mode
+            config = ConverterConfig(
+                source_dir=Path(temp_dir),
+                target_path=db_path,
+                append_mode=True,
+                dedupe_on_append=False
+            )
+            
+            # Simulate appending SC data
+            new_data = pl.DataFrame({
+                "CN": [2001, 2002],
+                "STATECD": [45, 45],
+                "INVYR": [2021, 2021],
+                "LAT": [33.123, 33.234],
+                "LON": [-81.123, -81.234]
+            })
+            
+            # Use insertion strategy to append
+            from pyfia.converter.insertion_strategies import InsertionStrategyFactory
+            
+            with duckdb.connect(str(db_path)) as conn:
+                strategy = InsertionStrategyFactory.create_strategy(
+                    append_mode=True,
+                    table_exists=True
+                )
+                strategy.insert(conn, "PLOT", new_data)
+                
+                # Verify both states are present
+                result = conn.execute("SELECT STATECD, COUNT(*) FROM PLOT GROUP BY STATECD ORDER BY STATECD").fetchall()
+                
+                assert len(result) == 2
+                assert result[0] == (37, 2)  # NC still has 2 records
+                assert result[1] == (45, 2)  # SC has 2 new records
+                
+                # Total should be 4 records
+                total = conn.execute("SELECT COUNT(*) FROM PLOT").fetchone()[0]
+                assert total == 4
+    
+    def test_append_with_deduplication(self):
+        """Test deduplication during append."""
+        import tempfile
+        import duckdb
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test.duckdb"
+            
+            # Create initial database
+            with duckdb.connect(str(db_path)) as conn:
+                conn.execute("""
+                    CREATE TABLE TREE (
+                        CN BIGINT,
+                        PLT_CN BIGINT,
+                        STATUSCD TINYINT,
+                        SPCD SMALLINT
+                    )
+                """)
+                conn.execute("""
+                    INSERT INTO TREE VALUES 
+                    (1001, 101, 1, 131),
+                    (1002, 101, 1, 110)
+                """)
+            
+            # Test deduplication by simulating append with duplicates
+            with duckdb.connect(str(db_path)) as conn:
+                # New data with one duplicate CN
+                new_data = pl.DataFrame({
+                    "CN": [1001, 2001, 2002],  # 1001 is duplicate
+                    "PLT_CN": [101, 102, 102],
+                    "STATUSCD": [1, 1, 1],
+                    "SPCD": [131, 833, 802]
+                })
+                
+                # Manual deduplication test
+                # Get existing CNs
+                existing_cns = conn.execute("SELECT DISTINCT CN FROM TREE").pl()
+                
+                # Anti-join to remove duplicates
+                deduped = new_data.join(
+                    existing_cns,
+                    on="CN",
+                    how="anti"
+                )
+                
+                # Should have removed the duplicate CN=1001
+                assert len(deduped) == 2
+                cn_values = deduped.select("CN").to_series().to_list()
+                assert 1001 not in cn_values
+                assert 2001 in cn_values
+                assert 2002 in cn_values
+                
+                # Now append the deduplicated data
+                from pyfia.converter.insertion_strategies import InsertionStrategyFactory
+                strategy = InsertionStrategyFactory.create_strategy(
+                    append_mode=True,
+                    table_exists=True
+                )
+                strategy.insert(conn, "TREE", deduped)
+                
+                # Verify final count
+                total = conn.execute("SELECT COUNT(*) FROM TREE").fetchone()[0]
+                assert total == 4  # 2 original + 2 new (deduplicated)
+    
+    def test_schema_compatibility(self):
+        """Test schema compatibility adjustment during append."""
+        import tempfile
+        import duckdb
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test.duckdb"
+            
+            # Create table with specific types
+            with duckdb.connect(str(db_path)) as conn:
+                conn.execute("""
+                    CREATE TABLE COND (
+                        CN BIGINT,
+                        PLT_CN BIGINT,
+                        CONDID TINYINT,
+                        CONDPROP_UNADJ DECIMAL(8,6)
+                    )
+                """)
+            
+            with duckdb.connect(str(db_path)) as conn:
+                # DataFrame with different types
+                df = pl.DataFrame({
+                    "CN": [1, 2, 3],  # Will need to be cast to BIGINT
+                    "PLT_CN": [101, 102, 103],
+                    "CONDID": [1, 2, 3],  # Will need to be cast to TINYINT
+                    "CONDPROP_UNADJ": [0.5, 0.3, 0.2]  # Will need to be cast to DECIMAL
+                })
+                
+                # Test schema compatibility directly
+                # Get schema from table
+                existing_schema = conn.execute("DESCRIBE COND").fetchall()
+                schema_map = {col[0]: col[1] for col in existing_schema}
+                
+                # Apply type casting
+                cast_exprs = []
+                for col in df.columns:
+                    if col in schema_map:
+                        target_type = schema_map[col]
+                        if "TINYINT" in target_type.upper():
+                            cast_exprs.append(pl.col(col).cast(pl.Int8).alias(col))
+                        elif "BIGINT" in target_type.upper():
+                            cast_exprs.append(pl.col(col).cast(pl.Int64).alias(col))
+                        elif "DECIMAL" in target_type.upper():
+                            cast_exprs.append(pl.col(col).cast(pl.Float64).alias(col))
+                        else:
+                            cast_exprs.append(pl.col(col))
+                
+                adjusted = df.select(cast_exprs)
+                
+                # Check that types have been adjusted
+                assert adjusted["CN"].dtype == pl.Int64
+                assert adjusted["CONDID"].dtype == pl.Int8
+                # CONDPROP_UNADJ becomes Float64 in Polars for DECIMAL compatibility
+                assert adjusted["CONDPROP_UNADJ"].dtype == pl.Float64
+                
+                # Verify we can insert the adjusted data
+                from pyfia.converter.insertion_strategies import InsertionStrategyFactory
+                strategy = InsertionStrategyFactory.create_strategy(
+                    append_mode=True,
+                    table_exists=True
+                )
+                strategy.insert(conn, "COND", adjusted)
+                
+                # Verify data was inserted
+                count = conn.execute("SELECT COUNT(*) FROM COND").fetchone()[0]
+                assert count == 3
+    
+    def test_append_without_statecd(self):
+        """Test that append works for tables without STATECD column."""
+        import tempfile
+        import duckdb
+        
+        with tempfile.TemporaryDirectory() as temp_dir:
+            db_path = Path(temp_dir) / "test.duckdb"
+            
+            # Create reference table without STATECD
+            with duckdb.connect(str(db_path)) as conn:
+                conn.execute("""
+                    CREATE TABLE REF_SPECIES (
+                        SPCD SMALLINT,
+                        COMMON_NAME VARCHAR(100),
+                        SCIENTIFIC_NAME VARCHAR(100)
+                    )
+                """)
+                conn.execute("""
+                    INSERT INTO REF_SPECIES VALUES 
+                    (131, 'Loblolly pine', 'Pinus taeda'),
+                    (110, 'Virginia pine', 'Pinus virginiana')
+                """)
+            
+            # Append more species
+            new_species = pl.DataFrame({
+                "SPCD": [833, 802],
+                "COMMON_NAME": ["Chestnut oak", "White oak"],
+                "SCIENTIFIC_NAME": ["Quercus montana", "Quercus alba"]
+            })
+            
+            from pyfia.converter.insertion_strategies import InsertionStrategyFactory
+            
+            with duckdb.connect(str(db_path)) as conn:
+                strategy = InsertionStrategyFactory.create_strategy(
+                    append_mode=True,
+                    table_exists=True
+                )
+                strategy.insert(conn, "REF_SPECIES", new_species)
+                
+                # Verify all species are present
+                count = conn.execute("SELECT COUNT(*) FROM REF_SPECIES").fetchone()[0]
+                assert count == 4
+                
+                # Verify specific species
+                species_codes = conn.execute(
+                    "SELECT SPCD FROM REF_SPECIES ORDER BY SPCD"
+                ).fetchall()
+                assert [s[0] for s in species_codes] == [110, 131, 802, 833]
+
+
 if __name__ == '__main__':
     pytest.main([__file__])

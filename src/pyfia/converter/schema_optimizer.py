@@ -259,16 +259,16 @@ class SchemaOptimizer:
         original_types = dict(zip(df.columns, [str(dtype) for dtype in df.dtypes]))
 
         for column in df.columns:
-            if yaml_duckdb_schema and column in yaml_duckdb_schema:
-                # Use YAML-defined type
+            # Priority 1: Use hardcoded optimized types (these are DuckDB-optimized)
+            if column in self.OPTIMIZED_TYPES:
+                optimized_types[column] = self.OPTIMIZED_TYPES[column]
+                logger.debug(f"Using optimized schema for {table_name}.{column}: {self.OPTIMIZED_TYPES[column]}")
+            # Priority 2: Use YAML-defined type if no optimization exists
+            elif yaml_duckdb_schema and column in yaml_duckdb_schema:
                 optimized_types[column] = yaml_duckdb_schema[column]
                 logger.debug(f"Using YAML schema for {table_name}.{column}: {yaml_duckdb_schema[column]}")
-            elif column in self.OPTIMIZED_TYPES:
-                # Use legacy hardcoded type
-                optimized_types[column] = self.OPTIMIZED_TYPES[column]
-                logger.debug(f"Using legacy schema for {table_name}.{column}: {self.OPTIMIZED_TYPES[column]}")
+            # Priority 3: Infer optimal type from data
             else:
-                # Infer optimal type from data
                 optimized_types[column] = self._infer_optimal_type(
                     column, df.select(column), original_types[column]
                 )

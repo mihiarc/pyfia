@@ -80,8 +80,7 @@ class MortalityEstimator(BaseEstimator, LazyEstimatorMixin):
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
         
-        # Cache for reference tables
-        self._ref_species_cache: Optional[pl.DataFrame] = None
+        # Cache for stratification tables (ref_species cache is in BaseEstimator)
         self._pop_stratum_cache: Optional[pl.LazyFrame] = None
         self._ppsa_cache: Optional[pl.LazyFrame] = None
     
@@ -479,20 +478,6 @@ class MortalityEstimator(BaseEstimator, LazyEstimatorMixin):
         
         return pop_mortality
     
-    @cached_operation("ref_species", ttl_seconds=3600)
-    def _get_ref_species(self) -> pl.DataFrame:
-        """Get reference species table with caching."""
-        if self._ref_species_cache is None:
-            if "REF_SPECIES" not in self.db.tables:
-                self.db.load_table("REF_SPECIES")
-            
-            ref_species = self.db.tables["REF_SPECIES"]
-            self._ref_species_cache = (
-                ref_species.collect() if isinstance(ref_species, pl.LazyFrame) 
-                else ref_species
-            )
-        
-        return self._ref_species_cache
     
     def _get_ppsa(self) -> FrameWrapper:
         """Get plot-stratum assignments lazily."""

@@ -57,8 +57,7 @@ class GrowthEstimator(BaseEstimator, LazyEstimatorMixin):
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
         
-        # Cache for reference tables
-        self._ref_species_cache: Optional[pl.DataFrame] = None
+        # Cache for stratification tables (ref_species cache is in BaseEstimator)
         self._pop_stratum_cache: Optional[pl.LazyFrame] = None
         self._ppsa_cache: Optional[pl.LazyFrame] = None
         

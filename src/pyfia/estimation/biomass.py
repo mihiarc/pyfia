@@ -55,8 +55,7 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
         
-        # Cache for reference tables
-        self._ref_species_cache: Optional[pl.DataFrame] = None
+        # Cache for stratification tables (ref_species cache is in BaseEstimator)
         self._pop_stratum_cache: Optional[pl.LazyFrame] = None
         self._ppsa_cache: Optional[pl.LazyFrame] = None
     
@@ -344,35 +343,6 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         
         return tree_df, cond_df
     
-    @cached_operation("ref_species", ttl_seconds=3600)
-    def _get_ref_species(self) -> pl.DataFrame:
-        """
-        Get reference species table with caching.
-        
-        Returns
-        -------
-        pl.DataFrame
-            Reference species table
-        """
-        if self._ref_species_cache is None:
-            if "REF_SPECIES" not in self.db.tables:
-                try:
-                    self.db.load_table("REF_SPECIES")
-                except Exception:
-                    # REF_SPECIES may not be available
-                    return pl.DataFrame()
-            
-            ref_species = self.db.tables.get("REF_SPECIES")
-            if ref_species is None:
-                return pl.DataFrame()
-            
-            # Collect if lazy
-            if isinstance(ref_species, pl.LazyFrame):
-                self._ref_species_cache = ref_species.collect()
-            else:
-                self._ref_species_cache = ref_species
-        
-        return self._ref_species_cache
     
     def get_tree_columns(self) -> List[str]:
         """

@@ -25,6 +25,7 @@ from .aggregation import (
     UnifiedAggregationConfig,
     UnifiedEstimationWorkflow,
 )
+from .caching import cached_operation
 from .config import EstimatorConfig
 from .join import JoinManager, get_join_manager
 from .query_builders import CompositeQueryBuilder, FrameWrapper, MemoryCache
@@ -97,6 +98,11 @@ class BaseEstimator(ABC):
             enable_caching=True
         )
         self._metrics = EstimationMetrics()
+        
+        # Shared caches for commonly used tables
+        self._ref_species_cache: Optional[pl.DataFrame] = None
+        self._pop_stratum_cache: Optional[pl.DataFrame] = None
+        self._ppsa_cache: Optional[pl.DataFrame] = None
 
         # Progress tracking
         self.console = Console()
@@ -120,6 +126,102 @@ class BaseEstimator(ABC):
         # Convert FrameWrapper back to LazyFrame for compatibility
         return result.frame if hasattr(result, 'frame') else result
     
+    # === Shared Table Access Methods ===
+    
+    @cached_operation("ref_species", ttl_seconds=3600)
+    def _get_ref_species(self) -> pl.DataFrame:
+        """
+        Get reference species table with caching.
+        
+        This is a shared method used by multiple estimators (TPA, Volume, Biomass, Mortality)
+        to access the REF_SPECIES table with consistent caching behavior.
+        
+        Returns
+        -------
+        pl.DataFrame
+            Reference species table, or empty DataFrame if not available
+        """
+        if self._ref_species_cache is None:
+            if "REF_SPECIES" not in self.db.tables:
+                try:
+                    self.db.load_table("REF_SPECIES")
+                except Exception:
+                    # REF_SPECIES may not be available
+                    return pl.DataFrame()
+            
+            ref_species = self.db.tables.get("REF_SPECIES")
+            if ref_species is None:
+                return pl.DataFrame()
+            
+            # Collect if lazy
+            if isinstance(ref_species, pl.LazyFrame):
+                self._ref_species_cache = ref_species.collect()
+            else:
+                self._ref_species_cache = ref_species
+        
+        return self._ref_species_cache
+    
+    @cached_operation("stratification_data", ttl_seconds=1800)
+    def _get_stratification_data(self, required_adj_factors: Optional[List[str]] = None) -> pl.LazyFrame:
+        """
+        Get stratification data with caching.
+        
+        This is a shared method used by all estimators to load and join
+        stratification tables (POP_PLOT_STRATUM_ASSGN and POP_STRATUM).
+        
+        Parameters
+        ----------
+        required_adj_factors : Optional[List[str]]
+            List of required adjustment factors: ["MICR", "SUBP", "MACR"]
+            If None, includes all available factors
+        
+        Returns
+        -------
+        pl.LazyFrame
+            Lazy frame with joined PPSA and POP_STRATUM data
+        """
+        # Load and cache PPSA data
+        if self._ppsa_cache is None:
+            ppsa_lazy = self.load_table("POP_PLOT_STRATUM_ASSGN")
+            if self.db.evalid:
+                ppsa_lazy = ppsa_lazy.filter(pl.col("EVALID").is_in(self.db.evalid))
+            self._ppsa_cache = ppsa_lazy
+
+        # Load and cache POP_STRATUM data
+        if self._pop_stratum_cache is None:
+            pop_stratum_lazy = self.load_table("POP_STRATUM")
+            if self.db.evalid:
+                pop_stratum_lazy = pop_stratum_lazy.filter(
+                    pl.col("EVALID").is_in(self.db.evalid)
+                )
+            self._pop_stratum_cache = pop_stratum_lazy
+
+        # Dynamic column selection based on availability and requirements
+        pop_stratum_cols = self._pop_stratum_cache.collect_schema().names()
+        select_cols = ["CN", "EXPNS"]
+        
+        # Add adjustment factors based on requirements and availability
+        if required_adj_factors is None:
+            # Default to all standard adjustment factors
+            required_adj_factors = ["MICR", "SUBP", "MACR"]
+            
+        for factor in required_adj_factors:
+            col_name = f"ADJ_FACTOR_{factor}"
+            if col_name in pop_stratum_cols:
+                select_cols.append(col_name)
+        
+        # Select columns and rename CN to STRATUM_CN for joining
+        pop_stratum_selected = self._pop_stratum_cache.select(select_cols).rename({"CN": "STRATUM_CN"})
+        
+        # Use optimized join with consistent approach
+        strat_lazy = self._optimized_join(
+            self._ppsa_cache,
+            pop_stratum_selected,
+            on="STRATUM_CN",
+            how="inner"
+        )
+        
+        return strat_lazy
 
     # === Abstract Methods ===
 
@@ -222,7 +324,7 @@ class BaseEstimator(ABC):
 
             # Step 8: Format output
             self._update_progress("Formatting results...")
-            final_results = self._format_output(pop_estimates)
+            final_results = self.format_output(pop_estimates)
 
             return final_results
 

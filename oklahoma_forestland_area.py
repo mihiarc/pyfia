@@ -37,60 +37,56 @@ with FIA("nfi_south.duckdb") as db:
         table.add_column("Value", style="green", justify="right")
         table.add_column("Unit", style="yellow")
         
-        # Year
-        if "YEAR" in row:
-            table.add_row("Inventory Year", str(row["YEAR"]), "")
-        
         # Forest area percentage
-        if "AREA_PERC_TOTAL" in row:
-            table.add_row("Forest Coverage", f"{row['AREA_PERC_TOTAL']:.2f}", "%")
+        if "AREA_PERC" in row:
+            table.add_row("Forest Coverage", f"{row['AREA_PERC']:.2f}", "%")
             
         # Total forest area in acres
-        if "AREA_TOTAL" in row:
-            area_acres = row["AREA_TOTAL"]
+        if "AREA" in row:
+            area_acres = row["AREA"]
             table.add_row("Forest Area", f"{area_acres:,.0f}", "acres")
             
             # Convert to square miles
             area_sq_miles = area_acres / 640
             table.add_row("Forest Area", f"{area_sq_miles:,.1f}", "square miles")
             
-        # Standard error
-        if "AREA_TOTAL_SE" in row:
-            se = row["AREA_TOTAL_SE"]
+        # Standard error (calculate from variance if available)
+        if "AREA_SE" in row:
+            se = row["AREA_SE"]
             table.add_row("Standard Error", f"±{se:,.0f}", "acres")
             
             # Calculate 95% confidence interval
-            if "AREA_TOTAL" in row:
-                area_val = row["AREA_TOTAL"]
+            if "AREA" in row:
+                area_val = row["AREA"]
                 ci_lower = area_val - (1.96 * se)
                 ci_upper = area_val + (1.96 * se)
                 table.add_row("95% CI", f"{ci_lower:,.0f} - {ci_upper:,.0f}", "acres")
         
         # Number of plots
-        if "nPlots_TOTAL" in row:
-            table.add_row("Sample Size", str(row["nPlots_TOTAL"]), "plots")
+        if "N_PLOTS" in row:
+            table.add_row("Sample Size", str(row["N_PLOTS"]), "plots")
         
         console.print(table)
         
         # Summary statistics
         console.print("\n[bold]Summary:[/bold]")
         
-        if "AREA_TOTAL" in row:
-            area_val = row["AREA_TOTAL"]
-            # Oklahoma total land area is approximately 44.8 million acres
-            oklahoma_total = 44_825_600
-            forest_pct = (area_val / oklahoma_total) * 100
+        if "AREA" in row:
+            area_val = row["AREA"]
             
             console.print(f"• Oklahoma has [green]{area_val:,.0f}[/green] acres of forestland")
-            console.print(f"• This represents [yellow]{forest_pct:.1f}%[/yellow] of the state's total land area")
             
-            if "AREA_TOTAL_SE" in row:
-                se = row["AREA_TOTAL_SE"]
+            # Use the AREA_PERC column directly for percentage
+            if "AREA_PERC" in row:
+                console.print(f"• This represents [yellow]{row['AREA_PERC']:.1f}%[/yellow] of the state's total land area")
+            
+            if "AREA_SE" in row:
+                se = row["AREA_SE"]
                 cv = (se / area_val) * 100  # Coefficient of variation
                 console.print(f"• Standard error: ±{se:,.0f} acres (CV={cv:.1f}%)")
             
-            if "nPlots_TOTAL" in row:
-                console.print(f"• Based on {row['nPlots_TOTAL']} forest inventory plots")
+            if "N_PLOTS" in row:
+                console.print(f"• Based on {row['N_PLOTS']} forest inventory plots")
         
         # Show the raw dataframe for debugging
         console.print("\n[dim]Raw results DataFrame:[/dim]")

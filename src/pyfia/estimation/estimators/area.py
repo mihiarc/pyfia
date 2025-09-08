@@ -54,10 +54,8 @@ class AreaEstimator(BaseEstimator):
         if not isinstance(plot_df, pl.LazyFrame):
             plot_df = plot_df.lazy()
         
-        # Apply EVALID filtering
-        if self.db.evalid:
-            cond_df = cond_df.filter(pl.col("EVALID").is_in(self.db.evalid))
-            plot_df = plot_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+        # Note: EVALID filtering happens in stratification tables (POP_PLOT_STRATUM_ASSGN),
+        # not in COND/PLOT tables which don't have EVALID columns
         
         # Select needed columns
         cond_cols = self.get_cond_columns()
@@ -240,6 +238,31 @@ def area(
     >>> # Timber area by forest type
     >>> results = area(db, grp_by="FORTYPCD", land_type="timber")
     """
+    # Ensure db is a FIA instance
+    if isinstance(db, str):
+        db = FIA(db)
+        owns_db = True
+    else:
+        owns_db = False
+    
+    # CRITICAL: If no EVALID is set, automatically select most recent EXPALL
+    # This prevents massive overcounting from including all historical evaluations
+    if db.evalid is None:
+        import warnings
+        warnings.warn(
+            "No EVALID specified. Automatically selecting most recent EXPALL evaluations. "
+            "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling area()."
+        )
+        db.clip_most_recent(eval_type="ALL")  # Use "ALL" not "EXPALL" per line 159-160 in fia.py
+        
+        # If still no EVALID (no EXPALL evaluations), try without filtering but warn strongly
+        if db.evalid is None:
+            warnings.warn(
+                "WARNING: No EXPALL evaluations found. Results may be incorrect due to "
+                "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
+                "to explicitly select appropriate EVALIDs."
+            )
+    
     # Create simple config dict
     config = {
         "grp_by": grp_by,
@@ -250,6 +273,11 @@ def area(
         "variance": variance
     }
     
-    # Create estimator and run
-    estimator = AreaEstimator(db, config)
-    return estimator.estimate()
+    try:
+        # Create estimator and run
+        estimator = AreaEstimator(db, config)
+        return estimator.estimate()
+    finally:
+        # Clean up if we created the db
+        if owns_db and hasattr(db, 'close'):
+            db.close()

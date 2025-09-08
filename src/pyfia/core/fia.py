@@ -163,12 +163,58 @@ class FIA:
             df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
 
         if most_recent:
-            # Group by state and eval type, get max year
-            df = (
-                df.group_by(["STATECD", "EVAL_TYP"])
-                .agg(pl.col("END_INVYR").max())
-                .join(df, on=["STATECD", "EVAL_TYP", "END_INVYR"])
-            )
+            # Special handling for Texas (STATECD=48)
+            # Texas has separate East/West evaluations, but we want the full state
+            # Prefer evaluations with "Texas" (not "Texas(EAST)" or "Texas(West)")
+            df_texas = df.filter(pl.col("STATECD") == 48)
+            df_other = df.filter(pl.col("STATECD") != 48)
+            
+            if not df_texas.is_empty():
+                # For Texas, prefer full state evaluations over regional ones
+                # Check LOCATION_NM to identify full state vs regional
+                if "LOCATION_NM" in df_texas.columns:
+                    # Mark full state evaluations (just "Texas" without parentheses)
+                    df_texas = df_texas.with_columns(
+                        pl.when(pl.col("LOCATION_NM") == "Texas")
+                        .then(1)
+                        .otherwise(0)
+                        .alias("IS_FULL_STATE")
+                    )
+                    # Sort: full state first, then by END_INVYR desc
+                    df_texas = (
+                        df_texas.sort(["EVAL_TYP", "IS_FULL_STATE", "END_INVYR"], 
+                                     descending=[False, True, True])
+                        .group_by(["STATECD", "EVAL_TYP"])
+                        .first()
+                        .drop("IS_FULL_STATE")
+                    )
+                else:
+                    # Fallback if LOCATION_NM not available
+                    df_texas = (
+                        df_texas.sort(["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"], 
+                                     descending=[False, False, True, False])
+                        .group_by(["STATECD", "EVAL_TYP"])
+                        .first()
+                    )
+            
+            # For other states, use standard logic
+            if not df_other.is_empty():
+                df_other = (
+                    df_other.sort(["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"], 
+                                 descending=[False, False, True, False])
+                    .group_by(["STATECD", "EVAL_TYP"])
+                    .first()
+                )
+            
+            # Combine Texas and other states
+            df_list = []
+            if not df_texas.is_empty():
+                df_list.append(df_texas)
+            if not df_other.is_empty():
+                df_list.append(df_other)
+            
+            if df_list:
+                df = pl.concat(df_list)
 
         # Extract unique EVALIDs
         evalids = df.select("EVALID").unique().sort("EVALID")["EVALID"].to_list()
@@ -256,11 +302,8 @@ class FIA:
             warnings.warn(f"No evaluations found for type {eval_type}")
             return self
         
-        # Use only the first EVALID if multiple are returned
-        # This ensures we use only ONE EVALID per estimation
-        if len(evalids) > 1:
-            evalids = [evalids[0]]
-
+        # When most_recent is True, we get one EVALID per state
+        # This is correct - we want the most recent evaluation for EACH state
         return self.clip_by_evalid(evalids)
 
     def get_plots(self, columns: Optional[List[str]] = None) -> pl.DataFrame:

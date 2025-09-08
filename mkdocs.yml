@@ -1,259 +1,48 @@
-site_name: PyFIA - Python Implementation of rFIA
-site_description: High-performance Python implementation of the R rFIA package for USDA Forest Service FIA data analysis
+site_name: PyFIA Documentation
+site_description: Python implementation of the R rFIA package for FIA data analysis
 site_author: PyFIA Contributors
 site_url: https://mihiarc.github.io/pyfia/
 
 repo_url: https://github.com/mihiarc/pyfia
 repo_name: mihiarc/pyfia
-edit_uri: edit/main/docs/
-
-copyright: Copyright &copy; 2025 PyFIA Contributors
 
 theme:
   name: material
-  # custom_dir: overrides
-  # logo: assets/logo.svg
-  favicon: assets/favicon.png
-  icon:
-    repo: fontawesome/brands/github
-    edit: material/pencil
-    view: material/eye
   palette:
-    # Light mode
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
+    - scheme: default
       primary: green
-      accent: light green
       toggle:
         icon: material/weather-night
         name: Switch to dark mode
-    # Dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
+    - scheme: slate
       primary: green
-      accent: light green
       toggle:
         icon: material/weather-sunny
         name: Switch to light mode
   features:
-    # Navigation
     - navigation.tabs
-    - navigation.tabs.sticky
     - navigation.sections
     - navigation.expand
-    - navigation.path
-    - navigation.prune
-    - navigation.indexes
-    - navigation.top
-    - navigation.footer
-    # Table of contents
     - toc.follow
-    - toc.integrate
-    # Search
     - search.suggest
-    - search.highlight
-    - search.share
-    # Header
-    - header.autohide
-    # Content
     - content.code.copy
-    - content.code.select
-    - content.code.annotate
-    - content.action.edit
-    - content.action.view
-    - content.tooltips
-    - content.tabs.link
-    # Instant loading
-    - navigation.instant
-    - navigation.instant.prefetch
-    - navigation.instant.progress
-
-markdown_extensions:
-  # Python Markdown
-  - abbr
-  - admonition
-  - attr_list
-  - def_list
-  - footnotes
-  - md_in_html
-  - tables
-  - toc:
-      permalink: true
-      toc_depth: 3
-  # Python Markdown Extensions
-  - pymdownx.arithmatex:
-      generic: true
-  - pymdownx.betterem:
-      smart_enable: all
-  - pymdownx.caret
-  - pymdownx.critic
-  - pymdownx.details
-  - pymdownx.emoji:
-      emoji_index: !!python/name:material.extensions.emoji.twemoji
-      emoji_generator: !!python/name:material.extensions.emoji.to_svg
-  - pymdownx.highlight:
-      anchor_linenums: true
-      line_spans: __span
-      pygments_lang_class: true
-  - pymdownx.inlinehilite
-  - pymdownx.keys
-  - pymdownx.magiclink:
-      normalize_issue_symbols: true
-      repo_url_shorthand: true
-      user: mihiarc
-      repo: pyfia
-  - pymdownx.mark
-  - pymdownx.smartsymbols
-  - pymdownx.snippets
-  - pymdownx.superfences:
-      custom_fences:
-        - name: mermaid
-          class: mermaid
-          format: !!python/name:pymdownx.superfences.fence_code_format
-  - pymdownx.tabbed:
-      alternate_style: true
-      combine_header_slug: true
-      slugify: !!python/object/apply:pymdownx.slugs.slugify
-        kwds:
-          case: lower
-  - pymdownx.tasklist:
-      custom_checkbox: true
-  - pymdownx.tilde
 
 plugins:
-  - search:
-      separator: '[\s\u200b\-._]+'  
-      lang:
-        - en
-  - minify:
-      minify_html: true
-      minify_js: true
-      minify_css: true
-      htmlmin_opts:
-        remove_comments: true
-  # Modern plugins
-  - git-revision-date-localized:
-      enable_creation_date: true
-      type: iso_datetime
-  # - tags:
-  #     tags_file: tags.md
-  # - social:
-  #     cards: true
-  #     cards_layout_options:
-  #       background_color: "#2e7d32"
-  #       color: "#ffffff"
-  # - offline
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+
+markdown_extensions:
+  - pymdownx.highlight
+  - pymdownx.superfences
+  - admonition
+  - tables
 
 nav:
-  - Home: ARCHITECTURE_DIAGRAMS.md
-  
-  - Getting Started:
-    - Project Overview: README.md
-  
-  - Examples:
-    - Overview: examples/README.md
-  
-  - Query Library:
-    - Overview: queries/README.md
-    - Quick Reference: queries/evaluator_quick_reference.md
-    - Methodology Guide: queries/evaluator_methodology.md
-    - Working Query Bank: queries/FIA_WORKING_QUERY_BANK.md
-    
-    - Examples:
-      - Basic Tree Queries:
-        - Overview: queries/basic_tree/README.md
-        - Oregon Live Trees: queries/basic_tree/oregon_total_live_trees.md
-        - NC Trees by Species: queries/basic_tree/north_carolina_trees_by_species.md
-      
-      - Biomass & Carbon:
-        - Overview: queries/biomass_carbon/README.md
-        - Colorado Biomass: queries/biomass_carbon/colorado_biomass_by_species_group.md
-        - NC Merchantable Biomass: queries/biomass_carbon/north_carolina_merchantable_biomass.md
-      
-      - Forest Area:
-        - Overview: queries/forest_area/README.md
-        - Minnesota Forest Types: queries/forest_area/minnesota_forest_type_groups.md
-      
-      - Forest Change:
-        - Overview: queries/forest_change/README.md
-        - Missouri Type Change: queries/forest_change/missouri_forest_type_change.md
-      
-      - Mortality:
-        - Overview: queries/mortality/README.md
-        - Colorado Volume: queries/mortality/colorado_mortality_merchantable_volume.md
-        - Georgia by Agent: queries/mortality/georgia_growing_stock_mortality_by_agent.md
-        - Georgia by Disturbance: queries/mortality/georgia_growing_stock_mortality_by_disturbance.md
-        - NC Trees per Acre: queries/mortality/north_carolina_mortality_trees_per_acre.md
-      
-      - Volume:
-        - Overview: queries/volume/README.md
-        - California by Diameter: queries/volume/california_volume_by_diameter.md
-      
-      - Advanced Topics:
-        - Ratio Estimation: queries/ratio_estimation/README.md
-        - Tree Density: queries/tree_density/README.md
-  
-  - Developer Guide:
-    - System Architecture: ARCHITECTURE_DIAGRAMS.md
-    - Code Quality:
-      - Pre-commit Hooks: PRE_COMMIT_GUIDE.md
-      - Property Testing: PROPERTY_TESTING_GUIDE.md
-      - Type Safety: PYDANTIC_V2_GUIDE.md
-  
-  - About:
-    - Project Overview: README.md
-
-extra:
-  # Version provider
-  version:
-    provider: mike
-    default: stable
-  # Social links
-  social:
-    - icon: fontawesome/brands/github
-      link: https://github.com/your-username/pyfia
-    - icon: fontawesome/brands/python
-      link: https://pypi.org/project/pyfia/
-    - icon: fontawesome/brands/discord
-      link: https://discord.gg/pyfia
-  # Analytics
-  analytics:
-    provider: google
-    property: G-XXXXXXXXXX
-    feedback:
-      title: Was this page helpful?
-      ratings:
-        - icon: material/emoticon-happy-outline
-          name: This page was helpful
-          data: 1
-          note: >-
-            Thanks for your feedback!
-        - icon: material/emoticon-sad-outline
-          name: This page could be improved
-          data: 0
-          note: >-
-            Thanks for your feedback! Help us improve this page by
-            using our <a href="..." target="_blank" rel="noopener">feedback form</a>.
-  # Page status indicators
-  status:
-    new: Recently added
-    deprecated: Deprecated
-  # Consent
-  consent:
-    title: Cookie consent
-    description: >-
-      We use cookies to recognize your repeated visits and preferences, as well
-      as to measure the effectiveness of our documentation and whether users
-      find what they're searching for. With your consent, you're helping us to
-      make our documentation better.
-  # Generator notice
-  generator: false
-
-# Extra CSS
-extra_css:
-  - stylesheets/extra.css
-
-# Extra JavaScript
-extra_javascript:
-  - javascripts/mathjax.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - API Reference: api-reference.md
+  - Examples: examples.md

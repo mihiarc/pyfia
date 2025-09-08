@@ -70,14 +70,22 @@ def setup_grouping_columns(
 
     # Add species grouping
     if by_species:
-        if "SPCD" not in df.columns:
-            raise ValueError("SPCD column not found in dataframe for species grouping")
+        ColumnValidator.validate_columns(
+            df,
+            required_columns="SPCD",
+            context="species grouping",
+            raise_on_missing=True
+        )
         group_cols.append("SPCD")
 
     # Add size class grouping
     if by_size_class:
-        if dia_col not in df.columns:
-            raise ValueError(f"{dia_col} column not found in dataframe for size class grouping")
+        ColumnValidator.validate_columns(
+            df,
+            required_columns=dia_col,
+            context="size class grouping",
+            raise_on_missing=True
+        )
 
         # Add size class column (standardize to UPPER_SNAKE_CASE)
         size_class_expr = create_size_class_expr(dia_col, size_class_type)
@@ -86,8 +94,12 @@ def setup_grouping_columns(
 
     # Add land type grouping (for area estimation)
     if by_land_type:
-        if "landType" not in df.columns:
-            raise ValueError("landType column not found. Run add_land_type_column() first")
+        ColumnValidator.validate_columns(
+            df,
+            required_columns="landType",
+            context="land type grouping (run add_land_type_column() first)",
+            raise_on_missing=True
+        )
         group_cols.append("landType")
 
     # Remove duplicates while preserving order
@@ -277,6 +289,9 @@ def add_species_info(
 # All modules now use consistent snake_case naming
 
 
+from .validation import ColumnValidator
+
+
 def validate_grouping_columns(
     df: pl.DataFrame,
     required_groups: List[str],
@@ -296,12 +311,13 @@ def validate_grouping_columns(
     ValueError
         If any required columns are missing
     """
-    missing_cols = [col for col in required_groups if col not in df.columns]
-    if missing_cols:
-        raise ValueError(
-            f"Missing required grouping columns: {missing_cols}. "
-            f"Available columns: {df.columns}"
-        )
+    ColumnValidator.validate_columns(
+        df,
+        required_columns=required_groups,
+        context="grouping",
+        raise_on_missing=True,
+        include_available=True  # Include available columns in error message
+    )
 
 
 def get_size_class_bounds(

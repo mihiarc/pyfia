@@ -298,6 +298,9 @@ def get_adjustment_factor_column(
     return df.with_columns(adjustment_factor_expr.alias(output_column))
 
 
+from .validation import ColumnValidator
+
+
 def validate_adjustment_columns(
     df: pl.DataFrame,
     required_columns: Optional[List[str]] = None,
@@ -323,15 +326,25 @@ def validate_adjustment_columns(
         If required columns are missing
     """
     if required_columns is None:
-        required_columns = [
-            "DIA", "MACRO_BREAKPOINT_DIA",
-            "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR",
-            "EXPNS"
-        ]
-
-    missing_columns = [col for col in required_columns if col not in df.columns]
-
-    if missing_columns:
-        raise ValueError(f"Missing required columns for adjustment factors: {missing_columns}")
-
-    return True
+        # Use both predefined sets for full adjustment validation
+        is_valid_basic, _ = ColumnValidator.validate_columns(
+            df,
+            column_set="adjustment_basic",
+            context="adjustment factors",
+            raise_on_missing=True
+        )
+        is_valid_factors, _ = ColumnValidator.validate_columns(
+            df,
+            column_set="adjustment_factors",
+            context="adjustment factors",
+            raise_on_missing=True
+        )
+        return is_valid_basic and is_valid_factors
+    else:
+        is_valid, _ = ColumnValidator.validate_columns(
+            df,
+            required_columns=required_columns,
+            context="adjustment factors",
+            raise_on_missing=True
+        )
+        return is_valid

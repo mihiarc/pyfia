@@ -1,0 +1,422 @@
+"""
+Base estimator for FIA statistical estimation.
+
+This module provides the base class for all FIA estimators using a simple,
+straightforward approach without unnecessary abstractions.
+"""
+
+from abc import ABC, abstractmethod
+from functools import lru_cache
+from typing import Dict, List, Optional, Tuple, Union
+
+import polars as pl
+
+from ..core import FIA
+from ..filtering import apply_area_filters, apply_tree_filters, setup_grouping_columns
+
+
+class BaseEstimator(ABC):
+    """
+    Base class for FIA design-based estimators.
+    
+    Implements a simple Template Method pattern for the estimation workflow
+    without unnecessary abstractions like FrameWrapper, complex caching, or
+    deep inheritance hierarchies.
+    """
+
+    def __init__(self, db: Union[str, FIA], config: dict):
+        """
+        Initialize the estimator.
+        
+        Parameters
+        ----------
+        db : Union[str, FIA]
+            Database connection or path
+        config : dict
+            Configuration dictionary with estimation parameters
+        """
+        # Set up database connection
+        if isinstance(db, str):
+            self.db = FIA(db)
+            self._owns_db = True
+        else:
+            self.db = db
+            self._owns_db = False
+
+        # Store config as simple dict
+        self.config = config
+        
+        # Simple caches for commonly used data
+        self._ref_species_cache: Optional[pl.DataFrame] = None
+        self._stratification_cache: Optional[pl.LazyFrame] = None
+        
+    def estimate(self) -> pl.DataFrame:
+        """
+        Main estimation workflow.
+        
+        Returns
+        -------
+        pl.DataFrame
+            Final estimation results
+        """
+        # 1. Load required data
+        data = self.load_data()
+        
+        # 2. Apply filters (domain filtering)
+        if data is not None:
+            data = self.apply_filters(data)
+        
+        # 3. Calculate estimation values
+        if data is not None:
+            data = self.calculate_values(data)
+        
+        # 4. Aggregate results with stratification
+        results = self.aggregate_results(data)
+        
+        # 5. Calculate variance
+        results = self.calculate_variance(results)
+        
+        # 6. Format output
+        return self.format_output(results)
+    
+    def load_data(self) -> Optional[pl.LazyFrame]:
+        """
+        Load and join required tables.
+        
+        Returns
+        -------
+        Optional[pl.LazyFrame]
+            Joined data or None if no tree data needed
+        """
+        tables = self.get_required_tables()
+        
+        # Handle area-only estimations (no tree data)
+        if "TREE" not in tables:
+            return self._load_area_data()
+        
+        # Load tree and condition data
+        return self._load_tree_cond_data()
+    
+    def _load_tree_cond_data(self) -> pl.LazyFrame:
+        """Load and join tree and condition data."""
+        # Load TREE table
+        if "TREE" not in self.db.tables:
+            self.db.load_table("TREE")
+        tree_df = self.db.tables["TREE"]
+        
+        # Load COND table
+        if "COND" not in self.db.tables:
+            self.db.load_table("COND")
+        cond_df = self.db.tables["COND"]
+        
+        # Ensure LazyFrames
+        if not isinstance(tree_df, pl.LazyFrame):
+            tree_df = tree_df.lazy()
+        if not isinstance(cond_df, pl.LazyFrame):
+            cond_df = cond_df.lazy()
+        
+        # Apply EVALID filtering if set
+        if self.db.evalid:
+            tree_df = tree_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+            cond_df = cond_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+        
+        # Select only needed columns
+        tree_cols = self.get_tree_columns()
+        cond_cols = self.get_cond_columns()
+        
+        if tree_cols:
+            tree_df = tree_df.select(tree_cols)
+        if cond_cols:
+            cond_df = cond_df.select(cond_cols)
+        
+        # Join tree and condition
+        data = tree_df.join(
+            cond_df,
+            on=["PLT_CN", "CONDID"],
+            how="inner"
+        )
+        
+        return data
+    
+    def _load_area_data(self) -> pl.LazyFrame:
+        """Load condition and plot data for area estimation."""
+        # Load COND table
+        if "COND" not in self.db.tables:
+            self.db.load_table("COND")
+        cond_df = self.db.tables["COND"]
+        
+        # Load PLOT table
+        if "PLOT" not in self.db.tables:
+            self.db.load_table("PLOT")
+        plot_df = self.db.tables["PLOT"]
+        
+        # Ensure LazyFrames
+        if not isinstance(cond_df, pl.LazyFrame):
+            cond_df = cond_df.lazy()
+        if not isinstance(plot_df, pl.LazyFrame):
+            plot_df = plot_df.lazy()
+        
+        # Apply EVALID filtering
+        if self.db.evalid:
+            cond_df = cond_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+            plot_df = plot_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+        
+        # Join condition and plot
+        data = cond_df.join(
+            plot_df.select(["CN", "STATECD", "COUNTYCD", "PLOT"]),
+            left_on="PLT_CN",
+            right_on="CN",
+            how="inner"
+        )
+        
+        return data
+    
+    def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """
+        Apply domain filtering.
+        
+        Parameters
+        ----------
+        data : pl.LazyFrame
+            Input data
+            
+        Returns
+        -------
+        pl.LazyFrame
+            Filtered data
+        """
+        # Collect to DataFrame for filtering functions
+        data_df = data.collect()
+        
+        # Apply tree domain filter
+        if self.config.get("tree_domain"):
+            data_df = apply_tree_filters(
+                data_df,
+                tree_domain=self.config["tree_domain"]
+            )
+        
+        # Apply area domain filter
+        if self.config.get("area_domain"):
+            data_df = apply_area_filters(
+                data_df,
+                area_domain=self.config["area_domain"]
+            )
+        
+        # Apply tree type filter (live, dead, etc.)
+        tree_type = self.config.get("tree_type", "live")
+        if tree_type and "STATUSCD" in data_df.columns:
+            if tree_type == "live":
+                data_df = data_df.filter(pl.col("STATUSCD") == 1)
+            elif tree_type == "dead":
+                data_df = data_df.filter(pl.col("STATUSCD") == 2)
+            elif tree_type == "gs":
+                data_df = data_df.filter(pl.col("STATUSCD").is_in([1, 2]))
+            # "all" means no filter
+        
+        # Apply land type filter
+        land_type = self.config.get("land_type", "forest")
+        if land_type and "COND_STATUS_CD" in data_df.columns:
+            if land_type == "forest":
+                data_df = data_df.filter(pl.col("COND_STATUS_CD") == 1)
+            elif land_type == "timber":
+                data_df = data_df.filter(
+                    (pl.col("COND_STATUS_CD") == 1) &
+                    (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])) &
+                    (pl.col("RESERVCD") == 0)
+                )
+        
+        # Convert back to lazy for further processing
+        return data_df.lazy()
+    
+    def aggregate_results(self, data: Optional[pl.LazyFrame]) -> pl.DataFrame:
+        """
+        Aggregate results with stratification.
+        
+        Parameters
+        ----------
+        data : Optional[pl.LazyFrame]
+            Calculated values or None for area-only
+            
+        Returns
+        -------
+        pl.DataFrame
+            Aggregated results
+        """
+        # Get stratification data
+        strat_data = self._get_stratification_data()
+        
+        if data is None:
+            # Area-only estimation
+            return self._aggregate_area_only(strat_data)
+        
+        # Join with stratification
+        data_with_strat = data.join(
+            strat_data,
+            on="PLT_CN",
+            how="inner"
+        )
+        
+        # Setup grouping columns
+        group_cols = self._setup_grouping()
+        
+        # Aggregate by groups
+        if group_cols:
+            results = data_with_strat.group_by(group_cols).agg([
+                pl.sum("ESTIMATE_VALUE").alias("ESTIMATE"),
+                pl.count("PLT_CN").alias("N_PLOTS")
+            ]).collect()
+        else:
+            results = data_with_strat.select([
+                pl.sum("ESTIMATE_VALUE").alias("ESTIMATE"),
+                pl.count("PLT_CN").alias("N_PLOTS")
+            ]).collect()
+        
+        return results
+    
+    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+        """
+        Calculate variance for estimates.
+        
+        Simple variance calculation without complex abstractions.
+        """
+        # This would implement the actual FIA variance formulas
+        # For now, add placeholder SE column
+        results = results.with_columns([
+            (pl.col("ESTIMATE") * 0.1).alias("SE")  # Placeholder
+        ])
+        
+        if not self.config.get("variance", False):
+            # Convert variance to standard error
+            results = results.with_columns([
+                pl.col("SE").sqrt().alias("SE")
+            ])
+        
+        return results
+    
+    def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
+        """
+        Format output to match expected structure.
+        
+        Parameters
+        ----------
+        results : pl.DataFrame
+            Raw results
+            
+        Returns
+        -------
+        pl.DataFrame
+            Formatted results
+        """
+        # Add metadata columns
+        results = results.with_columns([
+            pl.lit(self.config.get("year", 2023)).alias("YEAR")
+        ])
+        
+        # Reorder columns
+        col_order = ["YEAR", "ESTIMATE", "SE", "N_PLOTS"]
+        existing_cols = [col for col in col_order if col in results.columns]
+        other_cols = [col for col in results.columns if col not in col_order]
+        
+        results = results.select(existing_cols + other_cols)
+        
+        return results
+    
+    def _setup_grouping(self) -> List[str]:
+        """Setup grouping columns based on config."""
+        group_cols = []
+        
+        # Custom grouping columns
+        if self.config.get("grp_by"):
+            grp_by = self.config["grp_by"]
+            if isinstance(grp_by, str):
+                group_cols.append(grp_by)
+            else:
+                group_cols.extend(grp_by)
+        
+        # Species grouping
+        if self.config.get("by_species"):
+            group_cols.append("SPCD")
+        
+        # Size class grouping would be added here
+        # but requires the actual data to create the column
+        
+        return group_cols
+    
+    @lru_cache(maxsize=1)
+    def _get_stratification_data(self) -> pl.LazyFrame:
+        """
+        Get stratification data with simple caching.
+        
+        Returns
+        -------
+        pl.LazyFrame
+            Joined PPSA and POP_STRATUM data
+        """
+        # Load PPSA
+        if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
+            self.db.load_table("POP_PLOT_STRATUM_ASSGN")
+        ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+        
+        # Load POP_STRATUM
+        if "POP_STRATUM" not in self.db.tables:
+            self.db.load_table("POP_STRATUM")
+        pop_stratum = self.db.tables["POP_STRATUM"]
+        
+        # Ensure LazyFrames
+        if not isinstance(ppsa, pl.LazyFrame):
+            ppsa = ppsa.lazy()
+        if not isinstance(pop_stratum, pl.LazyFrame):
+            pop_stratum = pop_stratum.lazy()
+        
+        # Apply EVALID filter
+        if self.db.evalid:
+            ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
+            pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
+        
+        # Select necessary columns and join
+        pop_stratum_selected = pop_stratum.select([
+            pl.col("CN").alias("STRATUM_CN"),
+            "EXPNS",
+            "ADJ_FACTOR_MICR",
+            "ADJ_FACTOR_SUBP", 
+            "ADJ_FACTOR_MACR"
+        ])
+        
+        strat_data = ppsa.join(
+            pop_stratum_selected,
+            on="STRATUM_CN",
+            how="inner"
+        )
+        
+        return strat_data
+    
+    def _aggregate_area_only(self, strat_data: pl.LazyFrame) -> pl.DataFrame:
+        """Handle area-only aggregation without tree data."""
+        # This would be implemented by area estimator
+        return pl.DataFrame()
+    
+    # === Abstract Methods ===
+    
+    @abstractmethod
+    def get_required_tables(self) -> List[str]:
+        """Return list of required database tables."""
+        pass
+    
+    @abstractmethod
+    def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """Calculate estimation values."""
+        pass
+    
+    def get_tree_columns(self) -> Optional[List[str]]:
+        """Return list of required tree columns."""
+        return None
+    
+    def get_cond_columns(self) -> Optional[List[str]]:
+        """Return list of required condition columns."""
+        return None
+    
+    def __del__(self):
+        """Clean up database connection if owned."""
+        if hasattr(self, '_owns_db') and self._owns_db:
+            if hasattr(self.db, 'close'):
+                self.db.close()

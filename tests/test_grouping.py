@@ -3,7 +3,7 @@
 import polars as pl
 import pytest
 
-from pyfia.filters.grouping import (
+from pyfia.filtering.utils.grouping_functions import (
     DESCRIPTIVE_SIZE_CLASSES,
     STANDARD_SIZE_CLASSES,
     add_land_type_column,
@@ -20,6 +20,18 @@ from pyfia.filters.grouping import (
 @pytest.fixture
 def grouping_tree_data():
     """Create specific tree data for grouping tests."""
+    return pl.DataFrame({
+        "CN": ["1", "2", "3", "4", "5", "6"],
+        "PLT_CN": ["P1", "P1", "P2", "P2", "P3", "P3"],
+        "SPCD": [110, 121, 110, 202, 316, 121],
+        "DIA": [3.5, 6.2, 12.5, 25.0, 4.8, 32.5],
+        "TPA_UNADJ": [6.018, 1.234, 0.616, 0.308, 1.234, 0.154],
+    })
+
+
+@pytest.fixture
+def sample_tree_df():
+    """Create sample tree data for tests (alias for grouping_tree_data)."""
     return pl.DataFrame({
         "CN": ["1", "2", "3", "4", "5", "6"],
         "PLT_CN": ["P1", "P1", "P2", "P2", "P3", "P3"],

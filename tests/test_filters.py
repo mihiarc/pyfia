@@ -3,16 +3,12 @@
 import polars as pl
 import pytest
 
-from pyfia.filters.domain import (
-    apply_area_filters,
-    apply_growing_stock_filter,
-    apply_mortality_filters,
-    apply_standard_filters,
-    apply_tree_filters,
-    get_size_class_expr,
-    parse_domain_expression,
-    validate_filters,
-)
+from pyfia.filtering.area.filters import apply_area_filters
+from pyfia.filtering.tree.filters import apply_tree_filters
+from pyfia.filtering.core.parser import DomainExpressionParser
+
+# Note: Some functions may have been moved or renamed
+# We'll need to update these imports as we find them
 
 # Using standard centralized fixtures where appropriate
 # Custom fixtures only for specific filter test cases

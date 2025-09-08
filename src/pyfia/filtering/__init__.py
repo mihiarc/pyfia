@@ -41,6 +41,12 @@ from .utils.classification import (
     assign_forest_type_group,
     assign_species_group,
 )
+from .utils.validation import (
+    ColumnValidator,
+    validate_columns,
+    check_columns,
+    ensure_columns,
+)
 
 __all__ = [
     # Core
@@ -72,4 +78,10 @@ __all__ = [
     "assign_size_class",
     "assign_forest_type_group",
     "assign_species_group",
+    
+    # Validation
+    "ColumnValidator",
+    "validate_columns",
+    "check_columns",
+    "ensure_columns",
 ]

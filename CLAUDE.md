@@ -5,6 +5,21 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Project Overview
 pyFIA is a Python library implementing the R rFIA package functionality for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides exact statistical compatibility with rFIA while leveraging modern Python data science tools like Polars and DuckDB for high-performance data processing.
 
+## Core Design Principles
+
+### Simplicity First
+- **Avoid over-engineering**: No unnecessary design patterns (Strategy, Factory, Builder, etc.)
+- **Direct functions over complex hierarchies**: Use simple functions where possible
+- **YAGNI (You Aren't Gonna Need It)**: Don't add abstractions for hypothetical future needs
+- **Simple parameter passing**: Direct parameters instead of configuration objects
+- **Flat structure**: Avoid deep nesting of directories and modules
+
+### Code Metrics
+After recent refactoring, the codebase is significantly simplified:
+- **Estimation module**: Reduced from 13,500 to 2,000 lines (85% reduction)
+- **Converter module**: Reduced from 4,761 to 901 lines (81% reduction)  
+- **Filtering module**: Reduced from 3,159 to 2,994 lines (5% reduction)
+
 ## Development Setup
 
 ### Installation
@@ -61,6 +76,32 @@ uv run mkdocs build
 
 ## Architecture
 
+### Module Structure
+```
+pyfia/
+├── core/               # Core database and reader functionality
+│   ├── fia.py         # Main FIA database class
+│   └── data_reader.py # Efficient data loading
+├── estimation/         # Simplified estimation module (2,000 lines total)
+│   ├── base.py        # BaseEstimator with Template Method pattern (400 lines)
+│   └── estimators/    # Individual estimators (~300 lines each)
+│       ├── area.py
+│       ├── biomass.py
+│       ├── growth.py
+│       ├── mortality.py
+│       ├── tpa.py
+│       └── volume.py
+├── converter/          # Simplified converter (901 lines total)
+│   ├── converter.py   # Direct DuckDB conversion (452 lines)
+│   └── utils.py       # Helper functions (383 lines)
+├── filtering/          # Domain filtering and indicators
+│   ├── core/parser.py # Centralized domain expression parser
+│   ├── tree/filters.py
+│   ├── area/filters.py
+│   └── indicators/    # Simple functions, no Strategy pattern
+└── constants/          # FIA constants and standard values
+```
+
 ### Core Components
 
 **FIA Database Class (`pyfia.core.fia.FIA`)**
@@ -71,8 +112,10 @@ uv run mkdocs build
 - Key methods: `clip_by_evalid()`, `clip_by_state()`, `prepare_estimation_data()`
 
 **Estimation Functions (`pyfia.estimation/`)**
-- Statistical estimation following FIA methodology and rFIA compatibility
-- Functions: `area()`, `biomass()`, `volume()`, `tpa()`, `mortality()`, `growth()`
+- Simple, direct API functions: `area()`, `biomass()`, `volume()`, `tpa()`, `mortality()`, `growth()`
+- Each estimator is ~300 lines of straightforward code
+- BaseEstimator uses Template Method pattern for consistent workflow
+- No unnecessary abstractions or complex inheritance hierarchies
 - All support domain filtering, grouping, and proper variance calculations
 
 **Data Reader (`pyfia.core.data_reader.FIADataReader`)**
@@ -80,19 +123,25 @@ uv run mkdocs build
 - Supports both DuckDB and SQLite backends through abstraction layer
 - Automatic backend detection based on file extension/content
 - Lazy evaluation for memory efficiency
-- Automatic schema detection and column validation
 - Backend-specific optimizations (DuckDB: columnar storage, SQLite: PRAGMA settings)
 
-**Filters (`pyfia.filters/`)**
-- Domain filtering, EVALID management, plot joins
-- Statistical grouping and classification utilities
+**Filters (`pyfia.filtering/`)**
+- Simple functions for domain filtering and classification
+- No over-engineered Strategy patterns or complex abstractions
+- Direct Polars expressions for efficient filtering
+- Centralized domain expression parser
+
+**Converter (`pyfia.converter/`)**
+- Leverages DuckDB's native sqlite_scanner extension
+- Simple functions: `convert_sqlite_to_duckdb()`, `merge_states()`, `append_state()`
+- No pipelines, strategies, or complex configuration objects
+- YAML schemas preserved as source of truth for FIA table definitions
 
 ### Database Structure
 - Supports both DuckDB and SQLite backends with automatic detection
 - DuckDB recommended for efficient large-scale data processing
 - SQLite supported for compatibility with FIA DataMart downloads
 - EVALID-based filtering ensures statistically valid plot groupings
-- Supports multiple evaluation types: VOL (volume), GRM (growth/removal/mortality), CHNG (change)
 - State-level filtering applied at database level for performance
 
 ### Statistical Methodology
@@ -111,11 +160,19 @@ uv run mkdocs build
 - **ConnectorX**: Fast database connectivity
 
 ### Code Patterns
-- Use Polars LazyFrame for memory efficiency
-- Apply Pydantic v2 for all data validation
-- Follow rFIA naming conventions (e.g., `bySpecies`, `treeDomain`)
+- Use Polars LazyFrame for memory efficiency when appropriate
+- Apply Pydantic v2 for settings and configuration only (not for data)
+- Follow rFIA naming conventions in public APIs
+- Use simple functions over classes where possible
+- Direct parameter passing instead of configuration objects
 - Context managers for database connections
-- Property-based testing with Hypothesis
+
+### Anti-Patterns to Avoid
+- Don't create Strategy, Factory, or Builder patterns without clear need
+- Don't add abstraction layers for hypothetical flexibility
+- Don't create deep directory nesting (max 3 levels)
+- Don't use complex inheritance hierarchies
+- Don't create wrapper classes that just pass through calls
 
 ### Testing Patterns
 - Comprehensive fixtures in `tests/conftest.py` with sample FIA database
@@ -149,9 +206,9 @@ The evaluation type codes in EVALID don't directly map to EVAL_TYP values:
 For area estimation, use EVALIDs with EXPALL (type 00) as they include all plots
 
 ### Domain Filtering
-- `treeDomain`: SQL-like conditions for tree-level filtering (e.g., "STATUSCD == 1")
-- `areaDomain`: Conditions for area/condition-level filtering
-- `plotDomain`: Plot-level filtering conditions
+- `tree_domain`: SQL-like conditions for tree-level filtering (e.g., "STATUSCD == 1")
+- `area_domain`: Conditions for area/condition-level filtering
+- `plot_domain`: Plot-level filtering conditions
 
 ### Common Species Codes
 - 131: Loblolly pine, 110: Virginia pine, 833: Chestnut oak, 802: White oak
@@ -173,7 +230,7 @@ with FIA("path/to/fia.duckdb") as db:  # or .db for SQLite
     # Filter to North Carolina most recent volume evaluation
     db.clip_by_state(37, most_recent=True)
     
-    # Get estimates
+    # Get estimates - simple, direct function calls
     tpa_results = tpa(db, tree_domain="STATUSCD == 1")
     vol_results = volume(db, by_species=True)
     area_results = area(db, land_type='timber')
@@ -231,7 +288,7 @@ with FIA("nfi_south.duckdb") as db:
     )
 ```
 
-**Note**: The volume function uses snake_case parameters (e.g., `tree_domain`, not `treeDomain`).
+**Note**: All estimation functions use simple, direct parameters - no complex configuration objects.
 
 **Direct SQL Alternative**: For complex queries or debugging, you can also use direct SQL:
 
@@ -269,60 +326,68 @@ with duckdb.connect("nfi_south.duckdb", read_only=True) as conn:
 
 ### SQLite to DuckDB Converter
 
-pyFIA includes a comprehensive converter for transforming FIA DataMart SQLite databases to DuckDB format. The converter uses FIA standard schemas directly without type "optimizations", ensuring data integrity while leveraging DuckDB's automatic compression.
+pyFIA includes a simple, efficient converter for transforming FIA DataMart SQLite databases to DuckDB format. The converter leverages DuckDB's native sqlite_scanner extension for direct, high-performance conversion.
 
 #### Simple Conversion (Single State)
 ```python
-from pyfia import convert_sqlite_to_duckdb
+from pyfia.converter import convert_sqlite_to_duckdb
 
-# Convert a single state database
-result = convert_sqlite_to_duckdb(
-    source_path="SQLite_FIADB_OK.db",
-    target_path="oklahoma.duckdb",
-    state_code=40  # Oklahoma FIPS code
+# One-line conversion - no configuration objects needed
+row_counts = convert_sqlite_to_duckdb(
+    source_path=Path("SQLite_FIADB_OK.db"),
+    target_path=Path("oklahoma.duckdb"),
+    state_code=40,  # Oklahoma FIPS code
+    show_progress=True
 )
 
-print(f"Converted {result.stats.source_records_processed:,} records")
-print(f"Compression ratio: {result.compression_ratio:.2f}x")
+print(f"Converted {len(row_counts)} tables")
+print(f"Total rows: {sum(row_counts.values()):,}")
 ```
 
 #### Building Multi-State Databases
 
 ##### Option 1: Merge Multiple States at Once
 ```python
-from pyfia import merge_state_databases
+from pyfia.converter import merge_states
 
 # Create a multi-state database from multiple SQLite files
-merge_state_databases(
-    source_paths=["SQLite_FIADB_OK.db", "SQLite_FIADB_TX.db", "SQLite_FIADB_AL.db"],
-    target_path="nfi_south.duckdb",
-    state_codes=[40, 48, 1]  # Oklahoma, Texas, Alabama
+results = merge_states(
+    source_paths=[
+        Path("SQLite_FIADB_OK.db"), 
+        Path("SQLite_FIADB_TX.db"), 
+        Path("SQLite_FIADB_AL.db")
+    ],
+    state_codes=[40, 48, 1],  # Oklahoma, Texas, Alabama
+    target_path=Path("nfi_south.duckdb"),
+    show_progress=True
 )
+
+print(f"Merged {len(results)} states into regional database")
 ```
 
 ##### Option 2: Build Incrementally with Append
 ```python
-from pyfia import convert_sqlite_to_duckdb, append_to_database
+from pyfia.converter import convert_sqlite_to_duckdb, append_state
 
 # Step 1: Create initial database with first state
 convert_sqlite_to_duckdb(
-    source_path="SQLite_FIADB_OK.db",
-    target_path="nfi_south.duckdb",
+    source_path=Path("SQLite_FIADB_OK.db"),
+    target_path=Path("nfi_south.duckdb"),
     state_code=40
 )
 
 # Step 2: Append additional states
-append_to_database(
-    target_db="nfi_south.duckdb",
-    source_path="SQLite_FIADB_TX.db",
+append_state(
+    source_path=Path("SQLite_FIADB_TX.db"),
+    target_path=Path("nfi_south.duckdb"),
     state_code=48,
     dedupe=False  # No deduplication needed for new states
 )
 
 # Step 3: Continue appending
-append_to_database(
-    target_db="nfi_south.duckdb",
-    source_path="SQLite_FIADB_AL.db",
+append_state(
+    source_path=Path("SQLite_FIADB_AL.db"),
+    target_path=Path("nfi_south.duckdb"),
     state_code=1
 )
 ```
@@ -331,54 +396,39 @@ append_to_database(
 
 ```python
 # When appending updated data for an existing state, use deduplication
-append_to_database(
-    target_db="nfi_south.duckdb",
-    source_path="SQLite_FIADB_TX_2024_update.db",
+append_state(
+    source_path=Path("SQLite_FIADB_TX_2024_update.db"),
+    target_path=Path("nfi_south.duckdb"),
     state_code=48,
     dedupe=True,
     dedupe_keys=["CN"]  # Remove duplicates based on CN field
 )
 ```
 
-#### Advanced Configuration
+#### Utility Functions
 
 ```python
-from pyfia.converter import FIAConverter, ConverterConfig
-from pathlib import Path
+from pyfia.converter import get_database_info, compare_databases
 
-# Create custom configuration
-config = ConverterConfig(
-    source_dir=Path("/data/fia/sqlite"),
-    target_path=Path("/data/fia/regional.duckdb"),
-    compression_level="medium",    # Compression: none, low, medium, high
-    validation_level="none",       # Validation: none, basic, standard, comprehensive
-    append_mode=True,              # True for append, False for new database
-    dedupe_on_append=False,        # Remove duplicates when appending
-    dedupe_keys=["CN"],           # Fields to check for duplicates
-    batch_size=100_000,           # Records per batch
-    show_progress=True            # Show progress bars
+# Get information about a DuckDB database
+info = get_database_info(Path("nfi_south.duckdb"))
+print(f"Database size: {info['file_size_mb']:.2f} MB")
+print(f"Total tables: {info['total_tables']}")
+print(f"Total rows: {info['total_rows']:,}")
+
+# Compare source and target databases
+comparison = compare_databases(
+    source_path=Path("SQLite_FIADB_OK.db"),
+    target_path=Path("oklahoma.duckdb")
 )
-
-# Use converter directly for more control
-converter = FIAConverter(config)
-
-# Convert/append a state
-result = converter.convert_state(
-    sqlite_path=Path("SQLite_FIADB_GA.db"),
-    state_code=13,  # Georgia
-    target_path=Path("/data/fia/regional.duckdb")
-)
-
-print(f"Processed: {result.stats.source_records_processed:,} records")
-print(f"Written: {result.stats.target_records_written:,} records")
-print(f"Time: {result.stats.total_time:.1f} seconds")
+print(f"Compression ratio: {comparison['compression_ratio']:.2f}x")
 ```
 
 #### Practical Examples
 
 ##### Example 1: Create Regional Database
 ```python
-from pyfia import convert_sqlite_to_duckdb, append_to_database
+from pyfia.converter import convert_sqlite_to_duckdb, append_state
 
 # Create Southern region database
 states = {
@@ -392,37 +442,36 @@ states = {
 # Start with first state
 first_state = list(states.items())[0]
 convert_sqlite_to_duckdb(
-    source_path=first_state[0],
-    target_path="nfi_south.duckdb",
+    source_path=Path(first_state[0]),
+    target_path=Path("nfi_south.duckdb"),
     state_code=first_state[1]
 )
 
 # Append remaining states
 for sqlite_file, state_code in list(states.items())[1:]:
-    append_to_database(
-        target_db="nfi_south.duckdb",
-        source_path=sqlite_file,
+    append_state(
+        source_path=Path(sqlite_file),
+        target_path=Path("nfi_south.duckdb"),
         state_code=state_code
     )
 ```
 
 ##### Example 2: Update Existing State Data
 ```python
-# Replace existing state data with fresh download
-# First, check what's currently in the database
+# Check what's currently in the database
 from pyfia import FIA
 
 with FIA("nfi_south.duckdb") as db:
-    db_conn = db.conn
-    current_plots = db_conn.execute(
+    conn = db.conn if hasattr(db, 'conn') else db.reader.conn
+    current_plots = conn.execute(
         "SELECT COUNT(*) FROM PLOT WHERE STATECD = 48"
     ).fetchone()[0]
     print(f"Current Texas plots: {current_plots:,}")
 
 # Append with deduplication to update
-append_to_database(
-    target_db="nfi_south.duckdb",
-    source_path="SQLite_FIADB_TX_latest.db",
+append_state(
+    source_path=Path("SQLite_FIADB_TX_latest.db"),
+    target_path=Path("nfi_south.duckdb"),
     state_code=48,
     dedupe=True,
     dedupe_keys=["CN"]
@@ -431,24 +480,23 @@ append_to_database(
 
 #### Performance Benefits
 - **5-10x faster** analytical queries using DuckDB's columnar storage
-- **30-50% smaller** database size through automatic compression (typically 5-6x compression ratio)
+- **5-6x compression ratio** through automatic compression
 - **True append mode** adds new states without removing existing data
-- **Memory efficiency** with streaming processing and batch operations
+- **Memory efficiency** with streaming processing
 
 #### Key Features
+- **Simple API**: Direct functions, no complex configuration objects
 - **FIA Standard Schemas**: Uses official FIA data types from YAML definitions
-- **Automatic Compression**: DuckDB applies optimal compression regardless of declared types
+- **Automatic Compression**: DuckDB applies optimal compression
 - **Multi-state Support**: Build regional or national databases incrementally
 - **Deduplication**: Optional duplicate removal when updating existing data
-- **Progress Tracking**: Rich progress bars show conversion status
 
 #### Best Practices
 
 1. **For New Databases**: Use `convert_sqlite_to_duckdb()` for the first state
-2. **For Adding States**: Use `append_to_database()` with `dedupe=False`
-3. **For Updates**: Use `append_to_database()` with `dedupe=True` and specify `dedupe_keys`
-4. **For Performance**: Set `validation_level="none"` during conversion if data is trusted
-5. **For Large Datasets**: Adjust `batch_size` based on available memory
+2. **For Adding States**: Use `append_state()` with `dedupe=False`
+3. **For Updates**: Use `append_state()` with `dedupe=True` and specify `dedupe_keys`
+4. **For Large Datasets**: Tables are processed individually with progress tracking
 
 #### Checking Database Contents
 
@@ -471,26 +519,9 @@ with duckdb.connect("nfi_south.duckdb", read_only=True) as conn:
         print(f"  State {state_code}: {count:,} plots")
 
 # More detailed check with state names
-from pyfia import FIA
+from pyfia.constants import StateCodes
 
-with FIA("nfi_south.duckdb") as db:
-    conn = db.reader.conn if hasattr(db, 'reader') else duckdb.connect("nfi_south.duckdb", read_only=True)
-    
-    # State FIPS codes to names mapping
-    state_names = {
-        1: "Alabama", 2: "Alaska", 4: "Arizona", 5: "Arkansas", 6: "California",
-        8: "Colorado", 9: "Connecticut", 10: "Delaware", 12: "Florida", 13: "Georgia",
-        15: "Hawaii", 16: "Idaho", 17: "Illinois", 18: "Indiana", 19: "Iowa",
-        20: "Kansas", 21: "Kentucky", 22: "Louisiana", 23: "Maine", 24: "Maryland",
-        25: "Massachusetts", 26: "Michigan", 27: "Minnesota", 28: "Mississippi",
-        29: "Missouri", 30: "Montana", 31: "Nebraska", 32: "Nevada", 33: "New Hampshire",
-        34: "New Jersey", 35: "New Mexico", 36: "New York", 37: "North Carolina",
-        38: "North Dakota", 39: "Ohio", 40: "Oklahoma", 41: "Oregon", 42: "Pennsylvania",
-        44: "Rhode Island", 45: "South Carolina", 46: "South Dakota", 47: "Tennessee",
-        48: "Texas", 49: "Utah", 50: "Vermont", 51: "Virginia", 53: "Washington",
-        54: "West Virginia", 55: "Wisconsin", 56: "Wyoming"
-    }
-    
+with duckdb.connect("nfi_south.duckdb", read_only=True) as conn:
     result = conn.execute("""
         SELECT 
             STATECD,
@@ -505,28 +536,66 @@ with FIA("nfi_south.duckdb") as db:
     
     print("\nDetailed state inventory:")
     for state_code, plots, years, min_year, max_year in result:
-        name = state_names.get(state_code, f"Unknown ({state_code})")
+        name = StateCodes.CODE_TO_NAME.get(state_code, f"Unknown ({state_code})")
         print(f"  {name}: {plots:,} plots, {years} inventory years ({min_year}-{max_year})")
 ```
 
-#### Troubleshooting
+## Refactoring Guidelines
 
+### When to Simplify
+
+If you encounter code with these characteristics, consider simplifying:
+
+1. **Deep nesting**: More than 3 levels of directory/module nesting
+2. **Unnecessary patterns**: Strategy, Factory, Builder patterns without clear benefit
+3. **Pass-through layers**: Classes/functions that just forward calls
+4. **Configuration objects**: Complex configs for simple parameter passing
+5. **Abstract base classes**: When a simple function would suffice
+
+### How to Simplify
+
+1. **Replace class hierarchies with functions** when there's no state to maintain
+2. **Use direct parameters** instead of configuration objects
+3. **Flatten directory structures** to maximum 3 levels
+4. **Remove abstraction layers** that don't add value
+5. **Combine related small files** into cohesive modules
+
+### Example of Good Simplification
+
+**Before** (over-engineered):
 ```python
-# If append shows 0 records processed, use the converter directly:
-from pyfia.converter import FIAConverter, ConverterConfig
+class ConfigBuilder:
+    def with_state(self, state): ...
+    def with_options(self, options): ...
+    def build(self): return Config(...)
 
-config = ConverterConfig(
-    source_dir=Path("."),
-    target_path=Path("database.duckdb"),
-    append_mode=True,
-    show_progress=True,
-    validation_level="none"
-)
+class AbstractProcessor(ABC):
+    @abstractmethod
+    def process(self): pass
 
-converter = FIAConverter(config)
-result = converter.convert_state(
-    sqlite_path=Path("state_data.db"),
-    state_code=state_fips_code,
-    target_path=Path("database.duckdb")
-)
+class ConcreteProcessor(AbstractProcessor):
+    def __init__(self, config: Config): ...
+    def process(self): ...
+
+# Usage
+config = ConfigBuilder().with_state(37).with_options({...}).build()
+processor = ConcreteProcessor(config)
+result = processor.process()
 ```
+
+**After** (simple):
+```python
+def process_data(state: int, **options):
+    # Direct implementation
+    return result
+
+# Usage
+result = process_data(state=37, option1=value1, option2=value2)
+```
+
+## Important Notes
+
+- **No backward compatibility needed**: When refactoring, don't maintain old APIs
+- **YAML schemas are essential**: Keep YAML schemas as source of truth for FIA tables
+- **Performance over abstractions**: Choose direct, fast implementations
+- **Readability matters**: Clear, simple code is better than clever abstractions

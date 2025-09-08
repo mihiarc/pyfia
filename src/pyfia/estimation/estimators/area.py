@@ -139,10 +139,10 @@ class AreaEstimator(BaseEstimator):
             else:
                 group_cols = list(grp_by)
         
-        # Calculate area totals
+        # Calculate area totals - cast to Float64 to avoid decimal precision issues
         agg_exprs = [
-            (pl.col("AREA_VALUE") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-            pl.col("EXPNS").sum().alias("TOTAL_EXPNS"),
+            (pl.col("AREA_VALUE").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
+            pl.col("EXPNS").cast(pl.Float64).sum().alias("TOTAL_EXPNS"),
             pl.count("PLT_CN").alias("N_PLOTS")
         ]
         

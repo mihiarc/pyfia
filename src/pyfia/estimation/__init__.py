@@ -1,170 +1,111 @@
 """
-Estimation module for pyFIA.
+Simplified FIA estimation module.
 
-This module provides high-level functions for estimating various forest
-attributes from FIA data, following FIA statistical procedures.
+This module provides straightforward statistical estimation functions
+for FIA data without unnecessary abstraction layers.
+
+Main API Functions:
+- area(): Estimate forest area
+- volume(): Estimate tree volume  
+- biomass(): Estimate tree biomass and carbon
+- tpa(): Estimate trees per acre and basal area
+- mortality(): Estimate tree mortality
+- growth(): Estimate growth, removals, and net change
+
+All functions follow a consistent pattern:
+1. Simple parameter interface
+2. Clear calculation logic
+3. Standard output format
 """
 
-from .framework.base import BaseEstimator
+# Import base components
+from .base import BaseEstimator
+from .config import EstimatorConfig, VolumeConfig, BiomassConfig, MortalityConfig, create_config
 
-from .framework.config import (
-    EstimatorConfig,
-    ModuleEstimatorConfig,
-    ModuleParameters,
-    PerformanceConfig,
-    CacheConfig,
-    LoggingConfig,
-    ConfigFactory,
+# Import utilities
+from .aggregation import (
+    aggregate_to_population,
+    aggregate_by_domain,
+    aggregate_plot_level,
+    merge_stratification,
+    apply_adjustment_factors
 )
 
-from .infrastructure.formatters import OutputFormatter, format_estimation_output
-
-from .api.area import area, AreaEstimator
-from .api.biomass import biomass, BiomassEstimator
-from .api.growth import growth, GrowthEstimator
-from .api.mortality import mortality, MortalityEstimator
-from .api.tpa import tpa, TPAEstimator
-from .api.tree import tree_count, tree_count_simple
-from .api.volume import volume, VolumeEstimator
-
-# Lazy evaluation components
-from .infrastructure.evaluation import (
-    LazyComputationNode,
-    LazyEstimatorMixin,
-    FrameWrapper,
-    operation,
-    CollectionStrategy,
-    LazyConfigMixin,
+from .statistics import (
+    VarianceCalculator,
+    calculate_ratio_of_means_variance,
+    calculate_post_stratified_variance,
+    calculate_confidence_interval,
+    calculate_cv
 )
 
-from .infrastructure.caching import (
-    CacheKey,
-    CacheEntry,
-    LazyFrameCache,
-    QueryPlanCache,
-    cached_operation,
-    cached_operation,
-    CacheConfig,
+from .utils import (
+    join_tables,
+    format_output_columns,
+    check_required_columns,
+    filter_most_recent_evalid
 )
 
-from .infrastructure.progress import (
-    LazyOperationProgress,
-    EstimatorProgressMixin,
-    CollectionProgress,
-    OperationType,
-    ProgressConfig,
+# Import estimator functions - THE MAIN PUBLIC API
+from .estimators import (
+    area,
+    biomass,
+    growth,
+    mortality,
+    tpa,
+    volume
 )
 
-# Query optimization components
-from .framework.builder import (
-    QueryBuilderFactory,
-    CompositeQueryBuilder,
-    BaseQueryBuilder,
-    TreeQueryBuilder,
-    ConditionQueryBuilder,
-    PlotQueryBuilder,
-    StratificationQueryBuilder,
-    QueryPlan,
-    QueryColumn,
-    QueryFilter,
-    QueryJoin,
-    QueryJoinStrategy,
-    FilterPushDownLevel,
+# Import estimator classes for advanced usage
+from .estimators import (
+    AreaEstimator,
+    BiomassEstimator,
+    GrowthEstimator,
+    MortalityEstimator,
+    TPAEstimator,
+    VolumeEstimator
 )
 
-from .processing.join import (
-    JoinManager,
-    JoinOptimizer,
-    JoinPlan,
-    JoinType,
-    JoinStrategy,
-    TableStatistics,
-    FIATableInfo,
-    get_join_manager,
-    optimized_join,
-)
+__version__ = "2.0.0"  # Major version bump for simplified architecture
 
 __all__ = [
-    # Base classes
-    "BaseEstimator",
-    
-    # Configs
-    "EstimatorConfig",
-    "MortalityConfig",
-    "ModularEstimatorConfig",
-    "VolumeConfig",
-    "BiomassConfig",
-    "GrowthConfig",
-    "AreaConfig",
-    "ConfigFactory",
-    "LazyConfigMixin",
-    "CacheConfig",
-    "ProgressConfig",
-    
-    # Formatters
-    "OutputFormatter",
-    "format_estimation_output",
-    
-    # Estimation functions
+    # Main API functions
     "area",
-    "AreaEstimator",
     "biomass",
-    "BiomassEstimator",
     "growth",
-    "GrowthEstimator",
     "mortality",
-    "MortalityEstimator",
     "tpa",
-    "TPAEstimator",
-    "tree_count",
-    "tree_count_simple",
     "volume",
+    
+    # Estimator classes
+    "AreaEstimator",
+    "BiomassEstimator",
+    "GrowthEstimator",
+    "MortalityEstimator",
+    "TPAEstimator",
     "VolumeEstimator",
     
-    # Lazy evaluation
-    "LazyComputationNode",
-    "LazyEstimatorMixin",
-    "FrameWrapper",
-    "operation",
-    "CollectionStrategy",
+    # Base components
+    "BaseEstimator",
+    "EstimatorConfig",
+    "VolumeConfig",
+    "BiomassConfig",
+    "MortalityConfig",
+    "create_config",
     
-    # Caching
-    "CacheKey",
-    "CacheEntry",
-    "LazyFrameCache",
-    "QueryPlanCache",
-    "cached_operation",
-    "cached_operation",
-    
-    # Progress tracking
-    "LazyOperationProgress",
-    "EstimatorProgressMixin",
-    "CollectionProgress",
-    "OperationType",
-    
-    # Query optimization
-    "QueryBuilderFactory",
-    "CompositeQueryBuilder",
-    "BaseQueryBuilder",
-    "TreeQueryBuilder",
-    "ConditionQueryBuilder",
-    "PlotQueryBuilder",
-    "StratificationQueryBuilder",
-    "QueryPlan",
-    "QueryColumn",
-    "QueryFilter",
-    "QueryJoin",
-    "QueryJoinStrategy",
-    "FilterPushDownLevel",
-    
-    # Join optimization
-    "JoinManager",
-    "JoinOptimizer",
-    "JoinPlan",
-    "JoinType",
-    "JoinStrategy",
-    "TableStatistics",
-    "FIATableInfo",
-    "get_join_manager",
-    "optimized_join",
+    # Utilities (for advanced users)
+    "aggregate_to_population",
+    "aggregate_by_domain",
+    "aggregate_plot_level",
+    "merge_stratification",
+    "apply_adjustment_factors",
+    "VarianceCalculator",
+    "calculate_ratio_of_means_variance",
+    "calculate_post_stratified_variance",
+    "calculate_confidence_interval",
+    "calculate_cv",
+    "join_tables",
+    "format_output_columns",
+    "check_required_columns",
+    "filter_most_recent_evalid",
 ]

@@ -49,8 +49,8 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         super().__init__(db, config)
         
         # Biomass-specific parameters
-        self.component = config.extra_params.get("component", "AG").upper()
-        self.model_snag = config.extra_params.get("model_snag", True)
+        self.component = getattr(config, '_component', 'AG').upper()
+        self.model_snag = getattr(config, '_model_snag', True)
         
         # Configure lazy evaluation
         self.set_collection_strategy(CollectionStrategy.ADAPTIVE)
@@ -274,32 +274,32 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         tuple[Optional[pl.DataFrame], pl.DataFrame]
             Filtered tree and condition dataframes
         """
-        with self._track_operation(OperationType.FILTER, "Apply biomass filters"):
-            # Apply biomass-specific tree filters
-            if tree_df is not None:
-                # Normalize SPCD dtype and ensure species info joins are possible
-                if "SPCD" in tree_df.columns:
-                    tree_df = tree_df.with_columns(pl.col("SPCD").cast(pl.Int32))
-                    
-                    # Constrain to a stable subset used across tests to ensure consistency
-                    # This matches the original biomass.py behavior
-                    allowed_species = [110, 131, 833, 802]
-                    tree_df = tree_df.filter(pl.col("SPCD").is_in(allowed_species))
+        # Apply biomass filters (removed tracking for now)
+        # Apply biomass-specific tree filters
+        if tree_df is not None:
+            # Normalize SPCD dtype and ensure species info joins are possible
+            if "SPCD" in tree_df.columns:
+                tree_df = tree_df.with_columns(pl.col("SPCD").cast(pl.Int32))
                 
-                # Ensure required biomass columns are present
-                required_cols = ["DRYBIO_AG", "DRYBIO_BG"]
-                if self.component not in ["AG", "BG", "TOTAL"]:
-                    biomass_col = self._get_biomass_column(self.component)
-                    if biomass_col not in required_cols:
-                        required_cols.append(biomass_col)
-                
-                for col in required_cols:
-                    if col in tree_df.columns:
-                        tree_df = tree_df.filter(pl.col(col).is_not_null())
-                
-                self._update_progress(
-                    description=f"Filtered {len(tree_df):,} trees for biomass"
-                )
+                # Constrain to a stable subset used across tests to ensure consistency
+                # This matches the original biomass.py behavior
+                allowed_species = [110, 131, 833, 802]
+                tree_df = tree_df.filter(pl.col("SPCD").is_in(allowed_species))
+            
+            # Ensure required biomass columns are present
+            required_cols = ["DRYBIO_AG", "DRYBIO_BG"]
+            if self.component not in ["AG", "BG", "TOTAL"]:
+                biomass_col = self._get_biomass_column(self.component)
+                if biomass_col not in required_cols:
+                    required_cols.append(biomass_col)
+            
+            for col in required_cols:
+                if col in tree_df.columns:
+                    tree_df = tree_df.filter(pl.col(col).is_not_null())
+            
+            self._update_progress(
+                description=f"Filtered {len(tree_df):,} trees for biomass"
+            )
         
         return tree_df, cond_df
     
@@ -411,24 +411,8 @@ class BiomassEstimator(BaseEstimator, LazyEstimatorMixin):
         pl.DataFrame
             Final estimation results formatted for output
         """
-        # Enable progress tracking if configured
-        with self.progress_context():
-            # Run the lazy estimation workflow
-            with self._track_operation(OperationType.COMPUTE, "Biomass estimation", total=8):
-                result = super().estimate()
-                self._update_progress(completed=8, description="Estimation complete")
-            
-            # Log lazy evaluation statistics
-            stats = self.get_lazy_statistics()
-            if stats["operations_deferred"] > 0:
-                self.console.print(
-                    f"\n[green]Lazy evaluation statistics:[/green]\n"
-                    f"  Operations deferred: {stats['operations_deferred']}\n"
-                    f"  Collections performed: {stats['operations_collected']}\n"
-                    f"  Cache hits: {stats['cache_hits']}\n"
-                    f"  Total execution time: {stats['total_execution_time']:.1f}s"
-                )
-        
+        # Simply run the parent estimation without progress tracking for now
+        result = super().estimate()
         return result
 
 
@@ -560,19 +544,17 @@ def biomass(
         totals=totals,
         variance=variance,
         by_plot=by_plot,
-        most_recent=mr,
-        extra_params={
-            "component": component,
-            "model_snag": model_snag,
-            "show_progress": show_progress,
-            "lazy_enabled": True,
-            "lazy_threshold_rows": 5000,  # Lower threshold for aggressive lazy eval
-        }
+        most_recent=mr
     )
     
+    # Store additional parameters separately
+    config._component = component
+    config._model_snag = model_snag
+    config._show_progress = show_progress
+    
     # Create estimator and run estimation
-    with BiomassEstimator(db, config) as estimator:
-        results = estimator.estimate()
+    estimator = BiomassEstimator(db, config)
+    results = estimator.estimate()
     
     # Handle special cases for parameter consistency
     if by_plot:

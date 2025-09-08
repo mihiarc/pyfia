@@ -484,8 +484,7 @@ class BaseEstimator(ABC):
                     data_df,
                     self.config.grp_by,
                     self.config.by_species,
-                    self.config.by_size_class,
-                    return_dataframe=True
+                    self.config.by_size_class
                 )
                 self._group_cols = group_cols
                 return FrameWrapper(pl.LazyFrame(data_df))

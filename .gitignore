@@ -153,6 +153,7 @@ Thumbs.db
 *.duckdb.wal
 *.duckdb-shm
 *.db
+data/
 
 # AI/ML specific
 .cognee_data/

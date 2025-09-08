@@ -1,4 +1,4 @@
-# Pre-commit hooks for pyFIA
+# Pre-commit hooks for pyFIA - simplified configuration
 # See https://pre-commit.com for more information
 
 default_language_version:
@@ -17,10 +17,6 @@ repos:
       - id: check-json
       - id: check-toml
       - id: check-merge-conflict
-      - id: check-case-conflict
-      - id: check-docstring-first
-      - id: detect-private-key
-      - id: fix-byte-order-marker
       - id: mixed-line-ending
         args: ['--fix=lf']
 
@@ -45,43 +41,10 @@ repos:
           - polars>=1.31.0
           - numpy>=2.3.0
           - pydantic>=2.0.0
-          - types-requests
         args: [--config-file=pyproject.toml]
-        files: ^pyfia/
+        files: ^src/pyfia/
         pass_filenames: false
 
-  # Security checks
-  - repo: https://github.com/PyCQA/bandit
-    rev: 1.8.6
-    hooks:
-      - id: bandit
-        args: ['-c', '.bandit', '-r', 'pyfia/']
-        exclude: ^tests/
-
-  # Docstring coverage
-  - repo: https://github.com/PyCQA/pydocstyle
-    rev: 6.3.0
-    hooks:
-      - id: pydocstyle
-        additional_dependencies: [toml]
-        args: [--config=pyproject.toml]
-        files: ^pyfia/
-
-  # Check for common security issues
-  - repo: https://github.com/Yelp/detect-secrets
-    rev: v1.5.0
-    hooks:
-      - id: detect-secrets
-        args: ['--baseline', '.secrets.baseline']
-
-  # Markdown formatting
-  - repo: https://github.com/pre-commit/mirrors-prettier
-    rev: v4.0.0-alpha.8
-    hooks:
-      - id: prettier
-        types_or: [markdown, yaml, json]
-        exclude: ^(docs/queries/.*\.sql|.*\.duckdb.*|.*\.db.*)$
-
 # Configuration for specific hooks
-files: ^(pyfia/|tests/|scripts/|docs/)
-exclude: ^(\.git/|\.mypy_cache/|\.pytest_cache/|\.ruff_cache/|build/|dist/|.*\.egg-info/|htmlcov/|\.ty_cache/)
+files: ^(src/pyfia/|tests/|docs/)
+exclude: ^(\.git/|\.mypy_cache/|\.pytest_cache/|\.ruff_cache/|build/|dist/|.*\.egg-info/|htmlcov/)

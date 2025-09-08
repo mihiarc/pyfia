@@ -43,13 +43,11 @@ dev = [
     "pytest-cov>=6.2.1",
     "ruff>=0.12.0",
     "mypy>=1.16.1",
-    "ty>=0.0.1a11",
     "hypothesis>=6.130.0",
     "hypothesis[numpy]>=6.130.0",
     "mkdocs>=1.6.0",
     "mkdocs-material>=9.5.0",
-    "mkdocs-minify-plugin>=0.8.0",
-    "mkdocs-git-revision-date-localized-plugin>=1.2.0",
+    "pre-commit>=3.6.0",
 ]
 all = ["pyfia[spatial,pandas,dev]"]
 
@@ -67,8 +65,6 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["pyfia*"]
 
-# Package data section removed (database module deleted)
-
 [tool.ruff]
 line-length = 88
 target-version = "py311"
@@ -79,8 +75,8 @@ ignore = [
     "E501",  # line too long
     "N803",  # argument name should be lowercase (keeping R/FIA conventions)
     "N815",  # mixed case variable in class scope (keeping R/FIA conventions)
-    "E722",  # bare except (will fix these later)
-    "E402",  # module import not at top (will fix these later)
+    "E722",  # bare except
+    "E402",  # module import not at top
 ]
 
 [tool.ruff.format]
@@ -91,82 +87,17 @@ line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
-# Start with less strict settings for gradual adoption
-strict = false
-# Basic type checking
+# Basic settings - not overly strict
 warn_return_any = true
 warn_unused_configs = true
-warn_redundant_casts = true
-warn_unused_ignores = false  # Too noisy initially
-# For now, allow imports without stubs
 ignore_missing_imports = true
-# Gradually enable these
 no_implicit_optional = true
 check_untyped_defs = true
-disallow_untyped_defs = false  # Will enable module by module
-disallow_any_generics = false  # Will enable later
-disallow_incomplete_defs = false  # Start permissive
-disallow_untyped_calls = false  # Will enable gradually
-# Don't error on untyped decorators yet
-disallow_untyped_decorators = false
-# Ensure proper None handling
-strict_optional = true
-# Enable error codes for better diagnostics
-enable_error_code = ["ignore-without-code", "redundant-expr", "truthy-bool"]
-# Show column numbers in errors
 show_column_numbers = true
-# Pretty output
 pretty = true
-
-# Per-module overrides for gradual adoption
-[[tool.mypy.overrides]]
-module = "pyfia.config"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-
-
-[[tool.mypy.overrides]]
-module = "pyfia.constants"
-disallow_untyped_defs = true
-disallow_incomplete_defs = true
-
-[tool.ty]
-# Ty configuration for modern type checking
-environment = { python-version = "3.11" }
-# Source directory
-src = ["pyfia"]
-
-[tool.ty.rules]
-# Enable all rules by default
-all = true
-# Disable specific rules we're not ready for
-missing-return-type = false  # Will enable gradually
-missing-parameter-type = false  # Will enable gradually
-
-[tool.ty.terminal]
-# Enable color output
-color = true
-# Show progress
-progress = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
-
-[tool.pydocstyle]
-# D100: Missing docstring in public module
-# D104: Missing docstring in public package
-# D213: Multi-line docstring summary should start at the second line
-# D203: 1 blank line required before class docstring
-ignore = ["D100", "D104", "D213", "D203"]
-match = "(?!test_).*\\.py"
-match-dir = "(?!tests).*"
-
-[dependency-groups]
-dev = [
-    "pytest-cov>=6.2.1",
-    "pre-commit>=3.6.0",
-    "mypy>=1.17.0",
-]

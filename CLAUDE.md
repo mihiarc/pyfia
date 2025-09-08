@@ -182,28 +182,129 @@ pyfia/
 
 ## FIA-Specific Knowledge
 
-### EVALID System
-- 6-digit codes identifying statistically valid plot groupings
-- Format: SSYYTT where:
-  - SS = State FIPS code (e.g., 40 for Oklahoma)
-  - YY = Inventory year (e.g., 23 for 2023)
-  - TT = Evaluation type code (00, 01, 03, 07, 09, etc.)
-- **CRITICAL**: Only ONE EVALID should be used per estimation to prevent overcounting
-- Must filter by EVALID for proper statistical estimates
-- Use `most_recent=True` for latest evaluations by default
+### EVALID System - Critical for Proper FIA Estimation
 
-### EVAL_TYP Values in POP_EVAL_TYP Table
-The evaluation type codes in EVALID don't directly map to EVAL_TYP values:
-- **EXPALL**: All data types (typically EVALID type 00) - recommended for area estimation
-- **EXPVOL**: Volume/biomass data (typically EVALID type 01)
-- **EXPGROW**: Growth data
-- **EXPMORT**: Mortality data
-- **EXPREMV**: Removal data
-- **EXPCHNG**: Change data (typically EVALID type 03)
-- **EXPDWM**: Down woody materials (typically EVALID type 07)
-- **EXPINV**: Inventory data (typically EVALID type 09)
+#### What is EVALID?
+EVALIDs are 6-digit codes that identify statistically valid plot groupings for FIA estimation. They ensure proper expansion factors and prevent double-counting of plots.
 
-For area estimation, use EVALIDs with EXPALL (type 00) as they include all plots
+#### EVALID Format
+- Format: **SSYYTT** where:
+  - **SS** = State FIPS code (e.g., 40 for Oklahoma, 48 for Texas)
+  - **YY** = Inventory year (last 2 digits, e.g., 23 for 2023)
+  - **TT** = Evaluation type code (00, 01, 03, 07, 09, etc.)
+- Example: **482300** = Texas, 2023, All Area evaluation (type 00)
+
+#### Critical Rules for EVALID Usage
+1. **NEVER mix EVALIDs** - Use only ONE EVALID per estimation to prevent overcounting
+2. **EVALIDs are stored in multiple tables**:
+   - `POP_EVAL` - Master evaluation definitions
+   - `POP_PLOT_STRATUM_ASSGN` - Links plots to EVALIDs
+   - `POP_EVAL_TYP` - Defines evaluation types (EXPALL, EXPVOL, etc.)
+3. **pyFIA does NOT automatically filter by EVALID** - You must explicitly select EVALIDs or use helper methods
+
+#### Evaluation Types (EVAL_TYP in POP_EVAL_TYP Table)
+The evaluation type codes determine which plots are included:
+- **EXPALL**: All area estimation plots (typically EVALID ending in 00)
+  - **REQUIRED for area estimation** - includes all plots needed for unbiased area estimates
+  - Most recent and comprehensive evaluation
+- **EXPVOL**: Volume/biomass plots (typically EVALID ending in 01)
+  - Subset of plots with tree measurements
+  - Use for volume, biomass, carbon estimates
+- **EXPGROW**: Growth estimation plots
+- **EXPMORT**: Mortality estimation plots
+- **EXPREMV**: Removal estimation plots
+- **EXPCHNG**: Change estimation plots (typically EVALID ending in 03)
+- **EXPDWM**: Down woody materials plots (typically EVALID ending in 07)
+- **EXPINV**: Inventory plots (typically EVALID ending in 09)
+
+#### How to Select the Right EVALID
+
+```python
+# Method 1: Use pyFIA's helper methods (RECOMMENDED)
+with FIA("data/nfi_south.duckdb") as db:
+    # Get most recent EXPALL evaluation for area estimation
+    db.clip_most_recent(eval_type="EXPALL")
+    
+    # Or get most recent EXPVOL evaluation for volume estimation
+    db.clip_most_recent(eval_type="EXPVOL")
+
+# Method 2: Query available EVALIDs directly
+import duckdb
+with duckdb.connect("data/nfi_south.duckdb") as conn:
+    # Find all EXPALL evaluations for a state
+    query = """
+    SELECT DISTINCT 
+        pe.EVALID,
+        pe.EVAL_DESCR,
+        pet.EVAL_TYP,
+        COUNT(DISTINCT ppsa.PLT_CN) as plot_count
+    FROM POP_EVAL pe
+    JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
+    JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
+    WHERE pe.STATECD = 48  -- Texas
+      AND pet.EVAL_TYP = 'EXPALL'
+    GROUP BY pe.EVALID, pe.EVAL_DESCR, pet.EVAL_TYP
+    ORDER BY pe.EVALID DESC
+    LIMIT 1
+    """
+    result = conn.execute(query).fetchone()
+    best_evalid = result[0]  # Use this EVALID
+
+# Method 3: Manually specify EVALID
+db.clip_by_evalid([482300])  # Texas 2023 EXPALL
+```
+
+#### Common EVALID Pitfalls and Solutions
+
+**Problem 1: Mixing multiple EVALIDs**
+```python
+# WRONG - This will double-count plots!
+db.clip_by_evalid([482300, 482200])  # Two different Texas evaluations
+
+# CORRECT - Use only one EVALID
+db.clip_by_evalid([482300])  # Single evaluation
+```
+
+**Problem 2: Using wrong evaluation type**
+```python
+# WRONG for area estimation
+db.clip_most_recent(eval_type="EXPVOL")  # Missing many plots!
+
+# CORRECT for area estimation
+db.clip_most_recent(eval_type="EXPALL")  # All plots included
+```
+
+**Problem 3: Not filtering by EVALID at all**
+```python
+# WRONG - May include incompatible plot groupings
+results = area(db)  # No EVALID filtering!
+
+# CORRECT - Filter first, then estimate
+db.clip_most_recent(eval_type="EXPALL")
+results = area(db)
+```
+
+#### Checking EVALID Coverage
+
+```python
+# See which EVALIDs are in your database
+query = """
+SELECT 
+    pe.STATECD,
+    pe.EVALID,
+    pe.EVAL_DESCR,
+    pet.EVAL_TYP,
+    pe.START_INVYR,
+    pe.END_INVYR,
+    COUNT(DISTINCT ppsa.PLT_CN) as plot_count
+FROM POP_EVAL pe
+JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
+LEFT JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
+GROUP BY pe.STATECD, pe.EVALID, pe.EVAL_DESCR, pet.EVAL_TYP, 
+         pe.START_INVYR, pe.END_INVYR
+ORDER BY pe.STATECD, pet.EVAL_TYP, pe.EVALID DESC
+"""
+```
 
 ### Domain Filtering
 - `tree_domain`: SQL-like conditions for tree-level filtering (e.g., "STATUSCD == 1")

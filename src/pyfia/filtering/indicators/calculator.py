@@ -12,7 +12,7 @@ import polars as pl
 
 from ...constants.constants import LandStatus
 from ..core.parser import DomainExpressionParser
-from .land_types import LandTypeClassifier
+from .land_types import classify_land_types, get_land_domain_indicator
 
 
 class DomainIndicatorCalculator:
@@ -27,9 +27,8 @@ class DomainIndicatorCalculator:
     - aDI: Comprehensive area domain indicator (numerator)
     - pDI: Partial domain indicator (denominator)
     
-    The calculator uses composition with a LandTypeClassifier to handle
-    land type specific logic and supports both regular and by-land-type
-    analysis modes.
+    The calculator uses simple land type functions to handle land type
+    specific logic and supports both regular and by-land-type analysis modes.
     """
     
     def __init__(
@@ -65,9 +64,6 @@ class DomainIndicatorCalculator:
             self.data_cache = data_cache
         else:
             self.data_cache = {}
-        
-        # Initialize the land type classifier
-        self.land_type_classifier = LandTypeClassifier()
     
     def calculate_all_indicators(self, cond_df: pl.DataFrame) -> pl.DataFrame:
         """
@@ -93,7 +89,7 @@ class DomainIndicatorCalculator:
         
         # Add land type categories if doing by-land-type analysis
         if self.by_land_type:
-            cond_df = self.land_type_classifier.classify_land_types(
+            cond_df = classify_land_types(
                 cond_df, self.land_type, self.by_land_type
             )
         
@@ -171,9 +167,8 @@ class DomainIndicatorCalculator:
         pl.DataFrame
             DataFrame with landD column added
         """
-        return self.land_type_classifier.create_land_domain_indicator(
-            cond_df, self.land_type, self.by_land_type
-        )
+        land_expr = get_land_domain_indicator(self.land_type)
+        return cond_df.with_columns(land_expr.cast(pl.Int32).alias("landD"))
     
     def _calculate_area_domain_indicator(self, cond_df: pl.DataFrame) -> pl.DataFrame:
         """

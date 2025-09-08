@@ -20,10 +20,15 @@ from .area.filters import apply_area_filters
 
 # Domain indicators
 from .indicators.calculator import DomainIndicatorCalculator
-from .indicators.land_types import LandTypeClassifier, LandTypeStrategy
+from .indicators.land_types import (
+    classify_land_types,
+    get_land_domain_indicator,
+    add_land_type_categories,
+    LandTypeCategory,
+)
 
 # Utility functions
-from .utils.grouping import setup_grouping_columns
+from .utils.grouping_functions import setup_grouping_columns
 from .utils.grouping_functions import (
     create_size_class_expr,
     get_size_class_bounds,
@@ -58,8 +63,10 @@ __all__ = [
     
     # Domain indicators
     "DomainIndicatorCalculator",
-    "LandTypeClassifier",
-    "LandTypeStrategy",
+    "classify_land_types",
+    "get_land_domain_indicator",
+    "add_land_type_categories",
+    "LandTypeCategory",
     
     # Grouping
     "setup_grouping_columns",

@@ -15,15 +15,12 @@ from pyfia.core.fia import FIA
 from pyfia.core.settings import PyFIASettings, settings
 
 # Estimation functions - High-level API
-from pyfia.estimation.api.area import area
-from pyfia.estimation.api.biomass import biomass
-from pyfia.estimation.api.growth import growth
-from pyfia.estimation.api.mortality import mortality
-from pyfia.estimation.api.tpa import tpa
-from pyfia.estimation.api.tree import tree_count
-
-# Volume estimation (moved here for better organization)
-from pyfia.estimation.api.volume import volume
+from pyfia.estimation.estimators.area import area
+from pyfia.estimation.estimators.biomass import biomass
+from pyfia.estimation.estimators.growth import growth
+from pyfia.estimation.estimators.mortality import mortality
+from pyfia.estimation.estimators.tpa import tpa
+from pyfia.estimation.estimators.volume import volume
 
 # Reference table utilities - Useful for adding descriptive names to results
 from pyfia.utils.reference_tables import (
@@ -68,7 +65,6 @@ __all__ = [
     "tpa",
     "mortality",
     "growth",
-    "tree_count",
     # Reference table utilities
     "join_forest_type_names",
     "join_species_names",

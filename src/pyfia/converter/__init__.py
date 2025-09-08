@@ -1,46 +1,68 @@
 """
-FIA SQLite to DuckDB Converter Module.
+SQLite to DuckDB converter for FIA databases.
 
-This module provides tools for converting FIA DataMart SQLite state-level
-databases into optimized DuckDB format for improved analytical performance.
+Simple, efficient conversion leveraging DuckDB's native sqlite_scanner extension.
+No unnecessary abstractions, just straightforward functionality.
 
-Key Features:
-- Single state conversion with optimization
-- Multi-state database merging
-- Incremental updates
-- Data validation and integrity checks
-- Error recovery and checkpointing
-- Progress tracking
+Main Functions:
+- convert_sqlite_to_duckdb(): Convert single SQLite database to DuckDB
+- merge_states(): Merge multiple state databases into one DuckDB
+- append_state(): Append a state to existing DuckDB database
+- get_database_info(): Get information about a DuckDB database
+
+Examples
+--------
+>>> from pyfia.converter import convert_sqlite_to_duckdb, merge_states
+>>> 
+>>> # Convert single state
+>>> convert_sqlite_to_duckdb(
+...     Path("NC_FIA.db"),
+...     Path("north_carolina.duckdb"),
+...     state_code=37
+... )
+>>> 
+>>> # Create multi-state database
+>>> merge_states(
+...     [Path("NC_FIA.db"), Path("SC_FIA.db"), Path("GA_FIA.db")],
+...     [37, 45, 13],
+...     Path("southeast.duckdb")
+... )
 """
 
-from .models import (
-    ConversionMetadata,
-    ConversionResult,
-    ConverterConfig,
-    OptimizedSchema,
-    UpdateResult,
-    ValidationResult,
+from .converter import (
+    convert_sqlite_to_duckdb,
+    merge_states,
+    append_state,
+    get_database_info
 )
-from .schema_loader import FIASchemaLoader, get_schema_loader
-from .schema_optimizer import SchemaOptimizer
-from .sqlite_to_duckdb import FIAConverter
-from .state_merger import StateMerger
-from .validation import DataValidator
+
+from .utils import (
+    load_fia_schema,
+    validate_table_schema,
+    get_sqlite_tables,
+    get_duckdb_tables,
+    compare_databases,
+    format_size,
+    format_duration,
+    print_summary
+)
+
+__version__ = "2.0.0"
 
 __all__ = [
-    # Main converter class
-    "FIAConverter",
-    # Component classes
-    "SchemaOptimizer",
-    "StateMerger",
-    "DataValidator",
-    "FIASchemaLoader",
-    "get_schema_loader",
-    # Configuration and result models
-    "ConverterConfig",
-    "ConversionResult",
-    "UpdateResult",
-    "ValidationResult",
-    "ConversionMetadata",
-    "OptimizedSchema",
+    # Main conversion functions
+    "convert_sqlite_to_duckdb",
+    "merge_states",
+    "append_state",
+    "get_database_info",
+    
+    # Utility functions
+    "load_fia_schema",
+    "validate_table_schema",
+    "get_sqlite_tables",
+    "get_duckdb_tables",
+    "compare_databases",
+    "format_size",
+    "format_duration",
+    "print_summary"
 ]

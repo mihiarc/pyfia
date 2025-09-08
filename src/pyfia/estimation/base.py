@@ -373,8 +373,14 @@ class BaseEstimator(ABC):
             ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
             pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
         
+        # CRITICAL: Remove duplicates from both tables
+        # Texas has duplicate rows in both POP_PLOT_STRATUM_ASSGN and POP_STRATUM
+        # Each plot-stratum pair and each stratum appears exactly twice
+        ppsa_unique = ppsa.unique(subset=["PLT_CN", "STRATUM_CN"])
+        pop_stratum_unique = pop_stratum.unique(subset=["CN"])
+        
         # Select necessary columns and join
-        pop_stratum_selected = pop_stratum.select([
+        pop_stratum_selected = pop_stratum_unique.select([
             pl.col("CN").alias("STRATUM_CN"),
             "EXPNS",
             "ADJ_FACTOR_MICR",
@@ -382,7 +388,7 @@ class BaseEstimator(ABC):
             "ADJ_FACTOR_MACR"
         ])
         
-        strat_data = ppsa.join(
+        strat_data = ppsa_unique.join(
             pop_stratum_selected,
             on="STRATUM_CN",
             how="inner"

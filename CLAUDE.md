@@ -306,6 +306,53 @@ ORDER BY pe.STATECD, pet.EVAL_TYP, pe.EVALID DESC
 """
 ```
 
+#### Special Handling for Texas
+
+Texas is unique in the FIA system and requires special handling:
+
+1. **Regional vs Full State Evaluations**:
+   - Texas has separate East and West regional evaluations
+   - Full state evaluations (LOCATION_NM = "Texas") should be preferred over regional ones
+   - East Texas only evaluations (LOCATION_NM = "Texas(EAST)") cover longitude -96.42 to -93.55
+   - Full Texas evaluations cover longitude -106.63 to -93.55 (includes both East and West)
+
+2. **Duplicate Data Issues**:
+   - **CRITICAL**: Texas data contains exact duplicate rows in both POP_PLOT_STRATUM_ASSGN and POP_STRATUM tables
+   - Each plot-stratum assignment appears exactly 2x in POP_PLOT_STRATUM_ASSGN
+   - Each stratum appears exactly 2x in POP_STRATUM
+   - pyFIA automatically deduplicates these tables to prevent overcounting
+
+3. **EVALID Selection for Texas**:
+   ```python
+   # pyFIA automatically handles Texas specially
+   db = FIA("path/to/database.duckdb")
+   db.clip_most_recent(eval_type="ALL")
+   # For Texas, this will select the full state evaluation (e.g., 482200)
+   # even if a more recent East-only evaluation exists (e.g., 482320)
+   ```
+
+4. **Manual Texas Handling**:
+   ```python
+   # If you need to manually select Texas evaluations
+   import duckdb
+   
+   # Find the best Texas EXPALL evaluation (full state preferred)
+   query = """
+   SELECT EVALID, LOCATION_NM, END_INVYR
+   FROM POP_EVAL pe
+   JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
+   WHERE pe.STATECD = 48 AND pet.EVAL_TYP = 'EXPALL'
+     AND pe.LOCATION_NM = 'Texas'  -- Full state only
+   ORDER BY pe.END_INVYR DESC
+   LIMIT 1
+   """
+   ```
+
+5. **Expected Values**:
+   - Texas total land area: ~170 million acres
+   - Texas forestland (typical): 40-45 million acres
+   - If you get values >100 million acres, check for duplicate counting
+
 ### Domain Filtering
 - `tree_domain`: SQL-like conditions for tree-level filtering (e.g., "STATUSCD == 1")
 - `area_domain`: Conditions for area/condition-level filtering

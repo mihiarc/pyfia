@@ -11,8 +11,9 @@ import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..aggregation import aggregate_to_population, apply_adjustment_factors
+from ..aggregation import aggregate_to_population
 from ..statistics import VarianceCalculator
+from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import format_output_columns
 
 
@@ -178,9 +179,10 @@ class GrowthEstimator(BaseEstimator):
         )
         
         # Apply adjustment factors
-        data_with_strat = apply_adjustment_factors(
+        data_with_strat = apply_tree_adjustment_factors(
             data_with_strat,
-            size_col="DIA"
+            size_col="DIA",
+            macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
         
         # Setup grouping

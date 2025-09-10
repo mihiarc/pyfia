@@ -1,8 +1,7 @@
 """
 Utility functions for FIA estimation.
 
-Simple utilities for common operations without complex abstractions
-like JoinManager, FrameWrapper, or CompositeQueryBuilder.
+Simple utilities for common operations.
 """
 
 from typing import Dict, List, Optional, Tuple, Union
@@ -265,31 +264,12 @@ def check_required_columns(
         raise ValueError(msg)
 
 
-def calculate_adjustment_factor(
-    dia: float,
-    macro_breakpoint: float = 999.0
-) -> str:
-    """
-    Determine adjustment factor type based on tree diameter.
-    
-    Parameters
-    ----------
-    dia : float
-        Tree diameter
-    macro_breakpoint : float
-        Macroplot breakpoint diameter
-        
-    Returns
-    -------
-    str
-        Adjustment factor type: "MICR", "SUBP", or "MACR"
-    """
-    if dia < 5.0:
-        return "MICR"
-    elif dia < macro_breakpoint:
-        return "SUBP"
-    else:
-        return "MACR"
+# Import tree expansion functions from dedicated module
+from .tree_expansion import (
+    calculate_expanded_trees,
+    get_tree_adjustment_sql,
+    get_area_adjustment_sql
+)
 
 
 def create_domain_filter(

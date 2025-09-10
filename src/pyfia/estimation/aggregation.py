@@ -282,38 +282,11 @@ def merge_stratification(
     return result
 
 
-def apply_adjustment_factors(
-    data: pl.LazyFrame,
-    size_col: str = "DIA",
-    macro_breakpoint_col: str = "MACRO_BREAKPOINT_DIA"
-) -> pl.LazyFrame:
-    """
-    Apply appropriate adjustment factors based on tree size.
-    
-    Parameters
-    ----------
-    data : pl.LazyFrame
-        Data with adjustment factor columns
-    size_col : str
-        Column with tree size (diameter)
-    macro_breakpoint_col : str
-        Column with macroplot breakpoint diameter
-        
-    Returns
-    -------
-    pl.LazyFrame
-        Data with ADJ_FACTOR column added
-    """
-    # Determine which adjustment factor to use
-    adj_factor_expr = (
-        pl.when(pl.col(size_col) < 5.0)
-        .then(pl.col("ADJ_FACTOR_MICR"))
-        .when(pl.col(size_col) < pl.col(macro_breakpoint_col))
-        .then(pl.col("ADJ_FACTOR_SUBP"))
-        .otherwise(pl.col("ADJ_FACTOR_MACR"))
-    ).alias("ADJ_FACTOR")
-    
-    return data.with_columns([adj_factor_expr])
+# Import expansion functions from dedicated tree_expansion module
+from .tree_expansion import (
+    apply_tree_adjustment_factors, 
+    apply_area_adjustment_factors
+)
 
 
 def expand_to_population(

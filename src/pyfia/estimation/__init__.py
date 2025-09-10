@@ -27,8 +27,7 @@ from .aggregation import (
     aggregate_to_population,
     aggregate_by_domain,
     aggregate_plot_level,
-    merge_stratification,
-    apply_adjustment_factors
+    merge_stratification
 )
 
 from .statistics import (
@@ -98,7 +97,6 @@ __all__ = [
     "aggregate_by_domain",
     "aggregate_plot_level",
     "merge_stratification",
-    "apply_adjustment_factors",
     "VarianceCalculator",
     "calculate_ratio_of_means_variance",
     "calculate_post_stratified_variance",

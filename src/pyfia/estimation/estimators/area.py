@@ -13,6 +13,7 @@ from ..base import BaseEstimator
 from ..config import EstimatorConfig
 from ..aggregation import aggregate_to_population, merge_stratification
 from ..statistics import VarianceCalculator
+from ..tree_expansion import apply_area_adjustment_factors
 from ..utils import format_output_columns, check_required_columns
 
 
@@ -32,7 +33,7 @@ class AreaEstimator(BaseEstimator):
         """Required condition columns."""
         return [
             "PLT_CN", "CONDID", "COND_STATUS_CD", 
-            "CONDPROP_UNADJ", "OWNGRPCD", "FORTYPCD",
+            "CONDPROP_UNADJ", "PROP_BASIS", "OWNGRPCD", "FORTYPCD",
             "SITECLCD", "RESERVCD", "STDAGE"
         ]
     
@@ -128,6 +129,13 @@ class AreaEstimator(BaseEstimator):
             how="inner"
         )
         
+        # Apply area adjustment factors based on PROP_BASIS
+        data_with_strat = apply_area_adjustment_factors(
+            data_with_strat,
+            prop_basis_col="PROP_BASIS",
+            output_col="ADJ_FACTOR_AREA"
+        )
+        
         # Setup grouping
         group_cols = []
         if self.config.get("grp_by"):
@@ -137,9 +145,12 @@ class AreaEstimator(BaseEstimator):
             else:
                 group_cols = list(grp_by)
         
-        # Calculate area totals - cast to Float64 to avoid decimal precision issues
+        # Calculate area totals with proper FIA expansion logic
+        # Area = CONDPROP_UNADJ * ADJ_FACTOR_AREA * EXPNS
         agg_exprs = [
-            (pl.col("AREA_VALUE").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
+            (pl.col("AREA_VALUE").cast(pl.Float64) * 
+             pl.col("ADJ_FACTOR_AREA").cast(pl.Float64) * 
+             pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
             pl.col("EXPNS").cast(pl.Float64).sum().alias("TOTAL_EXPNS"),
             pl.count("PLT_CN").alias("N_PLOTS")
         ]

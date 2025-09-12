@@ -36,25 +36,17 @@ class TestRemovalsEstimator:
         # assert estimator.config == config
         assert True  # Placeholder
     
-    def test_required_tables(self, tmp_path):
+    def test_required_tables(self):
         """Test that required tables are correctly specified."""
         config = {}
-        # Create a dummy db file to avoid FileNotFoundError
-        dummy_db = tmp_path / "dummy.db"
-        dummy_db.touch()
-        
-        # Create estimator - will fail on actual DB operations but not on init
-        try:
-            estimator = RemovalsEstimator(str(dummy_db), config)
-        except:
-            # If DB init fails, create estimator directly without DB
-            from unittest.mock import MagicMock
-            estimator = RemovalsEstimator.__new__(RemovalsEstimator)
-            estimator.db = MagicMock()
-            estimator.config = config
-            estimator._owns_db = False
-            estimator._ref_species_cache = None
-            estimator._stratification_cache = None
+        # Create estimator directly without DB
+        from unittest.mock import MagicMock
+        estimator = RemovalsEstimator.__new__(RemovalsEstimator)
+        estimator.db = MagicMock()
+        estimator.config = config
+        estimator._owns_db = False
+        estimator._ref_species_cache = None
+        estimator._stratification_cache = None
         tables = estimator.get_required_tables()
         
         assert "TREE" in tables
@@ -65,7 +57,7 @@ class TestRemovalsEstimator:
         assert "TREE_GRM_COMPONENT" in tables
         assert "TREE_GRM_MIDPT" in tables
     
-    def test_tree_columns(self, tmp_path):
+    def test_tree_columns(self):
         """Test that required tree columns are correctly specified."""
         # Test for volume measure
         config = {"measure": "volume"}
@@ -273,8 +265,9 @@ class TestRemovalsFiltering:
             "DIA": [10.0, 12.0, 8.0, 15.0, 9.0, 11.0]
         }).lazy()
         
-        # Mock the parent apply_filters to just return data
-        estimator.apply_filters.__func__.__wrapped__ = lambda self, d: d
+        # Mock the parent apply_filters to return lazy frame
+        from pyfia.estimation.base import BaseEstimator
+        BaseEstimator.apply_filters = lambda self, d: d
         
         # Apply removals-specific filters
         result = estimator.apply_filters(data).collect()
@@ -302,8 +295,9 @@ class TestRemovalsFiltering:
             "DIA": [10.0, 12.0, 8.0, 15.0]
         }).lazy()
         
-        # Mock the parent apply_filters
-        estimator.apply_filters.__func__.__wrapped__ = lambda self, d: d
+        # Mock the parent apply_filters to return lazy frame  
+        from pyfia.estimation.base import BaseEstimator
+        BaseEstimator.apply_filters = lambda self, d: d
         
         # Apply filters
         result = estimator.apply_filters(data).collect()
@@ -329,8 +323,9 @@ class TestRemovalsFiltering:
             "DIA": [4.0, 6.0, 3.0]  # Only >= 5.0 should remain
         }).lazy()
         
-        # Mock the parent apply_filters
-        estimator.apply_filters.__func__.__wrapped__ = lambda self, d: d
+        # Mock the parent apply_filters to return lazy frame  
+        from pyfia.estimation.base import BaseEstimator
+        BaseEstimator.apply_filters = lambda self, d: d
         
         # Apply filters
         result = estimator.apply_filters(data).collect()

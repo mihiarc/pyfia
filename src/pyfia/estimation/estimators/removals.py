@@ -37,17 +37,22 @@ class RemovalsEstimator(BaseEstimator):
         """Required tree columns for removals estimation."""
         cols = [
             "CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD",
-            "DIA", "TPA_UNADJ", "PREV_TRE_CN"
+            "DIA", "TPA_UNADJ"
         ]
         
         # Add columns based on what we're measuring
         measure = self.config.get("measure", "volume")
-        if measure == "volume":
-            # We'll get VOLCFNET from TREE_GRM_MIDPT
-            pass
-        elif measure == "biomass":
+        if measure == "biomass":
             cols.extend(["DRYBIO_AG", "DRYBIO_BG"])
-        # For "count", we just need TPA_UNADJ
+        
+        # Add grouping columns if needed
+        if self.config.get("grp_by"):
+            grp_cols = self.config["grp_by"]
+            if isinstance(grp_cols, str):
+                grp_cols = [grp_cols]
+            for col in grp_cols:
+                if col not in cols:
+                    cols.append(col)
         
         return cols
     
@@ -63,43 +68,36 @@ class RemovalsEstimator(BaseEstimator):
         """
         Load and join required tables including GRM component tables.
         """
-        # Load base tree and condition data
-        tree_cols = self.get_tree_columns()
-        tree = self.db.read_table(
-            "TREE",
-            columns=tree_cols
-        ).lazy()
+        # Use base class to load standard tree/condition data
+        data = super().load_data()
         
-        cond_cols = self.get_cond_columns()
-        cond = self.db.read_table(
-            "COND",
-            columns=cond_cols
-        ).lazy()
+        if data is None:
+            return None
         
-        # Join tree and condition
-        data = tree.join(
-            cond,
-            on=["PLT_CN", "CONDID"],
-            how="inner"
-        )
+        # Now augment with GRM-specific data
+        # Load TREE_GRM_COMPONENT table
+        if "TREE_GRM_COMPONENT" not in self.db.tables:
+            try:
+                self.db.load_table("TREE_GRM_COMPONENT")
+            except Exception as e:
+                # If GRM tables don't exist, return None or raise error
+                raise ValueError(f"TREE_GRM_COMPONENT table not found in database: {e}")
         
-        # Load and join TREE_GRM_COMPONENT - this contains removal components
-        grm_component = self.db.read_table(
-            "TREE_GRM_COMPONENT",
-            columns=[
-                "TRE_CN", "DIA_BEGIN", "DIA_MIDPT", 
-                "SUBP_COMPONENT_GS_FOREST", 
-                "SUBP_SUBPTYP_GRM_GS_FOREST",
-                "SUBP_TPAREMV_UNADJ_GS_FOREST"
-            ]
-        ).lazy()
+        grm_component = self.db.tables["TREE_GRM_COMPONENT"]
         
-        # Rename columns to match expected names
-        grm_component = grm_component.rename({
-            "SUBP_COMPONENT_GS_FOREST": "COMPONENT",
-            "SUBP_SUBPTYP_GRM_GS_FOREST": "SUBPTYP_GRM",
-            "SUBP_TPAREMV_UNADJ_GS_FOREST": "TPAREMV_UNADJ"
-        })
+        # Ensure LazyFrame
+        if not isinstance(grm_component, pl.LazyFrame):
+            grm_component = grm_component.lazy()
+        
+        # Select and rename GRM columns
+        grm_component = grm_component.select([
+            pl.col("TRE_CN"),
+            pl.col("DIA_BEGIN"),
+            pl.col("DIA_MIDPT"),
+            pl.col("SUBP_COMPONENT_GS_FOREST").alias("COMPONENT"),
+            pl.col("SUBP_SUBPTYP_GRM_GS_FOREST").alias("SUBPTYP_GRM"),
+            pl.col("SUBP_TPAREMV_UNADJ_GS_FOREST").alias("TPAREMV_UNADJ")
+        ])
         
         # Join with GRM component data
         data = data.join(
@@ -109,12 +107,23 @@ class RemovalsEstimator(BaseEstimator):
             how="left"
         )
         
-        # Load and join TREE_GRM_MIDPT for volume calculations
+        # Load TREE_GRM_MIDPT for volume calculations if needed
         if self.config.get("measure", "volume") == "volume":
-            grm_midpt = self.db.read_table(
-                "TREE_GRM_MIDPT",
-                columns=["TRE_CN", "VOLCFNET"]
-            ).lazy()
+            if "TREE_GRM_MIDPT" not in self.db.tables:
+                try:
+                    self.db.load_table("TREE_GRM_MIDPT")
+                except Exception as e:
+                    raise ValueError(f"TREE_GRM_MIDPT table not found in database: {e}")
+            
+            grm_midpt = self.db.tables["TREE_GRM_MIDPT"]
+            
+            if not isinstance(grm_midpt, pl.LazyFrame):
+                grm_midpt = grm_midpt.lazy()
+            
+            grm_midpt = grm_midpt.select([
+                pl.col("TRE_CN"),
+                pl.col("VOLCFNET")
+            ])
             
             data = data.join(
                 grm_midpt,
@@ -123,38 +132,40 @@ class RemovalsEstimator(BaseEstimator):
                 how="left"
             )
         
-        # Load plot data for macro breakpoint
-        plot = self.db.read_table(
-            "PLOT",
-            columns=["CN", "MACRO_BREAKPOINT_DIA", "PREV_PLT_CN", "STATECD", "INVYR"]
-        ).lazy()
-        
-        data = data.join(
-            plot.select(["CN", "MACRO_BREAKPOINT_DIA", "STATECD", "INVYR"]),
-            left_on="PLT_CN",
-            right_on="CN",
-            how="left"
-        )
+        # Add PLOT data for macro breakpoint if not already present
+        if "MACRO_BREAKPOINT_DIA" not in data.columns:
+            if "PLOT" not in self.db.tables:
+                self.db.load_table("PLOT")
+            
+            plot = self.db.tables["PLOT"]
+            if not isinstance(plot, pl.LazyFrame):
+                plot = plot.lazy()
+            
+            plot_cols = plot.select(["CN", "MACRO_BREAKPOINT_DIA", "STATECD", "INVYR"])
+            
+            data = data.join(
+                plot_cols,
+                left_on="PLT_CN",
+                right_on="CN",
+                how="left"
+            )
         
         return data
     
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Apply removals-specific filters."""
-        # First apply base filters
+        # First apply base filters (handles tree_domain, area_domain, land_type)
         data = super().apply_filters(data)
         
-        # Collect for removals filtering
-        data_df = data.collect()
-        
+        # Now apply removals-specific filters while maintaining lazy evaluation
         # Filter to removal components (CUT or DIVERSION)
-        # These are the components that represent tree removals
-        data_df = data_df.filter(
+        data = data.filter(
             (pl.col("COMPONENT").str.starts_with("CUT")) |
             (pl.col("COMPONENT").str.starts_with("DIVERSION"))
         )
         
         # Filter out null removal values
-        data_df = data_df.filter(
+        data = data.filter(
             pl.col("TPAREMV_UNADJ").is_not_null() &
             (pl.col("TPAREMV_UNADJ") > 0)
         )
@@ -162,14 +173,10 @@ class RemovalsEstimator(BaseEstimator):
         # Apply tree type filter if specified
         tree_type = self.config.get("tree_type", "gs")
         if tree_type == "gs":
-            # Growing stock trees (live, commercial species, good form)
-            # This would need additional filtering based on tree class
-            # For now, filter to live trees with DIA >= 5.0
-            data_df = data_df.filter(
-                (pl.col("DIA") >= 5.0)
-            )
+            # Growing stock trees (at least 5 inches DBH)
+            data = data.filter(pl.col("DIA") >= 5.0)
         
-        return data_df.lazy()
+        return data
     
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -221,9 +228,10 @@ class RemovalsEstimator(BaseEstimator):
             how="inner"
         )
         
-        # Apply adjustment factors based on SUBPTYP_GRM
+        # For removals, we need custom adjustment factor logic based on SUBPTYP_GRM
         # SUBPTYP_GRM indicates which adjustment factor to use:
         # 0 = No adjustment, 1 = SUBP, 2 = MICR, 3 = MACR
+        # This is different from the standard tree adjustment which uses DIA size classes
         data_with_strat = data_with_strat.with_columns([
             pl.when(pl.col("SUBPTYP_GRM") == 0)
             .then(0.0)
@@ -276,11 +284,12 @@ class RemovalsEstimator(BaseEstimator):
     
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """Calculate variance for removals estimates."""
-        # Simple placeholder variance calculation
-        # In production, this would use proper stratified variance formulas
+        # TODO: Implement proper stratified variance calculation
+        # For now, use conservative placeholder (20% CV is typical for removals)
+        # This should use the VarianceCalculator class when properly implemented
         results = results.with_columns([
-            (pl.col("REMV_ACRE") * 0.15).alias("REMV_ACRE_SE"),
-            (pl.col("REMV_TOTAL") * 0.15).alias("REMV_TOTAL_SE")
+            (pl.col("REMV_ACRE") * 0.20).alias("REMV_ACRE_SE"),
+            (pl.col("REMV_TOTAL") * 0.20).alias("REMV_TOTAL_SE")
         ])
         
         # Add coefficient of variation
@@ -295,8 +304,14 @@ class RemovalsEstimator(BaseEstimator):
         """Format removals estimation output."""
         # Add metadata columns
         measure = self.config.get("measure", "volume")
+        
+        # Try to extract actual year from data if available
+        year = self.config.get("year", 2023)
+        if "INVYR" in results.columns:
+            year = results["INVYR"].max()
+        
         results = results.with_columns([
-            pl.lit(2023).alias("YEAR"),
+            pl.lit(year).alias("YEAR"),
             pl.lit(measure.upper()).alias("MEASURE"),
             pl.lit("REMOVALS").alias("ESTIMATE_TYPE")
         ])

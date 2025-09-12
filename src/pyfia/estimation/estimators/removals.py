@@ -133,7 +133,7 @@ class RemovalsEstimator(BaseEstimator):
             )
         
         # Add PLOT data for macro breakpoint if not already present
-        if "MACRO_BREAKPOINT_DIA" not in data.columns:
+        if "MACRO_BREAKPOINT_DIA" not in data.collect_schema().names():
             if "PLOT" not in self.db.tables:
                 self.db.load_table("PLOT")
             

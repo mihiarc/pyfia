@@ -116,9 +116,32 @@ class BaseEstimator(ABC):
             cond_df = cond_df.lazy()
         
         # Apply EVALID filtering if set
+        # EVALID filtering happens through POP_PLOT_STRATUM_ASSGN, not directly on TREE/COND
         if self.db.evalid:
-            tree_df = tree_df.filter(pl.col("EVALID").is_in(self.db.evalid))
-            cond_df = cond_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+            # Load POP_PLOT_STRATUM_ASSGN to get plots for the EVALID
+            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
+                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
+            
+            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+            if not isinstance(ppsa, pl.LazyFrame):
+                ppsa = ppsa.lazy()
+            
+            # Filter to get PLT_CNs for the specified EVALID(s)
+            valid_plots = ppsa.filter(
+                pl.col("EVALID").is_in(self.db.evalid)
+            ).select("PLT_CN").unique()
+            
+            # Filter tree and cond to only include these plots
+            tree_df = tree_df.join(
+                valid_plots,
+                on="PLT_CN",
+                how="inner"  # This filters to only plots in the EVALID
+            )
+            cond_df = cond_df.join(
+                valid_plots,
+                on="PLT_CN",
+                how="inner"
+            )
         
         # Select only needed columns
         tree_cols = self.get_tree_columns()
@@ -156,10 +179,34 @@ class BaseEstimator(ABC):
         if not isinstance(plot_df, pl.LazyFrame):
             plot_df = plot_df.lazy()
         
-        # Apply EVALID filtering
+        # Apply EVALID filtering through POP_PLOT_STRATUM_ASSGN
         if self.db.evalid:
-            cond_df = cond_df.filter(pl.col("EVALID").is_in(self.db.evalid))
-            plot_df = plot_df.filter(pl.col("EVALID").is_in(self.db.evalid))
+            # Load POP_PLOT_STRATUM_ASSGN to get plots for the EVALID
+            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
+                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
+            
+            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+            if not isinstance(ppsa, pl.LazyFrame):
+                ppsa = ppsa.lazy()
+            
+            # Filter to get PLT_CNs for the specified EVALID(s)
+            valid_plots = ppsa.filter(
+                pl.col("EVALID").is_in(self.db.evalid)
+            ).select("PLT_CN").unique()
+            
+            # Filter cond and plot to only include these plots
+            cond_df = cond_df.join(
+                valid_plots,
+                on="PLT_CN",
+                how="inner"
+            )
+            # For plot table, join on CN not PLT_CN
+            valid_plot_cns = valid_plots.rename({"PLT_CN": "CN"})
+            plot_df = plot_df.join(
+                valid_plot_cns,
+                on="CN",
+                how="inner"
+            )
         
         # Join condition and plot
         data = cond_df.join(

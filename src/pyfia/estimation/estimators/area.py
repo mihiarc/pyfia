@@ -31,11 +31,56 @@ class AreaEstimator(BaseEstimator):
     
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
-        return [
+        # Core columns needed for area calculation
+        core_cols = [
             "PLT_CN", "CONDID", "COND_STATUS_CD", 
-            "CONDPROP_UNADJ", "PROP_BASIS", "OWNGRPCD", "FORTYPCD",
-            "SITECLCD", "RESERVCD", "STDAGE"
+            "CONDPROP_UNADJ", "PROP_BASIS"
         ]
+        
+        # Grouping columns that make sense for area estimation
+        # Based on real data analysis: good coverage, categorical, meaningful
+        grouping_cols = [
+            # Ownership and management
+            "OWNGRPCD",     # Ownership group (99.2% coverage, 4 values)
+            "OWNCD",        # Detailed ownership code
+            "ADFORCD",      # Administrative forest code
+            "RESERVCD",     # Reserved status
+            
+            # Forest characteristics  
+            "FORTYPCD",     # Forest type (99.1% coverage, 82 values)
+            "FLDTYPCD",     # Field forest type
+            "STDAGE",       # Stand age
+            "STDSZCD",      # Stand size class (99.1% coverage, 5 values)
+            "STDORGCD",     # Stand origin (99.1% coverage, 2 values)
+            
+            # Site characteristics
+            "SITECLCD",     # Site class (100% coverage, 7 values)
+            "PHYSCLCD",     # Physiographic class (82.3% coverage)
+            
+            # Disturbance and treatment
+            "DSTRBCD1",     # Disturbance code 1 (77.7% coverage)
+            "DSTRBYR1",     # Disturbance year 1
+            "DSTRBCD2",     # Disturbance code 2
+            "DSTRBYR2",     # Disturbance year 2
+            "DSTRBCD3",     # Disturbance code 3
+            "DSTRBYR3",     # Disturbance year 3
+            "TRTCD1",       # Treatment code 1 (91.6% coverage)
+            "TRTYR1",       # Treatment year 1
+            "TRTCD2",       # Treatment code 2
+            "TRTYR2",       # Treatment year 2
+            "TRTCD3",       # Treatment code 3
+            "TRTYR3",       # Treatment year 3
+            
+            # Stocking
+            "GSSTKCD",      # Growing stock stocking class
+            "ALSTKCD",      # All live stocking class
+            
+            # Other useful columns
+            "PRESNFCD",     # Present nonforest code
+            "BALIVE",       # Live basal area (continuous but sometimes binned)
+        ]
+        
+        return core_cols + grouping_cols
     
     def load_data(self) -> pl.LazyFrame:
         """Load condition and plot data."""
@@ -62,7 +107,26 @@ class AreaEstimator(BaseEstimator):
         cond_cols = self.get_cond_columns()
         cond_df = cond_df.select([col for col in cond_cols if col in cond_df.columns])
         
-        plot_cols = ["CN", "STATECD", "COUNTYCD", "PLOT", "LAT", "LON", "ELEV"]
+        # Comprehensive PLOT columns for grouping
+        plot_cols = [
+            "CN",           # Primary key
+            "STATECD",      # State FIPS code
+            "UNITCD",       # FIA survey unit  
+            "COUNTYCD",     # County code
+            "PLOT",         # Plot number
+            "INVYR",        # Inventory year
+            "MEASYEAR",     # Measurement year
+            "KINDCD",       # Sample kind (100% coverage, 4 values)
+            "DESIGNCD",     # Plot design (100% coverage, 9 values)
+            "RDDISTCD",     # Road distance class
+            "WATERCD",      # Water on plot code
+            "LAT",          # Latitude (continuous - not for grouping)
+            "LON",          # Longitude (continuous - not for grouping)
+            "ELEV",         # Elevation (continuous - not for grouping)
+            "ECOSUBCD",     # Ecological subsection (if available)
+            "CONGCD",       # Congressional district (if available)
+            "EMAP_HEX",     # EMAP hexagon (if available)
+        ]
         plot_df = plot_df.select([col for col in plot_cols if col in plot_df.columns])
         
         # Join condition and plot
@@ -208,46 +272,172 @@ def area(
     area_domain: Optional[str] = None,
     most_recent: bool = False,
     eval_type: Optional[str] = None,
-    variance: bool = False
+    variance: bool = False,
+    totals: bool = True
 ) -> pl.DataFrame:
     """
     Estimate forest area from FIA data.
     
-    Simple function interface that creates an estimator and runs it
-    without complex parameter validation or transformation.
+    Calculates area estimates using FIA's design-based estimation methods
+    with proper expansion factors and stratification. Automatically handles
+    EVALID selection to prevent overcounting from multiple evaluations.
     
     Parameters
     ----------
     db : Union[str, FIA]
-        Database connection or path
-    grp_by : Optional[Union[str, List[str]]]
-        Columns to group by
-    land_type : str
-        Land type: "forest", "timber", or "all"
-    area_domain : Optional[str]
-        SQL-like filter condition
-    most_recent : bool
-        Use most recent evaluation
-    eval_type : Optional[str]
-        Evaluation type (EXPALL, etc.)
-    variance : bool
-        Return variance instead of SE
+        Database connection or path to FIA database. Can be either a path
+        string to a DuckDB/SQLite file or an existing FIA connection object.
+    grp_by : str or list of str, optional
+        Column name(s) to group results by. Can be any column from the 
+        PLOT and COND tables. Common grouping columns include:
+        
+        **Ownership and Management:**
+        - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
+          30=State/Local, 40=Private)
+        - 'OWNCD': Detailed ownership code (see REF_RESEARCH_STATION)
+        - 'ADFORCD': Administrative forest code
+        - 'RESERVCD': Reserved status (0=Not reserved, 1=Reserved)
+        
+        **Forest Characteristics:**
+        - 'FORTYPCD': Forest type code (see REF_FOREST_TYPE)
+        - 'STDSZCD': Stand size class (1=Large diameter, 2=Medium diameter,
+          3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+        - 'STDORGCD': Stand origin (0=Natural, 1=Planted)
+        - 'STDAGE': Stand age in years
+        
+        **Site Characteristics:**
+        - 'SITECLCD': Site productivity class (1=225+ cu ft/ac/yr,
+          2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+        - 'PHYSCLCD': Physiographic class code
+        
+        **Location:**
+        - 'STATECD': State FIPS code
+        - 'UNITCD': FIA survey unit code
+        - 'COUNTYCD': County code
+        - 'INVYR': Inventory year
+        
+        **Disturbance and Treatment:**
+        - 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3': Disturbance codes
+        - 'TRTCD1', 'TRTCD2', 'TRTCD3': Treatment codes
+        
+        For complete column descriptions, see USDA FIA Database User Guide.
+    land_type : {'forest', 'timber', 'all'}, default 'forest'
+        Land type to include in estimation:
+        
+        - 'forest': All forestland (COND_STATUS_CD = 1)
+        - 'timber': Timberland only (unreserved, productive forestland)
+        - 'all': All land types including non-forest
+    area_domain : str, optional
+        SQL-like filter expression for COND-level attributes. Examples:
+        
+        - "STDAGE > 50": Stands older than 50 years
+        - "FORTYPCD IN (161, 162)": Specific forest types
+        - "OWNGRPCD == 10": National Forest lands only
+        - "PHYSCLCD == 31 AND STDSZCD == 1": Xeric sites with large trees
+    most_recent : bool, default False
+        If True, automatically select the most recent evaluation for each
+        state/region. Equivalent to calling db.clip_most_recent() first.
+    eval_type : str, optional
+        Evaluation type to select if most_recent=True. Options:
+        'ALL', 'VOL', 'GROW', 'MORT', 'REMV', 'CHANGE', 'DWM', 'INV'.
+        Default is 'ALL' for area estimation.
+    variance : bool, default False
+        If True, return variance instead of standard error.
+    totals : bool, default True
+        If True, include total area estimates expanded to population level.
+        If False, only return per-acre values.
         
     Returns
     -------
     pl.DataFrame
-        Area estimates
+        Area estimates with the following columns:
+        
+        - **YEAR** : int
+            Inventory year
+        - **[grouping columns]** : varies
+            Any columns specified in grp_by parameter
+        - **AREA_PCT** : float
+            Percentage of total area
+        - **AREA_SE** : float (if variance=False)
+            Standard error of area percentage
+        - **AREA_VAR** : float (if variance=True)
+            Variance of area percentage  
+        - **N_PLOTS** : int
+            Number of plots in estimate
+        - **AREA** : float (if totals=True)
+            Total area in acres
+        - **AREA_TOTAL_SE** : float (if totals=True and variance=False)
+            Standard error of total area
+            
+    See Also
+    --------
+    pyfia.volume : Estimate tree volume
+    pyfia.biomass : Estimate tree biomass
+    pyfia.tpa : Estimate trees per acre
+    pyfia.constants.ForestTypes : Forest type code definitions
+    pyfia.constants.StateCodes : State FIPS code definitions
+    
+    Notes
+    -----
+    The area estimation follows USDA FIA's design-based estimation procedures
+    as described in Bechtold & Patterson (2005). The basic formula is:
+    
+    Area = Σ(CONDPROP_UNADJ × ADJ_FACTOR × EXPNS)
+    
+    Where:
+    - CONDPROP_UNADJ: Proportion of plot in the condition
+    - ADJ_FACTOR: Adjustment factor based on PROP_BASIS
+    - EXPNS: Expansion factor from stratification
+    
+    **EVALID Handling:**
+    If no EVALID is specified, the function automatically selects the most
+    recent EXPALL evaluation to prevent overcounting from multiple evaluations.
+    For explicit control, use db.clip_by_evalid() before calling area().
+    
+    **Valid Grouping Columns:**
+    The function loads comprehensive sets of columns from COND and PLOT tables.
+    Not all columns are suitable for grouping - continuous variables like
+    LAT, LON, ELEV should not be used. The function will error if a requested
+    grouping column is not available in the loaded data.
         
     Examples
     --------
-    >>> # Basic forest area
-    >>> results = area(db, land_type="forest")
+    Basic forest area estimation:
     
-    >>> # Area by ownership
+    >>> from pyfia import FIA, area
+    >>> with FIA("path/to/fia.duckdb") as db:
+    ...     db.clip_by_state(37)  # North Carolina
+    ...     results = area(db, land_type="forest")
+    
+    Area by ownership group:
+    
     >>> results = area(db, grp_by="OWNGRPCD")
+    >>> # Results will show area for each ownership category
     
-    >>> # Timber area by forest type
-    >>> results = area(db, grp_by="FORTYPCD", land_type="timber")
+    Timber area by forest type for stands over 50 years:
+    
+    >>> results = area(
+    ...     db,
+    ...     grp_by="FORTYPCD",
+    ...     land_type="timber",
+    ...     area_domain="STDAGE > 50"
+    ... )
+    
+    Multiple grouping variables:
+    
+    >>> results = area(
+    ...     db,
+    ...     grp_by=["STATECD", "OWNGRPCD", "STDSZCD"],
+    ...     land_type="forest"
+    ... )
+    
+    Area by disturbance type:
+    
+    >>> results = area(
+    ...     db,
+    ...     grp_by="DSTRBCD1",
+    ...     area_domain="DSTRBCD1 > 0"  # Only disturbed areas
+    ... )
     """
     # Ensure db is a FIA instance
     if isinstance(db, str):
@@ -281,7 +471,8 @@ def area(
         "area_domain": area_domain,
         "most_recent": most_recent,
         "eval_type": eval_type,
-        "variance": variance
+        "variance": variance,
+        "totals": totals
     }
     
     try:

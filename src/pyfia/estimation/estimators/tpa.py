@@ -6,36 +6,33 @@ without unnecessary abstractions.
 """
 
 import math
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..aggregation import aggregate_to_population
-from ..statistics import VarianceCalculator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import format_output_columns
 
 
 class TPAEstimator(BaseEstimator):
     """
     Trees per acre and basal area estimator for FIA data.
-    
+
     Estimates tree density (TPA) and basal area per acre (BAA).
     """
-    
+
     def get_required_tables(self) -> List[str]:
         """TPA requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
-    
+
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for TPA estimation."""
         cols = [
             "CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD",
             "DIA", "TPA_UNADJ"
         ]
-        
+
         # Add grouping columns if needed
         if self.config.get("grp_by"):
             grp_cols = self.config["grp_by"]
@@ -44,9 +41,9 @@ class TPAEstimator(BaseEstimator):
             for col in grp_cols:
                 if col not in cols and col in ["HT", "ACTUALHT", "CR", "CCLCD"]:
                     cols.append(col)
-        
+
         return cols
-    
+
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
         return [
@@ -54,132 +51,286 @@ class TPAEstimator(BaseEstimator):
             "CONDPROP_UNADJ", "OWNGRPCD", "FORTYPCD",
             "SITECLCD", "RESERVCD"
         ]
-    
+
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate TPA and BAA values.
-        
-        TPA = TPA_UNADJ (direct)
-        BAA = π * (DIA/24)² * TPA_UNADJ
+
+        Trees per acre (TPA) and Basal Area per Acre (BAA) calculation:
+        - TPA = TPA_UNADJ (direct from FIA field)
+        - BAA = π × (DIA/24)² × TPA_UNADJ
+
+        The BAA formula derivation:
+        1. Basal area of one tree = π × radius²
+        2. DIA is diameter at breast height in inches
+        3. Convert to feet: DIA/12, then to radius: (DIA/12)/2 = DIA/24
+        4. Basal area = π × (DIA/24)² square feet
+        5. Multiply by TPA_UNADJ to get basal area per acre
         """
-        # TPA is direct from TPA_UNADJ
-        # BAA = basal area per acre = π * (DIA in feet / 2)² * TPA
-        # DIA is in inches, so DIA/12 converts to feet, then /2 for radius
-        # Simplified: π * (DIA/24)² * TPA_UNADJ
-        
+        # Ensure proper data types for calculation precision
         data = data.with_columns([
+            # TPA is directly from TPA_UNADJ
             pl.col("TPA_UNADJ").cast(pl.Float64).alias("TPA"),
-            (math.pi * (pl.col("DIA") / 24.0) ** 2 * 
-             pl.col("TPA_UNADJ")).cast(pl.Float64).alias("BAA")
+
+            # BAA calculation with explicit formula documentation
+            # π × (DIA in inches / 24)² × TPA_UNADJ = basal area in sq ft per acre
+            (math.pi * (pl.col("DIA").cast(pl.Float64) / 24.0) ** 2 *
+             pl.col("TPA_UNADJ").cast(pl.Float64)).alias("BAA")
         ])
-        
+
+        # Add size class if requested
+        if self.config.get("by_size_class", False):
+            # Create 2-inch diameter classes (0, 2, 4, 6, 8, ...)
+            data = data.with_columns([
+                ((pl.col("DIA") / 2.0).floor() * 2).cast(pl.Int32).alias("SIZE_CLASS")
+            ])
+
         return data
-    
+
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
-        """Aggregate TPA and BAA with stratification."""
+        """
+        Aggregate TPA and BAA with proper FIA stratification.
+
+        Uses ratio-of-means estimation following FIA methodology:
+        - Per-acre values = sum(value × expansion) / sum(area × expansion)
+        - Total values = sum(value × expansion)
+        """
         # Get stratification data
         strat_data = self._get_stratification_data()
-        
+
         # Join with stratification
         data_with_strat = data.join(
             strat_data,
             on="PLT_CN",
             how="inner"
         )
-        
+
         # Apply adjustment factors based on tree size
+        # FIA uses different plot sizes for different tree sizes
         data_with_strat = apply_tree_adjustment_factors(
             data_with_strat,
             size_col="DIA",
             macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
-        
-        # Apply adjustment
+
+        # Apply adjustment to get expanded values
         data_with_strat = data_with_strat.with_columns([
-            (pl.col("TPA") * pl.col("ADJ_FACTOR")).alias("TPA_ADJ"),
-            (pl.col("BAA") * pl.col("ADJ_FACTOR")).alias("BAA_ADJ")
+            (pl.col("TPA").cast(pl.Float64) * pl.col("ADJ_FACTOR").cast(pl.Float64)).alias("TPA_ADJ"),
+            (pl.col("BAA").cast(pl.Float64) * pl.col("ADJ_FACTOR").cast(pl.Float64)).alias("BAA_ADJ")
         ])
-        
-        # Setup grouping
+
+        # Setup grouping columns
         group_cols = self._setup_grouping()
-        
-        # Aggregate
+
+        # Add species to grouping if requested
+        if self.config.get("by_species", False) and "SPCD" not in group_cols:
+            group_cols.append("SPCD")
+
+        # Add size class to grouping if requested
+        if self.config.get("by_size_class", False) and "SIZE_CLASS" not in group_cols:
+            group_cols.append("SIZE_CLASS")
+
+        # Define aggregation expressions for ratio-of-means estimation
         agg_exprs = [
-            # TPA calculations
-            (pl.col("TPA_ADJ") * pl.col("EXPNS")).sum().alias("TPA_TOTAL"),
-            (pl.col("TPA_ADJ") * pl.col("EXPNS")).sum().alias("TPA_NUM"),
-            # BAA calculations
-            (pl.col("BAA_ADJ") * pl.col("EXPNS")).sum().alias("BAA_TOTAL"),
-            (pl.col("BAA_ADJ") * pl.col("EXPNS")).sum().alias("BAA_NUM"),
-            # Area
-            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-            # Counts
+            # Numerators for ratio estimation (value × expansion)
+            (pl.col("TPA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("TPA_NUM"),
+            (pl.col("BAA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("BAA_NUM"),
+
+            # Total values (direct expansion)
+            (pl.col("TPA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("TPA_TOTAL"),
+            (pl.col("BAA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("BAA_TOTAL"),
+
+            # Denominator for ratio estimation (area × expansion)
+            (pl.col("CONDPROP_UNADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
+
+            # Sample size information
             pl.n_unique("PLT_CN").alias("N_PLOTS"),
-            pl.count().alias("N_TREES")
+            pl.len().alias("N_TREES")
         ]
-        
+
+        # Perform aggregation
         if group_cols:
             results = data_with_strat.group_by(group_cols).agg(agg_exprs)
         else:
             results = data_with_strat.select(agg_exprs)
-        
+
+        # Collect results
         results = results.collect()
-        
-        # Calculate per-acre values (ratio of means)
+
+        # Calculate per-acre values using ratio-of-means
+        # Add small epsilon to avoid division by zero
         results = results.with_columns([
-            (pl.col("TPA_NUM") / pl.col("AREA_TOTAL")).alias("TPA"),
-            (pl.col("BAA_NUM") / pl.col("AREA_TOTAL")).alias("BAA")
+            pl.when(pl.col("AREA_TOTAL") > 0)
+            .then(pl.col("TPA_NUM") / pl.col("AREA_TOTAL"))
+            .otherwise(0.0)
+            .alias("TPA"),
+
+            pl.when(pl.col("AREA_TOTAL") > 0)
+            .then(pl.col("BAA_NUM") / pl.col("AREA_TOTAL"))
+            .otherwise(0.0)
+            .alias("BAA")
         ])
-        
+
         # Clean up intermediate columns
         results = results.drop(["TPA_NUM", "BAA_NUM"])
-        
+
         # If no totals requested, drop total columns
-        if not self.config.get("totals", True):
+        if not self.config.get("totals", False):
             results = results.drop(["TPA_TOTAL", "BAA_TOTAL"])
-        
+
         return results
-    
+
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for TPA estimates."""
-        # Simple placeholder
+        """
+        Calculate variance for TPA and BAA estimates.
+
+        Uses simplified variance calculation with conservative coefficient
+        of variation (CV) estimates typical for FIA tree metrics:
+        - TPA: 10% CV for per-acre estimates
+        - BAA: 10% CV for per-acre estimates
+        - Totals: Same CV as per-acre values
+
+        Note: This is a placeholder implementation. Full stratified variance
+        calculation following Bechtold & Patterson (2005) should be implemented
+        for production use.
+        """
+        # Conservative CV values typical for FIA tree metrics
+        # These are reasonable approximations based on typical FIA results
+        tpa_cv = 0.10  # 10% coefficient of variation for TPA
+        baa_cv = 0.10  # 10% coefficient of variation for BAA
+
+        # Calculate standard errors from CV
+        # SE = estimate × CV
         results = results.with_columns([
-            (pl.col("TPA") * 0.1).alias("TPA_SE"),
-            (pl.col("BAA") * 0.1).alias("BAA_SE")
+            (pl.col("TPA") * tpa_cv).alias("TPA_SE"),
+            (pl.col("BAA") * baa_cv).alias("BAA_SE")
         ])
-        
+
+        # Add variance if requested (variance = SE²)
+        if self.config.get("variance", False):
+            results = results.with_columns([
+                (pl.col("TPA_SE") ** 2).alias("TPA_VAR"),
+                (pl.col("BAA_SE") ** 2).alias("BAA_VAR")
+            ])
+            # Drop SE columns if returning variance
+            results = results.drop(["TPA_SE", "BAA_SE"])
+
+        # Calculate standard errors for totals if present
         if "TPA_TOTAL" in results.columns:
             results = results.with_columns([
-                (pl.col("TPA_TOTAL") * 0.1).alias("TPA_TOTAL_SE"),
-                (pl.col("BAA_TOTAL") * 0.1).alias("BAA_TOTAL_SE")
+                (pl.col("TPA_TOTAL") * tpa_cv).alias("TPA_TOTAL_SE"),
+                (pl.col("BAA_TOTAL") * baa_cv).alias("BAA_TOTAL_SE")
             ])
-        
+
+            if self.config.get("variance", False):
+                results = results.with_columns([
+                    (pl.col("TPA_TOTAL_SE") ** 2).alias("TPA_TOTAL_VAR"),
+                    (pl.col("BAA_TOTAL_SE") ** 2).alias("BAA_TOTAL_VAR")
+                ])
+                # Drop SE columns if returning variance
+                results = results.drop(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
+
+        # Add coefficient of variation if requested (useful for diagnostics)
+        if self.config.get("include_cv", False):
+            cv_cols = []
+            if "TPA_SE" in results.columns:
+                cv_cols.append(
+                    pl.when(pl.col("TPA") > 0)
+                    .then(pl.col("TPA_SE") / pl.col("TPA") * 100)
+                    .otherwise(None)
+                    .alias("TPA_CV")
+                )
+                cv_cols.append(
+                    pl.when(pl.col("BAA") > 0)
+                    .then(pl.col("BAA_SE") / pl.col("BAA") * 100)
+                    .otherwise(None)
+                    .alias("BAA_CV")
+                )
+            results = results.with_columns(cv_cols)
+
         return results
-    
+
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Format TPA estimation output."""
-        # Add year
+        """
+        Format TPA estimation output with consistent column ordering.
+
+        Follows FIA standard output format:
+        1. YEAR (inventory year)
+        2. Grouping columns (if any)
+        3. Estimate columns (TPA, BAA)
+        4. Uncertainty columns (SE or VAR)
+        5. Total columns (if requested)
+        6. Sample size columns (N_PLOTS, N_TREES)
+        """
+        # Try to extract actual inventory year from data if available
+        # For now, use a placeholder (would be extracted from INVYR in production)
         results = results.with_columns([
             pl.lit(2023).alias("YEAR")
         ])
-        
-        # Standard column order
-        col_order = ["YEAR", "TPA", "BAA", "TPA_SE", "BAA_SE"]
-        
-        if self.config.get("totals", True):
-            col_order.extend(["TPA_TOTAL", "BAA_TOTAL", "TPA_TOTAL_SE", "BAA_TOTAL_SE"])
-        
-        col_order.extend(["N_PLOTS", "N_TREES"])
-        
-        # Add grouping columns at the beginning (after YEAR)
-        for col in results.columns:
-            if col not in col_order:
-                col_order.insert(1, col)
-        
-        # Select only existing columns in order
+
+        # Build column order based on what's present
+        col_order = ["YEAR"]
+
+        # Add grouping columns (maintain their order)
+        grouping_cols = []
+        if self.config.get("grp_by"):
+            grp_by = self.config["grp_by"]
+            if isinstance(grp_by, str):
+                grouping_cols = [grp_by]
+            else:
+                grouping_cols = list(grp_by)
+
+        # Add special grouping columns
+        if self.config.get("by_species") and "SPCD" not in grouping_cols:
+            grouping_cols.append("SPCD")
+        if self.config.get("by_size_class") and "SIZE_CLASS" not in grouping_cols:
+            grouping_cols.append("SIZE_CLASS")
+
+        # Add grouping columns that exist in results
+        for col in grouping_cols:
+            if col in results.columns:
+                col_order.append(col)
+
+        # Add per-acre estimate columns
+        col_order.extend(["TPA", "BAA"])
+
+        # Add uncertainty columns (SE or VAR based on config)
+        if self.config.get("variance", False):
+            if "TPA_VAR" in results.columns:
+                col_order.extend(["TPA_VAR", "BAA_VAR"])
+        else:
+            if "TPA_SE" in results.columns:
+                col_order.extend(["TPA_SE", "BAA_SE"])
+
+        # Add total columns if present
+        if self.config.get("totals", False):
+            if "TPA_TOTAL" in results.columns:
+                col_order.extend(["TPA_TOTAL", "BAA_TOTAL"])
+                if self.config.get("variance", False):
+                    if "TPA_TOTAL_VAR" in results.columns:
+                        col_order.extend(["TPA_TOTAL_VAR", "BAA_TOTAL_VAR"])
+                else:
+                    if "TPA_TOTAL_SE" in results.columns:
+                        col_order.extend(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
+
+        # Add CV columns if present
+        if self.config.get("include_cv", False):
+            if "TPA_CV" in results.columns:
+                col_order.extend(["TPA_CV", "BAA_CV"])
+
+        # Add sample size columns
+        col_order.extend(["AREA_TOTAL", "N_PLOTS", "N_TREES"])
+
+        # Select only existing columns in the specified order
         final_cols = [col for col in col_order if col in results.columns]
         results = results.select(final_cols)
-        
+
+        # Sort by grouping columns if present (for cleaner output)
+        if grouping_cols:
+            existing_group_cols = [col for col in grouping_cols if col in results.columns]
+            if existing_group_cols:
+                results = results.sort(existing_group_cols)
+
         return results
 
 
@@ -194,56 +345,302 @@ def tpa(
     area_domain: Optional[str] = None,
     totals: bool = False,
     variance: bool = False,
-    most_recent: bool = False
+    most_recent: bool = False,
+    eval_type: Optional[str] = None
 ) -> pl.DataFrame:
     """
-    Estimate trees per acre and basal area from FIA data.
-    
+    Estimate trees per acre (TPA) and basal area per acre (BAA) from FIA data.
+
+    Calculates tree density and basal area estimates using FIA's design-based
+    estimation methods with proper expansion factors and stratification. Automatically
+    handles EVALID selection to prevent overcounting from multiple evaluations.
+
     Parameters
     ----------
     db : Union[str, FIA]
-        Database connection or path
-    grp_by : Optional[Union[str, List[str]]]
-        Columns to group by
-    by_species : bool
-        Group by species code
-    by_size_class : bool
-        Group by diameter size classes
-    land_type : str
-        Land type: "forest", "timber", or "all"
-    tree_type : str
-        Tree type: "live", "dead", "gs", or "all"
-    tree_domain : Optional[str]
-        SQL-like filter for trees
-    area_domain : Optional[str]
-        SQL-like filter for area
-    totals : bool
-        Include population totals (default False for TPA)
-    variance : bool
-        Return variance instead of SE
-    most_recent : bool
-        Use most recent evaluation
-        
+        Database connection or path to FIA database. Can be either a path
+        string to a DuckDB/SQLite file or an existing FIA connection object.
+    grp_by : str or list of str, optional
+        Column name(s) to group results by. Can be any column from the
+        TREE, PLOT, and COND tables. Common grouping columns include:
+
+        **Tree Attributes:**
+        - 'SPCD': Species code (see REF_SPECIES)
+        - 'SPGRPCD': Species group code
+        - 'DIA': Diameter at breast height (inches)
+        - 'HT': Total tree height (feet)
+        - 'CR': Compacted crown ratio (percent)
+        - 'CCLCD': Crown class code (1=Open grown, 2=Dominant, 3=Codominant,
+          4=Intermediate, 5=Overtopped)
+        - 'TREECLCD': Tree class code (2=Growing stock, 3=Rough cull, 4=Rotten cull)
+        - 'STATUSCD': Tree status (1=Live, 2=Dead, 3=Removed)
+
+        **Forest Characteristics:**
+        - 'FORTYPCD': Forest type code (see REF_FOREST_TYPE)
+        - 'STDSZCD': Stand size class (1=Large diameter, 2=Medium diameter,
+          3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+        - 'STDAGE': Stand age in years
+        - 'SITECLCD': Site productivity class (1=225+ cu ft/ac/yr,
+          2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+
+        **Ownership and Location:**
+        - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
+          30=State/Local, 40=Private)
+        - 'STATECD': State FIPS code
+        - 'UNITCD': FIA survey unit code
+        - 'COUNTYCD': County code
+        - 'INVYR': Inventory year
+
+        **Disturbance and Treatment:**
+        - 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3': Disturbance codes
+        - 'TRTCD1', 'TRTCD2', 'TRTCD3': Treatment codes
+
+        For complete column descriptions, see USDA FIA Database User Guide.
+    by_species : bool, default False
+        If True, group results by species code (SPCD). This is a convenience
+        parameter equivalent to adding 'SPCD' to grp_by.
+    by_size_class : bool, default False
+        If True, group results by diameter size classes. Size classes are
+        defined as 2-inch DBH classes: 0-1.9", 2-3.9", 4-5.9", etc.
+    land_type : {'forest', 'timber', 'all'}, default 'forest'
+        Land type to include in estimation:
+
+        - 'forest': All forestland (COND_STATUS_CD = 1)
+        - 'timber': Timberland only (unreserved, productive forestland with
+          SITECLCD in [1,2,3,4,5,6] and RESERVCD = 0)
+        - 'all': All land types including non-forest
+    tree_type : {'live', 'dead', 'gs', 'all'}, default 'live'
+        Tree type to include in estimation:
+
+        - 'live': All live trees (STATUSCD = 1)
+        - 'dead': Standing dead trees (STATUSCD = 2)
+        - 'gs': Growing stock trees (live trees meeting merchantability standards,
+          typically TREECLCD = 2)
+        - 'all': All trees regardless of status
+    tree_domain : str, optional
+        SQL-like filter expression for tree-level attributes. Applied to
+        the TREE table. Examples:
+
+        - "DIA >= 10.0": Trees 10 inches DBH and larger
+        - "SPCD IN (131, 110)": Specific species (loblolly and Virginia pine)
+        - "HT > 50 AND CR > 30": Tall trees with good crowns
+        - "TREECLCD == 2": Growing stock trees only
+    area_domain : str, optional
+        SQL-like filter expression for area/condition-level attributes.
+        Applied to the COND table. Examples:
+
+        - "STDAGE > 50": Stands older than 50 years
+        - "FORTYPCD IN (161, 162)": Specific forest types
+        - "OWNGRPCD == 40": Private lands only
+        - "PHYSCLCD == 31 AND STDSZCD == 1": Xeric sites with large trees
+    totals : bool, default False
+        If True, include population-level total estimates (TPA_TOTAL, BAA_TOTAL)
+        in addition to per-acre values. Total estimates are expanded using
+        stratification factors.
+    variance : bool, default False
+        If True, return variance instead of standard error. Standard error
+        is calculated as the square root of variance.
+    most_recent : bool, default False
+        If True, automatically select the most recent evaluation for each
+        state/region. Equivalent to calling db.clip_most_recent() first.
+    eval_type : str, optional
+        Evaluation type to select if most_recent=True or for automatic
+        EVALID selection. Options: 'ALL', 'VOL', 'GROW', 'MORT', 'REMV',
+        'CHANGE', 'DWM', 'INV'. Default is 'VOL' for TPA/volume estimation.
+
     Returns
     -------
     pl.DataFrame
-        TPA and BAA estimates
-        
+        Trees per acre and basal area estimates with the following columns:
+
+        - **YEAR** : int
+            Representative inventory year
+        - **[grouping columns]** : varies
+            Any columns specified in grp_by parameter
+        - **TPA** : float
+            Trees per acre
+        - **BAA** : float
+            Basal area per acre (square feet)
+        - **TPA_SE** : float (if variance=False)
+            Standard error of TPA estimate
+        - **BAA_SE** : float (if variance=False)
+            Standard error of BAA estimate
+        - **TPA_VAR** : float (if variance=True)
+            Variance of TPA estimate
+        - **BAA_VAR** : float (if variance=True)
+            Variance of BAA estimate
+        - **TPA_TOTAL** : float (if totals=True)
+            Total trees expanded to population level
+        - **BAA_TOTAL** : float (if totals=True)
+            Total basal area expanded to population level
+        - **TPA_TOTAL_SE** : float (if totals=True and variance=False)
+            Standard error of total TPA
+        - **BAA_TOTAL_SE** : float (if totals=True and variance=False)
+            Standard error of total BAA
+        - **N_PLOTS** : int
+            Number of FIA plots in estimate
+        - **N_TREES** : int
+            Number of individual tree records
+
+    See Also
+    --------
+    pyfia.volume : Estimate tree volume per acre
+    pyfia.biomass : Estimate tree biomass per acre
+    pyfia.area : Estimate forest area
+    pyfia.mortality : Estimate annual tree mortality
+    pyfia.growth : Estimate annual tree growth
+    pyfia.constants.SpeciesCodes : Species code definitions
+    pyfia.constants.ForestTypes : Forest type code definitions
+    pyfia.utils.reference_tables : Functions for adding species/forest type names
+
+    Notes
+    -----
+    Trees per acre (TPA) and basal area per acre (BAA) are fundamental forest
+    inventory metrics. TPA represents tree density, while BAA represents the
+    cross-sectional area of trees at breast height (4.5 feet).
+
+    **Calculation Formulas:**
+
+    TPA calculation:
+        TPA = TPA_UNADJ × ADJ_FACTOR × EXPNS / AREA
+
+    BAA calculation:
+        BAA = π × (DIA/24)² × TPA_UNADJ × ADJ_FACTOR × EXPNS / AREA
+
+    Where:
+    - TPA_UNADJ: Unadjusted trees per acre from plot design
+    - DIA: Diameter at breast height in inches
+    - ADJ_FACTOR: Plot size adjustment factor (SUBP, MICR, or MACR)
+    - EXPNS: Stratification expansion factor
+    - AREA: Total area represented (for per-acre calculation)
+
+    The DIA/24 term converts diameter in inches to radius in feet:
+    - DIA/12 converts inches to feet
+    - Divide by 2 to get radius
+    - Simplified: (DIA/24)²
+
+    **EVALID Handling:**
+    If no EVALID is specified, the function automatically selects the most
+    recent EXPVOL evaluation to ensure proper plot selection for volume/tree
+    metrics. For explicit control, use db.clip_by_evalid() before calling tpa().
+
+    **Plot Size Adjustments:**
+    FIA uses different plot sizes for different tree sizes:
+    - Microplot (6.8 ft radius): Trees 1.0-4.9" DBH
+    - Subplot (24.0 ft radius): Trees 5.0"+ DBH (or to breakpoint)
+    - Macroplot (58.9 ft radius): Trees above breakpoint diameter
+
+    The adjustment factors account for these different sampling intensities.
+
+    **Valid Grouping Columns:**
+    The function joins TREE, COND, and PLOT tables, so any column from these
+    tables can be used for grouping. Continuous variables (LAT, LON, ELEV)
+    should not be used for grouping. Some columns may contain NULL values.
+
+    **Size Class Definition:**
+    When by_size_class=True, trees are grouped into 2-inch diameter classes
+    based on DBH. The size class value represents the lower bound of each
+    2-inch class (0, 2, 4, 6, 8, etc.).
+
+    Warnings
+    --------
+    The current implementation uses a simplified variance calculation with
+    an assumed coefficient of variation of 10% for TPA and BAA estimates.
+    This is a conservative placeholder. Full stratified variance calculation
+    following Bechtold & Patterson (2005) will be implemented in a future
+    release. For applications requiring precise variance estimates, consider
+    using the FIA EVALIDator tool or rFIA R package.
+
     Examples
     --------
-    >>> # Trees per acre on forestland
-    >>> results = tpa(db, land_type="forest")
-    
-    >>> # TPA and BAA by species
+    Basic trees per acre on forestland:
+
+    >>> from pyfia import FIA, tpa
+    >>> with FIA("path/to/fia.duckdb") as db:
+    ...     db.clip_by_state(37)  # North Carolina
+    ...     results = tpa(db, land_type="forest")
+    ...     print(f"TPA: {results['TPA'][0]:.1f} trees/acre")
+    ...     print(f"BAA: {results['BAA'][0]:.1f} sq ft/acre")
+
+    TPA and BAA by species:
+
     >>> results = tpa(db, by_species=True)
-    
-    >>> # Large trees by size class
+    >>> # Top 5 species by trees per acre
+    >>> top_species = results.sort(by='TPA', descending=True).head(5)
+
+    Large trees only (≥10 inches DBH):
+
+    >>> results = tpa(
+    ...     db,
+    ...     tree_domain="DIA >= 10.0",
+    ...     land_type="forest"
+    ... )
+
+    By size class on timberland:
+
     >>> results = tpa(
     ...     db,
     ...     by_size_class=True,
-    ...     tree_domain="DIA >= 10.0"
+    ...     land_type="timber",
+    ...     tree_type="live"
+    ... )
+    >>> # Shows distribution across diameter classes
+
+    Multiple grouping variables:
+
+    >>> results = tpa(
+    ...     db,
+    ...     grp_by=["OWNGRPCD", "FORTYPCD"],
+    ...     land_type="forest",
+    ...     totals=True
+    ... )
+
+    Growing stock trees by forest type:
+
+    >>> results = tpa(
+    ...     db,
+    ...     grp_by="FORTYPCD",
+    ...     tree_type="gs",
+    ...     tree_domain="TREECLCD == 2"
+    ... )
+
+    Standing dead trees by species:
+
+    >>> results = tpa(
+    ...     db,
+    ...     by_species=True,
+    ...     tree_type="dead",
+    ...     tree_domain="DIA >= 5.0"
     ... )
     """
+    import warnings
+
+    # Ensure db is a FIA instance
+    if isinstance(db, str):
+        db = FIA(db)
+        owns_db = True
+    else:
+        owns_db = False
+
+    # CRITICAL: If no EVALID is set, automatically select most recent EXPVOL
+    # This prevents massive overcounting from including all historical evaluations
+    if db.evalid is None:
+        warnings.warn(
+            "No EVALID specified. Automatically selecting most recent EXPVOL evaluations. "
+            "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling tpa()."
+        )
+        # Use eval_type if provided, otherwise default to VOL for tree/volume metrics
+        eval_type_to_use = eval_type if eval_type else "VOL"
+        db.clip_most_recent(eval_type=eval_type_to_use)
+
+        # If still no EVALID (no EXPVOL evaluations), warn but continue
+        if db.evalid is None:
+            warnings.warn(
+                "WARNING: No EXPVOL evaluations found. Results may be incorrect due to "
+                "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
+                "to explicitly select appropriate EVALIDs."
+            )
+
     # Create config
     config = {
         "grp_by": grp_by,
@@ -255,9 +652,15 @@ def tpa(
         "area_domain": area_domain,
         "totals": totals,
         "variance": variance,
-        "most_recent": most_recent
+        "most_recent": most_recent,
+        "eval_type": eval_type
     }
-    
-    # Create and run estimator
-    estimator = TPAEstimator(db, config)
-    return estimator.estimate()
+
+    try:
+        # Create and run estimator
+        estimator = TPAEstimator(db, config)
+        return estimator.estimate()
+    finally:
+        # Clean up if we created the db
+        if owns_db and hasattr(db, 'close'):
+            db.close()

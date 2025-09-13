@@ -391,6 +391,7 @@ def mortality(
     
     Uses TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables to calculate
     annual mortality following FIA's Growth-Removal-Mortality approach.
+    This is the correct FIA statistical methodology for mortality estimation.
     
     Parameters
     ----------
@@ -468,6 +469,13 @@ def mortality(
     - 1: Subplot adjustment (ADJ_FACTOR_SUBP)
     - 2: Microplot adjustment (ADJ_FACTOR_MICR)
     - 3: Macroplot adjustment (ADJ_FACTOR_MACR)
+    
+    .. warning::
+        The current implementation uses a simplified variance calculation
+        (20% CV placeholder). Full stratified variance calculation following
+        Bechtold & Patterson (2005) will be implemented in a future release.
+        For applications requiring precise variance estimates, consider
+        using the FIA EVALIDator tool or rFIA package
     """
     # Create configuration
     config = {

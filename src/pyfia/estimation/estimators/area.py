@@ -4,7 +4,6 @@ Area estimation for FIA data.
 Simple, straightforward implementation without unnecessary abstractions.
 """
 
-import re
 from typing import Dict, List, Optional, Union
 
 import polars as pl
@@ -30,61 +29,43 @@ class AreaEstimator(BaseEstimator):
         return ["COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
     
     def get_cond_columns(self) -> List[str]:
-        """Get required condition columns based on actual usage."""
+        """Get required COND columns based on configuration."""
         # Core columns always needed for area calculation
-        core_cols = [
+        required = {
             "PLT_CN", "CONDID", "COND_STATUS_CD", 
             "CONDPROP_UNADJ", "PROP_BASIS"
-        ]
+        }
         
-        # Additional columns needed based on land_type filter
-        filter_cols = set()
+        # Add columns for land_type filtering
         land_type = self.config.get("land_type", "forest")
         if land_type == "timber":
-            filter_cols.update(["SITECLCD", "RESERVCD"])
+            required.update(["SITECLCD", "RESERVCD"])
         
-        # Add columns needed for area_domain filtering
-        area_domain = self.config.get("area_domain")
-        if area_domain:
-            # Parse domain string to extract column names
-            # Simple extraction - could be enhanced with proper parser
-            import re
-            # Exclude SQL keywords and operators
-            sql_keywords = {'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'BETWEEN', 'LIKE', 'AS'}
-            col_pattern = r'\b([A-Z][A-Z0-9_]*)\b'
-            potential_cols = re.findall(col_pattern, area_domain.upper())
-            # Filter to valid COND columns (simplified check)
-            for col in potential_cols:
-                if col not in sql_keywords and col not in core_cols and len(col) > 2:
-                    filter_cols.add(col)
-        
-        # Add grouping columns if specified
-        grouping_cols = set()
+        # Add group-by columns (these are actual column names from FIA schema)
         grp_by = self.config.get("grp_by")
         if grp_by:
             if isinstance(grp_by, str):
-                grouping_cols.add(grp_by)
+                required.add(grp_by)
             else:
-                grouping_cols.update(grp_by)
+                required.update(grp_by)
         
-        # Combine all needed columns
-        all_cols = core_cols + list(filter_cols) + list(grouping_cols)
+        # For area_domain, if present, load all COND columns to ensure
+        # the domain parser has access to any column it might need
+        # This is simpler than trying to parse the expression
+        if self.config.get("area_domain"):
+            return None  # Signal to load all columns
         
-        # Remove duplicates while preserving order
-        seen = set()
-        result = []
-        for col in all_cols:
-            if col not in seen:
-                seen.add(col)
-                result.append(col)
-        
-        return result
+        return list(required)
     
     def load_data(self) -> pl.LazyFrame:
         """Load condition and plot data with lazy column selection."""
         # Get only the columns we actually need
         cond_cols_needed = self.get_cond_columns()
         plot_cols_needed = self._get_plot_columns()
+        
+        # If cond_cols_needed is None, load all columns
+        if cond_cols_needed is None:
+            cond_cols_needed = None  # Pass None to load all
         
         # Load COND table with only needed columns
         if "COND" not in self.db.tables:
@@ -197,26 +178,10 @@ class AreaEstimator(BaseEstimator):
         return core_cols + list(plot_group_cols)
     
     def _get_available_columns(self, table_name: str) -> List[str]:
-        """Get list of available columns in a table without loading it."""
-        try:
-            # Query the database schema to get column names
-            if hasattr(self.db._reader, 'conn'):
-                conn = self.db._reader.conn
-                if self.db._reader.backend == "duckdb":
-                    # Use DESCRIBE for DuckDB
-                    query = f"DESCRIBE {table_name}"
-                    result = conn.execute(query).fetchall()
-                    return [row[0] for row in result]
-                elif self.db._reader.backend == "sqlite":
-                    query = f"PRAGMA table_info({table_name})"
-                    result = conn.execute(query).fetchall()
-                    return [row[1] for row in result]
-        except Exception:
-            pass
-        
-        # Fallback: return None to signal we should load all columns
-        # The db.load_table with columns=None will handle loading all available columns
-        return None
+        """Get list of available columns using cached schema."""
+        # Use the cached schema from FIA class
+        columns = self.db.get_table_columns(table_name)
+        return columns if columns else None
     
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -234,31 +199,26 @@ class AreaEstimator(BaseEstimator):
     
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Apply land type and domain filters."""
-        # Collect for filtering
-        data_df = data.collect()
-        
         # Apply land type filter
         land_type = self.config.get("land_type", "forest")
         if land_type == "forest":
-            data_df = data_df.filter(pl.col("COND_STATUS_CD") == 1)
+            data = data.filter(pl.col("COND_STATUS_CD") == 1)
         elif land_type == "timber":
-            data_df = data_df.filter(
+            data = data.filter(
                 (pl.col("COND_STATUS_CD") == 1) &
                 (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6])) &
                 (pl.col("RESERVCD") == 0)
             )
         # "all" means no filter
         
-        # Apply area domain filter
-        if self.config.get("area_domain"):
-            # This would use the domain parser from utils
-            # For now, simplified example:
-            domain_str = self.config["area_domain"]
-            if "STDAGE > " in domain_str:
-                age_threshold = int(domain_str.split(">")[1].strip())
-                data_df = data_df.filter(pl.col("STDAGE") > age_threshold)
+        # Apply area domain filter using the proper parser
+        area_domain = self.config.get("area_domain")
+        if area_domain:
+            from ...filtering.core.parser import DomainExpressionParser
+            expr = DomainExpressionParser.parse(area_domain, "area")
+            data = data.filter(expr)
         
-        return data_df.lazy()
+        return data
     
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate area with stratification."""

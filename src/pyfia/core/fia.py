@@ -46,6 +46,7 @@ class FIA:
         self.evalid: Optional[List[int]] = None
         self.most_recent: bool = False
         self.state_filter: Optional[List[int]] = None  # Add state filter
+        self._schema_cache: Dict[str, List[str]] = {}  # Cache table schemas
         # Connection managed by FIADataReader
         self._reader = FIADataReader(db_path, engine=engine)
 
@@ -60,6 +61,27 @@ class FIA:
         pass
 
     # Connection management moved to FIADataReader with backend support
+    
+    def get_table_columns(self, table_name: str) -> List[str]:
+        """
+        Get column names for a table with caching.
+        
+        Args:
+            table_name: Name of the FIA table
+            
+        Returns:
+            List of column names
+        """
+        if table_name not in self._schema_cache:
+            try:
+                schema = self._reader.get_table_schema(table_name)
+                self._schema_cache[table_name] = list(schema.keys())
+            except Exception as e:
+                # Log warning and return empty list
+                import warnings
+                warnings.warn(f"Could not get schema for {table_name}: {e}")
+                return []
+        return self._schema_cache[table_name]
 
     def load_table(
         self, table_name: str, columns: Optional[List[str]] = None
@@ -91,6 +113,10 @@ class FIA:
 
         # Store as lazy frame
         self.tables[table_name] = df
+        
+        # Clear schema cache for this table if reloading
+        if table_name in self._schema_cache:
+            del self._schema_cache[table_name]
 
         return self.tables[table_name]
 

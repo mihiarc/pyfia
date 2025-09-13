@@ -99,139 +99,73 @@ class TestColumnSelection:
 class TestDomainParsing:
     """Test domain expression parsing for column extraction."""
     
-    def test_simple_domain_parsing(self):
-        """Test parsing simple domain expressions."""
+    def test_no_domain_parsing_needed(self):
+        """Test that we don't parse domain expressions at all."""
         db = Mock(spec=FIA)
+        
+        # Test 1: Simple domain
         config = {
             "land_type": "forest",
             "area_domain": "STDAGE > 50"
         }
         estimator = AreaEstimator(db, config)
-        
         cond_cols = estimator.get_cond_columns()
-        assert "STDAGE" in cond_cols
-    
-    def test_complex_domain_parsing(self):
-        """Test parsing complex domain expressions."""
-        db = Mock(spec=FIA)
+        assert len(cond_cols) == 5  # Only core columns
+        assert "STDAGE" not in cond_cols  # We don't extract from domain
+        
+        # Test 2: Complex domain
         config = {
             "land_type": "forest",
             "area_domain": "STDAGE > 50 AND FORTYPCD IN (161, 162) AND OWNGRPCD == 40"
         }
         estimator = AreaEstimator(db, config)
-        
         cond_cols = estimator.get_cond_columns()
-        assert "STDAGE" in cond_cols
-        assert "FORTYPCD" in cond_cols
-        assert "OWNGRPCD" in cond_cols
-    
-    def test_domain_parsing_excludes_keywords(self):
-        """Test that SQL keywords are excluded from column extraction."""
-        db = Mock(spec=FIA)
+        assert len(cond_cols) == 5  # Only core columns
+        assert "STDAGE" not in cond_cols
+        assert "FORTYPCD" not in cond_cols
+        assert "OWNGRPCD" not in cond_cols
+        
+        # Test 3: Domain with SQL keywords - we don't care, we don't parse
         config = {
             "land_type": "forest",
             "area_domain": "STDAGE > 50 AND FORTYPCD NOT IN (161, 162) OR OWNGRPCD IS NULL"
         }
         estimator = AreaEstimator(db, config)
-        
         cond_cols = estimator.get_cond_columns()
-        
-        # Should include column names
-        assert "STDAGE" in cond_cols
-        assert "FORTYPCD" in cond_cols
-        assert "OWNGRPCD" in cond_cols
-        
-        # Should exclude SQL keywords
-        assert "AND" not in cond_cols
-        assert "NOT" not in cond_cols
-        assert "OR" not in cond_cols
-        assert "IN" not in cond_cols
-        assert "IS" not in cond_cols
-        assert "NULL" not in cond_cols
+        assert len(cond_cols) == 5  # Only core columns
     
-    def test_domain_parsing_with_string_literals(self):
-        """Test that string literals aren't parsed as columns."""
-        db = Mock(spec=FIA)
-        # This test exposes the fragility of regex parsing
-        config = {
-            "land_type": "forest",
-            "area_domain": "FORTYPCD IN ('OAK', 'PINE', 'MAPLE')"
-        }
-        estimator = AreaEstimator(db, config)
-        
-        cond_cols = estimator.get_cond_columns()
-        
-        assert "FORTYPCD" in cond_cols
-        # Current implementation INCORRECTLY includes these
-        # This test documents the bug
-        assert "OAK" in cond_cols  # BUG: Should not be included
-        assert "PINE" in cond_cols  # BUG: Should not be included
-        assert "MAPLE" in cond_cols  # BUG: Should not be included
 
 
 class TestSchemaDiscovery:
     """Test database schema discovery functionality."""
     
-    @patch('duckdb.connect')
-    def test_duckdb_schema_discovery(self, mock_connect):
-        """Test schema discovery for DuckDB backend."""
-        # Setup mock connection
-        mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
-        mock_conn.execute.return_value.fetchall.return_value = [
-            ('PLT_CN',), ('CONDID',), ('COND_STATUS_CD',),
-            ('CONDPROP_UNADJ',), ('PROP_BASIS',), ('OWNGRPCD',)
-        ]
-        
+    def test_schema_discovery_using_cached_method(self):
+        """Test that schema discovery uses the FIA cached method."""
         db = Mock(spec=FIA)
-        db._reader = Mock()
-        db._reader.backend = "duckdb"
-        db._reader.conn = mock_conn
+        db.get_table_columns = Mock(return_value=[
+            'PLT_CN', 'CONDID', 'COND_STATUS_CD',
+            'CONDPROP_UNADJ', 'PROP_BASIS', 'OWNGRPCD'
+        ])
         
         estimator = AreaEstimator(db, {})
         columns = estimator._get_available_columns("COND")
         
+        # Should have called the FIA method
+        db.get_table_columns.assert_called_with("COND")
         assert columns == [
             'PLT_CN', 'CONDID', 'COND_STATUS_CD',
             'CONDPROP_UNADJ', 'PROP_BASIS', 'OWNGRPCD'
         ]
-        mock_conn.execute.assert_called_with("DESCRIBE COND")
     
-    @patch('sqlite3.connect')
-    def test_sqlite_schema_discovery(self, mock_connect):
-        """Test schema discovery for SQLite backend."""
-        mock_conn = MagicMock()
-        mock_connect.return_value = mock_conn
-        # SQLite PRAGMA returns different format
-        mock_conn.execute.return_value.fetchall.return_value = [
-            (0, 'PLT_CN', 'INTEGER', 0, None, 1),
-            (1, 'CONDID', 'INTEGER', 0, None, 0),
-            (2, 'COND_STATUS_CD', 'INTEGER', 0, None, 0),
-        ]
-        
+    def test_schema_discovery_empty_fallback(self):
+        """Test fallback when no columns returned."""
         db = Mock(spec=FIA)
-        db._reader = Mock()
-        db._reader.backend = "sqlite"
-        db._reader.conn = mock_conn
+        db.get_table_columns = Mock(return_value=[])
         
         estimator = AreaEstimator(db, {})
         columns = estimator._get_available_columns("COND")
         
-        assert columns == ['PLT_CN', 'CONDID', 'COND_STATUS_CD']
-        mock_conn.execute.assert_called_with("PRAGMA table_info(COND)")
-    
-    def test_schema_discovery_failure_fallback(self):
-        """Test fallback behavior when schema discovery fails."""
-        db = Mock(spec=FIA)
-        db._reader = Mock()
-        db._reader.backend = "duckdb"
-        db._reader.conn = Mock()
-        db._reader.conn.execute.side_effect = Exception("Database error")
-        
-        estimator = AreaEstimator(db, {})
-        columns = estimator._get_available_columns("COND")
-        
-        # Should return None to signal fallback
+        # Should return None for empty list
         assert columns is None
 
 
@@ -245,6 +179,8 @@ class TestTableReloading:
         db._reader = Mock()
         db._reader.backend = "duckdb"
         db.load_table = Mock()
+        db.get_table_columns = Mock(return_value=["PLT_CN", "CONDID", "COND_STATUS_CD", 
+                                                    "CONDPROP_UNADJ", "PROP_BASIS"])
         
         # Create a mock LazyFrame with limited columns
         mock_df = Mock(spec=pl.LazyFrame)
@@ -254,12 +190,16 @@ class TestTableReloading:
         ]
         db.tables["COND"] = mock_df
         
+        # Create mock PLOT table
+        mock_plot = Mock(spec=pl.LazyFrame)
+        mock_plot.collect_schema.return_value.names.return_value = ["CN"]
+        db.tables["PLOT"] = mock_plot
+        
         config = {"grp_by": "OWNGRPCD"}  # Request column not in mock
         estimator = AreaEstimator(db, config)
         
-        # Mock _get_available_columns to return None (triggering reload)
-        with patch.object(estimator, '_get_available_columns', return_value=None):
-            estimator.load_data()
+        # Try to load data - should trigger reload due to missing OWNGRPCD
+        estimator.load_data()
         
         # Should have called load_table to reload with all columns
         db.load_table.assert_called()
@@ -339,11 +279,11 @@ class TestPerformance:
         estimator_minimal = AreaEstimator(db, config_minimal)
         cols_minimal = estimator_minimal.get_cond_columns()
         
-        # Test complex query
+        # Test complex query (no domain parsing needed)
         config_complex = {
-            "land_type": "timber",
-            "grp_by": ["FORTYPCD", "STDSZCD", "OWNGRPCD"],
-            "area_domain": "STDAGE > 50 AND BALIVE > 100"
+            "land_type": "timber",  # Adds 2 columns (SITECLCD, RESERVCD)
+            "grp_by": ["FORTYPCD", "STDSZCD", "OWNGRPCD"],  # Adds 3 columns
+            "area_domain": "STDAGE > 50 AND BALIVE > 100"  # Doesn't add columns
         }
         estimator_complex = AreaEstimator(db, config_complex)
         cols_complex = estimator_complex.get_cond_columns()
@@ -351,8 +291,8 @@ class TestPerformance:
         # Minimal should have 5 columns
         assert len(cols_minimal) == 5
         
-        # Complex should have more but still much less than 55
-        assert len(cols_complex) < 15
+        # Complex should have 10 columns (5 core + 2 timber + 3 groupby)
+        assert len(cols_complex) == 10
         assert len(cols_complex) > len(cols_minimal)
 
 
@@ -389,10 +329,9 @@ class TestErrorHandling:
         config = {"area_domain": "STDAGE >> << !! ##"}
         estimator = AreaEstimator(db, config)
         
-        # Current implementation will try to parse this
-        # Document current behavior (may extract STDAGE)
+        # We don't parse domain expressions anymore
         cond_cols = estimator.get_cond_columns()
-        assert "STDAGE" in cond_cols or len(cond_cols) == 5
+        assert len(cond_cols) == 5  # Just core columns
 
 
 class TestIntegration:

@@ -1,5 +1,5 @@
 site_name: PyFIA Documentation
-site_description: Python implementation of the R rFIA package for FIA data analysis
+site_description: High-performance Python library for Forest Inventory and Analysis (FIA) data
 site_author: PyFIA Contributors
 site_url: https://mihiarc.github.io/pyfia/
 

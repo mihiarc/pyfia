@@ -25,7 +25,7 @@ def apply_tree_filters(
     require_diameter_thresholds: bool = False,
 ) -> pl.DataFrame:
     """
-    Apply tree type and domain filters following rFIA methodology.
+    Apply tree type and domain filters following FIA methodology.
 
     This function provides consistent tree filtering across all estimation modules.
     It handles tree status filtering (live/dead/growing stock/all), applies optional

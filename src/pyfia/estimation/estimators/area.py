@@ -83,7 +83,7 @@ class AreaEstimator(BaseEstimator):
                 self.db.load_table("COND", columns=cond_cols_needed if cond_cols_needed else None)
         
         cond_df = self.db.tables.get("COND")
-        if cond_df is not None and cond_cols_needed:
+        if cond_df is not None and cond_cols_needed is not None:
             # Select only needed columns from already loaded table
             if isinstance(cond_df, pl.LazyFrame):
                 available_cols = cond_df.collect_schema().names()
@@ -100,6 +100,10 @@ class AreaEstimator(BaseEstimator):
                 cols_to_select = [col for col in cond_cols_needed if col in available_cols]
                 if cols_to_select:
                     cond_df = cond_df.select(cols_to_select)
+        elif cond_df is not None and cond_cols_needed is None:
+            # Need all columns - reload if not already loaded with all
+            self.db.load_table("COND", columns=None)
+            cond_df = self.db.tables["COND"]
         
         # Load PLOT table with only needed columns
         if "PLOT" not in self.db.tables:

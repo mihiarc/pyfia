@@ -396,65 +396,152 @@ def mortality(
     Parameters
     ----------
     db : Union[str, FIA]
-        Database connection or path to FIA database
-    grp_by : Optional[Union[str, List[str]]]
-        Columns to group by (e.g., "STATECD", "FORTYPCD")
-    by_species : bool
-        Group results by species code (SPCD)
-    by_size_class : bool
-        Group by diameter size classes
-    land_type : str
-        Land type: "forest" or "timber"
-    tree_type : str
-        Tree type: "gs" (growing stock), "al" (all live), or "sl" (sawtimber)
-    measure : str
-        What to measure: "volume", "biomass", or "count"
-    tree_domain : Optional[str]
-        SQL-like filter for trees (applied to TREE_GRM tables)
-    area_domain : Optional[str]
-        SQL-like filter for area (applied to COND table)
-    as_rate : bool
-        Return as mortality rate (requires additional live tree data)
-    totals : bool
-        Include population totals
-    variance : bool
-        Calculate and include variance/SE
-    most_recent : bool
-        Use most recent evaluation
+        Database connection or path to FIA database. Can be either a path
+        string to a DuckDB/SQLite file or an existing FIA connection object.
+    grp_by : str or list of str, optional
+        Column name(s) to group results by. Can be any column from the 
+        FIA tables used in the estimation (PLOT, COND, TREE_GRM_COMPONENT,
+        TREE_GRM_MIDPT). Common grouping columns include:
+        
+        - 'FORTYPCD': Forest type code
+        - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
+          30=State/Local, 40=Private)
+        - 'STATECD': State FIPS code
+        - 'COUNTYCD': County code  
+        - 'UNITCD': FIA survey unit
+        - 'INVYR': Inventory year
+        - 'STDAGE': Stand age class
+        - 'SITECLCD': Site productivity class
+        - 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3': Disturbance codes (from COND)
+        
+        For complete column descriptions, see USDA FIA Database User Guide.
+    by_species : bool, default False
+        If True, group results by species code (SPCD). This is a convenience
+        parameter equivalent to adding 'SPCD' to grp_by.
+    by_size_class : bool, default False
+        If True, group results by diameter size classes. Size classes are
+        defined as: 1.0-4.9", 5.0-9.9", 10.0-19.9", 20.0-29.9", 30.0+".
+    land_type : {'forest', 'timber'}, default 'forest'
+        Land type to include in estimation:
+        
+        - 'forest': All forestland
+        - 'timber': Productive timberland only (unreserved, productive)
+    tree_type : {'gs', 'al', 'sl'}, default 'gs'
+        Tree type to include:
+        
+        - 'gs': Growing stock trees (live, merchantable)
+        - 'al': All live trees
+        - 'sl': Sawtimber trees
+    measure : {'volume', 'biomass', 'count'}, default 'volume'
+        What to measure in the mortality estimation:
+        
+        - 'volume': Net cubic foot volume
+        - 'biomass': Total aboveground biomass in tons
+        - 'count': Number of trees per acre
+    tree_domain : str, optional
+        SQL-like filter expression for tree-level filtering. Applied to
+        TREE_GRM tables. Example: "DIA_MIDPT >= 10.0 AND SPCD == 131".
+    area_domain : str, optional
+        SQL-like filter expression for area/condition-level filtering.
+        Applied to COND table. Example: "OWNGRPCD == 40 AND FORTYPCD == 161".
+    as_rate : bool, default False
+        If True, return mortality as a rate (mortality/live). Note: This
+        requires additional live tree data and is not fully implemented.
+    totals : bool, default True
+        If True, include population-level total estimates in addition to
+        per-acre values.
+    variance : bool, default False
+        If True, calculate and include variance and standard error estimates.
+        Note: Currently uses simplified variance calculation (15% CV for
+        per-acre estimates, 20% CV for rates).
+    most_recent : bool, default False
+        If True, automatically filter to the most recent evaluation for
+        each state in the database.
         
     Returns
     -------
     pl.DataFrame
-        Mortality estimates with columns:
-        - MORT_ACRE: Annual mortality per acre
-        - MORT_TOTAL: Total annual mortality (if totals=True)
-        - MORT_ACRE_SE: Standard error of per-acre estimate (if variance=True)
-        - MORT_TOTAL_SE: Standard error of total (if variance=True)
-        - N_PLOTS: Number of plots
-        - N_DEAD_TREES: Number of mortality records
-        - Additional grouping columns if specified
+        Mortality estimates with the following columns:
+        
+        - **MORT_ACRE** : float
+            Annual mortality per acre in units specified by 'measure'
+        - **MORT_TOTAL** : float (if totals=True)
+            Total annual mortality expanded to population level
+        - **MORT_ACRE_SE** : float (if variance=True)
+            Standard error of per-acre mortality estimate
+        - **MORT_TOTAL_SE** : float (if variance=True and totals=True)
+            Standard error of total mortality estimate
+        - **AREA_TOTAL** : float
+            Total area (acres) represented by the estimation
+        - **N_PLOTS** : int
+            Number of FIA plots included in the estimation
+        - **N_DEAD_TREES** : int
+            Number of individual mortality records
+        - **YEAR** : int
+            Representative year for the estimation
+        - **MEASURE** : str
+            Type of measurement ('VOLUME', 'BIOMASS', or 'COUNT')
+        - **LAND_TYPE** : str
+            Land type used ('FOREST' or 'TIMBER')
+        - **TREE_TYPE** : str
+            Tree type used ('GS', 'AL', or 'SL')
+        - **[grouping columns]** : various
+            Any columns specified in grp_by or from by_species
+    
+    See Also
+    --------
+    growth : Estimate annual growth using GRM tables
+    removals : Estimate annual removals/harvest using GRM tables
+    tpa : Estimate trees per acre (current inventory)
+    volume : Estimate volume per acre (current inventory)
+    biomass : Estimate biomass per acre (current inventory)
+    pyfia.constants.OwnershipGroup : Ownership group code definitions
+    pyfia.constants.TreeStatus : Tree status code definitions
+    pyfia.utils.reference_tables : Functions for adding species/forest type names
         
     Examples
     --------
-    >>> # Basic volume mortality on forestland
+    Basic volume mortality on forestland:
+    
     >>> results = mortality(db, measure="volume", land_type="forest")
+    >>> if not results.is_empty():
+    ...     print(f"Annual mortality: {results['MORT_ACRE'][0]:.1f} cu ft/acre")
+    ... else:
+    ...     print("No mortality data available")
     
-    >>> # Mortality by species (tree count)
+    Mortality by species (tree count):
+    
     >>> results = mortality(db, by_species=True, measure="count")
+    >>> # Sort by mortality to find most affected species
+    >>> if not results.is_empty():
+    ...     top_species = results.sort(by='MORT_ACRE', descending=True).head(5)
     
-    >>> # Biomass mortality on timberland
+    Biomass mortality on timberland by ownership:
+    
     >>> results = mortality(
     ...     db,
+    ...     grp_by="OWNGRPCD",
     ...     land_type="timber",
     ...     measure="biomass",
     ...     tree_type="gs"
     ... )
     
-    >>> # Mortality by forest type with variance
+    Mortality by multiple grouping variables:
+    
     >>> results = mortality(
     ...     db,
-    ...     grp_by="FORTYPCD",
-    ...     variance=True
+    ...     grp_by=["STATECD", "FORTYPCD"],
+    ...     variance=True,
+    ...     tree_domain="DIA_MIDPT >= 10.0"
+    ... )
+    
+    Complex filtering with domain expressions:
+    
+    >>> # Large tree mortality only
+    >>> results = mortality(
+    ...     db,
+    ...     tree_domain="DIA_MIDPT >= 20.0",
+    ...     by_species=True
     ... )
     
     Notes
@@ -464,18 +551,50 @@ def mortality(
     fields are already annualized, so no remeasurement period adjustment
     is needed.
     
+    **Important:** Mortality agent codes (AGENTCD) are stored in the regular
+    TREE table, not the GRM tables. Since mortality() uses TREE_GRM_COMPONENT
+    and TREE_GRM_MIDPT tables, AGENTCD is not available for grouping. To
+    analyze mortality by agent, you would need to join with the TREE table
+    or use disturbance codes (DSTRBCD1-3) from the COND table instead.
+    
     The adjustment factors are determined by the SUBPTYP_GRM field:
-    - 0: No adjustment
+    
+    - 0: No adjustment (trees not sampled)
     - 1: Subplot adjustment (ADJ_FACTOR_SUBP)
-    - 2: Microplot adjustment (ADJ_FACTOR_MICR)
+    - 2: Microplot adjustment (ADJ_FACTOR_MICR)  
     - 3: Macroplot adjustment (ADJ_FACTOR_MACR)
     
-    .. warning::
-        The current implementation uses a simplified variance calculation
-        (20% CV placeholder). Full stratified variance calculation following
-        Bechtold & Patterson (2005) will be implemented in a future release.
-        For applications requiring precise variance estimates, consider
-        using the FIA EVALIDator tool or rFIA package
+    Valid grouping columns depend on which tables are included in the
+    estimation query. The mortality() function joins TREE_GRM_COMPONENT,
+    TREE_GRM_MIDPT, COND, PLOT, and POP_* tables, so any column from
+    these tables can be used for grouping. For a complete list of
+    available columns and their meanings, refer to:
+    
+    - USDA FIA Database User Guide, Version 9.1
+    - pyFIA documentation: https://mihiarc.github.io/pyfia/
+    - FIA DataMart: https://apps.fs.usda.gov/fia/datamart/
+    
+    The function requires GRM tables to be present in the database.
+    These tables are included in FIA evaluations that support growth,
+    removal, and mortality estimation (typically EVALID types ending
+    in 01, 03, or specific GRM evaluations).
+    
+    Warnings
+    --------
+    The current implementation uses a simplified variance calculation
+    (15% CV for per-acre estimates, 20% CV for mortality rates). Full
+    stratified variance calculation following Bechtold & Patterson (2005)
+    will be implemented in a future release. For applications requiring
+    precise variance estimates, consider using the FIA EVALIDator tool
+    or rFIA package.
+    
+    Raises
+    ------
+    ValueError
+        If TREE_GRM_COMPONENT or TREE_GRM_MIDPT tables are not found
+        in the database, or if grp_by contains invalid column names.
+    KeyError
+        If specified columns in grp_by don't exist in the joined tables.
     """
     # Create configuration
     config = {

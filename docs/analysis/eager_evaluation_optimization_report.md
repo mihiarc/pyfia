@@ -27,7 +27,7 @@ pop_eu = self.db.tables["POP_ESTN_UNIT"].collect()  # ~1MB per state
 - `volume.py`: Lines 124-125, 485, 487
 - `tpa.py`: Lines 90, 98, 110
 - `mortality/calculator.py`: Lines 84, 150, 154
-- `statistics/fia_variance.py`: Lines 209, 212
+- `statistics/variance.py`: Lines 209, 212
 - `base.py`: Lines 657, 668
 
 **Impact:** For a 10-state analysis, this loads ~160-230MB unnecessarily into memory per estimation call.

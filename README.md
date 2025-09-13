@@ -126,9 +126,9 @@ If you use pyFIA in your research, please cite:
 ```bibtex
 @software{pyfia2024,
   title = {pyFIA: A Python Library for Forest Inventory Analysis},
-  author = {Your Name},
+  author = {Mihiar, Chris},
   year = {2024},
-  url = {https://github.com/yourusername/pyfia}
+  url = {https://github.com/mihiarc/pyfia}
 }
 ```
 
@@ -138,6 +138,6 @@ MIT License - see LICENSE file for details.
 
 ## Acknowledgments
 
-- Inspired by FIA analysis methodologies and best practices
 - Uses USDA Forest Service FIA data
 - Statistical methods from Bechtold & Patterson (2005) "The Enhanced Forest Inventory and Analysis Program"
+- Inspired by various FIA analysis tools and methodologies in the forestry community

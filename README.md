@@ -3,15 +3,15 @@
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://mihiarc.github.io/pyfia/)
 [![Deploy Documentation](https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml)
 
-A high-performance Python library implementing the R [rFIA](https://github.com/hunter-stanke/rFIA) package functionality for analyzing USDA Forest Inventory and Analysis (FIA) data.
+A high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data using modern data science tools.
 
 ## Overview
 
-pyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data, mirroring the functionality of the popular rFIA R package. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets while maintaining exact statistical compatibility with rFIA.
+pyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets with statistically valid estimation methods.
 
 ## Features
 
-### Core rFIA-Compatible Functions
+### Core Estimation Functions
 - ✅ **Trees per acre** (`tpa()`) - Live and dead tree abundance
 - ✅ **Biomass** (`biomass()`) - Above/belowground biomass and carbon  
 - ✅ **Volume** (`volume()`) - Merchantable volume (cubic feet, board feet)
@@ -53,25 +53,25 @@ from pyfia import FIA, biomass, tpa, volume, area
 # Load FIA data from DuckDB
 db = FIA("path/to/FIA_database.duckdb")
 
-# Get trees per acre - matches rFIA::tpa()
+# Get trees per acre
 tpa_results = tpa(db, method='TI')
 
-# Get biomass estimates - matches rFIA::biomass()
+# Get biomass estimates
 biomass_results = biomass(db, method='TI', component='AG')
 
-# Get forest area - matches rFIA::area()
+# Get forest area
 area_results = area(db, method='TI')
 
-# Get volume estimates - matches rFIA::volume()
+# Get volume estimates
 volume_results = volume(db, method='TI')
 ```
 
-## rFIA Compatibility
+## Domain Filtering and Grouping
 
-pyFIA is designed as a drop-in Python replacement for rFIA with identical statistical outputs:
+pyFIA supports flexible domain filtering and grouping for FIA data analysis:
 
 ```python
-# rFIA style filtering
+# Tree-level filtering
 tpa_live = tpa(db, treeDomain="STATUSCD == 1", method='TI')
 
 # Group by species
@@ -114,10 +114,10 @@ Full documentation available at [https://mihiarc.github.io/pyfia/](https://mihia
 
 ## Performance
 
-Benchmarks show pyFIA matches or exceeds rFIA performance:
-- **10-100x faster** for large-scale queries using DuckDB
-- **2-5x faster** for in-memory operations using Polars
-- **Exact statistical accuracy** compared to rFIA
+pyFIA achieves excellent performance through modern database technologies:
+- **10-100x faster** for large-scale queries using DuckDB columnar storage
+- **2-5x faster** for in-memory operations using Polars DataFrames
+- **Statistically valid** estimates following FIA methodology
 
 ## Citation
 
@@ -125,10 +125,10 @@ If you use pyFIA in your research, please cite:
 
 ```bibtex
 @software{pyfia2024,
-  title = {pyFIA: A Python Implementation of rFIA},
-  author = {Your Name},
+  title = {pyFIA: A Python Library for Forest Inventory Analysis},
+  author = {Mihiar, Chris},
   year = {2024},
-  url = {https://github.com/yourusername/pyfia}
+  url = {https://github.com/mihiarc/pyfia}
 }
 ```
 
@@ -138,6 +138,6 @@ MIT License - see LICENSE file for details.
 
 ## Acknowledgments
 
-- Based on the excellent [rFIA](https://github.com/hunter-stanke/rFIA) R package by Hunter Stanke
 - Uses USDA Forest Service FIA data
 - Statistical methods from Bechtold & Patterson (2005) "The Enhanced Forest Inventory and Analysis Program"
+- Inspired by various FIA analysis tools and methodologies in the forestry community

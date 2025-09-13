@@ -4,7 +4,7 @@
 
 pyFIA is a Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides:
 - **Statistical estimation functions** for forest metrics (area, volume, biomass, etc.)
-- **rFIA-compatible API** for seamless migration from R
+- **FIA-standard API** following official FIA methodology
 - **High performance** using DuckDB and Polars
 - **Proper FIA methodology** with EVALID-based statistical validity
 
@@ -113,10 +113,10 @@ sequenceDiagram
 - **Polars** for efficient data manipulation
 - Lazy evaluation where possible
 
-### 3. rFIA Compatibility
-- **Function signatures** match rFIA where possible
-- **Parameter names** follow rFIA conventions
-- **Statistical outputs** identical to rFIA
+### 3. FIA Standards Compliance
+- **Function signatures** follow FIA methodology
+- **Parameter names** use FIA standard conventions
+- **Statistical outputs** match FIA standards
 
 ### 4. Modular Design
 - Estimation functions are independent
@@ -157,11 +157,11 @@ FIA uses post-stratified estimation:
 3. Estimates calculated by stratum
 4. Combined for population totals
 
-### rFIA Compatibility
-pyFIA maintains compatibility with the R rFIA package:
-- Same function names and parameters
-- Identical statistical methodology
-- Matching output structures
-- Easy migration path
+### FIA Methodology
+pyFIA follows official FIA methodology:
+- Standard FIA estimation procedures
+- Official statistical methodology
+- FIA-compliant output structures
+- Proper expansion factors and variance calculation
 
-This architecture provides a solid foundation for forest inventory analysis while maintaining full compatibility with existing rFIA workflows.
+This architecture provides a solid foundation for forest inventory analysis following official FIA statistical standards and methodology.

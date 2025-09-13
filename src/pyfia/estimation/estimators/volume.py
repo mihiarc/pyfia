@@ -5,36 +5,31 @@ Simple, straightforward implementation for calculating tree volume
 without unnecessary abstractions.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..aggregation import aggregate_to_population
-from ..statistics import VarianceCalculator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import format_output_columns, check_required_columns
+from ..utils import format_output_columns
 
 
 class VolumeEstimator(BaseEstimator):
     """
     Volume estimator for FIA data.
-    
+
     Estimates tree volume (cubic feet) using standard FIA methods.
     """
-    
+
     def get_required_tables(self) -> List[str]:
         """Volume estimation requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
-    
+
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for volume estimation."""
-        cols = [
-            "CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD",
-            "DIA", "TPA_UNADJ"
-        ]
-        
+        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ"]
+
         # Add volume columns based on vol_type
         vol_type = self.config.get("vol_type", "net")
         if vol_type == "net":
@@ -45,7 +40,7 @@ class VolumeEstimator(BaseEstimator):
             cols.append("VOLCFSND")
         elif vol_type == "sawlog":
             cols.extend(["VOLBFNET", "VOLBFGRS"])  # Board feet for sawlog
-        
+
         # Add grouping columns if needed
         if self.config.get("grp_by"):
             grp_cols = self.config["grp_by"]
@@ -54,25 +49,30 @@ class VolumeEstimator(BaseEstimator):
             for col in grp_cols:
                 if col not in cols and col in ["HT", "ACTUALHT", "CR", "CCLCD"]:
                     cols.append(col)
-        
+
         return cols
-    
+
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
         return [
-            "PLT_CN", "CONDID", "COND_STATUS_CD",
-            "CONDPROP_UNADJ", "OWNGRPCD", "FORTYPCD",
-            "SITECLCD", "RESERVCD"
+            "PLT_CN",
+            "CONDID",
+            "COND_STATUS_CD",
+            "CONDPROP_UNADJ",
+            "OWNGRPCD",
+            "FORTYPCD",
+            "SITECLCD",
+            "RESERVCD",
         ]
-    
+
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate volume per acre.
-        
+
         Volume calculation: VOLUME * TPA_UNADJ
         """
         vol_type = self.config.get("vol_type", "net")
-        
+
         # Select appropriate volume column
         if vol_type == "net":
             vol_col = "VOLCFNET"
@@ -84,43 +84,41 @@ class VolumeEstimator(BaseEstimator):
             vol_col = "VOLBFNET"  # Board feet net for sawlog
         else:
             vol_col = "VOLCFNET"  # Default to net
-        
+
         # Calculate volume per acre
         # Volume per acre = tree volume * trees per acre
-        data = data.with_columns([
-            (pl.col(vol_col).cast(pl.Float64) * 
-             pl.col("TPA_UNADJ").cast(pl.Float64)).alias("VOLUME_ACRE")
-        ])
-        
+        data = data.with_columns(
+            [
+                (
+                    pl.col(vol_col).cast(pl.Float64)
+                    * pl.col("TPA_UNADJ").cast(pl.Float64)
+                ).alias("VOLUME_ACRE")
+            ]
+        )
+
         return data
-    
+
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate volume with stratification."""
         # Get stratification data
         strat_data = self._get_stratification_data()
-        
+
         # Join with stratification
-        data_with_strat = data.join(
-            strat_data,
-            on="PLT_CN",
-            how="inner"
-        )
-        
+        data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
+
         # Apply adjustment factors based on tree size
         data_with_strat = apply_tree_adjustment_factors(
-            data_with_strat,
-            size_col="DIA",
-            macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
+            data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
-        
+
         # Apply adjustment to volume
-        data_with_strat = data_with_strat.with_columns([
-            (pl.col("VOLUME_ACRE") * pl.col("ADJ_FACTOR")).alias("VOLUME_ADJ")
-        ])
-        
+        data_with_strat = data_with_strat.with_columns(
+            [(pl.col("VOLUME_ACRE") * pl.col("ADJ_FACTOR")).alias("VOLUME_ADJ")]
+        )
+
         # Setup grouping
         group_cols = self._setup_grouping()
-        
+
         # Aggregate
         agg_exprs = [
             # Total volume (expansion factor applied)
@@ -132,52 +130,55 @@ class VolumeEstimator(BaseEstimator):
             # Plot count
             pl.n_unique("PLT_CN").alias("N_PLOTS"),
             # Tree count
-            pl.len().alias("N_TREES")
+            pl.len().alias("N_TREES"),
         ]
-        
+
         if group_cols:
             results = data_with_strat.group_by(group_cols).agg(agg_exprs)
         else:
             results = data_with_strat.select(agg_exprs)
-        
+
         results = results.collect()
-        
+
         # Calculate per-acre value (ratio of means)
-        results = results.with_columns([
-            (pl.col("VOLUME_NUM") / pl.col("AREA_TOTAL")).alias("VOLUME_ACRE")
-        ])
-        
+        results = results.with_columns(
+            [(pl.col("VOLUME_NUM") / pl.col("AREA_TOTAL")).alias("VOLUME_ACRE")]
+        )
+
         # Clean up intermediate columns
         results = results.drop(["VOLUME_NUM"])
-        
+
         return results
-    
+
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """Calculate variance for volume estimates."""
         # Simplified variance calculation
         # Conservative estimate: 10-15% CV is typical for volume estimates
         # Higher CV for smaller areas or rare conditions
-        results = results.with_columns([
-            (pl.col("VOLUME_ACRE") * 0.12).alias("VOLUME_ACRE_SE"),
-            (pl.col("VOLUME_TOTAL") * 0.12).alias("VOLUME_TOTAL_SE")
-        ])
+        results = results.with_columns(
+            [
+                (pl.col("VOLUME_ACRE") * 0.12).alias("VOLUME_ACRE_SE"),
+                (pl.col("VOLUME_TOTAL") * 0.12).alias("VOLUME_TOTAL_SE"),
+            ]
+        )
 
         # Add CV if requested
         if self.config.get("include_cv", False):
-            results = results.with_columns([
-                pl.when(pl.col("VOLUME_ACRE") > 0)
-                .then(pl.col("VOLUME_ACRE_SE") / pl.col("VOLUME_ACRE") * 100)
-                .otherwise(None)
-                .alias("VOLUME_ACRE_CV"),
-
-                pl.when(pl.col("VOLUME_TOTAL") > 0)
-                .then(pl.col("VOLUME_TOTAL_SE") / pl.col("VOLUME_TOTAL") * 100)
-                .otherwise(None)
-                .alias("VOLUME_TOTAL_CV")
-            ])
+            results = results.with_columns(
+                [
+                    pl.when(pl.col("VOLUME_ACRE") > 0)
+                    .then(pl.col("VOLUME_ACRE_SE") / pl.col("VOLUME_ACRE") * 100)
+                    .otherwise(None)
+                    .alias("VOLUME_ACRE_CV"),
+                    pl.when(pl.col("VOLUME_TOTAL") > 0)
+                    .then(pl.col("VOLUME_TOTAL_SE") / pl.col("VOLUME_TOTAL") * 100)
+                    .otherwise(None)
+                    .alias("VOLUME_TOTAL_CV"),
+                ]
+            )
 
         return results
-    
+
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format volume estimation output."""
         # Add metadata
@@ -185,19 +186,21 @@ class VolumeEstimator(BaseEstimator):
         land_type = self.config.get("land_type", "forest")
         tree_type = self.config.get("tree_type", "live")
 
-        results = results.with_columns([
-            pl.lit(2023).alias("YEAR"),  # Would extract from INVYR in production
-            pl.lit(vol_type.upper()).alias("VOL_TYPE"),
-            pl.lit(land_type.upper()).alias("LAND_TYPE"),
-            pl.lit(tree_type.upper()).alias("TREE_TYPE")
-        ])
+        results = results.with_columns(
+            [
+                pl.lit(2023).alias("YEAR"),  # Would extract from INVYR in production
+                pl.lit(vol_type.upper()).alias("VOL_TYPE"),
+                pl.lit(land_type.upper()).alias("LAND_TYPE"),
+                pl.lit(tree_type.upper()).alias("TREE_TYPE"),
+            ]
+        )
 
         # Format columns
         results = format_output_columns(
             results,
             estimation_type="volume",
             include_se=True,
-            include_cv=self.config.get("include_cv", False)
+            include_cv=self.config.get("include_cv", False),
         )
 
         # Rename to standard FIA column names based on vol_type
@@ -220,7 +223,7 @@ class VolumeEstimator(BaseEstimator):
             "VOLUME_ACRE_SE": f"{prefix}_ACRE_SE",
             "VOLUME_TOTAL_SE": f"{prefix}_TOTAL_SE",
             "VOLUME_ACRE_CV": f"{prefix}_ACRE_CV",
-            "VOLUME_TOTAL_CV": f"{prefix}_TOTAL_CV"
+            "VOLUME_TOTAL_CV": f"{prefix}_TOTAL_CV",
         }
 
         for old, new in rename_map.items():
@@ -243,7 +246,7 @@ def volume(
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
-    eval_type: Optional[str] = None
+    eval_type: Optional[str] = None,
 ) -> pl.DataFrame:
     """
     Estimate tree volume from FIA data.
@@ -551,6 +554,7 @@ def volume(
     elif db.evalid is None:
         # Auto-select most recent EXPVOL evaluation for volume
         import warnings
+
         warnings.warn(
             "No EVALID specified. Automatically selecting most recent EXPVOL evaluations. "
             "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling volume()."
@@ -577,7 +581,7 @@ def volume(
         "area_domain": area_domain,
         "totals": totals,
         "variance": variance,
-        "most_recent": most_recent
+        "most_recent": most_recent,
     }
 
     try:
@@ -586,5 +590,5 @@ def volume(
         return estimator.estimate()
     finally:
         # Clean up if we created the db
-        if owns_db and hasattr(db, 'close'):
+        if owns_db and hasattr(db, "close"):
             db.close()

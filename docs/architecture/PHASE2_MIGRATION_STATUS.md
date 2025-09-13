@@ -136,7 +136,7 @@ with self._track_operation(OperationType.COMPUTE, "Full estimation", total=5):
 ### 1. **Fix Area Aggregation Issue** (CRITICAL)
 - Debug group_by expression building in area_lazy.py
 - Ensure proper aggregation collapse for land type grouping
-- Validate against rFIA expected outputs
+- Validate against FIA expected outputs
 
 ### 2. **Complete Domain Filter Implementation**
 - Enhance DomainIndicatorCalculator for full lazy support

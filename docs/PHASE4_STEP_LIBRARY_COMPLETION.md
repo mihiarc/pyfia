@@ -55,7 +55,7 @@ Implemented five output formatting and finalization steps:
 - Handles column renaming and reordering
 - Drops internal processing columns
 - Adds metadata and column descriptions
-- Ensures rFIA compatibility
+- Ensures FIA standards compliance
 
 #### AddTotalsStep
 - Adds total rows to grouped estimates
@@ -238,7 +238,7 @@ result = pipeline.execute(ExecutionContext(db=db))
 
 ### Integration Tests
 1. Test complete pipelines with sample FIA data
-2. Compare results with rFIA for validation
+2. Validate results against FIA standards
 3. Test different evaluation types (VOL, GRM, CHNG)
 4. Verify variance calculations
 

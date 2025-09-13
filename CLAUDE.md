@@ -3,7 +3,7 @@
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
-pyFIA is a Python library implementing the R rFIA package functionality for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides exact statistical compatibility with rFIA while leveraging modern Python data science tools like Polars and DuckDB for high-performance data processing.
+pyFIA is a Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides statistically valid estimation methods while leveraging modern Python data science tools like Polars and DuckDB for high-performance data processing.
 
 ## Core Design Principles
 
@@ -162,7 +162,7 @@ pyfia/
 ### Code Patterns
 - Use Polars LazyFrame for memory efficiency when appropriate
 - Apply Pydantic v2 for settings and configuration only (not for data)
-- Follow rFIA naming conventions in public APIs
+- Follow FIA standard naming conventions in public APIs
 - Use simple functions over classes where possible
 - Direct parameter passing instead of configuration objects
 - Context managers for database connections
@@ -180,7 +180,7 @@ pyfia/
 - Mock databases must include complete table structures (including GRM tables)
 - Comprehensive fixtures in `tests/conftest.py` with proper FIA database structure
 - Property-based tests for statistical accuracy against known FIA values
-- Performance benchmarks comparing to rFIA
+- Performance benchmarks for optimization validation
 
 ## FIA-Specific Knowledge
 

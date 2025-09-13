@@ -586,7 +586,7 @@ def mortality(
     stratified variance calculation following Bechtold & Patterson (2005)
     will be implemented in a future release. For applications requiring
     precise variance estimates, consider using the FIA EVALIDator tool
-    or rFIA package.
+    or other specialized FIA analysis software.
     
     Raises
     ------

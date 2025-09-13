@@ -175,9 +175,11 @@ pyfia/
 - Don't create wrapper classes that just pass through calls
 
 ### Testing Patterns
-- Comprehensive fixtures in `tests/conftest.py` with sample FIA database
-- Property-based tests for statistical accuracy
-- Integration tests with real FIA data structures
+- **ALWAYS use real FIA data for testing** when possible (just like using real API calls)
+- Integration tests with actual FIA databases (georgia.duckdb, nfi_south.duckdb)
+- Mock databases must include complete table structures (including GRM tables)
+- Comprehensive fixtures in `tests/conftest.py` with proper FIA database structure
+- Property-based tests for statistical accuracy against known FIA values
 - Performance benchmarks comparing to rFIA
 
 ## FIA-Specific Knowledge

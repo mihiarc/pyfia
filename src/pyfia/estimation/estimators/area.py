@@ -37,6 +37,9 @@ class AreaEstimator(BaseEstimator):
             "CONDPROP_UNADJ", "PROP_BASIS"
         ]
         
+        # Additional columns needed for filtering
+        filter_cols = ["SITECLCD", "RESERVCD"]  # For timber land_type
+        
         # Grouping columns that make sense for area estimation
         # Based on real data analysis: good coverage, categorical, meaningful
         grouping_cols = [
@@ -80,7 +83,7 @@ class AreaEstimator(BaseEstimator):
             "BALIVE",       # Live basal area (continuous but sometimes binned)
         ]
         
-        return core_cols + grouping_cols
+        return core_cols + filter_cols + grouping_cols
     
     def load_data(self) -> pl.LazyFrame:
         """Load condition and plot data."""
@@ -399,6 +402,11 @@ def area(
     Not all columns are suitable for grouping - continuous variables like
     LAT, LON, ELEV should not be used. The function will error if a requested
     grouping column is not available in the loaded data.
+    
+    **NULL Value Handling:**
+    Some grouping columns may contain NULL values (e.g., PHYSCLCD ~18% NULL,
+    DSTRBCD1 ~22% NULL). NULL values are handled safely by Polars and will
+    appear as a separate group in results if present.
         
     Examples
     --------

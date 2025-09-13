@@ -265,7 +265,7 @@ class TestVolumeIntegrationWithRealData:
             result = volume(
                 db,
                 tree_domain="DIA >= 16.0 AND DIA < 30.0",  # Sawtimber size
-                area_domain="SITECLCD <= 3 AND SLOPE < 35",  # Productive, accessible sites
+                area_domain="SITECLCD <= 3 AND RESERVCD == 0",  # Productive, unreserved sites
                 land_type="timber",
                 tree_type="gs",
                 vol_type="net"
@@ -353,6 +353,28 @@ class TestVolumeIntegrationWithRealData:
 
 class TestVolumeComparisonWithPublishedValues:
     """Test volume estimates against published FIA statistics."""
+
+    @pytest.fixture
+    def fia_database_path(self):
+        """Get path to FIA database from environment or use default."""
+        # Check for environment variable first
+        db_path = os.getenv("PYFIA_DATABASE_PATH")
+        if db_path and Path(db_path).exists():
+            return db_path
+
+        # Check for common test database locations
+        possible_paths = [
+            Path("data/georgia.duckdb"),  # Prefer Georgia for these tests
+            Path("data/nfi_south.duckdb"),
+            Path("../data/georgia.duckdb"),
+            Path("../data/nfi_south.duckdb"),
+        ]
+
+        for path in possible_paths:
+            if path.exists():
+                return str(path)
+
+        pytest.skip("No FIA database found. Set PYFIA_DATABASE_PATH or place database in data/")
 
     @pytest.fixture
     def published_values(self):

@@ -4,13 +4,13 @@ Area estimation for FIA data.
 Simple, straightforward implementation without unnecessary abstractions.
 """
 
+import re
 from typing import Dict, List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..config import EstimatorConfig
 from ..aggregation import aggregate_to_population, merge_stratification
 from ..statistics import VarianceCalculator
 from ..tree_expansion import apply_area_adjustment_factors
@@ -30,107 +30,135 @@ class AreaEstimator(BaseEstimator):
         return ["COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
     
     def get_cond_columns(self) -> List[str]:
-        """Required condition columns."""
-        # Core columns needed for area calculation
+        """Get required condition columns based on actual usage."""
+        # Core columns always needed for area calculation
         core_cols = [
             "PLT_CN", "CONDID", "COND_STATUS_CD", 
             "CONDPROP_UNADJ", "PROP_BASIS"
         ]
         
-        # Additional columns needed for filtering
-        filter_cols = ["SITECLCD", "RESERVCD"]  # For timber land_type
+        # Additional columns needed based on land_type filter
+        filter_cols = set()
+        land_type = self.config.get("land_type", "forest")
+        if land_type == "timber":
+            filter_cols.update(["SITECLCD", "RESERVCD"])
         
-        # Grouping columns that make sense for area estimation
-        # Based on real data analysis: good coverage, categorical, meaningful
-        grouping_cols = [
-            # Ownership and management
-            "OWNGRPCD",     # Ownership group (99.2% coverage, 4 values)
-            "OWNCD",        # Detailed ownership code
-            "ADFORCD",      # Administrative forest code
-            "RESERVCD",     # Reserved status
-            
-            # Forest characteristics  
-            "FORTYPCD",     # Forest type (99.1% coverage, 82 values)
-            "FLDTYPCD",     # Field forest type
-            "STDAGE",       # Stand age
-            "STDSZCD",      # Stand size class (99.1% coverage, 5 values)
-            "STDORGCD",     # Stand origin (99.1% coverage, 2 values)
-            
-            # Site characteristics
-            "SITECLCD",     # Site class (100% coverage, 7 values)
-            "PHYSCLCD",     # Physiographic class (82.3% coverage)
-            
-            # Disturbance and treatment
-            "DSTRBCD1",     # Disturbance code 1 (77.7% coverage)
-            "DSTRBYR1",     # Disturbance year 1
-            "DSTRBCD2",     # Disturbance code 2
-            "DSTRBYR2",     # Disturbance year 2
-            "DSTRBCD3",     # Disturbance code 3
-            "DSTRBYR3",     # Disturbance year 3
-            "TRTCD1",       # Treatment code 1 (91.6% coverage)
-            "TRTYR1",       # Treatment year 1
-            "TRTCD2",       # Treatment code 2
-            "TRTYR2",       # Treatment year 2
-            "TRTCD3",       # Treatment code 3
-            "TRTYR3",       # Treatment year 3
-            
-            # Stocking
-            "GSSTKCD",      # Growing stock stocking class
-            "ALSTKCD",      # All live stocking class
-            
-            # Other useful columns
-            "PRESNFCD",     # Present nonforest code
-            "BALIVE",       # Live basal area (continuous but sometimes binned)
-        ]
+        # Add columns needed for area_domain filtering
+        area_domain = self.config.get("area_domain")
+        if area_domain:
+            # Parse domain string to extract column names
+            # Simple extraction - could be enhanced with proper parser
+            import re
+            # Exclude SQL keywords and operators
+            sql_keywords = {'AND', 'OR', 'NOT', 'IN', 'IS', 'NULL', 'BETWEEN', 'LIKE', 'AS'}
+            col_pattern = r'\b([A-Z][A-Z0-9_]*)\b'
+            potential_cols = re.findall(col_pattern, area_domain.upper())
+            # Filter to valid COND columns (simplified check)
+            for col in potential_cols:
+                if col not in sql_keywords and col not in core_cols and len(col) > 2:
+                    filter_cols.add(col)
         
-        return core_cols + filter_cols + grouping_cols
+        # Add grouping columns if specified
+        grouping_cols = set()
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            if isinstance(grp_by, str):
+                grouping_cols.add(grp_by)
+            else:
+                grouping_cols.update(grp_by)
+        
+        # Combine all needed columns
+        all_cols = core_cols + list(filter_cols) + list(grouping_cols)
+        
+        # Remove duplicates while preserving order
+        seen = set()
+        result = []
+        for col in all_cols:
+            if col not in seen:
+                seen.add(col)
+                result.append(col)
+        
+        return result
     
     def load_data(self) -> pl.LazyFrame:
-        """Load condition and plot data."""
-        # Load COND table
-        if "COND" not in self.db.tables:
-            self.db.load_table("COND")
-        cond_df = self.db.tables["COND"]
+        """Load condition and plot data with lazy column selection."""
+        # Get only the columns we actually need
+        cond_cols_needed = self.get_cond_columns()
+        plot_cols_needed = self._get_plot_columns()
         
-        # Load PLOT table  
+        # Load COND table with only needed columns
+        if "COND" not in self.db.tables:
+            # Check what columns are available in COND
+            available_cond_cols = self._get_available_columns("COND")
+            if available_cond_cols is not None:
+                cols_to_load = [col for col in cond_cols_needed if col in available_cond_cols]
+                if cols_to_load:  # Only load if we have columns to load
+                    self.db.load_table("COND", columns=cols_to_load)
+                else:
+                    # Load all columns if no matches found
+                    self.db.load_table("COND")
+            else:
+                # Fallback: load with requested columns and let the reader handle it
+                self.db.load_table("COND", columns=cond_cols_needed if cond_cols_needed else None)
+        
+        cond_df = self.db.tables.get("COND")
+        if cond_df is not None and cond_cols_needed:
+            # Select only needed columns from already loaded table
+            if isinstance(cond_df, pl.LazyFrame):
+                available_cols = cond_df.collect_schema().names()
+            else:
+                available_cols = cond_df.columns if hasattr(cond_df, 'columns') else []
+            
+            # Check if we have all needed columns
+            missing_cols = [col for col in cond_cols_needed if col not in available_cols]
+            if missing_cols:
+                # Need to reload with additional columns
+                self.db.load_table("COND", columns=None)  # Reload all columns
+                cond_df = self.db.tables["COND"]
+            else:
+                cols_to_select = [col for col in cond_cols_needed if col in available_cols]
+                if cols_to_select:
+                    cond_df = cond_df.select(cols_to_select)
+        
+        # Load PLOT table with only needed columns
         if "PLOT" not in self.db.tables:
-            self.db.load_table("PLOT")
-        plot_df = self.db.tables["PLOT"]
+            # Check what columns are available in PLOT
+            available_plot_cols = self._get_available_columns("PLOT")
+            if available_plot_cols is not None:
+                cols_to_load = [col for col in plot_cols_needed if col in available_plot_cols]
+                if cols_to_load:  # Only load if we have columns to load
+                    self.db.load_table("PLOT", columns=cols_to_load)
+                else:
+                    # Load all columns if no matches found
+                    self.db.load_table("PLOT")
+            else:
+                # Fallback: load with requested columns and let the reader handle it
+                self.db.load_table("PLOT", columns=plot_cols_needed if plot_cols_needed else None)
+        
+        plot_df = self.db.tables.get("PLOT")
+        if plot_df is not None and plot_cols_needed:
+            # Select only needed columns from already loaded table
+            if isinstance(plot_df, pl.LazyFrame):
+                available_cols = plot_df.collect_schema().names()
+            else:
+                available_cols = plot_df.columns if hasattr(plot_df, 'columns') else []
+            
+            # Check if we have all needed columns
+            missing_cols = [col for col in plot_cols_needed if col not in available_cols]
+            if missing_cols:
+                # Need to reload with additional columns  
+                self.db.load_table("PLOT", columns=None)  # Reload all columns
+                plot_df = self.db.tables["PLOT"]
+            else:
+                cols_to_select = [col for col in plot_cols_needed if col in available_cols]
+                if cols_to_select:
+                    plot_df = plot_df.select(cols_to_select)
         
         # Ensure LazyFrames
         if not isinstance(cond_df, pl.LazyFrame):
             cond_df = cond_df.lazy()
         if not isinstance(plot_df, pl.LazyFrame):
             plot_df = plot_df.lazy()
-        
-        # Note: EVALID filtering happens in stratification tables (POP_PLOT_STRATUM_ASSGN),
-        # not in COND/PLOT tables which don't have EVALID columns
-        
-        # Select needed columns
-        cond_cols = self.get_cond_columns()
-        cond_df = cond_df.select([col for col in cond_cols if col in cond_df.columns])
-        
-        # Comprehensive PLOT columns for grouping
-        plot_cols = [
-            "CN",           # Primary key
-            "STATECD",      # State FIPS code
-            "UNITCD",       # FIA survey unit  
-            "COUNTYCD",     # County code
-            "PLOT",         # Plot number
-            "INVYR",        # Inventory year
-            "MEASYEAR",     # Measurement year
-            "KINDCD",       # Sample kind (100% coverage, 4 values)
-            "DESIGNCD",     # Plot design (100% coverage, 9 values)
-            "RDDISTCD",     # Road distance class
-            "WATERCD",      # Water on plot code
-            "LAT",          # Latitude (continuous - not for grouping)
-            "LON",          # Longitude (continuous - not for grouping)
-            "ELEV",         # Elevation (continuous - not for grouping)
-            "ECOSUBCD",     # Ecological subsection (if available)
-            "CONGCD",       # Congressional district (if available)
-            "EMAP_HEX",     # EMAP hexagon (if available)
-        ]
-        plot_df = plot_df.select([col for col in plot_cols if col in plot_df.columns])
         
         # Join condition and plot
         data = cond_df.join(
@@ -141,6 +169,54 @@ class AreaEstimator(BaseEstimator):
         )
         
         return data
+    
+    def _get_plot_columns(self) -> List[str]:
+        """Get required plot columns based on actual usage."""
+        # Always need CN for joining
+        core_cols = ["CN"]
+        
+        # Add any grouping columns from PLOT table
+        plot_group_cols = set()
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            # Common PLOT columns that might be used for grouping
+            plot_cols_available = [
+                "STATECD", "UNITCD", "COUNTYCD", "PLOT", "INVYR", 
+                "MEASYEAR", "KINDCD", "DESIGNCD", "RDDISTCD", "WATERCD",
+                "ECOSUBCD", "CONGCD", "EMAP_HEX"
+            ]
+            
+            if isinstance(grp_by, str):
+                if grp_by in plot_cols_available:
+                    plot_group_cols.add(grp_by)
+            else:
+                for col in grp_by:
+                    if col in plot_cols_available:
+                        plot_group_cols.add(col)
+        
+        return core_cols + list(plot_group_cols)
+    
+    def _get_available_columns(self, table_name: str) -> List[str]:
+        """Get list of available columns in a table without loading it."""
+        try:
+            # Query the database schema to get column names
+            if hasattr(self.db._reader, 'conn'):
+                conn = self.db._reader.conn
+                if self.db._reader.backend == "duckdb":
+                    # Use DESCRIBE for DuckDB
+                    query = f"DESCRIBE {table_name}"
+                    result = conn.execute(query).fetchall()
+                    return [row[0] for row in result]
+                elif self.db._reader.backend == "sqlite":
+                    query = f"PRAGMA table_info({table_name})"
+                    result = conn.execute(query).fetchall()
+                    return [row[1] for row in result]
+        except Exception:
+            pass
+        
+        # Fallback: return None to signal we should load all columns
+        # The db.load_table with columns=None will handle loading all available columns
+        return None
     
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """

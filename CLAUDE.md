@@ -806,9 +806,100 @@ def process_data(state: int, **options):
 result = process_data(state=37, option1=value1, option2=value2)
 ```
 
+## Documentation Standards
+
+### Public API Documentation Guidelines
+
+All public-facing API functions in pyFIA must follow NumPy-style docstrings with comprehensive documentation. The `mortality()` function serves as the reference implementation for documentation standards.
+
+#### Required Docstring Sections (in order)
+
+1. **Summary Line**: One-line description of what the function does
+2. **Extended Summary**: 2-4 lines explaining the approach and methodology
+3. **Parameters**: Detailed parameter descriptions with types and valid values
+4. **Returns**: Complete description of return values with types
+5. **See Also**: Related functions and reference material
+6. **Notes**: Technical details, algorithms, and important information
+7. **Warnings** (if applicable): Known limitations or caveats
+8. **Raises** (if applicable): Exceptions that may be raised
+9. **Examples**: Multiple practical examples showing common use cases
+
+#### Parameter Documentation Best Practices
+
+For parameters that accept column names (like `grp_by`):
+- List common valid values with descriptions
+- Reference external documentation for complete lists
+- Use format: `parameter_name : type, optional/default value`
+- Include value enumerations in curly braces for limited choices: `{'option1', 'option2'}`
+
+Example from mortality():
+```python
+grp_by : str or list of str, optional
+    Column name(s) to group results by. Can be any column from the 
+    FIA tables used in the estimation (PLOT, COND, TREE_GRM_COMPONENT,
+    TREE_GRM_MIDPT). Common grouping columns include:
+    
+    - 'FORTYPCD': Forest type code
+    - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
+      30=State/Local, 40=Private)
+    - 'STATECD': State FIPS code
+    ...
+```
+
+#### Returns Section Format
+
+Structure return documentation clearly with field names, types, and descriptions:
+```python
+Returns
+-------
+pl.DataFrame
+    Mortality estimates with the following columns:
+    
+    - **MORT_ACRE** : float
+        Annual mortality per acre in units specified by 'measure'
+    - **MORT_TOTAL** : float (if totals=True)
+        Total annual mortality expanded to population level
+    ...
+```
+
+#### Examples Section Guidelines
+
+- Start each example with a descriptive header (not a comment)
+- Show practical, runnable code
+- Include brief output examples where helpful
+- Progress from simple to complex use cases
+
+#### See Also Section
+
+Link to related functions and reference materials:
+- Related estimation functions in pyFIA
+- Relevant constant definitions
+- Reference table utilities
+- External documentation sources
+
+#### Notes Section
+
+Include:
+- Algorithm descriptions
+- Valid column sources for grouping parameters
+- References to official documentation
+- Technical implementation details
+- Database table requirements
+
+### Documentation Maintenance
+
+When adding new public API functions:
+1. Follow the mortality() function as a template
+2. Ensure all required sections are present and in correct order
+3. Document all parameters thoroughly with types and valid values
+4. Provide multiple practical examples
+5. Cross-reference related functions in See Also
+6. Keep line length under 88 characters for readability
+
 ## Important Notes
 
 - **No backward compatibility needed**: When refactoring, don't maintain old APIs
 - **YAML schemas are essential**: Keep YAML schemas as source of truth for FIA tables
 - **Performance over abstractions**: Choose direct, fast implementations
 - **Readability matters**: Clear, simple code is better than clever abstractions
+- **Documentation completeness**: Follow mortality() function as the gold standard for API documentation

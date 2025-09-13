@@ -1718,7 +1718,7 @@ class TestBackwardCompatibility:
         
         # Valid parameters should work
         config = EstimatorConfig(
-            bySpecies=True,  # Old rFIA-style parameter name
+            bySpecies=True,  # FIA-standard parameter name
             landType="forest",
             treeType="live"
         )

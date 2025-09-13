@@ -2,7 +2,7 @@
 Core FIA database class and functionality for pyFIA.
 
 This module provides the main FIA class that handles database connections,
-EVALID-based filtering, and common operations following rFIA patterns.
+EVALID-based filtering, and common FIA data operations.
 """
 
 import warnings
@@ -104,8 +104,7 @@ class FIA:
         """
         Find EVALID values matching criteria.
 
-        This mirrors rFIA's findEVALID function to identify evaluation IDs
-        for filtering FIA data.
+        Identify evaluation IDs for filtering FIA data based on specific criteria.
 
         Args:
             most_recent: If True, return only most recent evaluations

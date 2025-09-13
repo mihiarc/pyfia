@@ -2,7 +2,7 @@
 Comprehensive tests for integrated lazy evaluation in pyFIA estimators.
 
 This test suite verifies that the estimators with integrated lazy evaluation
-work correctly and maintain full rFIA statistical compatibility.
+work correctly and maintain full statistical compatibility with FIA standards.
 
 Tests cover:
 - Basic functionality with integrated lazy evaluation

@@ -6,13 +6,15 @@ without unnecessary abstractions.
 """
 
 import math
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 import polars as pl
 
-from ...core import FIA
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
+
+if TYPE_CHECKING:
+    from ...core import FIA
 
 
 class TPAEstimator(BaseEstimator):
@@ -184,26 +186,49 @@ class TPAEstimator(BaseEstimator):
         """
         Calculate variance for TPA and BAA estimates.
 
-        Uses simplified variance calculation with conservative coefficient
-        of variation (CV) estimates typical for FIA tree metrics:
-        - TPA: 10% CV for per-acre estimates
-        - BAA: 10% CV for per-acre estimates
-        - Totals: Same CV as per-acre values
+        Uses sample-size-adjusted coefficient of variation (CV) estimates
+        typical for FIA tree metrics. CV increases for smaller sample sizes:
+        - Base CV: 10% for large samples (>100 plots)
+        - Adjusted CV: base_cv × sqrt(100/n_plots) for smaller samples
+        - Maximum CV: 50% for very small samples
 
-        Note: This is a placeholder implementation. Full stratified variance
-        calculation following Bechtold & Patterson (2005) should be implemented
-        for production use.
+        WARNING: This is a simplified variance approximation. For production use,
+        implement full stratified variance calculation following Bechtold &
+        Patterson (2005) using plot-level residuals and stratification weights.
         """
-        # Conservative CV values typical for FIA tree metrics
-        # These are reasonable approximations based on typical FIA results
-        tpa_cv = 0.10  # 10% coefficient of variation for TPA
-        baa_cv = 0.10  # 10% coefficient of variation for BAA
+        # Base CV values typical for FIA tree metrics with adequate sample size
+        base_tpa_cv = 0.10  # 10% coefficient of variation for TPA
+        base_baa_cv = 0.10  # 10% coefficient of variation for BAA
 
-        # Calculate standard errors from CV
-        # SE = estimate × CV
+        # Adjust CV based on sample size (smaller samples have higher uncertainty)
+        # CV adjustment factor: sqrt(reference_n / actual_n)
+        reference_n = 100  # Reference sample size for base CV
+
+        # Calculate adjusted CV based on actual number of plots
         results = results.with_columns([
-            (pl.col("TPA") * tpa_cv).alias("TPA_SE"),
-            (pl.col("BAA") * baa_cv).alias("BAA_SE")
+            # Adjust CV for sample size, with maximum of 50%
+            pl.when(pl.col("N_PLOTS") > 0)
+            .then(
+                (base_tpa_cv * (reference_n / pl.col("N_PLOTS")).sqrt())
+                .clip(base_tpa_cv, 0.50)  # Cap at 50% CV
+            )
+            .otherwise(0.50)
+            .alias("TPA_CV_ADJ"),
+
+            pl.when(pl.col("N_PLOTS") > 0)
+            .then(
+                (base_baa_cv * (reference_n / pl.col("N_PLOTS")).sqrt())
+                .clip(base_baa_cv, 0.50)  # Cap at 50% CV
+            )
+            .otherwise(0.50)
+            .alias("BAA_CV_ADJ")
+        ])
+
+        # Calculate standard errors from adjusted CV
+        # SE = estimate × CV_adjusted
+        results = results.with_columns([
+            (pl.col("TPA") * pl.col("TPA_CV_ADJ")).alias("TPA_SE"),
+            (pl.col("BAA") * pl.col("BAA_CV_ADJ")).alias("BAA_SE")
         ])
 
         # Add variance if requested (variance = SE²)
@@ -215,11 +240,11 @@ class TPAEstimator(BaseEstimator):
             # Drop SE columns if returning variance
             results = results.drop(["TPA_SE", "BAA_SE"])
 
-        # Calculate standard errors for totals if present
+        # Calculate standard errors for totals if present (use same adjusted CV)
         if "TPA_TOTAL" in results.columns:
             results = results.with_columns([
-                (pl.col("TPA_TOTAL") * tpa_cv).alias("TPA_TOTAL_SE"),
-                (pl.col("BAA_TOTAL") * baa_cv).alias("BAA_TOTAL_SE")
+                (pl.col("TPA_TOTAL") * pl.col("TPA_CV_ADJ")).alias("TPA_TOTAL_SE"),
+                (pl.col("BAA_TOTAL") * pl.col("BAA_CV_ADJ")).alias("BAA_TOTAL_SE")
             ])
 
             if self.config.get("variance", False):
@@ -230,23 +255,19 @@ class TPAEstimator(BaseEstimator):
                 # Drop SE columns if returning variance
                 results = results.drop(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
 
-        # Add coefficient of variation if requested (useful for diagnostics)
-        if self.config.get("include_cv", False):
-            cv_cols = []
-            if "TPA_SE" in results.columns:
-                cv_cols.append(
-                    pl.when(pl.col("TPA") > 0)
-                    .then(pl.col("TPA_SE") / pl.col("TPA") * 100)
-                    .otherwise(None)
-                    .alias("TPA_CV")
+        # Add warning for small sample sizes
+        if "N_PLOTS" in results.columns:
+            min_plots = results["N_PLOTS"].min()
+            if min_plots is not None and min_plots < 10:
+                import warnings
+                warnings.warn(
+                    f"Small sample size detected (min {min_plots} plots). "
+                    "Variance estimates may be unreliable. Consider aggregating to larger areas.",
+                    UserWarning
                 )
-                cv_cols.append(
-                    pl.when(pl.col("BAA") > 0)
-                    .then(pl.col("BAA_SE") / pl.col("BAA") * 100)
-                    .otherwise(None)
-                    .alias("BAA_CV")
-                )
-            results = results.with_columns(cv_cols)
+
+        # Clean up temporary columns
+        results = results.drop(["TPA_CV_ADJ", "BAA_CV_ADJ"])
 
         return results
 
@@ -335,7 +356,7 @@ class TPAEstimator(BaseEstimator):
 
 
 def tpa(
-    db: Union[str, FIA],
+    db: "FIA",
     grp_by: Optional[Union[str, List[str]]] = None,
     by_species: bool = False,
     by_size_class: bool = False,
@@ -344,9 +365,7 @@ def tpa(
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
     totals: bool = False,
-    variance: bool = False,
-    most_recent: bool = False,
-    eval_type: Optional[str] = None
+    variance: bool = False
 ) -> pl.DataFrame:
     """
     Estimate trees per acre (TPA) and basal area per acre (BAA) from FIA data.
@@ -357,9 +376,9 @@ def tpa(
 
     Parameters
     ----------
-    db : Union[str, FIA]
-        Database connection or path to FIA database. Can be either a path
-        string to a DuckDB/SQLite file or an existing FIA connection object.
+    db : FIA
+        FIA database connection object. Must have EVALID set to prevent
+        overcounting from multiple evaluations.
     grp_by : str or list of str, optional
         Column name(s) to group results by. Can be any column from the
         TREE, PLOT, and COND tables. Common grouping columns include:
@@ -440,13 +459,6 @@ def tpa(
     variance : bool, default False
         If True, return variance instead of standard error. Standard error
         is calculated as the square root of variance.
-    most_recent : bool, default False
-        If True, automatically select the most recent evaluation for each
-        state/region. Equivalent to calling db.clip_most_recent() first.
-    eval_type : str, optional
-        Evaluation type to select if most_recent=True or for automatic
-        EVALID selection. Options: 'ALL', 'VOL', 'GROW', 'MORT', 'REMV',
-        'CHANGE', 'DWM', 'INV'. Default is 'VOL' for TPA/volume estimation.
 
     Returns
     -------
@@ -519,10 +531,10 @@ def tpa(
     - Divide by 2 to get radius
     - Simplified: (DIA/24)²
 
-    **EVALID Handling:**
-    If no EVALID is specified, the function automatically selects the most
-    recent EXPVOL evaluation to ensure proper plot selection for volume/tree
-    metrics. For explicit control, use db.clip_by_evalid() before calling tpa().
+    **EVALID Requirements:**
+    The FIA database must have EVALID set before calling this function.
+    Use db.clip_by_evalid() or db.clip_most_recent() to select appropriate
+    evaluations and prevent overcounting from multiple evaluations.
 
     **Plot Size Adjustments:**
     FIA uses different plot sizes for different tree sizes:
@@ -545,22 +557,25 @@ def tpa(
     Warnings
     --------
     The current implementation uses a simplified variance calculation with
-    an assumed coefficient of variation of 10% for TPA and BAA estimates.
-    This is a conservative placeholder. Full stratified variance calculation
-    following Bechtold & Patterson (2005) will be implemented in a future
-    release. For applications requiring precise variance estimates, consider
-    using the FIA EVALIDator tool or rFIA R package.
+    sample-size-adjusted coefficient of variation (10% base CV for >100 plots,
+    increasing for smaller samples). This is an approximation. Full stratified
+    variance calculation following Bechtold & Patterson (2005) using plot-level
+    residuals and stratification weights is required for precise estimates.
+    Small sample sizes (<10 plots) will trigger additional warnings. For
+    applications requiring precise variance estimates, consider using the
+    FIA EVALIDator tool or rFIA R package.
 
     Examples
     --------
     Basic trees per acre on forestland:
 
     >>> from pyfia import FIA, tpa
-    >>> with FIA("path/to/fia.duckdb") as db:
-    ...     db.clip_by_state(37)  # North Carolina
-    ...     results = tpa(db, land_type="forest")
-    ...     print(f"TPA: {results['TPA'][0]:.1f} trees/acre")
-    ...     print(f"BAA: {results['BAA'][0]:.1f} sq ft/acre")
+    >>> db = FIA("path/to/fia.duckdb")
+    >>> db.clip_by_state(37)  # North Carolina
+    >>> db.clip_most_recent(eval_type="VOL")  # Required: select EVALID
+    >>> results = tpa(db, land_type="forest")
+    >>> print(f"TPA: {results['TPA'][0]:.1f} trees/acre")
+    >>> print(f"BAA: {results['BAA'][0]:.1f} sq ft/acre")
 
     TPA and BAA by species:
 
@@ -613,35 +628,14 @@ def tpa(
     ...     tree_domain="DIA >= 5.0"
     ... )
     """
-    import warnings
-
-    # Ensure db is a FIA instance
-    if isinstance(db, str):
-        db = FIA(db)
-        owns_db = True
-    else:
-        owns_db = False
-
-    # CRITICAL: If no EVALID is set, automatically select most recent EXPVOL
-    # This prevents massive overcounting from including all historical evaluations
+    # Validate EVALID is set
     if db.evalid is None:
-        warnings.warn(
-            "No EVALID specified. Automatically selecting most recent EXPVOL evaluations. "
-            "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling tpa()."
+        raise ValueError(
+            "EVALID must be set before calling tpa(). "
+            "Use db.clip_by_evalid() or db.clip_most_recent() to select evaluations."
         )
-        # Use eval_type if provided, otherwise default to VOL for tree/volume metrics
-        eval_type_to_use = eval_type if eval_type else "VOL"
-        db.clip_most_recent(eval_type=eval_type_to_use)
 
-        # If still no EVALID (no EXPVOL evaluations), warn but continue
-        if db.evalid is None:
-            warnings.warn(
-                "WARNING: No EXPVOL evaluations found. Results may be incorrect due to "
-                "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
-                "to explicitly select appropriate EVALIDs."
-            )
-
-    # Create config
+    # Create config - simpler without deprecated parameters
     config = {
         "grp_by": grp_by,
         "by_species": by_species,
@@ -651,16 +645,9 @@ def tpa(
         "tree_domain": tree_domain,
         "area_domain": area_domain,
         "totals": totals,
-        "variance": variance,
-        "most_recent": most_recent,
-        "eval_type": eval_type
+        "variance": variance
     }
 
-    try:
-        # Create and run estimator
-        estimator = TPAEstimator(db, config)
-        return estimator.estimate()
-    finally:
-        # Clean up if we created the db
-        if owns_db and hasattr(db, 'close'):
-            db.close()
+    # Create and run estimator - simple and clean
+    estimator = TPAEstimator(db, config)
+    return estimator.estimate()

@@ -412,6 +412,7 @@ def mortality(
         - 'INVYR': Inventory year
         - 'STDAGE': Stand age class
         - 'SITECLCD': Site productivity class
+        - 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3': Disturbance codes (from COND)
         
         For complete column descriptions, see USDA FIA Database User Guide.
     by_species : bool, default False
@@ -549,6 +550,12 @@ def mortality(
     contain pre-calculated annual mortality values. The TPAMORT_UNADJ
     fields are already annualized, so no remeasurement period adjustment
     is needed.
+    
+    **Important:** Mortality agent codes (AGENTCD) are stored in the regular
+    TREE table, not the GRM tables. Since mortality() uses TREE_GRM_COMPONENT
+    and TREE_GRM_MIDPT tables, AGENTCD is not available for grouping. To
+    analyze mortality by agent, you would need to join with the TREE table
+    or use disturbance codes (DSTRBCD1-3) from the COND table instead.
     
     The adjustment factors are determined by the SUBPTYP_GRM field:
     

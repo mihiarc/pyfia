@@ -126,7 +126,12 @@ def apply_tree_adjustment_factors(
         "ADJ_FACTOR_MACR"
     ]
     
-    missing_cols = [col for col in required_cols if col not in data.columns]
+    # Check for missing columns using lazy frame schema
+    if isinstance(data, pl.LazyFrame):
+        available_cols = data.collect_schema().names()
+    else:
+        available_cols = data.columns
+    missing_cols = [col for col in required_cols if col not in available_cols]
     if missing_cols:
         raise ValueError(
             f"Missing required columns for tree adjustment: {missing_cols}\n"
@@ -371,7 +376,12 @@ def apply_area_adjustment_factors(
         "ADJ_FACTOR_MACR"
     ]
     
-    missing_cols = [col for col in required_cols if col not in data.columns]
+    # Check for missing columns using lazy frame schema
+    if isinstance(data, pl.LazyFrame):
+        available_cols = data.collect_schema().names()
+    else:
+        available_cols = data.columns
+    missing_cols = [col for col in required_cols if col not in available_cols]
     if missing_cols:
         raise ValueError(
             f"Missing required columns for area adjustment: {missing_cols}\\n"

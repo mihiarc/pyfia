@@ -1,11 +1,14 @@
 #!/usr/bin/env python
 """
-Run validation tests for Georgia using georgia.duckdb.
+Validate Georgia volume estimates against published FIA EVALIDator values.
 
-This validates pyFIA area estimates against official EVALIDator values.
+This script compares pyFIA volume estimates with official FIA statistics
+for Georgia to ensure statistical accuracy.
 """
 
-from pyfia import FIA, area
+import polars as pl
+from pyfia import FIA, volume, area
+import duckdb
 import sys
 
 def test_georgia_timberland_evalidator():

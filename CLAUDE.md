@@ -175,9 +175,11 @@ pyfia/
 - Don't create wrapper classes that just pass through calls
 
 ### Testing Patterns
-- Comprehensive fixtures in `tests/conftest.py` with sample FIA database
-- Property-based tests for statistical accuracy
-- Integration tests with real FIA data structures
+- **ALWAYS use real FIA data for testing** when possible (just like using real API calls)
+- Integration tests with actual FIA databases (georgia.duckdb, nfi_south.duckdb)
+- Mock databases must include complete table structures (including GRM tables)
+- Comprehensive fixtures in `tests/conftest.py` with proper FIA database structure
+- Property-based tests for statistical accuracy against known FIA values
 - Performance benchmarks comparing to rFIA
 
 ## FIA-Specific Knowledge
@@ -366,6 +368,69 @@ Texas is unique in the FIA system and requires special handling:
 - Population organized by estimation units and strata
 - Proper variance calculation requires stratification
 - Use POP_PLOT_STRATUM_ASSGN for plot assignments
+
+### Growth-Removal-Mortality (GRM) Tables
+
+#### Critical for Mortality, Growth, and Removals Estimation
+The FIA Growth-Removal-Mortality methodology requires specialized GRM tables that track individual tree components across remeasurement periods. These tables are **required** for mortality, growth, and removals estimation.
+
+#### Required GRM Tables
+- **TREE_GRM_COMPONENT**: Contains component-level data for each tree
+  - Key fields: `TRE_CN`, `PLT_CN`, `DIA_BEGIN`, `DIA_MIDPT`, `DIA_END`
+  - Component fields: `SUBP_COMPONENT_*` (e.g., MORTALITY1, MORTALITY2, CUT, SURVIVOR, INGROWTH)
+  - TPA fields: `SUBP_TPAMORT_UNADJ_*`, `SUBP_TPAREMV_UNADJ_*`, `SUBP_TPAGROW_UNADJ_*`
+  - Adjustment type: `SUBP_SUBPTYP_GRM_*` (0=None, 1=SUBP, 2=MICR, 3=MACR)
+  
+- **TREE_GRM_MIDPT**: Contains tree measurements at remeasurement midpoint
+  - Key fields: `TRE_CN`, `DIA`, `SPCD`, `STATUSCD`
+  - Measurement fields: `VOLCFNET`, `DRYBIO_BOLE`, `DRYBIO_BRANCH`, etc.
+
+#### Component Types
+Components in TREE_GRM_COMPONENT identify what happened to each tree:
+- **SURVIVOR**: Trees alive at both measurements
+- **MORTALITY1**, **MORTALITY2**: Trees that died between measurements
+- **CUT**: Trees removed through harvest
+- **DIVERSION**: Trees removed for non-forest use
+- **INGROWTH**: New trees that grew into measurable size
+
+#### Land Type and Tree Type Column Naming
+GRM columns follow a naming pattern based on land type and tree type:
+```python
+# Column naming pattern: SUBP_{METRIC}_{TREE_TYPE}_{LAND_TYPE}
+# Example: SUBP_TPAMORT_UNADJ_GS_FOREST
+#   - TPAMORT_UNADJ = Trees per acre mortality (unadjusted)
+#   - GS = Growing stock trees
+#   - FOREST = Forest land
+
+# Tree types: GS (growing stock), AL (all live)
+# Land types: FOREST, TIMBER
+```
+
+#### Adjustment Factors (SUBPTYP_GRM)
+The SUBPTYP_GRM field indicates which adjustment factor to apply:
+- **0**: No adjustment (trees not sampled)
+- **1**: SUBP adjustment (subplot, typically 5.0-24.0" DBH)
+- **2**: MICR adjustment (microplot, typically <5.0" DBH)
+- **3**: MACR adjustment (macroplot, typically ≥24.0" DBH)
+
+This differs from standard tree adjustment which uses diameter breakpoints directly.
+
+#### Checking for GRM Tables
+```python
+import duckdb
+
+with duckdb.connect("your_database.duckdb", read_only=True) as conn:
+    grm_tables = conn.execute("""
+        SELECT table_name 
+        FROM information_schema.tables 
+        WHERE table_name LIKE '%GRM%'
+    """).fetchall()
+    
+    if not grm_tables:
+        print("WARNING: GRM tables not found - mortality/growth/removals will not work")
+    else:
+        print(f"GRM tables available: {[t[0] for t in grm_tables]}")
+```
 
 ## Example Usage Patterns
 

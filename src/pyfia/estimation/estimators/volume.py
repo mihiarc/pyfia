@@ -132,7 +132,7 @@ class VolumeEstimator(BaseEstimator):
             # Plot count
             pl.n_unique("PLT_CN").alias("N_PLOTS"),
             # Tree count
-            pl.count().alias("N_TREES")
+            pl.len().alias("N_TREES")
         ]
         
         if group_cols:

@@ -27,10 +27,10 @@ class TestVolumeIntegrationWithRealData:
 
         # Check for common test database locations
         possible_paths = [
+            Path("data/georgia.duckdb"),  # Prefer Georgia for these tests
             Path("data/nfi_south.duckdb"),
-            Path("data/georgia.duckdb"),
-            Path("../data/nfi_south.duckdb"),
             Path("../data/georgia.duckdb"),
+            Path("../data/nfi_south.duckdb"),
         ]
 
         for path in possible_paths:

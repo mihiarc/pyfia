@@ -212,9 +212,11 @@ class VolumeEstimator(BaseEstimator):
         else:
             prefix = "VOLCFNET"
 
+        # Note: format_output_columns has already renamed some columns:
+        # VOLUME_ACRE -> VOL_ACRE, VOLUME_TOTAL -> VOL_TOTAL
         rename_map = {
-            "VOLUME_ACRE": f"{prefix}_ACRE",
-            "VOLUME_TOTAL": f"{prefix}_TOTAL",
+            "VOL_ACRE": f"{prefix}_ACRE",
+            "VOL_TOTAL": f"{prefix}_TOTAL",
             "VOLUME_ACRE_SE": f"{prefix}_ACRE_SE",
             "VOLUME_TOTAL_SE": f"{prefix}_TOTAL_SE",
             "VOLUME_ACRE_CV": f"{prefix}_ACRE_CV",

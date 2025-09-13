@@ -412,8 +412,6 @@ def mortality(
         - 'INVYR': Inventory year
         - 'STDAGE': Stand age class
         - 'SITECLCD': Site productivity class
-        - 'AGENTCD': Mortality agent code
-        - 'DISTCD': Disturbance code
         
         For complete column descriptions, see USDA FIA Database User Guide.
     by_species : bool, default False
@@ -453,7 +451,8 @@ def mortality(
         per-acre values.
     variance : bool, default False
         If True, calculate and include variance and standard error estimates.
-        Note: Currently uses simplified variance calculation (15% CV).
+        Note: Currently uses simplified variance calculation (15% CV for
+        per-acre estimates, 20% CV for rates).
     most_recent : bool, default False
         If True, automatically filter to the most recent evaluation for
         each state in the database.
@@ -504,12 +503,17 @@ def mortality(
     Basic volume mortality on forestland:
     
     >>> results = mortality(db, measure="volume", land_type="forest")
-    >>> print(f"Annual mortality: {results['MORT_ACRE'][0]:.1f} cu ft/acre")
+    >>> if not results.is_empty():
+    ...     print(f"Annual mortality: {results['MORT_ACRE'][0]:.1f} cu ft/acre")
+    ... else:
+    ...     print("No mortality data available")
     
     Mortality by species (tree count):
     
     >>> results = mortality(db, by_species=True, measure="count")
-    >>> top_species = results.sort('MORT_ACRE', descending=True).head(5)
+    >>> # Sort by mortality to find most affected species
+    >>> if not results.is_empty():
+    ...     top_species = results.sort(by='MORT_ACRE', descending=True).head(5)
     
     Biomass mortality on timberland by ownership:
     
@@ -530,12 +534,12 @@ def mortality(
     ...     tree_domain="DIA_MIDPT >= 10.0"
     ... )
     
-    Filter to specific mortality agents:
+    Complex filtering with domain expressions:
     
-    >>> # Disease mortality only (agent codes 10-29)
+    >>> # Large tree mortality only
     >>> results = mortality(
     ...     db,
-    ...     tree_domain="AGENTCD >= 10 AND AGENTCD < 30",
+    ...     tree_domain="DIA_MIDPT >= 20.0",
     ...     by_species=True
     ... )
     
@@ -571,11 +575,11 @@ def mortality(
     Warnings
     --------
     The current implementation uses a simplified variance calculation
-    (15% CV placeholder for per-acre, 20% for rates). Full stratified
-    variance calculation following Bechtold & Patterson (2005) will be
-    implemented in a future release. For applications requiring precise
-    variance estimates, consider using the FIA EVALIDator tool or rFIA
-    package.
+    (15% CV for per-acre estimates, 20% CV for mortality rates). Full
+    stratified variance calculation following Bechtold & Patterson (2005)
+    will be implemented in a future release. For applications requiring
+    precise variance estimates, consider using the FIA EVALIDator tool
+    or rFIA package.
     
     Raises
     ------

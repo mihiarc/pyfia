@@ -99,7 +99,15 @@ class VolumeEstimator(BaseEstimator):
         return data
 
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
-        """Aggregate volume with stratification."""
+        """Aggregate volume with two-stage aggregation for correct per-acre estimates.
+
+        CRITICAL FIX: This method implements two-stage aggregation following FIA
+        methodology. The previous single-stage approach caused ~22x underestimation
+        by having each tree contribute its condition proportion to the denominator.
+
+        Stage 1: Aggregate trees to plot-condition level
+        Stage 2: Apply expansion factors and calculate ratio-of-means
+        """
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -119,34 +127,75 @@ class VolumeEstimator(BaseEstimator):
         # Setup grouping
         group_cols = self._setup_grouping()
 
-        # Aggregate
-        agg_exprs = [
-            # Total volume (expansion factor applied)
-            (pl.col("VOLUME_ADJ") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
-            # Sum for per-acre calculation (ratio of means)
-            (pl.col("VOLUME_ADJ") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
-            # Total area
-            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-            # Plot count
-            pl.n_unique("PLT_CN").alias("N_PLOTS"),
-            # Tree count
-            pl.len().alias("N_TREES"),
-        ]
+        # ========================================================================
+        # CRITICAL FIX: Two-stage aggregation following FIA methodology
+        # ========================================================================
 
+        # STAGE 1: Aggregate trees to plot-condition level
+        # This ensures each condition's area proportion is counted exactly once
+        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
         if group_cols:
-            results = data_with_strat.group_by(group_cols).agg(agg_exprs)
+            # Add user-specified grouping columns if they exist at condition level
+            for col in group_cols:
+                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
+                    condition_group_cols.append(col)
+
+        # Aggregate volume at condition level
+        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
+            # Sum volume within each condition
+            pl.col("VOLUME_ADJ").sum().alias("CONDITION_VOLUME"),
+            # Count trees per condition for diagnostics
+            pl.len().alias("TREES_PER_CONDITION")
+        ])
+
+        # STAGE 2: Apply expansion factors and calculate population estimates
+        if group_cols:
+            # Group by user-specified columns for final aggregation
+            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
+            if final_group_cols:
+                results = condition_agg.group_by(final_group_cols).agg([
+                    # Numerator: Sum of expanded condition volumes
+                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
+                    # Denominator: Sum of expanded condition areas
+                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
+                    # Total volume (for totals=True)
+                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
+                    # Diagnostic counts
+                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                    pl.len().alias("N_CONDITIONS")
+                ])
+            else:
+                # No valid grouping columns at condition level
+                results = condition_agg.select([
+                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
+                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
+                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
+                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                    pl.len().alias("N_CONDITIONS")
+                ])
         else:
-            results = data_with_strat.select(agg_exprs)
+            # No grouping - aggregate all conditions
+            results = condition_agg.select([
+                (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
+                (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
+                (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
+                pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                pl.len().alias("N_CONDITIONS")
+            ])
 
         results = results.collect()
 
-        # Calculate per-acre value (ratio of means)
+        # Calculate per-acre value using ratio-of-means
+        # This is now correct because each condition contributes exactly once to denominator
         results = results.with_columns(
             [(pl.col("VOLUME_NUM") / pl.col("AREA_TOTAL")).alias("VOLUME_ACRE")]
         )
 
         # Clean up intermediate columns
-        results = results.drop(["VOLUME_NUM"])
+        results = results.drop(["VOLUME_NUM", "N_CONDITIONS"])
 
         return results
 

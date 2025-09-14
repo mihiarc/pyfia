@@ -106,6 +106,13 @@ class BiomassEstimator(BaseEstimator):
         Stage 1: Aggregate trees to plot-condition level
         Stage 2: Apply expansion factors and calculate ratio-of-means
         """
+        # Validate required columns exist
+        data_schema = data.collect_schema()
+        required_cols = ["PLT_CN", "BIOMASS_ACRE", "CARBON_ACRE"]
+        missing_cols = [col for col in required_cols if col not in data_schema.names()]
+        if missing_cols:
+            raise ValueError(f"Required columns missing from data: {missing_cols}")
+
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -140,10 +147,24 @@ class BiomassEstimator(BaseEstimator):
         # This ensures each condition's area proportion is counted exactly once
         condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
         if group_cols:
+            # Cache schema to avoid repeated collection
+            available_cols = data_with_strat.collect_schema().names()
+            dropped_cols = []
+
             # Add user-specified grouping columns if they exist at condition level
             for col in group_cols:
-                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
+                if col in available_cols and col not in condition_group_cols:
                     condition_group_cols.append(col)
+                elif col not in available_cols:
+                    dropped_cols.append(col)
+
+            # Warn about dropped columns
+            if dropped_cols:
+                import warnings
+                warnings.warn(
+                    f"The following grouping columns were not found and will be ignored: {dropped_cols}",
+                    UserWarning
+                )
 
         # Aggregate biomass and carbon at condition level
         condition_agg = data_with_strat.group_by(condition_group_cols).agg([
@@ -268,9 +289,18 @@ class BiomassEstimator(BaseEstimator):
             # statistically represents forest conditions as of 2023
             try:
                 evalid = self.db.evalids[0]  # Use first EVALID
-                year_part = str(evalid)[2:4]  # Extract YY portion
-                year = 2000 + int(year_part)  # Convert to 4-digit year
-            except (IndexError, ValueError):
+                year_part = int(str(evalid)[2:4])  # Extract YY portion
+
+                # Handle century correctly - FIA data starts in 1990s
+                if year_part >= 90:  # Years 90-99 are 1990-1999
+                    year = 1900 + year_part
+                else:  # Years 00-89 are 2000-2089
+                    year = 2000 + year_part
+
+                # Validate year is reasonable (1990-2050)
+                if year < 1990 or year > 2050:
+                    year = None  # Fall back to other methods
+            except (IndexError, ValueError, TypeError):
                 pass
 
         # Fallback: If no EVALID, use most recent INVYR as approximation

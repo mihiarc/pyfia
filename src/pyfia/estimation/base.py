@@ -436,14 +436,14 @@ class BaseEstimator(ABC):
         # STAGE 1: Aggregate to plot-condition level
         # ========================================================================
 
+        # Cache schema once at the beginning to avoid repeated collection
+        available_cols = data_with_strat.collect_schema().names()
+
         # Define condition-level grouping columns (always needed)
         condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
 
         # Add user-specified grouping columns if they exist at condition level
         if group_cols:
-            # Cache schema to avoid repeated collection
-            available_cols = data_with_strat.collect_schema().names()
-
             for col in group_cols:
                 if col in available_cols and col not in condition_group_cols:
                     condition_group_cols.append(col)
@@ -496,10 +496,11 @@ class BaseEstimator(ABC):
 
         # Apply final aggregation based on grouping
         if group_cols:
-            # Filter to valid grouping columns at condition level
+            # Filter to valid grouping columns at condition level (using cached schema)
+            # Note: After aggregation, only columns in condition_group_cols are available
             final_group_cols = [
                 col for col in group_cols
-                if col in condition_agg.collect_schema().names()
+                if col in condition_group_cols
             ]
 
             if final_group_cols:

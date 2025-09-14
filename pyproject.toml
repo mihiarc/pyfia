@@ -104,5 +104,5 @@ python_classes = ["Test*"]
 
 [dependency-groups]
 dev = [
-    "hypothesis>=6.138.14",
+    # hypothesis already declared in [project.optional-dependencies].dev
 ]

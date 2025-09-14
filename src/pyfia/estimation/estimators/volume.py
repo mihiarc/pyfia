@@ -127,79 +127,27 @@ class VolumeEstimator(BaseEstimator):
         # Setup grouping
         group_cols = self._setup_grouping()
 
-        # ========================================================================
-        # CRITICAL FIX: Two-stage aggregation following FIA methodology
-        # ========================================================================
+        # Use shared two-stage aggregation method
+        metric_mappings = {
+            "VOLUME_ADJ": "CONDITION_VOLUME"
+        }
 
-        # STAGE 1: Aggregate trees to plot-condition level
-        # This ensures each condition's area proportion is counted exactly once
-        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-        if group_cols:
-            # Add user-specified grouping columns if they exist at condition level
-            for col in group_cols:
-                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
-                    condition_group_cols.append(col)
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=False
+        )
 
-        # Aggregate volume at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
-            # Sum volume within each condition
-            pl.col("VOLUME_ADJ").sum().alias("CONDITION_VOLUME"),
-            # Count trees per condition for diagnostics
-            pl.len().alias("TREES_PER_CONDITION")
-        ])
+        # Rename columns to match expected output
+        # The shared method returns VOLUME_ACRE and VOLUME_TOTAL
+        # which are already the names we want
 
-        # STAGE 2: Apply expansion factors and calculate population estimates
-        if group_cols:
-            # Group by user-specified columns for final aggregation
-            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
-            if final_group_cols:
-                results = condition_agg.group_by(final_group_cols).agg([
-                    # Numerator: Sum of expanded condition volumes
-                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
-                    # Denominator: Sum of expanded condition areas
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    # Total volume (for totals=True)
-                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
-                    # Diagnostic counts
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-            else:
-                # No valid grouping columns at condition level
-                results = condition_agg.select([
-                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-        else:
-            # No grouping - aggregate all conditions
-            results = condition_agg.select([
-                (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_NUM"),
-                (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                (pl.col("CONDITION_VOLUME") * pl.col("EXPNS")).sum().alias("VOLUME_TOTAL"),
-                pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                pl.len().alias("N_CONDITIONS")
-            ])
-
-        results = results.collect()
-
-        # Calculate per-acre value using ratio-of-means
-        # This is now correct because each condition contributes exactly once to denominator
-        # Add protection against division by zero
-        results = results.with_columns([
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("VOLUME_NUM") / pl.col("AREA_TOTAL"))
-            .otherwise(0.0)
-            .alias("VOLUME_ACRE")
-        ])
-
-        # Clean up intermediate columns
-        results = results.drop(["VOLUME_NUM", "N_CONDITIONS"])
+        # Handle totals based on config
+        if not self.config.get("totals", True):
+            # Remove total column if not requested
+            if "VOLUME_TOTAL" in results.columns:
+                results = results.drop(["VOLUME_TOTAL"])
 
         return results
 

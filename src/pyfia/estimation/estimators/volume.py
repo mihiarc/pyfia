@@ -190,9 +190,13 @@ class VolumeEstimator(BaseEstimator):
 
         # Calculate per-acre value using ratio-of-means
         # This is now correct because each condition contributes exactly once to denominator
-        results = results.with_columns(
-            [(pl.col("VOLUME_NUM") / pl.col("AREA_TOTAL")).alias("VOLUME_ACRE")]
-        )
+        # Add protection against division by zero
+        results = results.with_columns([
+            pl.when(pl.col("AREA_TOTAL") > 0)
+            .then(pl.col("VOLUME_NUM") / pl.col("AREA_TOTAL"))
+            .otherwise(0.0)
+            .alias("VOLUME_ACRE")
+        ])
 
         # Clean up intermediate columns
         results = results.drop(["VOLUME_NUM", "N_CONDITIONS"])

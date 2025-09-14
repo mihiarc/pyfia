@@ -296,21 +296,34 @@ class GrowthEstimator(BaseEstimator):
         results = results.collect()
         
         # Calculate per-acre values (ratio of means)
+        # Add protection against division by zero for all metrics
         if "GROWTH_NUM" in results.columns:
             results = results.with_columns([
-                (pl.col("GROWTH_NUM") / pl.col("AREA_TOTAL")).alias("GROW_ACRE")
+                pl.when(pl.col("AREA_TOTAL") > 0)
+                .then(pl.col("GROWTH_NUM") / pl.col("AREA_TOTAL"))
+                .otherwise(0.0)
+                .alias("GROW_ACRE")
             ])
         if "REMOVAL_NUM" in results.columns:
             results = results.with_columns([
-                (pl.col("REMOVAL_NUM") / pl.col("AREA_TOTAL")).alias("REMV_ACRE")
+                pl.when(pl.col("AREA_TOTAL") > 0)
+                .then(pl.col("REMOVAL_NUM") / pl.col("AREA_TOTAL"))
+                .otherwise(0.0)
+                .alias("REMV_ACRE")
             ])
         if "MORTALITY_NUM" in results.columns:
             results = results.with_columns([
-                (pl.col("MORTALITY_NUM") / pl.col("AREA_TOTAL")).alias("MORT_ACRE")
+                pl.when(pl.col("AREA_TOTAL") > 0)
+                .then(pl.col("MORTALITY_NUM") / pl.col("AREA_TOTAL"))
+                .otherwise(0.0)
+                .alias("MORT_ACRE")
             ])
         if "NET_CHANGE_NUM" in results.columns:
             results = results.with_columns([
-                (pl.col("NET_CHANGE_NUM") / pl.col("AREA_TOTAL")).alias("NET_CHG_ACRE")
+                pl.when(pl.col("AREA_TOTAL") > 0)
+                .then(pl.col("NET_CHANGE_NUM") / pl.col("AREA_TOTAL"))
+                .otherwise(0.0)
+                .alias("NET_CHG_ACRE")
             ])
         
         # Clean up intermediate columns

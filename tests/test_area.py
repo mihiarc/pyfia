@@ -16,7 +16,7 @@ from unittest.mock import Mock
 import polars as pl
 import pytest
 
-from pyfia.estimation.area import area
+from pyfia.estimation import area
 
 
 class TestAreaEstimation:

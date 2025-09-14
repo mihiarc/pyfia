@@ -97,70 +97,125 @@ class BiomassEstimator(BaseEstimator):
         return data
     
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
-        """Aggregate biomass with stratification."""
+        """Aggregate biomass with two-stage aggregation for correct per-acre estimates.
+
+        CRITICAL FIX: This method implements two-stage aggregation following FIA
+        methodology. The previous single-stage approach caused ~20x underestimation
+        by having each tree contribute its condition proportion to the denominator.
+
+        Stage 1: Aggregate trees to plot-condition level
+        Stage 2: Apply expansion factors and calculate ratio-of-means
+        """
         # Get stratification data
         strat_data = self._get_stratification_data()
-        
+
         # Join with stratification
         data_with_strat = data.join(
             strat_data,
             on="PLT_CN",
             how="inner"
         )
-        
+
         # Apply adjustment factors
         data_with_strat = apply_tree_adjustment_factors(
             data_with_strat,
             size_col="DIA",
             macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
-        
+
         # Apply adjustment
         data_with_strat = data_with_strat.with_columns([
             (pl.col("BIOMASS_ACRE") * pl.col("ADJ_FACTOR")).alias("BIOMASS_ADJ"),
             (pl.col("CARBON_ACRE") * pl.col("ADJ_FACTOR")).alias("CARBON_ADJ")
         ])
-        
+
         # Setup grouping
         group_cols = self._setup_grouping()
-        
-        # Aggregate
-        agg_exprs = [
-            # Biomass totals
-            (pl.col("BIOMASS_ADJ") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
-            (pl.col("BIOMASS_ADJ") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
-            # Carbon totals
-            (pl.col("CARBON_ADJ") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
-            (pl.col("CARBON_ADJ") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
-            # Area
-            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-            # Counts
-            pl.n_unique("PLT_CN").alias("N_PLOTS"),
-            pl.count().alias("N_TREES")
-        ]
-        
+
+        # ========================================================================
+        # CRITICAL FIX: Two-stage aggregation following FIA methodology
+        # ========================================================================
+
+        # STAGE 1: Aggregate trees to plot-condition level
+        # This ensures each condition's area proportion is counted exactly once
+        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
         if group_cols:
-            results = data_with_strat.group_by(group_cols).agg(agg_exprs)
+            # Add user-specified grouping columns if they exist at condition level
+            for col in group_cols:
+                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
+                    condition_group_cols.append(col)
+
+        # Aggregate biomass and carbon at condition level
+        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
+            # Sum biomass and carbon within each condition
+            pl.col("BIOMASS_ADJ").sum().alias("CONDITION_BIOMASS"),
+            pl.col("CARBON_ADJ").sum().alias("CONDITION_CARBON"),
+            # Count trees per condition for diagnostics
+            pl.len().alias("TREES_PER_CONDITION")
+        ])
+
+        # STAGE 2: Apply expansion factors and calculate population estimates
+        if group_cols:
+            # Group by user-specified columns for final aggregation
+            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
+            if final_group_cols:
+                results = condition_agg.group_by(final_group_cols).agg([
+                    # Numerator: Sum of expanded condition biomass/carbon
+                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
+                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
+                    # Denominator: Sum of expanded condition areas
+                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
+                    # Totals (for totals=True)
+                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
+                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
+                    # Diagnostic counts
+                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                    pl.len().alias("N_CONDITIONS")
+                ])
+            else:
+                # No valid grouping columns at condition level
+                results = condition_agg.select([
+                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
+                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
+                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
+                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
+                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
+                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                    pl.len().alias("N_CONDITIONS")
+                ])
         else:
-            results = data_with_strat.select(agg_exprs)
-        
+            # No grouping - aggregate all conditions
+            results = condition_agg.select([
+                (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
+                (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
+                (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
+                (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
+                (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
+                pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                pl.len().alias("N_CONDITIONS")
+            ])
+
         results = results.collect()
-        
-        # Calculate per-acre values (ratio of means)
+
+        # Calculate per-acre values using ratio-of-means
+        # This is now correct because each condition contributes exactly once to denominator
         results = results.with_columns([
             (pl.col("BIOMASS_NUM") / pl.col("AREA_TOTAL")).alias("BIO_ACRE"),
             (pl.col("CARBON_NUM") / pl.col("AREA_TOTAL")).alias("CARB_ACRE")
         ])
-        
+
         # Rename totals
         results = results.rename({
             "BIOMASS_TOTAL": "BIO_TOTAL",
             "CARBON_TOTAL": "CARB_TOTAL"
         })
-        
-        # Clean up
-        results = results.drop(["BIOMASS_NUM", "CARBON_NUM"])
-        
+
+        # Clean up intermediate columns
+        results = results.drop(["BIOMASS_NUM", "CARBON_NUM", "N_CONDITIONS"])
+
         return results
     
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:

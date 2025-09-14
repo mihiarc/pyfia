@@ -254,13 +254,18 @@ class BiomassEstimator(BaseEstimator):
     
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format biomass estimation output."""
-        # Extract year from evaluation data if available
+        # Extract year from evaluation data
+        # IMPORTANT: Use EVALID year (evaluation reference year) not INVYR
+        # EVALID year represents the complete statistical estimate for that year
+        # while INVYR varies by plot due to FIA's rotating panel design
         year = None
 
-        # Try to get year from POP_EVAL table via EVALID
+        # Primary source: EVALID encodes the evaluation reference year
         if hasattr(self.db, 'evalids') and self.db.evalids:
-            # EVALIDs are 6-digit codes: SSYYTT where YY is the year
-            # Example: 482300 = State 48, Year 23, Type 00
+            # EVALIDs are 6-digit codes: SSYYTT where YY is the evaluation year
+            # Example: 482300 = State 48, Year 2023 evaluation, Type 00
+            # This evaluation might include plots measured 2019-2023, but
+            # statistically represents forest conditions as of 2023
             try:
                 evalid = self.db.evalids[0]  # Use first EVALID
                 year_part = str(evalid)[2:4]  # Extract YY portion
@@ -268,13 +273,14 @@ class BiomassEstimator(BaseEstimator):
             except (IndexError, ValueError):
                 pass
 
-        # If no EVALID available, try to get from PLOT table
+        # Fallback: If no EVALID, use most recent INVYR as approximation
+        # Note: This is less accurate as plots have different INVYR values
         if year is None and "PLOT" in self.db.tables:
             try:
                 plot_years = self.db.tables["PLOT"].select("INVYR").collect()
                 if not plot_years.is_empty():
-                    # Use median year as representative
-                    year = int(plot_years["INVYR"].median())
+                    # Use max year as it best represents the evaluation period
+                    year = int(plot_years["INVYR"].max())
             except Exception:
                 pass
 
@@ -433,7 +439,9 @@ def biomass(
         - **N_TREES** : int
             Number of individual tree records
         - **YEAR** : int
-            Representative year from the evaluation (derived from EVALID or INVYR)
+            Evaluation reference year (from EVALID). This represents the year
+            of the complete statistical estimate, not individual plot measurement
+            years (INVYR) which vary due to FIA's rotating panel design
         - **[grouping columns]** : various
             Any columns specified in grp_by or from by_species
 
@@ -458,6 +466,14 @@ def biomass(
     Carbon content is estimated as 47% of dry biomass following IPCC
     guidelines and FIA standard practice. This percentage may vary slightly
     by species and component but 47% is the standard factor.
+
+    **Evaluation Year vs. Inventory Year**: The YEAR in output represents
+    the evaluation reference year from EVALID, not individual plot inventory
+    years (INVYR). Due to FIA's rotating panel design, plots within an
+    evaluation are measured across multiple years (typically 5-7 year cycle),
+    but the evaluation statistically represents forest conditions as of the
+    reference year. For example, EVALID 482300 represents Texas forest
+    conditions as of 2023, even though it includes plots measured 2019-2023.
 
     The function implements two-stage aggregation following FIA methodology:
 

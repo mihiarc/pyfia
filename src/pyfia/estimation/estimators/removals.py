@@ -324,8 +324,12 @@ class RemovalsEstimator(BaseEstimator):
 
         # Calculate per-acre value (ratio of means)
         # This is now correct because each condition contributes exactly once to denominator
+        # Add protection against division by zero
         results = results.with_columns([
-            (pl.col("REMV_NUM") / pl.col("AREA_TOTAL")).alias("REMV_ACRE")
+            pl.when(pl.col("AREA_TOTAL") > 0)
+            .then(pl.col("REMV_NUM") / pl.col("AREA_TOTAL"))
+            .otherwise(0.0)
+            .alias("REMV_ACRE")
         ])
 
         # Clean up intermediate columns

@@ -2,6 +2,8 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+> **📚 Technical Reference**: For comprehensive FIA methodology, terminology, and formulas, see [`fia_technical_context.md`](./fia_technical_context.md)
+
 ## Project Overview
 pyFIA is a Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides statistically valid estimation methods while leveraging modern Python data science tools like Polars and DuckDB for high-performance data processing.
 

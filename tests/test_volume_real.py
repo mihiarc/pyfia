@@ -10,7 +10,7 @@ import polars as pl
 import pytest
 
 from pyfia import FIA
-from pyfia.estimation.volume import volume
+from pyfia.estimation import volume
 import duckdb
 
 

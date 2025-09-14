@@ -101,3 +101,8 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+
+[dependency-groups]
+dev = [
+    # hypothesis already declared in [project.optional-dependencies].dev
+]

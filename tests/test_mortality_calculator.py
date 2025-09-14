@@ -9,12 +9,7 @@ import pytest
 import polars as pl
 
 from pyfia import FIA
-from pyfia.estimation.mortality import (
-    MortalityCalculator,
-    MortalityEstimatorConfig,
-    MortalityVarianceCalculator,
-    MortalityGroupHandler
-)
+from pyfia.estimation import mortality, MortalityEstimator
 
 
 class TestMortalityEstimatorConfig:

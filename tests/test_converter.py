@@ -13,17 +13,11 @@ import pytest
 import polars as pl
 
 from pyfia.converter import (
-    ConverterConfig,
-    FIAConverter,
-    SchemaOptimizer,
-    StateMerger,
-    DataValidator
-)
-from pyfia.converter.models import (
-    ConversionStatus,
-    ValidationLevel,
-    CompressionLevel,
-    OptimizedSchema
+    convert_sqlite_to_duckdb,
+    merge_states,
+    append_state,
+    get_database_info,
+    compare_databases
 )
 
 

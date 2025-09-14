@@ -504,15 +504,34 @@ def growth(
         FIA tables used in the estimation (PLOT, COND, TREE_GRM_COMPONENT,
         TREE_GRM_MIDPT). Common grouping columns include:
 
-        - 'FORTYPCD': Forest type code
+        **Ownership and Management:**
         - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
           30=State/Local, 40=Private)
+        - 'OWNCD': Detailed ownership code (see REF_RESEARCH_STATION)
+        - 'ADFORCD': Administrative forest code
+        - 'RESERVCD': Reserved status (0=Not reserved, 1=Reserved)
+
+        **Forest Characteristics:**
+        - 'FORTYPCD': Forest type code (see REF_FOREST_TYPE)
+        - 'STDSZCD': Stand size class (1=Large diameter, 2=Medium diameter,
+          3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+        - 'STDORGCD': Stand origin (0=Natural, 1=Planted)
+        - 'STDAGE': Stand age in years
+
+        **Site Characteristics:**
+        - 'SITECLCD': Site productivity class (1=225+ cu ft/ac/yr,
+          2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+        - 'PHYSCLCD': Physiographic class code
+
+        **Location:**
         - 'STATECD': State FIPS code
+        - 'UNITCD': FIA survey unit code
         - 'COUNTYCD': County code
-        - 'UNITCD': FIA survey unit
         - 'INVYR': Inventory year
-        - 'STDAGE': Stand age class
-        - 'SITECLCD': Site productivity class
+
+        **Disturbance and Treatment:**
+        - 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3': Disturbance codes (from COND)
+        - 'TRTCD1', 'TRTCD2', 'TRTCD3': Treatment codes (from COND)
 
         For complete column descriptions, see USDA FIA Database User Guide.
     by_species : bool, default False

@@ -91,11 +91,13 @@ class TPAEstimator(BaseEstimator):
 
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """
-        Aggregate TPA and BAA with proper FIA stratification.
+        Aggregate TPA and BAA with proper FIA two-stage stratification.
 
-        Uses ratio-of-means estimation following FIA methodology:
-        - Per-acre values = sum(value × expansion) / sum(area × expansion)
-        - Total values = sum(value × expansion)
+        Implements FIA's two-stage aggregation methodology:
+        Stage 1: Sum trees to plot-condition level
+        Stage 2: Apply expansion factors and calculate ratio-of-means
+
+        This follows the FIA EVALIDator pattern to ensure correct statistical estimates.
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -115,13 +117,13 @@ class TPAEstimator(BaseEstimator):
             macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
-        # Apply adjustment to get expanded values
+        # Apply adjustment to get adjusted values
         data_with_strat = data_with_strat.with_columns([
             (pl.col("TPA").cast(pl.Float64) * pl.col("ADJ_FACTOR").cast(pl.Float64)).alias("TPA_ADJ"),
             (pl.col("BAA").cast(pl.Float64) * pl.col("ADJ_FACTOR").cast(pl.Float64)).alias("BAA_ADJ")
         ])
 
-        # Setup grouping columns
+        # Setup grouping columns - need to include condition-level grouping
         group_cols = self._setup_grouping()
 
         # Add species to grouping if requested
@@ -132,53 +134,79 @@ class TPAEstimator(BaseEstimator):
         if self.config.get("by_size_class", False) and "SIZE_CLASS" not in group_cols:
             group_cols.append("SIZE_CLASS")
 
-        # Define aggregation expressions for ratio-of-means estimation
+        # CRITICAL FIX: Two-stage aggregation following FIA methodology
+        # Stage 1: Aggregate trees to plot-condition level
+        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"] + group_cols
+
+        # Remove duplicates from condition_group_cols
+        condition_group_cols = list(dict.fromkeys(condition_group_cols))
+
+        # First aggregate to condition level
+        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
+            # Sum adjusted TPA and BAA within each condition
+            pl.col("TPA_ADJ").sum().alias("CONDITION_TPA"),
+            pl.col("BAA_ADJ").sum().alias("CONDITION_BAA"),
+            # Count trees per condition for diagnostics
+            pl.len().alias("TREES_PER_CONDITION")
+        ])
+
+        # Collect the condition-level aggregation
+        condition_agg = condition_agg.collect()
+
+        # Stage 2: Apply expansion factors and calculate population estimates
+        # Now we have one row per condition, apply expansion and aggregate
+
+        # Define aggregation expressions at population level
         agg_exprs = [
-            # Numerators for ratio estimation (value × expansion)
-            (pl.col("TPA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("TPA_NUM"),
-            (pl.col("BAA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("BAA_NUM"),
+            # Numerators: sum(condition_value × expansion)
+            (pl.col("CONDITION_TPA").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("TPA_NUM"),
+            (pl.col("CONDITION_BAA").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("BAA_NUM"),
 
-            # Total values (direct expansion)
-            (pl.col("TPA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("TPA_TOTAL"),
-            (pl.col("BAA_ADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("BAA_TOTAL"),
-
-            # Denominator for ratio estimation (area × expansion)
-            (pl.col("CONDPROP_UNADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
+            # Denominators: sum(condition_area × expansion)
+            (pl.col("CONDPROP_UNADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_DENOM"),
 
             # Sample size information
             pl.n_unique("PLT_CN").alias("N_PLOTS"),
-            pl.len().alias("N_TREES")
+            pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+            pl.len().alias("N_CONDITIONS")
         ]
 
-        # Perform aggregation
+        # Perform final aggregation
         if group_cols:
-            results = data_with_strat.group_by(group_cols).agg(agg_exprs)
+            results = condition_agg.group_by(group_cols).agg(agg_exprs)
         else:
-            results = data_with_strat.select(agg_exprs)
-
-        # Collect results
-        results = results.collect()
+            results = condition_agg.select(agg_exprs)
 
         # Calculate per-acre values using ratio-of-means
-        # Add small epsilon to avoid division by zero
         results = results.with_columns([
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("TPA_NUM") / pl.col("AREA_TOTAL"))
+            pl.when(pl.col("AREA_DENOM") > 0)
+            .then(pl.col("TPA_NUM") / pl.col("AREA_DENOM"))
             .otherwise(0.0)
             .alias("TPA"),
 
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("BAA_NUM") / pl.col("AREA_TOTAL"))
+            pl.when(pl.col("AREA_DENOM") > 0)
+            .then(pl.col("BAA_NUM") / pl.col("AREA_DENOM"))
             .otherwise(0.0)
             .alias("BAA")
         ])
+
+        # Add total estimates if requested
+        if self.config.get("totals", False):
+            results = results.with_columns([
+                pl.col("TPA_NUM").alias("TPA_TOTAL"),
+                pl.col("BAA_NUM").alias("BAA_TOTAL")
+            ])
+
+        # Rename area column for consistency
+        results = results.rename({"AREA_DENOM": "AREA_TOTAL"})
 
         # Clean up intermediate columns
         results = results.drop(["TPA_NUM", "BAA_NUM"])
 
         # If no totals requested, drop total columns
         if not self.config.get("totals", False):
-            results = results.drop(["TPA_TOTAL", "BAA_TOTAL"])
+            if "TPA_TOTAL" in results.columns:
+                results = results.drop(["TPA_TOTAL", "BAA_TOTAL"])
 
         return results
 
@@ -511,25 +539,30 @@ def tpa(
     inventory metrics. TPA represents tree density, while BAA represents the
     cross-sectional area of trees at breast height (4.5 feet).
 
-    **Calculation Formulas:**
+    **Calculation Formulas (Two-Stage Aggregation):**
 
-    TPA calculation:
-        TPA = TPA_UNADJ × ADJ_FACTOR × EXPNS / AREA
+    Stage 1 - Plot-Condition Aggregation:
+        CONDITION_TPA = Σ(TPA_UNADJ × ADJ_FACTOR) for each tree in condition
+        CONDITION_BAA = Σ(π × (DIA/24)² × TPA_UNADJ × ADJ_FACTOR) for each tree
 
-    BAA calculation:
-        BAA = π × (DIA/24)² × TPA_UNADJ × ADJ_FACTOR × EXPNS / AREA
+    Stage 2 - Population Expansion:
+        TPA = Σ(CONDITION_TPA × EXPNS) / Σ(CONDPROP_UNADJ × EXPNS)
+        BAA = Σ(CONDITION_BAA × EXPNS) / Σ(CONDPROP_UNADJ × EXPNS)
 
     Where:
     - TPA_UNADJ: Unadjusted trees per acre from plot design
     - DIA: Diameter at breast height in inches
     - ADJ_FACTOR: Plot size adjustment factor (SUBP, MICR, or MACR)
     - EXPNS: Stratification expansion factor
-    - AREA: Total area represented (for per-acre calculation)
+    - CONDPROP_UNADJ: Proportion of plot in the condition
 
     The DIA/24 term converts diameter in inches to radius in feet:
     - DIA/12 converts inches to feet
     - Divide by 2 to get radius
     - Simplified: (DIA/24)²
+
+    **Critical**: The two-stage aggregation is essential for correct estimates.
+    Trees must be summed to condition level BEFORE applying expansion factors.
 
     **EVALID Requirements:**
     The FIA database must have EVALID set before calling this function.

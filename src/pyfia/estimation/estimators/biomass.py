@@ -139,111 +139,34 @@ class BiomassEstimator(BaseEstimator):
         # Setup grouping
         group_cols = self._setup_grouping()
 
-        # ========================================================================
-        # CRITICAL FIX: Two-stage aggregation following FIA methodology
-        # ========================================================================
+        # Use shared two-stage aggregation method
+        metric_mappings = {
+            "BIOMASS_ADJ": "CONDITION_BIOMASS",
+            "CARBON_ADJ": "CONDITION_CARBON"
+        }
 
-        # STAGE 1: Aggregate trees to plot-condition level
-        # This ensures each condition's area proportion is counted exactly once
-        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-        if group_cols:
-            # Cache schema to avoid repeated collection
-            available_cols = data_with_strat.collect_schema().names()
-            dropped_cols = []
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=False
+        )
 
-            # Add user-specified grouping columns if they exist at condition level
-            for col in group_cols:
-                if col in available_cols and col not in condition_group_cols:
-                    condition_group_cols.append(col)
-                elif col not in available_cols:
-                    dropped_cols.append(col)
-
-            # Warn about dropped columns
-            if dropped_cols:
-                import warnings
-                warnings.warn(
-                    f"The following grouping columns were not found and will be ignored: {dropped_cols}",
-                    UserWarning
-                )
-
-        # Aggregate biomass and carbon at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
-            # Sum biomass and carbon within each condition
-            pl.col("BIOMASS_ADJ").sum().alias("CONDITION_BIOMASS"),
-            pl.col("CARBON_ADJ").sum().alias("CONDITION_CARBON"),
-            # Count trees per condition for diagnostics
-            pl.len().alias("TREES_PER_CONDITION")
-        ])
-
-        # STAGE 2: Apply expansion factors and calculate population estimates
-        if group_cols:
-            # Group by user-specified columns for final aggregation
-            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
-            if final_group_cols:
-                results = condition_agg.group_by(final_group_cols).agg([
-                    # Numerator: Sum of expanded condition biomass/carbon
-                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
-                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
-                    # Denominator: Sum of expanded condition areas
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    # Totals (for totals=True)
-                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
-                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
-                    # Diagnostic counts
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-            else:
-                # No valid grouping columns at condition level
-                results = condition_agg.select([
-                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
-                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
-                    (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-        else:
-            # No grouping - aggregate all conditions
-            results = condition_agg.select([
-                (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_NUM"),
-                (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_NUM"),
-                (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                (pl.col("CONDITION_BIOMASS") * pl.col("EXPNS")).sum().alias("BIOMASS_TOTAL"),
-                (pl.col("CONDITION_CARBON") * pl.col("EXPNS")).sum().alias("CARBON_TOTAL"),
-                pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                pl.len().alias("N_CONDITIONS")
-            ])
-
-        results = results.collect()
-
-        # Calculate per-acre values using ratio-of-means
-        # This is now correct because each condition contributes exactly once to denominator
-        # Add protection against division by zero
-        results = results.with_columns([
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("BIOMASS_NUM") / pl.col("AREA_TOTAL"))
-            .otherwise(0.0)
-            .alias("BIO_ACRE"),
-
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("CARBON_NUM") / pl.col("AREA_TOTAL"))
-            .otherwise(0.0)
-            .alias("CARB_ACRE")
-        ])
-
-        # Rename totals
+        # Rename columns to match expected output
         results = results.rename({
+            "BIOMASS_ACRE": "BIO_ACRE",
+            "CARBON_ACRE": "CARB_ACRE",
             "BIOMASS_TOTAL": "BIO_TOTAL",
             "CARBON_TOTAL": "CARB_TOTAL"
         })
 
-        # Clean up intermediate columns
-        results = results.drop(["BIOMASS_NUM", "CARBON_NUM", "N_CONDITIONS"])
+        # Handle totals based on config
+        if not self.config.get("totals", True):
+            # Remove total columns if not requested
+            cols_to_drop = ["BIO_TOTAL", "CARB_TOTAL"]
+            cols_to_drop = [col for col in cols_to_drop if col in results.columns]
+            if cols_to_drop:
+                results = results.drop(cols_to_drop)
 
         return results
     

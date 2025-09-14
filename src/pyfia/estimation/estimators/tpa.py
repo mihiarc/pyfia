@@ -134,79 +134,32 @@ class TPAEstimator(BaseEstimator):
         if self.config.get("by_size_class", False) and "SIZE_CLASS" not in group_cols:
             group_cols.append("SIZE_CLASS")
 
-        # CRITICAL FIX: Two-stage aggregation following FIA methodology
-        # Stage 1: Aggregate trees to plot-condition level
-        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"] + group_cols
+        # Use shared two-stage aggregation method
+        metric_mappings = {
+            "TPA_ADJ": "CONDITION_TPA",
+            "BAA_ADJ": "CONDITION_BAA"
+        }
 
-        # Remove duplicates from condition_group_cols
-        condition_group_cols = list(dict.fromkeys(condition_group_cols))
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=False
+        )
 
-        # First aggregate to condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
-            # Sum adjusted TPA and BAA within each condition
-            pl.col("TPA_ADJ").sum().alias("CONDITION_TPA"),
-            pl.col("BAA_ADJ").sum().alias("CONDITION_BAA"),
-            # Count trees per condition for diagnostics
-            pl.len().alias("TREES_PER_CONDITION")
-        ])
+        # Rename columns to match expected output
+        results = results.rename({
+            "TPA_ACRE": "TPA",
+            "BAA_ACRE": "BAA"
+        })
 
-        # Collect the condition-level aggregation
-        condition_agg = condition_agg.collect()
-
-        # Stage 2: Apply expansion factors and calculate population estimates
-        # Now we have one row per condition, apply expansion and aggregate
-
-        # Define aggregation expressions at population level
-        agg_exprs = [
-            # Numerators: sum(condition_value × expansion)
-            (pl.col("CONDITION_TPA").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("TPA_NUM"),
-            (pl.col("CONDITION_BAA").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("BAA_NUM"),
-
-            # Denominators: sum(condition_area × expansion)
-            (pl.col("CONDPROP_UNADJ").cast(pl.Float64) * pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_DENOM"),
-
-            # Sample size information
-            pl.n_unique("PLT_CN").alias("N_PLOTS"),
-            pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-            pl.len().alias("N_CONDITIONS")
-        ]
-
-        # Perform final aggregation
-        if group_cols:
-            results = condition_agg.group_by(group_cols).agg(agg_exprs)
-        else:
-            results = condition_agg.select(agg_exprs)
-
-        # Calculate per-acre values using ratio-of-means
-        results = results.with_columns([
-            pl.when(pl.col("AREA_DENOM") > 0)
-            .then(pl.col("TPA_NUM") / pl.col("AREA_DENOM"))
-            .otherwise(0.0)
-            .alias("TPA"),
-
-            pl.when(pl.col("AREA_DENOM") > 0)
-            .then(pl.col("BAA_NUM") / pl.col("AREA_DENOM"))
-            .otherwise(0.0)
-            .alias("BAA")
-        ])
-
-        # Add total estimates if requested
-        if self.config.get("totals", False):
-            results = results.with_columns([
-                pl.col("TPA_NUM").alias("TPA_TOTAL"),
-                pl.col("BAA_NUM").alias("BAA_TOTAL")
-            ])
-
-        # Rename area column for consistency
-        results = results.rename({"AREA_DENOM": "AREA_TOTAL"})
-
-        # Clean up intermediate columns
-        results = results.drop(["TPA_NUM", "BAA_NUM"])
-
-        # If no totals requested, drop total columns
+        # Handle totals based on config
         if not self.config.get("totals", False):
-            if "TPA_TOTAL" in results.columns:
-                results = results.drop(["TPA_TOTAL", "BAA_TOTAL"])
+            # Remove total columns if not requested
+            cols_to_drop = ["TPA_TOTAL", "BAA_TOTAL"]
+            cols_to_drop = [col for col in cols_to_drop if col in results.columns]
+            if cols_to_drop:
+                results = results.drop(cols_to_drop)
 
         return results
 

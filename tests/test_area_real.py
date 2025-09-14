@@ -13,7 +13,7 @@ import pytest
 from pathlib import Path
 
 from pyfia import FIA
-from pyfia.estimation.area import area
+from pyfia.estimation import area
 
 
 class TestAreaRealData:

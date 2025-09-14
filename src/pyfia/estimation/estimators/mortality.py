@@ -235,12 +235,8 @@ class MortalityEstimator(BaseEstimator):
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate mortality with two-stage aggregation for correct per-acre estimates.
 
-        CRITICAL FIX: This method implements two-stage aggregation following FIA
-        methodology. The previous single-stage approach caused ~20x underestimation
-        by having each mortality component contribute its condition proportion to the denominator.
-
-        Stage 1: Aggregate mortality components to plot-condition level
-        Stage 2: Apply expansion factors and calculate ratio-of-means
+        Uses the shared _apply_two_stage_aggregation method with GRM-specific adjustment
+        logic applied before calling the shared method.
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -253,6 +249,7 @@ class MortalityEstimator(BaseEstimator):
         )
 
         # Apply GRM-specific adjustment factors based on SUBPTYP_GRM
+        # This is done BEFORE calling the shared aggregation method
         # SUBPTYP_GRM: 0=None, 1=SUBP, 2=MICR, 3=MACR
         data_with_strat = data_with_strat.with_columns([
             pl.when(pl.col("SUBPTYP_GRM") == 0)
@@ -267,92 +264,43 @@ class MortalityEstimator(BaseEstimator):
             .alias("ADJ_FACTOR")
         ])
 
-        # Apply adjustment
+        # Apply adjustment to mortality values
         data_with_strat = data_with_strat.with_columns([
             (pl.col("MORT_ANNUAL") * pl.col("ADJ_FACTOR")).alias("MORT_ADJ")
         ])
 
-        # Setup grouping
+        # Setup grouping (includes by_species logic)
         group_cols = self._setup_grouping()
-
-        # Add species to grouping if requested
         if self.config.get("by_species", False) and "SPCD" not in group_cols:
             group_cols.append("SPCD")
 
-        # ========================================================================
-        # CRITICAL FIX: Two-stage aggregation following FIA methodology
-        # ========================================================================
+        # Use shared two-stage aggregation method
+        metric_mappings = {
+            "MORT_ADJ": "CONDITION_MORTALITY"
+        }
 
-        # STAGE 1: Aggregate mortality components to plot-condition level
-        # This ensures each condition's area proportion is counted exactly once
-        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-        if group_cols:
-            # Add user-specified grouping columns if they exist at condition level
-            for col in group_cols:
-                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
-                    condition_group_cols.append(col)
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=True  # Indicates this is a GRM-based estimator
+        )
 
-        # Aggregate mortality at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
-            # Sum mortality within each condition
-            pl.col("MORT_ADJ").sum().alias("CONDITION_MORTALITY"),
-            # Count mortality components per condition for diagnostics
-            pl.len().alias("COMPONENTS_PER_CONDITION")
-        ])
+        # The shared method returns MORTALITY_ACRE and MORTALITY_TOTAL
+        # Rename to match mortality-specific naming convention
+        rename_map = {
+            "MORTALITY_ACRE": "MORT_ACRE",
+            "MORTALITY_TOTAL": "MORT_TOTAL"
+        }
 
-        # STAGE 2: Apply expansion factors and calculate population estimates
-        if group_cols:
-            # Group by user-specified columns for final aggregation
-            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
-            if final_group_cols:
-                results = condition_agg.group_by(final_group_cols).agg([
-                    # Numerator: Sum of expanded condition mortality
-                    (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORT_NUM"),
-                    # Denominator: Sum of expanded condition areas
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    # Total mortality (for totals=True)
-                    (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORT_TOTAL"),
-                    # Diagnostic counts
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("COMPONENTS_PER_CONDITION").sum().alias("N_DEAD_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-            else:
-                # No valid grouping columns at condition level
-                results = condition_agg.select([
-                    (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORT_NUM"),
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORT_TOTAL"),
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("COMPONENTS_PER_CONDITION").sum().alias("N_DEAD_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-        else:
-            # No grouping - aggregate all conditions
-            results = condition_agg.select([
-                (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORT_NUM"),
-                (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORT_TOTAL"),
-                pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                pl.col("COMPONENTS_PER_CONDITION").sum().alias("N_DEAD_TREES"),
-                pl.len().alias("N_CONDITIONS")
-            ])
+        for old, new in rename_map.items():
+            if old in results.columns:
+                results = results.rename({old: new})
 
-        # Collect results
-        results = results.collect()
-        
-        # Calculate per-acre value (ratio of means)
-        # This is now correct because each condition contributes exactly once to denominator
-        results = results.with_columns([
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("MORT_NUM") / pl.col("AREA_TOTAL"))
-            .otherwise(0.0)
-            .alias("MORT_ACRE")
-        ])
+        # Rename N_TREES to N_DEAD_TREES for clarity in mortality context
+        if "N_TREES" in results.columns:
+            results = results.rename({"N_TREES": "N_DEAD_TREES"})
 
-        # Clean up intermediate columns
-        results = results.drop(["MORT_NUM", "N_CONDITIONS"])
-        
         # Calculate mortality rate if requested
         if self.config.get("as_rate", False):
             # This would require live tree data for proper rate calculation
@@ -360,7 +308,7 @@ class MortalityEstimator(BaseEstimator):
             results = results.with_columns([
                 pl.col("MORT_ACRE").alias("MORT_RATE")
             ])
-        
+
         return results
     
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:

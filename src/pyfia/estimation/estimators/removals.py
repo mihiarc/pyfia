@@ -11,9 +11,6 @@ import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..aggregation import aggregate_to_population
-from ..statistics import VarianceCalculator
-from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import format_output_columns
 
 
@@ -219,12 +216,8 @@ class RemovalsEstimator(BaseEstimator):
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate removals with two-stage aggregation for correct per-acre estimates.
 
-        CRITICAL FIX: This method implements two-stage aggregation following FIA
-        methodology. The previous single-stage approach caused ~20x underestimation
-        by having each removal component contribute its condition proportion to the denominator.
-
-        Stage 1: Aggregate removal components to plot-condition level
-        Stage 2: Apply expansion factors and calculate ratio-of-means
+        Uses the shared _apply_two_stage_aggregation method with GRM-specific adjustment
+        logic applied before calling the shared method.
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -236,7 +229,8 @@ class RemovalsEstimator(BaseEstimator):
             how="inner"
         )
 
-        # For removals, we need custom adjustment factor logic based on SUBPTYP_GRM
+        # Apply GRM-specific adjustment factors based on SUBPTYP_GRM
+        # This is done BEFORE calling the shared aggregation method
         # SUBPTYP_GRM indicates which adjustment factor to use:
         # 0 = No adjustment, 1 = SUBP, 2 = MICR, 3 = MACR
         # This is different from the standard tree adjustment which uses DIA size classes
@@ -253,7 +247,7 @@ class RemovalsEstimator(BaseEstimator):
             .alias("ADJ_FACTOR")
         ])
 
-        # Apply adjustment
+        # Apply adjustment to removal values
         data_with_strat = data_with_strat.with_columns([
             (pl.col("REMV_ANNUAL") * pl.col("ADJ_FACTOR")).alias("REMV_ADJ")
         ])
@@ -261,79 +255,32 @@ class RemovalsEstimator(BaseEstimator):
         # Setup grouping
         group_cols = self._setup_grouping()
 
-        # ========================================================================
-        # CRITICAL FIX: Two-stage aggregation following FIA methodology
-        # ========================================================================
+        # Use shared two-stage aggregation method
+        metric_mappings = {
+            "REMV_ADJ": "CONDITION_REMOVALS"
+        }
 
-        # STAGE 1: Aggregate removal components to plot-condition level
-        # This ensures each condition's area proportion is counted exactly once
-        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-        if group_cols:
-            # Add user-specified grouping columns if they exist at condition level
-            for col in group_cols:
-                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
-                    condition_group_cols.append(col)
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=True  # Indicates this is a GRM-based estimator
+        )
 
-        # Aggregate removals at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg([
-            # Sum removals within each condition
-            pl.col("REMV_ADJ").sum().alias("CONDITION_REMOVALS"),
-            # Count removal components per condition for diagnostics
-            pl.len().alias("COMPONENTS_PER_CONDITION")
-        ])
+        # The shared method returns REMOVALS_ACRE and REMOVALS_TOTAL
+        # Rename to match removals-specific naming convention
+        rename_map = {
+            "REMOVALS_ACRE": "REMV_ACRE",
+            "REMOVALS_TOTAL": "REMV_TOTAL"
+        }
 
-        # STAGE 2: Apply expansion factors and calculate population estimates
-        if group_cols:
-            # Group by user-specified columns for final aggregation
-            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
-            if final_group_cols:
-                results = condition_agg.group_by(final_group_cols).agg([
-                    # Numerator: Sum of expanded condition removals
-                    (pl.col("CONDITION_REMOVALS") * pl.col("EXPNS")).sum().alias("REMV_NUM"),
-                    # Denominator: Sum of expanded condition areas
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    # Total removals (for totals=True)
-                    (pl.col("CONDITION_REMOVALS") * pl.col("EXPNS")).sum().alias("REMV_TOTAL"),
-                    # Diagnostic counts
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("COMPONENTS_PER_CONDITION").sum().alias("N_REMOVED_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-            else:
-                # No valid grouping columns at condition level
-                results = condition_agg.select([
-                    (pl.col("CONDITION_REMOVALS") * pl.col("EXPNS")).sum().alias("REMV_NUM"),
-                    (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                    (pl.col("CONDITION_REMOVALS") * pl.col("EXPNS")).sum().alias("REMV_TOTAL"),
-                    pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                    pl.col("COMPONENTS_PER_CONDITION").sum().alias("N_REMOVED_TREES"),
-                    pl.len().alias("N_CONDITIONS")
-                ])
-        else:
-            # No grouping - aggregate all conditions
-            results = condition_agg.select([
-                (pl.col("CONDITION_REMOVALS") * pl.col("EXPNS")).sum().alias("REMV_NUM"),
-                (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-                (pl.col("CONDITION_REMOVALS") * pl.col("EXPNS")).sum().alias("REMV_TOTAL"),
-                pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                pl.col("COMPONENTS_PER_CONDITION").sum().alias("N_REMOVED_TREES"),
-                pl.len().alias("N_CONDITIONS")
-            ])
+        for old, new in rename_map.items():
+            if old in results.columns:
+                results = results.rename({old: new})
 
-        results = results.collect()
-
-        # Calculate per-acre value (ratio of means)
-        # This is now correct because each condition contributes exactly once to denominator
-        # Add protection against division by zero
-        results = results.with_columns([
-            pl.when(pl.col("AREA_TOTAL") > 0)
-            .then(pl.col("REMV_NUM") / pl.col("AREA_TOTAL"))
-            .otherwise(0.0)
-            .alias("REMV_ACRE")
-        ])
-
-        # Clean up intermediate columns
-        results = results.drop(["REMV_NUM", "N_CONDITIONS"])
+        # Rename N_TREES to N_REMOVED_TREES for clarity in removals context
+        if "N_TREES" in results.columns:
+            results = results.rename({"N_TREES": "N_REMOVED_TREES"})
 
         return results
     

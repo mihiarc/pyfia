@@ -11,9 +11,6 @@ import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..aggregation import aggregate_to_population
-from ..statistics import VarianceCalculator
-from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import format_output_columns
 
 
@@ -169,12 +166,8 @@ class GrowthEstimator(BaseEstimator):
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate growth with two-stage aggregation for correct per-acre estimates.
 
-        CRITICAL FIX: This method implements two-stage aggregation following FIA
-        methodology. The previous single-stage approach caused ~20x underestimation
-        by having each growth component contribute its condition proportion to the denominator.
-
-        Stage 1: Aggregate growth components to plot-condition level
-        Stage 2: Apply expansion factors and calculate ratio-of-means
+        Uses the shared _apply_two_stage_aggregation method but handles multiple
+        growth/removal/mortality metrics based on the requested component.
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -186,162 +179,83 @@ class GrowthEstimator(BaseEstimator):
             how="inner"
         )
 
-        # Apply adjustment factors
-        data_with_strat = apply_tree_adjustment_factors(
-            data_with_strat,
-            size_col="DIA",
-            macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
-        )
-
-        # Apply adjustment to all growth components
+        # Growth uses standard DIA-based adjustment factors (not GRM-specific)
+        # Apply adjustment factors based on diameter size classes
         data_with_strat = data_with_strat.with_columns([
-            (pl.col("GROWTH_ACRE") * pl.col("ADJ_FACTOR")).alias("GROWTH_ADJ"),
-            (pl.col("REMOVAL_ACRE") * pl.col("ADJ_FACTOR")).alias("REMOVAL_ADJ"),
-            (pl.col("MORTALITY_ACRE") * pl.col("ADJ_FACTOR")).alias("MORTALITY_ADJ"),
-            (pl.col("NET_CHANGE_ACRE") * pl.col("ADJ_FACTOR")).alias("NET_CHANGE_ADJ")
+            pl.when(pl.col("DIA") < 5.0)
+            .then(pl.col("ADJ_FACTOR_MICR"))
+            .when(pl.col("DIA") < pl.col("MACRO_BREAKPOINT_DIA").fill_null(999999))
+            .then(pl.col("ADJ_FACTOR_SUBP"))
+            .otherwise(pl.col("ADJ_FACTOR_MACR"))
+            .alias("ADJ_FACTOR")
         ])
+
+        # Apply adjustment to all growth components that exist
+        adjustment_columns = []
+        if "GROWTH_ACRE" in data_with_strat.collect_schema().names():
+            adjustment_columns.append(
+                (pl.col("GROWTH_ACRE") * pl.col("ADJ_FACTOR")).alias("GROWTH_ADJ")
+            )
+        if "REMOVAL_ACRE" in data_with_strat.collect_schema().names():
+            adjustment_columns.append(
+                (pl.col("REMOVAL_ACRE") * pl.col("ADJ_FACTOR")).alias("REMOVAL_ADJ")
+            )
+        if "MORTALITY_ACRE" in data_with_strat.collect_schema().names():
+            adjustment_columns.append(
+                (pl.col("MORTALITY_ACRE") * pl.col("ADJ_FACTOR")).alias("MORTALITY_ADJ")
+            )
+        if "NET_CHANGE_ACRE" in data_with_strat.collect_schema().names():
+            adjustment_columns.append(
+                (pl.col("NET_CHANGE_ACRE") * pl.col("ADJ_FACTOR")).alias("NET_CHANGE_ADJ")
+            )
+
+        if adjustment_columns:
+            data_with_strat = data_with_strat.with_columns(adjustment_columns)
 
         # Setup grouping
         group_cols = self._setup_grouping()
         component = self.config.get("component", "net")
 
-        # ========================================================================
-        # CRITICAL FIX: Two-stage aggregation following FIA methodology
-        # ========================================================================
+        # Build metric mappings based on which component(s) are requested
+        metric_mappings = {}
 
-        # STAGE 1: Aggregate growth components to plot-condition level
-        # This ensures each condition's area proportion is counted exactly once
-        condition_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-        if group_cols:
-            # Add user-specified grouping columns if they exist at condition level
-            for col in group_cols:
-                if col in data_with_strat.collect_schema().names() and col not in condition_group_cols:
-                    condition_group_cols.append(col)
+        if component in ["gross", "net"] and "GROWTH_ADJ" in data_with_strat.collect_schema().names():
+            metric_mappings["GROWTH_ADJ"] = "CONDITION_GROWTH"
 
-        # Build condition-level aggregation expressions based on component
-        condition_agg_exprs = []
+        if component in ["removals", "net"] and "REMOVAL_ADJ" in data_with_strat.collect_schema().names():
+            metric_mappings["REMOVAL_ADJ"] = "CONDITION_REMOVAL"
 
-        if component in ["gross", "net"]:
-            condition_agg_exprs.append(
-                pl.col("GROWTH_ADJ").sum().alias("CONDITION_GROWTH")
-            )
+        if component in ["mortality", "net"] and "MORTALITY_ADJ" in data_with_strat.collect_schema().names():
+            metric_mappings["MORTALITY_ADJ"] = "CONDITION_MORTALITY"
 
-        if component in ["removals", "net"]:
-            condition_agg_exprs.append(
-                pl.col("REMOVAL_ADJ").sum().alias("CONDITION_REMOVAL")
-            )
+        if component == "net" and "NET_CHANGE_ADJ" in data_with_strat.collect_schema().names():
+            metric_mappings["NET_CHANGE_ADJ"] = "CONDITION_NET_CHANGE"
 
-        if component in ["mortality", "net"]:
-            condition_agg_exprs.append(
-                pl.col("MORTALITY_ADJ").sum().alias("CONDITION_MORTALITY")
-            )
+        # Use shared two-stage aggregation method
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=False  # Growth uses standard DIA-based adjustment
+        )
 
-        if component == "net":
-            condition_agg_exprs.append(
-                pl.col("NET_CHANGE_ADJ").sum().alias("CONDITION_NET_CHANGE")
-            )
-
-        # Add tree count
-        condition_agg_exprs.append(pl.len().alias("TREES_PER_CONDITION"))
-
-        # Aggregate at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg(condition_agg_exprs)
-
-        # STAGE 2: Apply expansion factors and calculate population estimates
-        # Build final aggregation expressions
-        final_agg_exprs = []
-
-        if "CONDITION_GROWTH" in condition_agg.collect_schema().names():
-            final_agg_exprs.extend([
-                (pl.col("CONDITION_GROWTH") * pl.col("EXPNS")).sum().alias("GROWTH_NUM"),
-                (pl.col("CONDITION_GROWTH") * pl.col("EXPNS")).sum().alias("GROWTH_TOTAL")
-            ])
-
-        if "CONDITION_REMOVAL" in condition_agg.collect_schema().names():
-            final_agg_exprs.extend([
-                (pl.col("CONDITION_REMOVAL") * pl.col("EXPNS")).sum().alias("REMOVAL_NUM"),
-                (pl.col("CONDITION_REMOVAL") * pl.col("EXPNS")).sum().alias("REMOVAL_TOTAL")
-            ])
-
-        if "CONDITION_MORTALITY" in condition_agg.collect_schema().names():
-            final_agg_exprs.extend([
-                (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORTALITY_NUM"),
-                (pl.col("CONDITION_MORTALITY") * pl.col("EXPNS")).sum().alias("MORTALITY_TOTAL")
-            ])
-
-        if "CONDITION_NET_CHANGE" in condition_agg.collect_schema().names():
-            final_agg_exprs.extend([
-                (pl.col("CONDITION_NET_CHANGE") * pl.col("EXPNS")).sum().alias("NET_CHANGE_NUM"),
-                (pl.col("CONDITION_NET_CHANGE") * pl.col("EXPNS")).sum().alias("NET_CHANGE_TOTAL")
-            ])
-
-        # Add area and counts
-        final_agg_exprs.extend([
-            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL"),
-            pl.n_unique("PLT_CN").alias("N_PLOTS"),
-            pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-            pl.len().alias("N_CONDITIONS")
-        ])
-
-        # Perform final aggregation
-        if group_cols:
-            final_group_cols = [col for col in group_cols if col in condition_agg.collect_schema().names()]
-            if final_group_cols:
-                results = condition_agg.group_by(final_group_cols).agg(final_agg_exprs)
-            else:
-                results = condition_agg.select(final_agg_exprs)
-        else:
-            results = condition_agg.select(final_agg_exprs)
-
-        results = results.collect()
-        
-        # Calculate per-acre values (ratio of means)
-        # Add protection against division by zero for all metrics
-        if "GROWTH_NUM" in results.columns:
-            results = results.with_columns([
-                pl.when(pl.col("AREA_TOTAL") > 0)
-                .then(pl.col("GROWTH_NUM") / pl.col("AREA_TOTAL"))
-                .otherwise(0.0)
-                .alias("GROW_ACRE")
-            ])
-        if "REMOVAL_NUM" in results.columns:
-            results = results.with_columns([
-                pl.when(pl.col("AREA_TOTAL") > 0)
-                .then(pl.col("REMOVAL_NUM") / pl.col("AREA_TOTAL"))
-                .otherwise(0.0)
-                .alias("REMV_ACRE")
-            ])
-        if "MORTALITY_NUM" in results.columns:
-            results = results.with_columns([
-                pl.when(pl.col("AREA_TOTAL") > 0)
-                .then(pl.col("MORTALITY_NUM") / pl.col("AREA_TOTAL"))
-                .otherwise(0.0)
-                .alias("MORT_ACRE")
-            ])
-        if "NET_CHANGE_NUM" in results.columns:
-            results = results.with_columns([
-                pl.when(pl.col("AREA_TOTAL") > 0)
-                .then(pl.col("NET_CHANGE_NUM") / pl.col("AREA_TOTAL"))
-                .otherwise(0.0)
-                .alias("NET_CHG_ACRE")
-            ])
-        
-        # Clean up intermediate columns
-        for col in ["GROWTH_NUM", "REMOVAL_NUM", "MORTALITY_NUM", "NET_CHANGE_NUM"]:
-            if col in results.columns:
-                results = results.drop(col)
-        
-        # Rename totals
+        # The shared method returns METRIC_ACRE and METRIC_TOTAL columns
+        # Rename to match growth-specific naming conventions
         rename_map = {
+            "GROWTH_ACRE": "GROW_ACRE",
             "GROWTH_TOTAL": "GROW_TOTAL",
+            "REMOVAL_ACRE": "REMV_ACRE",
             "REMOVAL_TOTAL": "REMV_TOTAL",
+            "MORTALITY_ACRE": "MORT_ACRE",
             "MORTALITY_TOTAL": "MORT_TOTAL",
+            "NET_CHANGE_ACRE": "NET_CHG_ACRE",
             "NET_CHANGE_TOTAL": "NET_CHG_TOTAL"
         }
+
         for old, new in rename_map.items():
             if old in results.columns:
                 results = results.rename({old: new})
-        
+
         return results
     
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:

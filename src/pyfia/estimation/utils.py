@@ -90,8 +90,8 @@ def format_output_columns(
             "MORTALITY_TOTAL": "MORT_TOTAL",
         },
         "growth": {
-            "GROWTH_ACRE": "GROW_ACRE",
-            "REMOVAL_ACRE": "REMV_ACRE",
+            "GROWTH_ACRE": "GROWTH_ACRE",  # Fixed: was incorrectly "GROW_ACRE"
+            "GROWTH_TOTAL": "GROWTH_TOTAL",
         }
     }
     

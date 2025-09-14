@@ -28,7 +28,8 @@ class GrowthEstimator(BaseEstimator):
         """Growth requires GRM tables for proper calculation."""
         return [
             "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "TREE_GRM_BEGIN",
-            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM", "BEGINEND"
+            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"
+            # Note: BEGINEND not used - we calculate NET growth directly
         ]
 
     def get_tree_columns(self) -> List[str]:
@@ -190,7 +191,13 @@ class GrowthEstimator(BaseEstimator):
             cond = cond.lazy()
 
         cond_cols = self.get_cond_columns()
-        cond = cond.select([c for c in cond_cols if c in cond.collect_schema().names()])
+        # Select columns efficiently without forcing evaluation
+        try:
+            cond = cond.select(cond_cols)
+        except Exception:
+            # Fall back only if selection fails
+            available = cond.collect_schema().names()
+            cond = cond.select([c for c in cond_cols if c in available])
 
         # Join with conditions
         data = data.join(
@@ -310,6 +317,9 @@ class GrowthEstimator(BaseEstimator):
         # - SURVIVOR: Has both beginning and ending volumes, net growth = (ending - beginning)
         # - INGROWTH: New trees, only ending volume (beginning = 0)
         # - REVERSION: Trees reverting to measured status, only ending volume
+        #
+        # WARNING: Currently using default REMPER=5.0 for missing values
+        # This may contribute to the 26% underestimation vs EVALIDator
 
         data = data.with_columns([
             # Calculate volume change based on component type

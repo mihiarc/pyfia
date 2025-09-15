@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from .data_reader import FIADataReader
+from .evalid_parser import add_parsed_evalid_columns
 
 
 class FIA:
@@ -162,12 +163,15 @@ class FIA:
             df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
 
         if most_recent:
+            # Add parsed EVALID columns for robust year sorting
+            df = add_parsed_evalid_columns(df)
+
             # Special handling for Texas (STATECD=48)
             # Texas has separate East/West evaluations, but we want the full state
             # Prefer evaluations with "Texas" (not "Texas(EAST)" or "Texas(West)")
             df_texas = df.filter(pl.col("STATECD") == 48)
             df_other = df.filter(pl.col("STATECD") != 48)
-            
+
             if not df_texas.is_empty():
                 # For Texas, prefer full state evaluations over regional ones
                 # Check LOCATION_NM to identify full state vs regional
@@ -179,30 +183,32 @@ class FIA:
                         .otherwise(0)
                         .alias("IS_FULL_STATE")
                     )
-                    # Sort: full state first, then by END_INVYR desc
+                    # Sort using parsed year for robust chronological ordering
                     df_texas = (
-                        df_texas.sort(["EVAL_TYP", "IS_FULL_STATE", "END_INVYR"], 
-                                     descending=[False, True, True])
+                        df_texas.sort(["EVAL_TYP", "IS_FULL_STATE", "EVALID_YEAR", "EVALID_TYPE"],
+                                     descending=[False, True, True, False])
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
-                        .drop("IS_FULL_STATE")
+                        .drop(["IS_FULL_STATE", "EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
                     )
                 else:
-                    # Fallback if LOCATION_NM not available
+                    # Fallback if LOCATION_NM not available - use parsed year
                     df_texas = (
-                        df_texas.sort(["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"], 
+                        df_texas.sort(["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
                                      descending=[False, False, True, False])
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
+                        .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
                     )
-            
-            # For other states, use standard logic
+
+            # For other states, use robust year sorting
             if not df_other.is_empty():
                 df_other = (
-                    df_other.sort(["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"], 
+                    df_other.sort(["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
                                  descending=[False, False, True, False])
                     .group_by(["STATECD", "EVAL_TYP"])
                     .first()
+                    .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
                 )
             
             # Combine Texas and other states

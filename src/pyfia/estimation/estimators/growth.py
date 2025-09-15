@@ -534,12 +534,12 @@ def growth(
 
         - 'forest': All forestland
         - 'timber': Productive timberland only (unreserved, productive)
-    tree_type : {'gs', 'live', 'sawtimber'}, default 'gs'
+    tree_type : {'gs', 'al', 'sl'}, default 'gs'
         Tree type to include:
 
         - 'gs': Growing stock trees (live, merchantable)
-        - 'live': All live trees
-        - 'sawtimber': Sawtimber trees
+        - 'al': All live trees
+        - 'sl': Sawtimber trees
     measure : {'volume', 'biomass', 'count'}, default 'volume'
         What to measure in the growth estimation:
 
@@ -641,6 +641,15 @@ def growth(
     ...     by_species=True
     ... )
 
+    Note about growth underestimation:
+
+    >>> # Be aware that growth values may be ~26% lower than EVALIDator
+    >>> results = growth(db, measure="volume")
+    >>> if not results.is_empty():
+    ...     # Consider applying adjustment factor if needed for comparison
+    ...     adjusted_growth = results['GROWTH_ACRE'] * 1.26
+    ...     print(f"Adjusted growth: {adjusted_growth[0]:.1f} cu ft/acre")
+
     Notes
     -----
     This function uses FIA's GRM (Growth-Removal-Mortality) tables which
@@ -687,8 +696,15 @@ def growth(
     - TREE_GRM_BEGIN: Beginning tree measurements (for SURVIVOR trees)
 
     These tables are included in FIA evaluations that support growth,
-    removal, and mortality estimation (typically EVALID types ending
-    in 01, 03, or specific GRM evaluations).
+    removal, and mortality estimation. Typically found in evaluations with
+    EVALID type codes:
+
+    - EXPVOL (ending in 01): Volume/biomass evaluations
+    - EXPCHNG (ending in 03): Change evaluations with GRM components
+    - Specific GRM evaluations may have other type codes
+
+    Use `db.clip_most_recent(eval_type="EXPVOL")` or similar to ensure
+    proper EVALID selection for growth estimation.
 
     **Known Issue**: The current implementation may underestimate growth
     by approximately 26% compared to EVALIDator. This is likely due to:

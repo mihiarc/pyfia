@@ -510,7 +510,8 @@ class AreaEstimator(BaseEstimator):
 
         variance_components = strata_stats.with_columns([
             # Multiply by n_h, not divide by it!
-            (pl.col("w_h") ** 2 * pl.col("s2_yh") * pl.col("n_h")).alias("v_h")
+            # Cast w_h to Float64 to handle decimal types from database
+            (pl.col("w_h").cast(pl.Float64) ** 2 * pl.col("s2_yh") * pl.col("n_h")).alias("v_h")
         ])
 
         # Step 5: Sum variance components

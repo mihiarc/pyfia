@@ -54,16 +54,30 @@ class VolumeEstimator(BaseEstimator):
 
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
-        return [
+        cols = [
             "PLT_CN",
             "CONDID",
             "COND_STATUS_CD",
             "CONDPROP_UNADJ",
-            "OWNGRPCD",
-            "FORTYPCD",
-            "SITECLCD",
-            "RESERVCD",
+            "PROP_BASIS",  # Add PROP_BASIS for area adjustment
         ]
+
+        # Add optional columns for land_type filtering
+        land_type = self.config.get("land_type", "forest")
+        if land_type == "timber":
+            cols.extend(["SITECLCD", "RESERVCD"])
+
+        # Add grouping columns if they're from COND table
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            if isinstance(grp_by, str):
+                grp_by = [grp_by]
+            for col in grp_by:
+                # Common COND columns for grouping
+                if col in ["OWNGRPCD", "FORTYPCD", "STDSZCD", "STDAGE", "STDORGCD"] and col not in cols:
+                    cols.append(col)
+
+        return cols
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """

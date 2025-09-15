@@ -490,9 +490,10 @@ def growth(
     """
     Estimate annual tree growth from FIA data using GRM methodology.
 
-    Uses TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and TREE_GRM_BEGIN tables to calculate
-    annual growth following FIA's Growth-Removal-Mortality approach and EVALIDator
-    methodology. This is the correct FIA statistical methodology for growth estimation.
+    Calculates annual growth of tree volume, biomass, or tree count using
+    FIA's Growth-Removal-Mortality (GRM) tables following EVALIDator
+    methodology. Provides statistically valid estimates with proper expansion
+    factors and optional variance calculation.
 
     Parameters
     ----------
@@ -502,17 +503,24 @@ def growth(
     grp_by : str or list of str, optional
         Column name(s) to group results by. Can be any column from the
         FIA tables used in the estimation (PLOT, COND, TREE_GRM_COMPONENT,
-        TREE_GRM_MIDPT). Common grouping columns include:
+        TREE_GRM_MIDPT, TREE_GRM_BEGIN). Common grouping columns include:
 
         - 'FORTYPCD': Forest type code
         - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
           30=State/Local, 40=Private)
         - 'STATECD': State FIPS code
-        - 'COUNTYCD': County code
-        - 'UNITCD': FIA survey unit
+        - 'STDSZCD': Stand size class (1=Large diameter, 2=Medium diameter,
+          3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+        - 'STDORGCD': Stand origin (0=Natural, 1=Planted)
+        - 'SITECLCD': Site productivity class (1=225+ cu ft/ac/yr,
+          2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+        - 'ALSTKCD': All-live-tree stocking class
+        - 'RESERVCD': Reserved status (0=Not reserved, 1=Reserved)
+        - 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3': Disturbance codes
+        - 'TRTCD1', 'TRTCD2', 'TRTCD3': Treatment codes
         - 'INVYR': Inventory year
-        - 'STDAGE': Stand age class
-        - 'SITECLCD': Site productivity class
+        - 'UNITCD': FIA survey unit code
+        - 'COUNTYCD': County code
 
         For complete column descriptions, see USDA FIA Database User Guide.
     by_species : bool, default False
@@ -592,6 +600,10 @@ def growth(
     tpa : Estimate trees per acre (current inventory)
     volume : Estimate volume per acre (current inventory)
     biomass : Estimate biomass per acre (current inventory)
+    pyfia.constants.ForestType : Forest type code definitions
+    pyfia.constants.OwnershipGroup : Ownership group code definitions
+    pyfia.constants.StandSize : Stand size class definitions
+    pyfia.utils.reference_tables : Functions for adding species/forest type names
 
     Examples
     --------
@@ -629,43 +641,108 @@ def growth(
     ...     by_species=True
     ... )
 
+    Note about growth underestimation:
+
+    >>> # Be aware that growth values may be ~26% lower than EVALIDator
+    >>> results = growth(db, measure="volume")
+    >>> if not results.is_empty():
+    ...     # Consider applying adjustment factor if needed for comparison
+    ...     adjusted_growth = results['GROWTH_ACRE'] * 1.26
+    ...     print(f"Adjusted growth: {adjusted_growth[0]:.1f} cu ft/acre")
+
     Notes
     -----
     This function uses FIA's GRM (Growth-Removal-Mortality) tables which
-    contain pre-calculated annual growth values. The implementation follows
-    EVALIDator methodology with component-based calculations.
+    contain component-level tree data for calculating annual growth. The
+    implementation follows EVALIDator methodology for statistically valid
+    estimation.
 
-    **Growth Components**: Only SURVIVOR, INGROWTH, and REVERSION components
-    are included in growth calculations. CUT, DIVERSION, and MORTALITY
-    components are excluded.
+    **Growth Components**: The function includes only growth-related
+    components from TREE_GRM_COMPONENT:
 
-    **Volume Change Logic**: The function implements EVALIDator's complex
-    volume change calculations based on:
-    - Component type (SURVIVOR vs INGROWTH vs REVERSION)
-    - BEGINEND.ONEORTWO value (beginning vs ending volume approach)
-    - Tree volumes at different time points
+    - SURVIVOR: Trees alive at both measurements
+    - INGROWTH: New trees that grew into measurable size
+    - REVERSION: Trees reverting to measured status
 
-    The adjustment factors are determined by the SUBPTYP_GRM field:
+    Mortality (MORTALITY1, MORTALITY2) and removal (CUT, DIVERSION)
+    components are excluded from growth calculations.
+
+    **Volume Change Calculation**: For each component type, net growth
+    is calculated as:
+
+    - SURVIVOR: (Ending volume - Beginning volume) / REMPER
+    - INGROWTH: Ending volume / REMPER (no beginning volume)
+    - REVERSION: Ending volume / REMPER (no beginning volume)
+
+    where REMPER is the remeasurement period in years. The final growth
+    value is: TPAGROW_UNADJ × volume_change × adjustment_factor.
+
+    **Adjustment Factors**: The SUBPTYP_GRM field determines which
+    adjustment factor to apply:
+
     - 0: No adjustment (trees not sampled)
     - 1: Subplot adjustment (ADJ_FACTOR_SUBP)
     - 2: Microplot adjustment (ADJ_FACTOR_MICR)
     - 3: Macroplot adjustment (ADJ_FACTOR_MACR)
 
-    **Important**: This function requires GRM tables to be present in the
-    database. These tables are included in FIA evaluations that support
-    growth, removal, and mortality estimation.
+    This differs from standard tree adjustment which uses diameter
+    breakpoints directly.
+
+    **GRM Table Requirements**: This function requires the following
+    GRM tables in the database:
+
+    - TREE_GRM_COMPONENT: Component classifications and TPA values
+    - TREE_GRM_MIDPT: Tree measurements at remeasurement midpoint
+    - TREE_GRM_BEGIN: Beginning tree measurements (for SURVIVOR trees)
+
+    These tables are included in FIA evaluations that support growth,
+    removal, and mortality estimation. Typically found in evaluations with
+    EVALID type codes:
+
+    - EXPVOL (ending in 01): Volume/biomass evaluations
+    - EXPCHNG (ending in 03): Change evaluations with GRM components
+    - Specific GRM evaluations may have other type codes
+
+    Use `db.clip_most_recent(eval_type="EXPVOL")` or similar to ensure
+    proper EVALID selection for growth estimation.
+
+    **Known Issue**: The current implementation may underestimate growth
+    by approximately 26% compared to EVALIDator. This is likely due to:
+
+    - Missing REMPER values defaulting to 5.0 years
+    - Simplified BEGINEND.ONEORTWO logic
+    - Potential differences in component inclusion
+
+    Valid grouping columns depend on which tables are included in the
+    estimation query. The growth() function joins TREE_GRM_COMPONENT,
+    TREE_GRM_MIDPT, TREE_GRM_BEGIN, COND, PLOT, and POP_* tables, so
+    any column from these tables can be used for grouping. For a
+    complete list of available columns and their meanings, refer to:
+
+    - USDA FIA Database User Guide, Version 9.1
+    - pyFIA documentation: https://mihiarc.github.io/pyfia/
+    - FIA DataMart: https://apps.fs.usda.gov/fia/datamart/
 
     Warnings
     --------
     The current implementation uses a simplified variance calculation
     (12% CV for per-acre estimates). Full stratified variance calculation
-    will be implemented in a future release.
+    following Bechtold & Patterson (2005) will be implemented in a future
+    release. For applications requiring precise variance estimates, consider
+    using the FIA EVALIDator tool or other specialized FIA analysis software.
+
+    The function may underestimate growth by approximately 26% compared to
+    EVALIDator due to simplified volume change calculations and default
+    REMPER handling.
 
     Raises
     ------
     ValueError
         If TREE_GRM_COMPONENT, TREE_GRM_MIDPT, or TREE_GRM_BEGIN tables
-        are not found in the database.
+        are not found in the database, or if grp_by contains invalid
+        column names.
+    KeyError
+        If specified columns in grp_by don't exist in the joined tables.
     """
     # Create configuration
     config = {

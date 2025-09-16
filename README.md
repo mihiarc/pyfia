@@ -9,16 +9,6 @@ A high-performance Python library for analyzing USDA Forest Inventory and Analys
 
 pyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets with statistically valid estimation methods.
 
-## ⚠️ BREAKING CHANGE in v0.4.0
-
-**Critical Statistical Correction**: All per-acre estimates (TPA, volume, biomass, mortality, growth, removals) now correctly implement FIA's two-stage aggregation methodology.
-
-**Impact**: Per-acre values will be approximately **20x higher** than in previous versions. This corrects a fundamental bug that was causing systematic underestimation.
-
-**Affected Functions**: `tpa()`, `volume()`, `biomass()`, `mortality()`, `growth()`, `removals()`
-
-See [PR #9](https://github.com/mihiarc/pyfia/pull/9) for technical details.
-
 ## Features
 
 ### Core Estimation Functions

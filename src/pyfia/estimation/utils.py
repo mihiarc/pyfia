@@ -83,7 +83,7 @@ def format_output_columns(
         },
         "area": {
             "AREA_TOTAL": "AREA",
-            "AREA_PERCENT": "AREA_PCT",
+            "AREA_PERCENT": "AREA_PERC",
         },
         "mortality": {
             "MORTALITY_ACRE": "MORT_ACRE",

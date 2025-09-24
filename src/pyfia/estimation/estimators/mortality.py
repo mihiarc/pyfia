@@ -33,13 +33,14 @@ class MortalityEstimator(BaseEstimator):
         """Required columns from TREE_GRM tables."""
         # Base columns always needed
         cols = ["TRE_CN", "PLT_CN", "DIA_BEGIN", "DIA_MIDPT", "DIA_END"]
-        
+
         # Add columns based on land type and tree type
-        land_type = self.config.get("land_type", "forest").upper()
+        # Default to timber for mortality (matches EVALIDator approach)
+        land_type = self.config.get("land_type", "timber").upper()
         tree_type = self.config.get("tree_type", "gs").upper()
         
         # Map tree_type to FIA convention
-        if tree_type == "LIVE":
+        if tree_type in ["LIVE", "AL"]:
             tree_type = "AL"  # All live
         elif tree_type == "GS":
             tree_type = "GS"  # Growing stock
@@ -119,10 +120,15 @@ class MortalityEstimator(BaseEstimator):
         measure = self.config.get("measure", "volume")
         if measure == "volume":
             midpt_cols = ["TRE_CN", "VOLCFNET", "DIA", "SPCD", "STATUSCD"]
+        elif measure == "sawlog":
+            # For sawlog measure, use VOLCSNET (sawlog net volume)
+            midpt_cols = ["TRE_CN", "VOLCSNET", "DIA", "SPCD", "STATUSCD"]
         elif measure == "biomass":
             midpt_cols = ["TRE_CN", "DRYBIO_BOLE", "DRYBIO_BRANCH", "DIA", "SPCD", "STATUSCD"]
-        else:  # count
+        elif measure in ["tpa", "count", "basal_area"]:
             midpt_cols = ["TRE_CN", "DIA", "SPCD", "STATUSCD"]
+        else:  # Default case - include both volume fields for safety
+            midpt_cols = ["TRE_CN", "VOLCFNET", "VOLCSNET", "DIA", "SPCD", "STATUSCD"]
         
         grm_midpt = grm_midpt.select(midpt_cols)
         
@@ -132,23 +138,55 @@ class MortalityEstimator(BaseEstimator):
             on="TRE_CN",
             how="inner"
         )
-        
+
+        # Apply EVALID filtering if set (similar to base class)
+        if hasattr(self.db, 'evalid') and self.db.evalid:
+            # Load POP_PLOT_STRATUM_ASSGN to get plots for the EVALID
+            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
+                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
+
+            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+            if not isinstance(ppsa, pl.LazyFrame):
+                ppsa = ppsa.lazy()
+
+            # Filter to get PLT_CNs for the specified EVALID(s)
+            valid_plots = ppsa.filter(
+                pl.col("EVALID").is_in(self.db.evalid) if isinstance(self.db.evalid, list) else pl.col("EVALID") == self.db.evalid
+            ).select("PLT_CN").unique()
+
+            # Filter data to only include these plots
+            data = data.join(
+                valid_plots,
+                on="PLT_CN",
+                how="inner"  # This filters to only plots in the EVALID
+            )
+
         # Load and join COND table
+        # Note: TREE_GRM tables don't have CONDID, so we need to aggregate COND to plot level
         if "COND" not in self.db.tables:
             self.db.load_table("COND")
-        
+
         cond = self.db.tables["COND"]
         if not isinstance(cond, pl.LazyFrame):
             cond = cond.lazy()
-        
-        cond_cols = self.get_cond_columns()
-        cond = cond.select([c for c in cond_cols if c in cond.collect_schema().names()])
-        
-        # Join with conditions
+
+        # Aggregate COND to plot level since GRM tables don't have CONDID
+        # For mortality, we'll use plot-level aggregates
+        cond_agg = cond.group_by("PLT_CN").agg([
+            pl.col("COND_STATUS_CD").first().alias("COND_STATUS_CD"),
+            pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),  # Sum of condition proportions
+            pl.col("OWNGRPCD").first().alias("OWNGRPCD"),  # Use first/dominant condition
+            pl.col("FORTYPCD").first().alias("FORTYPCD"),
+            pl.col("SITECLCD").first().alias("SITECLCD"),
+            pl.col("RESERVCD").first().alias("RESERVCD"),
+            pl.lit(1).alias("CONDID")  # Dummy CONDID since we're aggregating
+        ])
+
+        # Join with aggregated conditions
         data = data.join(
-            cond,
+            cond_agg,
             on="PLT_CN",
-            how="inner"
+            how="left"  # Use left join in case some plots don't have COND records
         )
         
         # Add PLOT data for additional info if needed
@@ -173,53 +211,103 @@ class MortalityEstimator(BaseEstimator):
     
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Apply mortality-specific filters."""
-        # First apply base filters (tree_domain, area_domain, land_type)
-        data = super().apply_filters(data)
-        
+        # For mortality, we need to handle filtering differently since GRM tables
+        # have different column names (TPAMORT_UNADJ instead of TPA_UNADJ)
+
+        # Collect to DataFrame for filtering
+        data_df = data.collect()
+
+        # Apply area domain filter if specified
+        if self.config.get("area_domain"):
+            from pyfia.filtering.area.filters import apply_area_filters
+            data_df = apply_area_filters(
+                data_df,
+                area_domain=self.config["area_domain"]
+            )
+
+        # Apply tree domain filter if specified, using the domain parser directly
+        # to avoid the TPA_UNADJ check in apply_tree_filters
+        if self.config.get("tree_domain"):
+            from pyfia.filtering.core.parser import DomainExpressionParser
+            data_df = DomainExpressionParser.apply_to_dataframe(
+                data_df,
+                self.config["tree_domain"],
+                "tree"
+            )
+
         # Filter to mortality components only
-        data = data.filter(
+        data_df = data_df.filter(
             pl.col("COMPONENT").str.starts_with("MORTALITY")
         )
-        
+
         # Filter to records with positive mortality
-        data = data.filter(
+        data_df = data_df.filter(
             (pl.col("TPAMORT_UNADJ").is_not_null()) &
             (pl.col("TPAMORT_UNADJ") > 0)
         )
-        
+
         # Apply tree type filter if specified
         tree_type = self.config.get("tree_type", "gs")
         if tree_type == "gs":
             # Growing stock trees (typically >= 5 inches DBH with merchantable volume)
-            data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
-            if "VOLCFNET" in data.collect_schema().names():
-                data = data.filter(pl.col("VOLCFNET") > 0)
-        
-        return data
+            data_df = data_df.filter(pl.col("DIA_MIDPT") >= 5.0)
+            if "VOLCFNET" in data_df.columns:
+                data_df = data_df.filter(pl.col("VOLCFNET") > 0)
+        elif tree_type == "sawtimber":
+            # Sawtimber trees: softwood >= 9.0", hardwood >= 11.0" DBH with sawlog volume
+            # Standard FIA sawtimber definition
+            data_df = data_df.filter(
+                ((pl.col("SPCD") < 300) & (pl.col("DIA_MIDPT") >= 9.0)) |
+                ((pl.col("SPCD") >= 300) & (pl.col("DIA_MIDPT") >= 11.0))
+            )
+            # Also require sawlog volume > 0 if available
+            if "VOLCSNET" in data_df.columns:
+                data_df = data_df.filter(pl.col("VOLCSNET") > 0)
+
+        # Convert back to LazyFrame
+        return data_df.lazy()
     
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate mortality values per acre.
-        
+
         TPAMORT_UNADJ is already annualized, so no remeasurement period adjustment needed.
         """
         measure = self.config.get("measure", "volume")
-        
+
         if measure == "volume":
             # Mortality volume per acre = TPAMORT * Volume
             data = data.with_columns([
-                (pl.col("TPAMORT_UNADJ").cast(pl.Float64) * 
+                (pl.col("TPAMORT_UNADJ").cast(pl.Float64) *
                  pl.col("VOLCFNET").cast(pl.Float64)).alias("MORT_VALUE")
+            ])
+        elif measure == "sawlog":
+            # Sawlog volume mortality - use VOLCSNET (sawlog net volume)
+            data = data.with_columns([
+                (pl.col("TPAMORT_UNADJ").cast(pl.Float64) *
+                 pl.col("VOLCSNET").cast(pl.Float64)).alias("MORT_VALUE")
             ])
         elif measure == "biomass":
             # Mortality biomass per acre (total biomass in tons)
             # DRYBIO fields are in pounds, convert to tons
             data = data.with_columns([
-                (pl.col("TPAMORT_UNADJ").cast(pl.Float64) * 
-                 (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(pl.Float64) / 
+                (pl.col("TPAMORT_UNADJ").cast(pl.Float64) *
+                 (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(pl.Float64) /
                  2000.0).alias("MORT_VALUE")
             ])
-        else:  # count
+        elif measure == "basal_area":
+            # Mortality basal area per acre
+            # Basal area = π * (DIA/2)^2 / 144 = DIA^2 * 0.005454154
+            data = data.with_columns([
+                (pl.col("TPAMORT_UNADJ").cast(pl.Float64) *
+                 (pl.col("DIA").cast(pl.Float64) ** 2 * 0.005454154)).alias("MORT_VALUE")
+            ])
+        elif measure == "tpa":
+            # Mortality trees per acre (same as count)
+            data = data.with_columns([
+                pl.col("TPAMORT_UNADJ").cast(pl.Float64).alias("MORT_VALUE")
+            ])
+        else:  # Default to tpa/count
             # Mortality trees per acre
             data = data.with_columns([
                 pl.col("TPAMORT_UNADJ").cast(pl.Float64).alias("MORT_VALUE")
@@ -372,7 +460,7 @@ def mortality(
     grp_by: Optional[Union[str, List[str]]] = None,
     by_species: bool = False,
     by_size_class: bool = False,
-    land_type: str = "forest",
+    land_type: str = "timber",  # Default to timber to match EVALIDator
     tree_type: str = "gs",
     measure: str = "volume",
     tree_domain: Optional[str] = None,
@@ -417,23 +505,26 @@ def mortality(
     by_size_class : bool, default False
         If True, group results by diameter size classes. Size classes are
         defined as: 1.0-4.9", 5.0-9.9", 10.0-19.9", 20.0-29.9", 30.0+".
-    land_type : {'forest', 'timber'}, default 'forest'
+    land_type : {'forest', 'timber'}, default 'timber'
         Land type to include in estimation:
         
         - 'forest': All forestland
         - 'timber': Productive timberland only (unreserved, productive)
-    tree_type : {'gs', 'al', 'sl'}, default 'gs'
+    tree_type : {'gs', 'al', 'sawtimber', 'live'}, default 'gs'
         Tree type to include:
-        
+
         - 'gs': Growing stock trees (live, merchantable)
-        - 'al': All live trees
-        - 'sl': Sawtimber trees
-    measure : {'volume', 'biomass', 'count'}, default 'volume'
+        - 'al' or 'live': All live trees
+        - 'sawtimber': Sawtimber trees (softwood ≥9.0", hardwood ≥11.0" DBH)
+    measure : {'volume', 'sawlog', 'biomass', 'tpa', 'count', 'basal_area'}, default 'volume'
         What to measure in the mortality estimation:
-        
-        - 'volume': Net cubic foot volume
+
+        - 'volume': Net cubic foot volume (VOLCFNET)
+        - 'sawlog': Sawlog net cubic foot volume (VOLCSNET)
         - 'biomass': Total aboveground biomass in tons
+        - 'tpa': Trees per acre (same as 'count')
         - 'count': Number of trees per acre
+        - 'basal_area': Basal area in square feet per acre
     tree_domain : str, optional
         SQL-like filter expression for tree-level filtering. Applied to
         TREE_GRM tables. Example: "DIA_MIDPT >= 10.0 AND SPCD == 131".

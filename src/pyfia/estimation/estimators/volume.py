@@ -204,6 +204,40 @@ class VolumeEstimator(BaseEstimator):
         # The shared method returns VOLUME_ACRE and VOLUME_TOTAL
         # which are already the names we want
 
+        # Recalculate N_PLOTS to count only non-zero volume plots
+        # This matches EVALIDator's "non-zero plots" metric
+        if self.plot_tree_data is not None:
+            # Calculate plot-level volume sums
+            plot_volumes = self.plot_tree_data.group_by(
+                ["PLT_CN"] + (group_cols if group_cols else [])
+            ).agg([
+                pl.sum("VOLUME_ADJ").alias("PLOT_VOLUME")
+            ])
+
+            # Count plots with non-zero volume
+            if group_cols:
+                non_zero_counts = plot_volumes.filter(
+                    pl.col("PLOT_VOLUME") > 0
+                ).group_by(group_cols).agg([
+                    pl.n_unique("PLT_CN").alias("N_PLOTS_NONZERO")
+                ])
+
+                # Update results with correct plot count
+                results = results.drop("N_PLOTS").join(
+                    non_zero_counts,
+                    on=group_cols,
+                    how="left"
+                ).rename({"N_PLOTS_NONZERO": "N_PLOTS"})
+            else:
+                non_zero_count = plot_volumes.filter(
+                    pl.col("PLOT_VOLUME") > 0
+                ).select(pl.n_unique("PLT_CN")).item()
+
+                # Update the N_PLOTS value
+                results = results.with_columns([
+                    pl.lit(non_zero_count).alias("N_PLOTS")
+                ])
+
         # Handle totals based on config
         if not self.config.get("totals", True):
             # Remove total column if not requested
@@ -407,37 +441,43 @@ class VolumeEstimator(BaseEstimator):
         ratio = total_y / total_x if total_x > 0 else 0
 
         # Calculate variance components for ratio estimator
-        # For ratio variance: V(R) ≈ (1/X̄²) × Σ_h N_h² × [s²_yh + R² × s²_xh - 2R × cov_yxh] / n_h
-        # Where N_h = w_h × n_h (total plots in stratum in population)
+        # For FIA ratio estimation with stratified sampling:
+        # V(R) = Σ_h [(N_h/n_h) × w_h² × (s²_yh + R² × s²_xh - 2R × cov_yxh)] / X̄²
+        # Where:
+        # - N_h/n_h represents the finite population correction (we'll approximate as 1)
+        # - w_h = EXPNS (expansion factor in acres per plot)
+        # - The division by X̄² converts from variance of totals to variance of ratio
 
-        # Since we're dealing with per-acre estimates, we need to be careful with the formula
-        # The variance of the ratio for stratified sampling is:
+        # CRITICAL FIX: The correct formula multiplies by n_h for total variance,
+        # then divides by X̄² for ratio variance
         variance_components = strata_stats.with_columns([
-            # Finite population correction would go here if needed
-            # For now, using standard formula
+            # Each stratum's contribution to the variance of the total
+            # For domain totals: multiply by n_h (number of plots in stratum)
+            # This gives us the variance of Y - RX
             (pl.col("w_h") ** 2 *
              (pl.col("s2_yh") +
               ratio ** 2 * pl.col("s2_xh") -
-              2 * ratio * pl.col("cov_yxh")) /
-             pl.col("n_h")
+              2 * ratio * pl.col("cov_yxh")) *
+             pl.col("n_h")  # MULTIPLY by n_h for total variance
             ).alias("v_h")
         ])
 
         # Sum variance components across strata
-        total_variance_of_ratio = variance_components["v_h"].sum()
-        if total_variance_of_ratio is None or total_variance_of_ratio < 0:
-            total_variance_of_ratio = 0.0
+        variance_of_numerator = variance_components["v_h"].sum()
+        if variance_of_numerator is None or variance_of_numerator < 0:
+            variance_of_numerator = 0.0
 
-        # The variance we calculated is for the sum; for the ratio we need to divide by X̄²
-        # But since ratio = total_y / total_x, and we want variance of the per-acre estimate:
-        # SE(per-acre) = sqrt(variance_of_ratio)
-        # SE(total) = SE(per-acre) × total_x
+        # Convert to variance of the ratio by dividing by X̄²
+        # This gives us Var(R) where R = Y/X
+        variance_of_ratio = variance_of_numerator / (total_x ** 2) if total_x > 0 else 0.0
 
-        se_acre = total_variance_of_ratio ** 0.5
+        # Standard errors
+        se_acre = variance_of_ratio ** 0.5
+        # For total, multiply SE of ratio by total area
         se_total = se_acre * total_x if total_x > 0 else 0
 
         return {
-            "variance_acre": total_variance_of_ratio,
+            "variance_acre": variance_of_ratio,
             "variance_total": (se_total ** 2) if se_total > 0 else 0,
             "se_acre": se_acre,
             "se_total": se_total,

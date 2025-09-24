@@ -360,7 +360,8 @@ class AreaEstimator(BaseEstimator):
              pl.col("ADJ_FACTOR_AREA").cast(pl.Float64) *
              pl.col("EXPNS").cast(pl.Float64)).sum().alias("AREA_TOTAL"),
             pl.col("EXPNS").cast(pl.Float64).sum().alias("TOTAL_EXPNS"),
-            pl.count("PLT_CN").alias("N_PLOTS")
+            # Count only plots with non-zero area values (non-zero plots in EVALIDator terms)
+            pl.col("PLT_CN").filter(pl.col("AREA_VALUE") > 0).n_unique().alias("N_PLOTS")
         ]
 
         if group_cols:
@@ -370,11 +371,19 @@ class AreaEstimator(BaseEstimator):
 
         results = results.collect()
 
-        # Add percentage if grouped
+        # Add percentage
+        # For grouped data: percentage of total area in groups
+        # For ungrouped data: percentage of total land area (using TOTAL_EXPNS)
         if group_cols:
             total_area = results["AREA_TOTAL"].sum()
             results = results.with_columns([
                 (100 * pl.col("AREA_TOTAL") / total_area).alias("AREA_PERCENT")
+            ])
+        else:
+            # For ungrouped data, calculate percentage of total land area
+            # TOTAL_EXPNS represents the total land area when summed
+            results = results.with_columns([
+                (100 * pl.col("AREA_TOTAL") / pl.col("TOTAL_EXPNS")).alias("AREA_PERCENT")
             ])
 
         return results

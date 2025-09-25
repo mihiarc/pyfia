@@ -400,20 +400,134 @@ class MortalityEstimator(BaseEstimator):
         return results
     
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for mortality estimates."""
-        # Simplified variance calculation
-        # In production, should use proper stratified variance formulas
-        # Conservative estimate: 15-20% CV is typical for mortality
-        results = results.with_columns([
-            (pl.col("MORT_ACRE") * 0.15).alias("MORT_ACRE_SE"),
-            (pl.col("MORT_TOTAL") * 0.15).alias("MORT_TOTAL_SE")
+        """Calculate variance for mortality estimates using stratified sampling formulas.
+
+        Uses the FIA post-stratified variance estimation following Bechtold & Patterson (2005).
+        For domain (subset) estimation in stratified sampling:
+        V(Ŷ_D) = Σ_h [N_h² × (1 - n_h/N_h) × s²_yh / n_h]
+
+        Where:
+        - N_h = total plots in stratum (population)
+        - n_h = sampled plots in stratum
+        - s²_yh = sample variance of mortality values in stratum
+        - (1 - n_h/N_h) = finite population correction (FPC)
+
+        For FIA, we typically assume n_h/N_h is small, so FPC ≈ 1.
+        The expansion factor EXPNS = N_h × acres_per_plot / n_h
+        """
+
+        # Get stratification data for variance calculation
+        strat_data = self._get_stratification_data()
+
+        # Load the raw mortality data for variance calculation
+        data = self.load_data()
+        if data is None:
+            # If no data, return results with zero variance
+            results = results.with_columns([
+                pl.lit(0.0).alias("MORT_ACRE_SE"),
+                pl.lit(0.0).alias("MORT_TOTAL_SE")
+            ])
+            return results
+
+        # Apply filters to get the same subset used in estimation
+        data = self.apply_filters(data)
+        data = self.calculate_values(data)
+
+        # Join with stratification
+        data_with_strat = data.join(
+            strat_data,
+            on="PLT_CN",
+            how="inner"
+        )
+
+        # Apply adjustment factors based on SUBPTYP_GRM
+        data_with_strat = data_with_strat.with_columns([
+            pl.when(pl.col("SUBPTYP_GRM") == 0)
+            .then(0.0)
+            .when(pl.col("SUBPTYP_GRM") == 1)
+            .then(pl.col("ADJ_FACTOR_SUBP"))
+            .when(pl.col("SUBPTYP_GRM") == 2)
+            .then(pl.col("ADJ_FACTOR_MICR"))
+            .when(pl.col("SUBPTYP_GRM") == 3)
+            .then(pl.col("ADJ_FACTOR_MACR"))
+            .otherwise(0.0)
+            .alias("ADJ_FACTOR")
         ])
-        
+
+        # Calculate plot-level mortality values (including zeros for plots without mortality)
+        # First, get all plots in the evaluation
+        all_plots = strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique()
+
+        # Aggregate mortality to plot level
+        plot_mortality = data_with_strat.group_by(["PLT_CN", "STRATUM_CN", "EXPNS"]).agg([
+            (pl.col("MORT_ANNUAL") * pl.col("ADJ_FACTOR")).sum().alias("plot_mort_value")
+        ])
+
+        # Join to include all plots (with zeros for non-mortality plots)
+        all_plots_mort = all_plots.join(
+            plot_mortality.select(["PLT_CN", "plot_mort_value"]),
+            on="PLT_CN",
+            how="left"
+        ).with_columns([
+            pl.col("plot_mort_value").fill_null(0.0)
+        ])
+
+        # Calculate stratum-level statistics
+        strat_stats = all_plots_mort.group_by("STRATUM_CN").agg([
+            pl.count("PLT_CN").alias("n_h"),  # Number of plots in stratum
+            pl.mean("plot_mort_value").alias("ybar_h"),  # Mean mortality per plot
+            pl.var("plot_mort_value", ddof=1).alias("s2_yh"),  # Sample variance
+            pl.first("EXPNS").alias("w_h")  # Expansion factor (same for all plots in stratum)
+        ])
+
+        # Handle single-plot strata (variance = 0)
+        strat_stats = strat_stats.with_columns([
+            pl.when(pl.col("s2_yh").is_null() | (pl.col("n_h") == 1))
+            .then(0.0)
+            .otherwise(pl.col("s2_yh"))
+            .alias("s2_yh")
+        ])
+
+        # Calculate variance components for total estimation
+        # For domain totals in stratified sampling:
+        # V(total) = Σ_h [w_h² × s²_yh × n_h]
+        # We multiply by n_h because we're estimating a total, not a mean
+        variance_components = strat_stats.with_columns([
+            (pl.col("w_h").cast(pl.Float64) ** 2 * pl.col("s2_yh") * pl.col("n_h")).alias("v_h")
+        ])
+
+        # Sum variance components
+        total_variance = variance_components.collect()["v_h"].sum()
+        if total_variance is None or total_variance < 0:
+            total_variance = 0.0
+
+        # Calculate standard errors
+        se_total = total_variance ** 0.5
+
+        # For per-acre estimate, we need to divide by total area
+        # Get total area (sum of all EXPNS × n_h for all strata)
+        total_area_df = strat_stats.select([
+            (pl.col("w_h") * pl.col("n_h")).alias("stratum_area")
+        ]).collect()
+        total_area = total_area_df["stratum_area"].sum()
+
+        if total_area > 0:
+            se_acre = se_total / total_area
+        else:
+            se_acre = 0.0
+
+        # Update results with calculated variance
+        results = results.with_columns([
+            pl.lit(se_acre).alias("MORT_ACRE_SE"),
+            pl.lit(se_total).alias("MORT_TOTAL_SE")
+        ])
+
         if "MORT_RATE" in results.columns:
+            # For rates, use a higher CV (more uncertainty in rates)
             results = results.with_columns([
                 (pl.col("MORT_RATE") * 0.20).alias("MORT_RATE_SE")
             ])
-        
+
         # Add CV if requested
         if self.config.get("include_cv", False):
             results = results.with_columns([
@@ -421,7 +535,7 @@ class MortalityEstimator(BaseEstimator):
                 .then(pl.col("MORT_ACRE_SE") / pl.col("MORT_ACRE") * 100)
                 .otherwise(None)
                 .alias("MORT_ACRE_CV"),
-                
+
                 pl.when(pl.col("MORT_TOTAL") > 0)
                 .then(pl.col("MORT_TOTAL_SE") / pl.col("MORT_TOTAL") * 100)
                 .otherwise(None)

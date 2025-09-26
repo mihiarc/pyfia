@@ -306,6 +306,11 @@ class VolumeEstimator(BaseEstimator):
 
         # Step 3: Calculate variance for each group or overall
         if self.group_cols:
+            # CRITICAL FIX: Get ALL plots in the evaluation (not filtered by group)
+            # This ensures we include zero plots for proper variance calculation
+            strat_data = self._get_stratification_data()
+            all_plots = strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+
             # Calculate variance for each group separately
             variance_results = []
 
@@ -319,16 +324,25 @@ class VolumeEstimator(BaseEstimator):
                         group_dict[col] = group_vals[results.columns.index(col)]
                         group_filter = group_filter & (pl.col(col) == group_vals[results.columns.index(col)])
 
-                # Filter plot data for this group
+                # Filter plot data for this specific group
                 group_plot_data = plot_data.filter(group_filter)
 
-                if len(group_plot_data) > 0:
-                    # Calculate variance for this group
-                    var_stats = self._calculate_ratio_variance(group_plot_data)
+                # CRITICAL: Join with ALL plots, filling missing with zeros
+                # This includes plots that don't have trees in this group
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_i", "x_i"]),
+                    on="PLT_CN",
+                    how="left"
+                ).with_columns([
+                    pl.col("y_i").fill_null(0.0),  # Zero volume for plots without this group
+                    # For domain ratio estimation, both numerator and denominator must use same domain
+                    # Plots without the species have zero area contribution to maintain proper ratio
+                    pl.col("x_i").fill_null(0.0)  # Zero area for plots without this group
+                ])
 
-                    # Get the volume estimates for this group
-                    volume_acre = group_vals[results.columns.index("VOLUME_ACRE")]
-                    volume_total = group_vals[results.columns.index("VOLUME_TOTAL")]
+                if len(all_plots_group) > 0:
+                    # Calculate variance using ALL plots (including zeros)
+                    var_stats = self._calculate_ratio_variance(all_plots_group)
 
                     variance_results.append({
                         **group_dict,
@@ -336,6 +350,15 @@ class VolumeEstimator(BaseEstimator):
                         "VOLUME_TOTAL_SE": var_stats["se_total"],
                         "VOLUME_ACRE_VARIANCE": var_stats["variance_acre"],
                         "VOLUME_TOTAL_VARIANCE": var_stats["variance_total"]
+                    })
+                else:
+                    # No data for this group - set SE to 0
+                    variance_results.append({
+                        **group_dict,
+                        "VOLUME_ACRE_SE": 0.0,
+                        "VOLUME_TOTAL_SE": 0.0,
+                        "VOLUME_ACRE_VARIANCE": 0.0,
+                        "VOLUME_TOTAL_VARIANCE": 0.0
                     })
 
             # Join variance results back to main results

@@ -797,6 +797,30 @@ def mortality(
     KeyError
         If specified columns in grp_by don't exist in the joined tables.
     """
+    # Import validation functions
+    from ...validation import (
+        validate_land_type,
+        validate_tree_type,
+        validate_mortality_measure,
+        validate_grp_by,
+        validate_domain_expression,
+        validate_boolean
+    )
+
+    # Validate inputs
+    land_type = validate_land_type(land_type)
+    tree_type = validate_tree_type(tree_type)
+    measure = validate_mortality_measure(measure)
+    grp_by = validate_grp_by(grp_by)
+    tree_domain = validate_domain_expression(tree_domain, "tree_domain")
+    area_domain = validate_domain_expression(area_domain, "area_domain")
+    by_species = validate_boolean(by_species, "by_species")
+    by_size_class = validate_boolean(by_size_class, "by_size_class")
+    as_rate = validate_boolean(as_rate, "as_rate")
+    totals = validate_boolean(totals, "totals")
+    variance = validate_boolean(variance, "variance")
+    most_recent = validate_boolean(most_recent, "most_recent")
+
     # Create configuration
     config = {
         "grp_by": grp_by,

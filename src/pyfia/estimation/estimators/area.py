@@ -747,6 +747,22 @@ def area(
     ...     area_domain="DSTRBCD1 > 0"  # Only disturbed areas
     ... )
     """
+    # Import validation functions
+    from ...validation import (
+        validate_land_type,
+        validate_grp_by,
+        validate_domain_expression,
+        validate_boolean
+    )
+
+    # Validate inputs
+    land_type = validate_land_type(land_type)
+    grp_by = validate_grp_by(grp_by)
+    area_domain = validate_domain_expression(area_domain, "area_domain")
+    variance = validate_boolean(variance, "variance")
+    totals = validate_boolean(totals, "totals")
+    most_recent = validate_boolean(most_recent, "most_recent")
+
     # Ensure db is a FIA instance
     if isinstance(db, str):
         db = FIA(db)

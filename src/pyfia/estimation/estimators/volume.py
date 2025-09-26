@@ -335,9 +335,9 @@ class VolumeEstimator(BaseEstimator):
                     how="left"
                 ).with_columns([
                     pl.col("y_i").fill_null(0.0),  # Zero volume for plots without this group
-                    # For area (x_i), all forest plots have area = 1.0 (full plot)
-                    # This is the denominator for ratio estimation - the forest area
-                    pl.col("x_i").fill_null(1.0)  # All forest plots contribute to area
+                    # For domain ratio estimation, both numerator and denominator must use same domain
+                    # Plots without the species have zero area contribution to maintain proper ratio
+                    pl.col("x_i").fill_null(0.0)  # Zero area for plots without this group
                 ])
 
                 if len(all_plots_group) > 0:

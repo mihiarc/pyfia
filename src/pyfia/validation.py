@@ -73,13 +73,22 @@ def validate_domain_expression(domain: Optional[str], domain_type: str) -> Optio
     if domain.strip() == "":
         raise ValueError(f"{domain_type} cannot be an empty string")
 
-    # Check for common SQL injection patterns (very basic)
-    dangerous_patterns = ["DROP", "DELETE", "INSERT", "UPDATE", "ALTER", "CREATE"]
+    # Check for common SQL injection patterns with word boundaries
+    # Using word boundaries to avoid false positives (e.g., "UPDATED_DATE" is OK)
+    import re
+    dangerous_patterns = [
+        r'\bDROP\b', r'\bDELETE\b', r'\bINSERT\b',
+        r'\bUPDATE\b', r'\bALTER\b', r'\bCREATE\b',
+        r'\bEXEC\b', r'\bEXECUTE\b', r'\bTRUNCATE\b'
+    ]
     domain_upper = domain.upper()
     for pattern in dangerous_patterns:
-        if pattern in domain_upper:
+        if re.search(pattern, domain_upper):
+            # Extract the keyword for the error message
+            keyword = pattern.replace(r'\b', '')
             raise ValueError(
-                f"{domain_type} contains potentially dangerous SQL keyword: {pattern}"
+                f"{domain_type} contains potentially dangerous SQL keyword: {keyword}. "
+                f"If this is a legitimate column name, please contact support."
             )
 
     return domain

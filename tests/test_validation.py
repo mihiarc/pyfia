@@ -99,6 +99,14 @@ class TestValidators:
         with pytest.raises(ValueError, match="dangerous SQL keyword"):
             validate_domain_expression("DELETE FROM COND", "tree_domain")
 
+        # Test that word boundaries work - these should be OK
+        assert validate_domain_expression("UPDATED_DATE > 2020", "tree_domain") == "UPDATED_DATE > 2020"
+        assert validate_domain_expression("CREATED_BY == 'user'", "tree_domain") == "CREATED_BY == 'user'"
+
+        # But actual SQL keywords should still be caught
+        with pytest.raises(ValueError, match="dangerous SQL keyword: UPDATE"):
+            validate_domain_expression("UPDATE SET x=1", "tree_domain")
+
     def test_validate_grp_by_valid(self):
         """Test valid grp_by values."""
         assert validate_grp_by(None) is None

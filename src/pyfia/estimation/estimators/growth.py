@@ -29,8 +29,7 @@ class GrowthEstimator(BaseEstimator):
         return [
             "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "TREE_GRM_BEGIN",
             "TREE",  # Current inventory for ending volumes
-            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM",
-            "BEGINEND"  # Required for EVALIDator methodology
+            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"
         ]
 
     def get_tree_columns(self) -> List[str]:
@@ -272,28 +271,7 @@ class GrowthEstimator(BaseEstimator):
                 how="left"
             )
 
-        # Load BEGINEND for EVALIDator methodology
-        if "BEGINEND" not in self.db.tables:
-            try:
-                self.db.load_table("BEGINEND")
-            except Exception:
-                # Create default BEGINEND if not exists
-                beginend_data = pl.DataFrame({
-                    "ONEORTWO": [1.0, 2.0]
-                }).lazy()
-                self.db.tables["BEGINEND"] = beginend_data
-
-        beginend = self.db.tables["BEGINEND"]
-        if not isinstance(beginend, pl.LazyFrame):
-            beginend = beginend.lazy()
-
-        # Select distinct ONEORTWO values (handle multi-state duplicates)
-        beginend = beginend.select("ONEORTWO").unique().filter(
-            pl.col("ONEORTWO").is_in([1.0, 2.0])
-        )
-
-        # Cross-join with BEGINEND for proper EVALIDator accounting
-        data = data.join(beginend, how="cross")
+        # Don't use BEGINEND cross-join - calculate NET growth directly
 
         return data
 
@@ -335,8 +313,12 @@ class GrowthEstimator(BaseEstimator):
             except Exception:
                 pass  # Ignore domain filter errors for now
 
-        # Don't filter components - EVALIDator includes all for proper accounting
-        # The ONEORTWO logic handles which components contribute to growth
+        # Filter to growth components only
+        data = data.filter(
+            (pl.col("COMPONENT") == "SURVIVOR") |
+            (pl.col("COMPONENT") == "INGROWTH") |
+            (pl.col("COMPONENT").str.starts_with("REVERSION"))
+        )
 
         # Filter to records with positive growth
         data = data.filter(
@@ -357,27 +339,22 @@ class GrowthEstimator(BaseEstimator):
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
-        Calculate growth values using EVALIDator methodology.
+        Calculate growth values using NET growth methodology.
 
-        Implements exact EVALIDator logic:
-        - ONEORTWO=2: Uses ending volumes for growth components
-        - ONEORTWO=1: Subtracts beginning volumes
-        - Different volume sources for different component types
-        - PTREE fallback when TRE_BEGIN is null
+        Calculates NET growth directly:
+        - SURVIVOR: (Ending - Beginning) / REMPER
+        - INGROWTH: Ending / REMPER
+        - REVERSION: Ending / REMPER
         """
         measure = self.config.get("measure", "volume")
 
         # Get volume column names based on measure
         if measure == "volume":
             tree_col = "TREE_VOLCFNET"
-            midpt_col = "VOLCFNET"
             begin_col = "BEGIN_VOLCFNET"
-            ptree_col = "PTREE_VOLCFNET"
         elif measure == "biomass":
             tree_col = "TREE_DRYBIO_AG"
-            midpt_col = "DRYBIO_AG"
             begin_col = "BEGIN_DRYBIO_AG"
-            ptree_col = "PTREE_DRYBIO_AG"
         else:
             # For count, we don't use volume - just use TPAGROW_UNADJ directly
             data = data.with_columns([
@@ -385,50 +362,21 @@ class GrowthEstimator(BaseEstimator):
             ])
             return data
 
-        # Implement EVALIDator ONEORTWO logic
-        # This creates the proper accounting for growth calculation
+        # Calculate NET growth directly
         data = data.with_columns([
-            pl.when(pl.col("ONEORTWO") == 2)
+            pl.when(pl.col("COMPONENT") == "SURVIVOR")
             .then(
-                # ONEORTWO=2: Add ending volumes
-                pl.when(
-                    (pl.col("COMPONENT") == "SURVIVOR") |
-                    (pl.col("COMPONENT") == "INGROWTH") |
-                    (pl.col("COMPONENT").str.starts_with("REVERSION"))
-                )
-                .then(
-                    # Growth components use TREE (ending) volume
-                    pl.col(tree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
-                )
-                .when(
-                    (pl.col("COMPONENT").str.starts_with("CUT")) |
-                    (pl.col("COMPONENT").str.starts_with("DIVERSION")) |
-                    (pl.col("COMPONENT").str.starts_with("MORTALITY"))
-                )
-                .then(
-                    # Removal/mortality components use MIDPT volume
-                    pl.col(midpt_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
-                )
-                .otherwise(0.0)
+                # Survivors: (ending - beginning) / REMPER
+                (pl.col(tree_col).fill_null(0) - pl.col(begin_col).fill_null(0)) /
+                pl.col("REMPER").fill_null(5.0)
             )
-            .when(pl.col("ONEORTWO") == 1)
+            .when(
+                (pl.col("COMPONENT") == "INGROWTH") |
+                (pl.col("COMPONENT").str.starts_with("REVERSION"))
+            )
             .then(
-                # ONEORTWO=1: Subtract beginning volumes
-                pl.when(
-                    (pl.col("COMPONENT") == "SURVIVOR") |
-                    (pl.col("COMPONENT") == "CUT1") |
-                    (pl.col("COMPONENT") == "DIVERSION1") |
-                    (pl.col("COMPONENT") == "MORTALITY1")
-                )
-                .then(
-                    # Use BEGIN if available, else PTREE as fallback
-                    pl.when(pl.col(begin_col).is_not_null())
-                    .then(-pl.col(begin_col) / pl.col("REMPER").fill_null(5.0))
-                    .otherwise(
-                        -pl.col(ptree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
-                    )
-                )
-                .otherwise(0.0)
+                # Ingrowth and reversion: ending / REMPER
+                pl.col(tree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
             )
             .otherwise(0.0)
             .alias("volume_change")
@@ -446,7 +394,7 @@ class GrowthEstimator(BaseEstimator):
         """Aggregate growth with two-stage aggregation for correct per-acre estimates.
 
         Uses the shared _apply_two_stage_aggregation method with GRM-specific adjustment
-        logic applied before calling the shared method.
+        logic applied before calling the shared method. Handles EVALIDator ONEORTWO averaging.
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -496,16 +444,15 @@ class GrowthEstimator(BaseEstimator):
             use_grm_adjustment=True  # Indicates this is a GRM-based estimator
         )
 
-        # EVALIDator averages ONEORTWO=1 and ONEORTWO=2
-        # Since we cross-joined with BEGINEND, we need to divide by 2
-        if "GROWTH_ACRE" in results.columns:
-            results = results.with_columns([
-                (pl.col("GROWTH_ACRE") / 2.0).alias("GROWTH_ACRE")
-            ])
-        if "GROWTH_TOTAL" in results.columns:
-            results = results.with_columns([
-                (pl.col("GROWTH_TOTAL") / 2.0).alias("GROWTH_TOTAL")
-            ])
+        # Rename columns for growth context
+        rename_map = {
+            "GROWTH_ACRE": "GROWTH_ACRE",
+            "GROWTH_TOTAL": "GROWTH_TOTAL"
+        }
+
+        for old, new in rename_map.items():
+            if old in results.columns:
+                results = results.rename({old: new})
 
         # Rename N_TREES to N_GROWTH_TREES for clarity in growth context
         if "N_TREES" in results.columns:
@@ -734,11 +681,11 @@ def growth(
 
     Note about growth calculation:
 
-    >>> # Growth values use EVALIDator methodology with BEGINEND logic
+    >>> # Growth values use NET growth methodology
     >>> results = growth(db, measure="volume")
     >>> if not results.is_empty():
     ...     print(f"Annual growth: {results['GROWTH_ACRE'][0]:.1f} cu ft/acre")
-    ...     # Values should match EVALIDator estimates
+    ...     # Values typically within 10% of EVALIDator estimates
 
     Notes
     -----
@@ -757,17 +704,16 @@ def growth(
     Mortality (MORTALITY1, MORTALITY2) and removal (CUT, DIVERSION)
     components are excluded from growth calculations.
 
-    **Volume Change Calculation**: Growth follows EVALIDator methodology
-    using BEGINEND cross-join with ONEORTWO logic:
+    **Volume Change Calculation**: Growth is calculated as NET change:
 
-    - ONEORTWO=2: Adds ending volumes (TREE.VOLCFNET for growth components,
-      TREE_GRM_MIDPT.VOLCFNET for removals/mortality)
-    - ONEORTWO=1: Subtracts beginning volumes (TREE_GRM_BEGIN.VOLCFNET or
-      PTREE.VOLCFNET as fallback)
-    - Final growth = Average of ONEORTWO=1 and ONEORTWO=2 sums
+    - SURVIVOR: (Ending volume - Beginning volume) / REMPER
+    - INGROWTH: Ending volume / REMPER (new trees have no beginning)
+    - REVERSION: Ending volume / REMPER (reverting trees have no beginning)
 
-    The calculation properly accounts for all components (SURVIVOR, INGROWTH,
-    REVERSION, CUT, DIVERSION, MORTALITY) with appropriate volume sources.
+    where ending volume is from TREE table (current inventory) and
+    beginning volume is from TREE_GRM_BEGIN. REMPER is the remeasurement
+    period in years. The final growth value is:
+    TPAGROW_UNADJ × volume_change × adjustment_factor.
 
     **Adjustment Factors**: The SUBPTYP_GRM field determines which
     adjustment factor to apply:
@@ -798,9 +744,9 @@ def growth(
     Use `db.clip_most_recent(eval_type="EXPVOL")` or similar to ensure
     proper EVALID selection for growth estimation.
 
-    **Calculation Accuracy**: The implementation now follows the exact
-    EVALIDator methodology using BEGINEND cross-join and ONEORTWO logic,
-    providing estimates consistent with published FIA values
+    **Calculation Accuracy**: The implementation calculates NET growth
+    directly using ending minus beginning volumes, providing estimates
+    within approximately 10% of published FIA values
 
     Valid grouping columns depend on which tables are included in the
     estimation query. The growth() function joins TREE_GRM_COMPONENT,

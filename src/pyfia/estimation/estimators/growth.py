@@ -240,8 +240,11 @@ class GrowthEstimator(BaseEstimator):
         if not isinstance(beginend, pl.LazyFrame):
             beginend = beginend.lazy()
 
-        # Select only ONEORTWO column
-        beginend = beginend.select("ONEORTWO")
+        # Select only ONEORTWO column and ensure we get exactly 2 unique values
+        # (some databases may have state-specific BEGINEND rows)
+        beginend = beginend.select("ONEORTWO").unique().filter(
+            pl.col("ONEORTWO").is_in([1.0, 2.0])
+        )
 
         # Cross-join with BEGINEND (cartesian product)
         # This doubles the data: each tree appears twice with ONEORTWO=1 and ONEORTWO=2
@@ -334,14 +337,13 @@ class GrowthEstimator(BaseEstimator):
             return data
 
         # Implement EVALIDator ONEORTWO logic for growth calculation
-        # This follows the exact methodology from EVALIDator SQL query
+        # The BEGINEND cross-join creates two rows per tree for proper accounting
         #
+        # For GROSS growth (published estimate):
         # ONEORTWO=2: Add ending volumes for growth components (SURVIVOR, INGROWTH, REVERSION)
         # ONEORTWO=1: Subtract beginning volumes for SURVIVOR components
         #
-        # This properly accounts for the full change in volume by:
-        # 1. Adding where trees end up (ONEORTWO=2)
-        # 2. Subtracting where they started (ONEORTWO=1)
+        # The sum of both ONEORTWO values gives the annual growth estimate
 
         data = data.with_columns([
             # Calculate volume change using EVALIDator ONEORTWO logic
@@ -354,14 +356,14 @@ class GrowthEstimator(BaseEstimator):
                     (pl.col("COMPONENT").str.starts_with("REVERSION"))
                 )
                 .then(
-                    # Use ending (current) volume
+                    # Use ending (current) volume divided by REMPER for annual rate
                     pl.col(volume_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
                 )
                 .otherwise(0.0)
             )
             .when(pl.col("ONEORTWO") == 1)
             .then(
-                # ONEORTWO=1: Subtract beginning volumes for SURVIVOR
+                # ONEORTWO=1: Subtract beginning volumes for SURVIVOR only
                 pl.when(pl.col("COMPONENT") == "SURVIVOR")
                 .then(
                     # Negative beginning volume (subtract where trees started)

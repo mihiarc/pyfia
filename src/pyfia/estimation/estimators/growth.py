@@ -28,8 +28,8 @@ class GrowthEstimator(BaseEstimator):
         """Growth requires GRM tables for proper calculation."""
         return [
             "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "TREE_GRM_BEGIN",
-            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"
-            # Note: BEGINEND not used - we calculate NET growth directly
+            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM",
+            "BEGINEND"  # Required for proper EVALIDator methodology
         ]
 
     def get_tree_columns(self) -> List[str]:
@@ -224,6 +224,29 @@ class GrowthEstimator(BaseEstimator):
             how="left"
         )
 
+        # Cross-join with BEGINEND table for EVALIDator methodology
+        # This creates two rows for each tree: one for ONEORTWO=1, one for ONEORTWO=2
+        if "BEGINEND" not in self.db.tables:
+            try:
+                self.db.load_table("BEGINEND")
+            except Exception:
+                # If BEGINEND doesn't exist, create it with default values
+                beginend_data = pl.DataFrame({
+                    "ONEORTWO": [1.0, 2.0]
+                }).lazy()
+                self.db.tables["BEGINEND"] = beginend_data
+
+        beginend = self.db.tables["BEGINEND"]
+        if not isinstance(beginend, pl.LazyFrame):
+            beginend = beginend.lazy()
+
+        # Select only ONEORTWO column
+        beginend = beginend.select("ONEORTWO")
+
+        # Cross-join with BEGINEND (cartesian product)
+        # This doubles the data: each tree appears twice with ONEORTWO=1 and ONEORTWO=2
+        data = data.join(beginend, how="cross")
+
         return data
 
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
@@ -310,34 +333,41 @@ class GrowthEstimator(BaseEstimator):
             ])
             return data
 
-        # Calculate NET growth as (Ending - Beginning) following EVALIDator methodology
-        # Growth represents the change in volume over the remeasurement period
+        # Implement EVALIDator ONEORTWO logic for growth calculation
+        # This follows the exact methodology from EVALIDator SQL query
         #
-        # For each component type:
-        # - SURVIVOR: Has both beginning and ending volumes, net growth = (ending - beginning)
-        # - INGROWTH: New trees, only ending volume (beginning = 0)
-        # - REVERSION: Trees reverting to measured status, only ending volume
+        # ONEORTWO=2: Add ending volumes for growth components (SURVIVOR, INGROWTH, REVERSION)
+        # ONEORTWO=1: Subtract beginning volumes for SURVIVOR components
         #
-        # WARNING: Currently using default REMPER=5.0 for missing values
-        # This may contribute to the 26% underestimation vs EVALIDator
+        # This properly accounts for the full change in volume by:
+        # 1. Adding where trees end up (ONEORTWO=2)
+        # 2. Subtracting where they started (ONEORTWO=1)
 
         data = data.with_columns([
-            # Calculate volume change based on component type
-            pl.when(
-                (pl.col("COMPONENT") == "SURVIVOR")
-            )
+            # Calculate volume change using EVALIDator ONEORTWO logic
+            pl.when(pl.col("ONEORTWO") == 2)
             .then(
-                # SURVIVOR trees: (Ending - Beginning) / REMPER
-                (pl.col(volume_col).fill_null(0) - pl.col(begin_vol_col).fill_null(0)) /
-                pl.col("REMPER").fill_null(5.0)
+                # ONEORTWO=2: Add ending volumes for growth components
+                pl.when(
+                    (pl.col("COMPONENT") == "SURVIVOR") |
+                    (pl.col("COMPONENT") == "INGROWTH") |
+                    (pl.col("COMPONENT").str.starts_with("REVERSION"))
+                )
+                .then(
+                    # Use ending (current) volume
+                    pl.col(volume_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
+                )
+                .otherwise(0.0)
             )
-            .when(
-                (pl.col("COMPONENT") == "INGROWTH") |
-                (pl.col("COMPONENT").str.starts_with("REVERSION"))
-            )
+            .when(pl.col("ONEORTWO") == 1)
             .then(
-                # INGROWTH/REVERSION: Only ending volume (no beginning)
-                pl.col(volume_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
+                # ONEORTWO=1: Subtract beginning volumes for SURVIVOR
+                pl.when(pl.col("COMPONENT") == "SURVIVOR")
+                .then(
+                    # Negative beginning volume (subtract where trees started)
+                    -(pl.col(begin_vol_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
+                )
+                .otherwise(0.0)
             )
             .otherwise(0.0)
             .alias("volume_change")

@@ -29,6 +29,7 @@ class GrowthEstimator(BaseEstimator):
         return [
             "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "TREE_GRM_BEGIN",
             "TREE",  # Current inventory for ending volumes
+            "BEGINEND",  # Critical for ONEORTWO cross-join methodology
             "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"
         ]
 
@@ -87,8 +88,34 @@ class GrowthEstimator(BaseEstimator):
 
     def load_data(self) -> Optional[pl.LazyFrame]:
         """
-        Load and join GRM tables for growth calculation following EVALIDator structure.
+        Load and join GRM tables with BEGINEND cross-join following EVALIDator methodology.
+
+        This implements the critical BEGINEND cross-join where:
+        - ONEORTWO=2 rows add ending volumes (positive contribution)
+        - ONEORTWO=1 rows subtract beginning volumes (negative contribution)
+        - Sum gives NET growth = ending - beginning
         """
+        # Load BEGINEND table first - this is CRITICAL for proper growth calculation
+        if "BEGINEND" not in self.db.tables:
+            try:
+                self.db.load_table("BEGINEND")
+            except Exception as e:
+                raise ValueError(f"BEGINEND table not found: {e}")
+
+        beginend = self.db.tables["BEGINEND"]
+        if not isinstance(beginend, pl.LazyFrame):
+            beginend = beginend.lazy()
+
+        # CRITICAL: Filter BEGINEND to only the states in the current evalid/filter
+        # Get unique states from the database filter
+        if hasattr(self.db, '_state_filter') and self.db._state_filter:
+            # Filter to states in the database's state filter
+            beginend = beginend.filter(pl.col("STATE_ADDED").is_in(self.db._state_filter))
+
+        # Select ONEORTWO column - this is the key to the methodology
+        # Also keep STATE_ADDED for potential debugging
+        beginend = beginend.select(["ONEORTWO"]).unique()
+
         # Load TREE_GRM_COMPONENT as primary table
         if "TREE_GRM_COMPONENT" not in self.db.tables:
             try:
@@ -117,7 +144,7 @@ class GrowthEstimator(BaseEstimator):
             pl.col(self._subptyp_col).alias("SUBPTYP_GRM")
         ])
 
-        # Load TREE_GRM_MIDPT for current/end volume data
+        # Load TREE_GRM_MIDPT for midpoint volume data
         if "TREE_GRM_MIDPT" not in self.db.tables:
             try:
                 self.db.load_table("TREE_GRM_MIDPT")
@@ -133,12 +160,17 @@ class GrowthEstimator(BaseEstimator):
         measure = self.config.get("measure", "volume")
         if measure == "volume":
             midpt_cols = ["TRE_CN", "VOLCFNET", "DIA", "SPCD", "STATUSCD"]
+            midpt_vol_col = "VOLCFNET"
         elif measure == "biomass":
             midpt_cols = ["TRE_CN", "DRYBIO_AG", "DIA", "SPCD", "STATUSCD"]
+            midpt_vol_col = "DRYBIO_AG"
         else:  # count
             midpt_cols = ["TRE_CN", "DIA", "SPCD", "STATUSCD"]
+            midpt_vol_col = None
 
         grm_midpt = grm_midpt.select(midpt_cols)
+        if midpt_vol_col:
+            grm_midpt = grm_midpt.rename({midpt_vol_col: f"MIDPT_{midpt_vol_col}"})
 
         # Load TREE_GRM_BEGIN for beginning volume data
         if "TREE_GRM_BEGIN" not in self.db.tables:
@@ -155,15 +187,49 @@ class GrowthEstimator(BaseEstimator):
         # Select beginning volume columns
         if measure == "volume":
             begin_cols = ["TRE_CN", "VOLCFNET"]
+            begin_vol_col = "VOLCFNET"
         elif measure == "biomass":
             begin_cols = ["TRE_CN", "DRYBIO_AG"]
+            begin_vol_col = "DRYBIO_AG"
         else:
             begin_cols = ["TRE_CN"]
+            begin_vol_col = None
 
         grm_begin = grm_begin.select(begin_cols)
+        if begin_vol_col:
+            grm_begin = grm_begin.rename({begin_vol_col: f"BEGIN_{begin_vol_col}"})
+
+        # Load TREE table for current inventory ending volumes
+        if "TREE" not in self.db.tables:
+            try:
+                self.db.load_table("TREE")
+            except Exception as e:
+                raise ValueError(f"TREE table not found: {e}")
+
+        tree = self.db.tables["TREE"]
+        if not isinstance(tree, pl.LazyFrame):
+            tree = tree.lazy()
+
+        # Select volume columns from TREE table for ending inventory
+        if measure == "volume":
+            tree_cols = ["CN", "PREV_TRE_CN", "VOLCFNET", "CONDID"]
+            tree_vol_col = "VOLCFNET"
+        elif measure == "biomass":
+            tree_cols = ["CN", "PREV_TRE_CN", "DRYBIO_AG", "CONDID"]
+            tree_vol_col = "DRYBIO_AG"
+        else:
+            tree_cols = ["CN", "PREV_TRE_CN", "CONDID"]
+            tree_vol_col = None
+
+        tree_main = tree.select(tree_cols)
+        if tree_vol_col:
+            tree_main = tree_main.rename({tree_vol_col: f"TREE_{tree_vol_col}"})
+
+        # Also prepare PTREE (previous tree) for fallback when BEGIN is null
+        # This is critical for EVALIDator methodology
         if measure in ["volume", "biomass"]:
-            volume_col = "VOLCFNET" if measure == "volume" else "DRYBIO_AG"
-            grm_begin = grm_begin.rename({volume_col: f"BEGIN_{volume_col}"})
+            ptree_cols = ["CN", tree_vol_col]
+            ptree = tree.select(ptree_cols).rename({tree_vol_col: f"PTREE_{tree_vol_col}"})
 
         # Join GRM tables
         data = grm_component.join(
@@ -179,8 +245,40 @@ class GrowthEstimator(BaseEstimator):
                 how="left"  # Left join since not all trees have beginning data
             )
 
-        # Note: We calculate NET growth directly as (Ending - Beginning)
-        # rather than using the ONEORTWO logic from EVALIDator
+        # Join TREE table to get current inventory volumes
+        data = data.join(
+            tree_main,
+            left_on="TRE_CN",
+            right_on="CN",
+            how="inner"
+        )
+
+        # Join PTREE based on PREV_TRE_CN for fallback
+        if measure in ["volume", "biomass"]:
+            data = data.join(
+                ptree,
+                left_on="PREV_TRE_CN",
+                right_on="CN",
+                how="left"
+            )
+
+        # Add PLOT data for REMPER and other info
+        if "PLOT" not in self.db.tables:
+            self.db.load_table("PLOT")
+
+        plot = self.db.tables["PLOT"]
+        if not isinstance(plot, pl.LazyFrame):
+            plot = plot.lazy()
+
+        # Select plot columns including REMPER for annualization
+        plot = plot.select(["CN", "STATECD", "INVYR", "MACRO_BREAKPOINT_DIA", "REMPER", "PREV_PLT_CN"])
+
+        data = data.join(
+            plot,
+            left_on="PLT_CN",
+            right_on="CN",
+            how="left"
+        )
 
         # Load and join COND table
         if "COND" not in self.db.tables:
@@ -199,84 +297,31 @@ class GrowthEstimator(BaseEstimator):
             available = cond.collect_schema().names()
             cond = cond.select([c for c in cond_cols if c in available])
 
-        # Join with conditions
+        # Join with conditions - join on both PLT_CN and CONDID
         data = data.join(
             cond,
-            on="PLT_CN",
+            left_on=["PLT_CN", "CONDID"],
+            right_on=["PLT_CN", "CONDID"],
             how="inner"
         )
 
-        # Add PLOT data for additional info if needed
-        if "PLOT" not in self.db.tables:
-            self.db.load_table("PLOT")
-
-        plot = self.db.tables["PLOT"]
-        if not isinstance(plot, pl.LazyFrame):
-            plot = plot.lazy()
-
-        # Select minimal plot columns
-        plot = plot.select(["CN", "STATECD", "INVYR", "MACRO_BREAKPOINT_DIA", "REMPER"])
-
+        # *** CRITICAL: BEGINEND CROSS-JOIN ***
+        # This creates duplicate rows for each tree - one for ONEORTWO=1, one for ONEORTWO=2
+        # This is the core of EVALIDator's growth methodology
         data = data.join(
-            plot,
-            left_on="PLT_CN",
-            right_on="CN",
-            how="left"
+            beginend,
+            how="cross"  # Cartesian product - each row duplicated per BEGINEND row
         )
-
-        # Load TREE table for current inventory volumes
-        if "TREE" not in self.db.tables:
-            try:
-                self.db.load_table("TREE")
-            except Exception as e:
-                raise ValueError(f"TREE table not found: {e}")
-
-        tree = self.db.tables["TREE"]
-        if not isinstance(tree, pl.LazyFrame):
-            tree = tree.lazy()
-
-        # Select volume columns from TREE table for ending inventory
-        measure = self.config.get("measure", "volume")
-        if measure == "volume":
-            tree_cols = ["CN", "PREV_TRE_CN", "VOLCFNET"]
-        elif measure == "biomass":
-            tree_cols = ["CN", "PREV_TRE_CN", "DRYBIO_AG"]
-        else:
-            tree_cols = ["CN", "PREV_TRE_CN"]
-
-        tree_main = tree.select(tree_cols)
-        if measure in ["volume", "biomass"]:
-            volume_col = "VOLCFNET" if measure == "volume" else "DRYBIO_AG"
-            tree_main = tree_main.rename({volume_col: f"TREE_{volume_col}"})
-
-        # Join TREE table to get current inventory volumes
-        data = data.join(
-            tree_main,
-            left_on="TRE_CN",
-            right_on="CN",
-            how="inner"
-        )
-
-        # Also prepare PTREE (previous tree) for fallback when BEGIN is null
-        # This is critical for EVALIDator methodology
-        if measure in ["volume", "biomass"]:
-            ptree_cols = ["CN", volume_col]
-            ptree = tree.select(ptree_cols).rename({volume_col: f"PTREE_{volume_col}"})
-
-            # Join PTREE based on PREV_TRE_CN
-            data = data.join(
-                ptree,
-                left_on="PREV_TRE_CN",
-                right_on="CN",
-                how="left"
-            )
-
-        # Don't use BEGINEND cross-join - calculate NET growth directly
 
         return data
 
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """Apply growth-specific filters."""
+        """
+        Apply growth-specific filters.
+
+        CRITICAL: Include ALL components (SURVIVOR, INGROWTH, REVERSION, CUT, DIVERSION, MORTALITY)
+        because the BEGINEND cross-join methodology needs all components to calculate NET growth properly.
+        """
         # Apply area filters only (skip tree filters since GRM data structure is different)
         from ...filtering import apply_area_filters
 
@@ -313,79 +358,119 @@ class GrowthEstimator(BaseEstimator):
             except Exception:
                 pass  # Ignore domain filter errors for now
 
-        # Filter to growth components only
-        data = data.filter(
-            (pl.col("COMPONENT") == "SURVIVOR") |
-            (pl.col("COMPONENT") == "INGROWTH") |
-            (pl.col("COMPONENT").str.starts_with("REVERSION"))
-        )
+        # CRITICAL: Include ALL components for BEGINEND cross-join methodology
+        # The ONEORTWO logic in calculate_values() will handle which components contribute
+        # to growth based on whether ONEORTWO=1 (subtract beginning) or ONEORTWO=2 (add ending)
+        # Do NOT filter to only growth components here!
+        #
+        # All components are needed:
+        # - SURVIVOR, INGROWTH, REVERSION: growth components
+        # - CUT, DIVERSION: removal components (contribute to ONEORTWO=1 subtraction)
+        # - MORTALITY: mortality components (contribute to ONEORTWO=1 subtraction)
 
-        # Filter to records with positive growth
-        data = data.filter(
-            (pl.col("TPAGROW_UNADJ").is_not_null()) &
-            (pl.col("TPAGROW_UNADJ") > 0)
-        )
+        # Filter to records with non-null TPAGROW_UNADJ
+        # Note: We don't filter to positive only, because ONEORTWO=1 rows may have negative contributions
+        data = data.filter(pl.col("TPAGROW_UNADJ").is_not_null())
 
         # Apply tree type filter if specified
         tree_type = self.config.get("tree_type", "gs")
         if tree_type == "gs":
             # Growing stock trees (typically >= 5 inches DBH with merchantable volume)
             data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
-            measure = self.config.get("measure", "volume")
-            if measure == "volume" and "VOLCFNET" in data.collect_schema().names():
-                data = data.filter(pl.col("VOLCFNET") > 0)
 
         return data
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
-        Calculate growth values using NET growth methodology.
+        Calculate growth values using BEGINEND ONEORTWO methodology.
 
-        Calculates NET growth directly:
-        - SURVIVOR: (Ending - Beginning) / REMPER
-        - INGROWTH: Ending / REMPER
-        - REVERSION: Ending / REMPER
+        Implements EVALIDator's ONEORTWO logic:
+        - ONEORTWO=2: Add ending volumes (positive contribution)
+          - SURVIVOR/INGROWTH/REVERSION: TREE.VOLCFNET / REMPER
+          - CUT/DIVERSION/MORTALITY: MIDPT.VOLCFNET / REMPER
+        - ONEORTWO=1: Subtract beginning volumes (negative contribution)
+          - SURVIVOR/CUT1/DIVERSION1/MORTALITY1: -BEGIN.VOLCFNET / REMPER (or -PTREE if null)
+          - Others: 0
+
+        Sum across ONEORTWO rows gives NET growth = ending - beginning
         """
         measure = self.config.get("measure", "volume")
 
         # Get volume column names based on measure
         if measure == "volume":
             tree_col = "TREE_VOLCFNET"
+            midpt_col = "MIDPT_VOLCFNET"
             begin_col = "BEGIN_VOLCFNET"
+            ptree_col = "PTREE_VOLCFNET"
         elif measure == "biomass":
             tree_col = "TREE_DRYBIO_AG"
+            midpt_col = "MIDPT_DRYBIO_AG"
             begin_col = "BEGIN_DRYBIO_AG"
+            ptree_col = "PTREE_DRYBIO_AG"
         else:
             # For count, we don't use volume - just use TPAGROW_UNADJ directly
+            # Still need to apply ONEORTWO logic for tree counts
             data = data.with_columns([
-                pl.col("TPAGROW_UNADJ").cast(pl.Float64).alias("GROWTH_VALUE")
+                pl.when(pl.col("ONEORTWO") == 2)
+                .then(pl.col("TPAGROW_UNADJ").cast(pl.Float64))
+                .when(pl.col("ONEORTWO") == 1)
+                .then(-pl.col("TPAGROW_UNADJ").cast(pl.Float64))
+                .otherwise(0.0)
+                .alias("GROWTH_VALUE")
             ])
             return data
 
-        # Calculate NET growth directly
-        data = data.with_columns([
-            pl.when(pl.col("COMPONENT") == "SURVIVOR")
-            .then(
-                # Survivors: (ending - beginning) / REMPER
-                (pl.col(tree_col).fill_null(0) - pl.col(begin_col).fill_null(0)) /
-                pl.col("REMPER").fill_null(5.0)
-            )
-            .when(
+        # Implement ONEORTWO logic for volume/biomass
+        # ONEORTWO = 2: Add ending volumes
+        ending_volume = (
+            pl.when(
+                (pl.col("COMPONENT") == "SURVIVOR") |
                 (pl.col("COMPONENT") == "INGROWTH") |
                 (pl.col("COMPONENT").str.starts_with("REVERSION"))
             )
+            .then(pl.col(tree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
+            .when(
+                (pl.col("COMPONENT").str.starts_with("CUT")) |
+                (pl.col("COMPONENT").str.starts_with("DIVERSION")) |
+                (pl.col("COMPONENT").str.starts_with("MORTALITY"))
+            )
+            .then(pl.col(midpt_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
+            .otherwise(0.0)
+        )
+
+        # ONEORTWO = 1: Subtract beginning volumes
+        # Use BEGIN if available, otherwise use PTREE as fallback
+        beginning_volume = (
+            pl.when(
+                (pl.col("COMPONENT") == "SURVIVOR") |
+                (pl.col("COMPONENT") == "CUT1") |
+                (pl.col("COMPONENT") == "DIVERSION1") |
+                (pl.col("COMPONENT") == "MORTALITY1")
+            )
             .then(
-                # Ingrowth and reversion: ending / REMPER
-                pl.col(tree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)
+                # Use BEGIN if not null, otherwise use PTREE
+                pl.when(pl.col(begin_col).is_not_null())
+                .then(-(pl.col(begin_col) / pl.col("REMPER").fill_null(5.0)))
+                .otherwise(-(pl.col(ptree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)))
             )
             .otherwise(0.0)
-            .alias("volume_change")
+        )
+
+        # Apply ONEORTWO logic to select appropriate volume contribution
+        data = data.with_columns([
+            pl.when(pl.col("ONEORTWO") == 2)
+            .then(ending_volume)
+            .when(pl.col("ONEORTWO") == 1)
+            .then(beginning_volume)
+            .otherwise(0.0)
+            .alias("volume_contribution")
         ])
 
-        # Calculate growth value: TPAGROW_UNADJ * volume_change
+        # Calculate final growth value: TPAGROW_UNADJ * volume_contribution
+        # This will be aggregated across ONEORTWO=1 and ONEORTWO=2 rows to get NET growth
         data = data.with_columns([
             (pl.col("TPAGROW_UNADJ").cast(pl.Float64) *
-             pl.col("volume_change").cast(pl.Float64)).alias("GROWTH_VALUE")
+             pl.col("volume_contribution").cast(pl.Float64)).alias("GROWTH_VALUE")
         ])
 
         return data

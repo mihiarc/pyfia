@@ -88,54 +88,66 @@ class GrowthEstimator(BaseEstimator):
 
     def load_data(self) -> Optional[pl.LazyFrame]:
         """
-        Load and join GRM tables with BEGINEND cross-join following EVALIDator methodology.
+        Load and join tables following EVALIDator SQL join sequence exactly.
 
-        This implements the critical BEGINEND cross-join where:
-        - ONEORTWO=2 rows add ending volumes (positive contribution)
-        - ONEORTWO=1 rows subtract beginning volumes (negative contribution)
-        - Sum gives NET growth = ending - beginning
+        CRITICAL: Start from TREE table, NOT from stratification. Stratification tables
+        contain area estimation plots, but GRM data exists for growth estimation plots.
+        Join stratification at the END for expansion factors.
+
+        Join order:
+        1. TREE → GRM_COMPONENT, GRM_MIDPT, GRM_BEGIN (GRM data)
+        2. TREE → PLOT (current) → PPLOT (previous)
+        3. TREE → COND (current) + PCOND (previous, via PREVCOND)
+        4. TREE → PTREE (previous tree via PREV_TRE_CN)
+        5. Join stratification for expansion factors
+        6. Cross-join with BEGINEND
+
+        BEGINEND cross-join creates:
+        - ONEORTWO=2: Add ending volumes (positive)
+        - ONEORTWO=1: Subtract beginning volumes (negative)
+        - Sum = NET growth
         """
-        # Load BEGINEND table first - this is CRITICAL for proper growth calculation
-        if "BEGINEND" not in self.db.tables:
-            try:
-                self.db.load_table("BEGINEND")
-            except Exception as e:
-                raise ValueError(f"BEGINEND table not found: {e}")
+        # Load TREE table first - this is our anchor
+        if "TREE" not in self.db.tables:
+            self.db.load_table("TREE")
 
-        beginend = self.db.tables["BEGINEND"]
-        if not isinstance(beginend, pl.LazyFrame):
-            beginend = beginend.lazy()
+        tree = self.db.tables["TREE"]
+        if not isinstance(tree, pl.LazyFrame):
+            tree = tree.lazy()
 
-        # CRITICAL: Filter BEGINEND to only the states in the current evalid/filter
-        # Get unique states from the database filter
-        if hasattr(self.db, '_state_filter') and self.db._state_filter:
-            # Filter to states in the database's state filter
-            beginend = beginend.filter(pl.col("STATE_ADDED").is_in(self.db._state_filter))
+        # Select TREE columns
+        measure = self.config.get("measure", "volume")
+        if measure == "volume":
+            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN", "VOLCFNET"]
+            tree_vol_col = "VOLCFNET"
+        elif measure == "biomass":
+            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN", "DRYBIO_AG"]
+            tree_vol_col = "DRYBIO_AG"
+        else:
+            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN"]
+            tree_vol_col = None
 
-        # Select ONEORTWO column - this is the key to the methodology
-        # Also keep STATE_ADDED for potential debugging
-        beginend = beginend.select(["ONEORTWO"]).unique()
+        data = tree.select(tree_cols)
+        if tree_vol_col:
+            data = data.rename({tree_vol_col: f"TREE_{tree_vol_col}"})
 
-        # Load TREE_GRM_COMPONENT as primary table
+        # Join GRM_COMPONENT first (left join since not all trees have GRM data)
         if "TREE_GRM_COMPONENT" not in self.db.tables:
             try:
                 self.db.load_table("TREE_GRM_COMPONENT")
             except Exception as e:
-                raise ValueError(f"TREE_GRM_COMPONENT table not found: {e}")
+                raise ValueError(f"TREE_GRM_COMPONENT not found: {e}")
 
         grm_component = self.db.tables["TREE_GRM_COMPONENT"]
-
-        # Ensure LazyFrame
         if not isinstance(grm_component, pl.LazyFrame):
             grm_component = grm_component.lazy()
 
-        # Get required columns
-        tree_cols = self.get_tree_columns()
+        # Call get_tree_columns to set up column name attributes
+        _ = self.get_tree_columns()
 
-        # Select and rename columns for cleaner processing
+        # Select and rename GRM columns
         grm_component = grm_component.select([
             pl.col("TRE_CN"),
-            pl.col("PLT_CN"),
             pl.col("DIA_BEGIN"),
             pl.col("DIA_MIDPT"),
             pl.col("DIA_END"),
@@ -144,27 +156,31 @@ class GrowthEstimator(BaseEstimator):
             pl.col(self._subptyp_col).alias("SUBPTYP_GRM")
         ])
 
-        # Load TREE_GRM_MIDPT for midpoint volume data
+        data = data.join(
+            grm_component,
+            left_on="CN",
+            right_on="TRE_CN",
+            how="inner"  # Inner join - only keep trees with GRM data
+        )
+
+        # Join TREE_GRM_MIDPT
         if "TREE_GRM_MIDPT" not in self.db.tables:
             try:
                 self.db.load_table("TREE_GRM_MIDPT")
             except Exception as e:
-                raise ValueError(f"TREE_GRM_MIDPT table not found: {e}")
+                raise ValueError(f"TREE_GRM_MIDPT not found: {e}")
 
         grm_midpt = self.db.tables["TREE_GRM_MIDPT"]
-
         if not isinstance(grm_midpt, pl.LazyFrame):
             grm_midpt = grm_midpt.lazy()
 
-        # Select columns based on measurement type
-        measure = self.config.get("measure", "volume")
         if measure == "volume":
             midpt_cols = ["TRE_CN", "VOLCFNET", "DIA", "SPCD", "STATUSCD"]
             midpt_vol_col = "VOLCFNET"
         elif measure == "biomass":
             midpt_cols = ["TRE_CN", "DRYBIO_AG", "DIA", "SPCD", "STATUSCD"]
             midpt_vol_col = "DRYBIO_AG"
-        else:  # count
+        else:
             midpt_cols = ["TRE_CN", "DIA", "SPCD", "STATUSCD"]
             midpt_vol_col = None
 
@@ -172,19 +188,24 @@ class GrowthEstimator(BaseEstimator):
         if midpt_vol_col:
             grm_midpt = grm_midpt.rename({midpt_vol_col: f"MIDPT_{midpt_vol_col}"})
 
-        # Load TREE_GRM_BEGIN for beginning volume data
+        data = data.join(
+            grm_midpt,
+            left_on="CN",
+            right_on="TRE_CN",
+            how="left"
+        )
+
+        # Join TREE_GRM_BEGIN
         if "TREE_GRM_BEGIN" not in self.db.tables:
             try:
                 self.db.load_table("TREE_GRM_BEGIN")
             except Exception as e:
-                raise ValueError(f"TREE_GRM_BEGIN table not found: {e}")
+                raise ValueError(f"TREE_GRM_BEGIN not found: {e}")
 
         grm_begin = self.db.tables["TREE_GRM_BEGIN"]
-
         if not isinstance(grm_begin, pl.LazyFrame):
             grm_begin = grm_begin.lazy()
 
-        # Select beginning volume columns
         if measure == "volume":
             begin_cols = ["TRE_CN", "VOLCFNET"]
             begin_vol_col = "VOLCFNET"
@@ -199,62 +220,16 @@ class GrowthEstimator(BaseEstimator):
         if begin_vol_col:
             grm_begin = grm_begin.rename({begin_vol_col: f"BEGIN_{begin_vol_col}"})
 
-        # Load TREE table for current inventory ending volumes
-        if "TREE" not in self.db.tables:
-            try:
-                self.db.load_table("TREE")
-            except Exception as e:
-                raise ValueError(f"TREE table not found: {e}")
-
-        tree = self.db.tables["TREE"]
-        if not isinstance(tree, pl.LazyFrame):
-            tree = tree.lazy()
-
-        # Select volume columns from TREE table for ending inventory
-        if measure == "volume":
-            tree_cols = ["CN", "PREV_TRE_CN", "VOLCFNET", "CONDID"]
-            tree_vol_col = "VOLCFNET"
-        elif measure == "biomass":
-            tree_cols = ["CN", "PREV_TRE_CN", "DRYBIO_AG", "CONDID"]
-            tree_vol_col = "DRYBIO_AG"
-        else:
-            tree_cols = ["CN", "PREV_TRE_CN", "CONDID"]
-            tree_vol_col = None
-
-        tree_main = tree.select(tree_cols)
-        if tree_vol_col:
-            tree_main = tree_main.rename({tree_vol_col: f"TREE_{tree_vol_col}"})
-
-        # Also prepare PTREE (previous tree) for fallback when BEGIN is null
-        # This is critical for EVALIDator methodology
-        if measure in ["volume", "biomass"]:
-            ptree_cols = ["CN", tree_vol_col]
-            ptree = tree.select(ptree_cols).rename({tree_vol_col: f"PTREE_{tree_vol_col}"})
-
-        # Join GRM tables
-        data = grm_component.join(
-            grm_midpt,
-            on="TRE_CN",
-            how="inner"
-        )
-
-        if measure in ["volume", "biomass"]:
-            data = data.join(
-                grm_begin,
-                on="TRE_CN",
-                how="left"  # Left join since not all trees have beginning data
-            )
-
-        # Join TREE table to get current inventory volumes
         data = data.join(
-            tree_main,
-            left_on="TRE_CN",
-            right_on="CN",
-            how="inner"
+            grm_begin,
+            left_on="CN",
+            right_on="TRE_CN",
+            how="left"
         )
 
-        # Join PTREE based on PREV_TRE_CN for fallback
+        # Join PTREE for fallback
         if measure in ["volume", "biomass"]:
+            ptree = tree.select(["CN", tree_vol_col]).rename({tree_vol_col: f"PTREE_{tree_vol_col}"})
             data = data.join(
                 ptree,
                 left_on="PREV_TRE_CN",
@@ -262,7 +237,7 @@ class GrowthEstimator(BaseEstimator):
                 how="left"
             )
 
-        # Add PLOT data for REMPER and other info
+        # Join PLOT
         if "PLOT" not in self.db.tables:
             self.db.load_table("PLOT")
 
@@ -270,17 +245,17 @@ class GrowthEstimator(BaseEstimator):
         if not isinstance(plot, pl.LazyFrame):
             plot = plot.lazy()
 
-        # Select plot columns including REMPER for annualization
-        plot = plot.select(["CN", "STATECD", "INVYR", "MACRO_BREAKPOINT_DIA", "REMPER", "PREV_PLT_CN"])
+        plot = plot.select(["CN", "STATECD", "INVYR", "PREV_PLT_CN",
+                           "MACRO_BREAKPOINT_DIA", "REMPER"])
 
         data = data.join(
             plot,
             left_on="PLT_CN",
             right_on="CN",
-            how="left"
+            how="inner"
         )
 
-        # Load and join COND table
+        # Join COND (current condition)
         if "COND" not in self.db.tables:
             self.db.load_table("COND")
 
@@ -289,15 +264,12 @@ class GrowthEstimator(BaseEstimator):
             cond = cond.lazy()
 
         cond_cols = self.get_cond_columns()
-        # Select columns efficiently without forcing evaluation
         try:
             cond = cond.select(cond_cols)
         except Exception:
-            # Fall back only if selection fails
             available = cond.collect_schema().names()
             cond = cond.select([c for c in cond_cols if c in available])
 
-        # Join with conditions - join on both PLT_CN and CONDID
         data = data.join(
             cond,
             left_on=["PLT_CN", "CONDID"],
@@ -305,12 +277,33 @@ class GrowthEstimator(BaseEstimator):
             how="inner"
         )
 
-        # *** CRITICAL: BEGINEND CROSS-JOIN ***
-        # This creates duplicate rows for each tree - one for ONEORTWO=1, one for ONEORTWO=2
-        # This is the core of EVALIDator's growth methodology
+        # Join stratification for expansion factors
+        strat_data = self._get_stratification_data()
+        data = data.join(
+            strat_data,
+            on="PLT_CN",
+            how="inner"
+        )
+
+        # Join BEGINEND (cross-join)
+        if "BEGINEND" not in self.db.tables:
+            try:
+                self.db.load_table("BEGINEND")
+            except Exception as e:
+                raise ValueError(f"BEGINEND not found: {e}")
+
+        beginend = self.db.tables["BEGINEND"]
+        if not isinstance(beginend, pl.LazyFrame):
+            beginend = beginend.lazy()
+
+        if hasattr(self.db, '_state_filter') and self.db._state_filter:
+            beginend = beginend.filter(pl.col("STATE_ADDED").is_in(self.db._state_filter))
+
+        beginend = beginend.select(["ONEORTWO"]).unique()
+
         data = data.join(
             beginend,
-            how="cross"  # Cartesian product - each row duplicated per BEGINEND row
+            how="cross"
         )
 
         return data
@@ -480,21 +473,13 @@ class GrowthEstimator(BaseEstimator):
 
         Uses the shared _apply_two_stage_aggregation method with GRM-specific adjustment
         logic applied before calling the shared method. Handles EVALIDator ONEORTWO averaging.
+
+        Note: Stratification data is already joined in load_data(), so we don't rejoin it here.
         """
-        # Get stratification data
-        strat_data = self._get_stratification_data()
-
-        # Join with stratification
-        data_with_strat = data.join(
-            strat_data,
-            on="PLT_CN",
-            how="inner"
-        )
-
         # Apply GRM-specific adjustment factors based on SUBPTYP_GRM
         # This is done BEFORE calling the shared aggregation method
         # SUBPTYP_GRM: 0=None, 1=SUBP, 2=MICR, 3=MACR
-        data_with_strat = data_with_strat.with_columns([
+        data_with_strat = data.with_columns([
             pl.when(pl.col("SUBPTYP_GRM") == 0)
             .then(0.0)
             .when(pl.col("SUBPTYP_GRM") == 1)

@@ -256,6 +256,9 @@ def mock_fia_database():
     db.tables = {}
     db.load_table = Mock()
     db.get_evaluation_info = Mock()
+    # Add _reader mock to support _get_available_columns
+    db._reader = Mock()
+    db._reader.conn = None  # This will cause _get_available_columns to return None and fallback
     return db
 
 

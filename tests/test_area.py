@@ -67,15 +67,22 @@ class TestAreaEstimation:
 
     @pytest.fixture
     def sample_stratum_data(self):
-        """Create sample POP_STRATUM data."""
+        """Create sample POP_STRATUM data with realistic FIA expansion factors.
+
+        Values based on actual Georgia FIA data (EVALID 132300) showing:
+        - EXPNS: Typical range 6,000-7,000 acres per plot
+        - ADJ_FACTOR_SUBP: Standard 1.0 (no adjustment needed)
+        - ADJ_FACTOR_MACR: 0.0 for strata without macroplot sampling
+        - ADJ_FACTOR_MICR: Standard 1.0 for microplot trees
+        """
         return pl.DataFrame({
             "CN": ["S1", "S2"],
             "EVALID": [372301, 372301],
             "ESTN_UNIT_CN": ["EU1", "EU2"],
-            "ADJ_FACTOR_SUBP": [10.0, 15.0],
-            "ADJ_FACTOR_MACR": [8.0, 12.0],
-            "ADJ_FACTOR_MICR": [50.0, 60.0],  # Microplot adjustment factor
-            "EXPNS": [1000.0, 12000.0],
+            "ADJ_FACTOR_SUBP": [1.0, 1.0],  # Realistic: no adjustment
+            "ADJ_FACTOR_MACR": [0.0, 0.0],  # Realistic: no macroplot sampling
+            "ADJ_FACTOR_MICR": [1.0, 1.0],  # Realistic: standard microplot adjustment
+            "EXPNS": [6234.58, 5968.86],  # Realistic: ~6K acres per plot
             "P2POINTCNT": [100, 200],
             "STRATUM_CN": ["S1", "S2"],
             "P1POINTCNT": [50, 150]

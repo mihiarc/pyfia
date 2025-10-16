@@ -455,7 +455,14 @@ class AreaEstimator(BaseEstimator):
             strat_cols = ["STRATUM"]
 
         # Step 2: Aggregate to plot level (sum conditions within plot)
+        # Include grouping columns so they're preserved for variance calculation by group
         plot_group_cols = ["PLT_CN"] + strat_cols + ["EXPNS"]
+        if self.group_cols:
+            # Add any grouping columns that exist in the condition data
+            for col in self.group_cols:
+                if col in cond_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
         plot_data = cond_data.group_by(plot_group_cols).agg([
             pl.sum("h_ic").alias("y_i")  # Total adjusted area per plot
         ])

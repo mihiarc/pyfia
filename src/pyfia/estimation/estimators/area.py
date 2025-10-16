@@ -17,6 +17,10 @@ from ..tree_expansion import apply_area_adjustment_factors
 from ..utils import format_output_columns, check_required_columns
 
 
+# Constants for variance calculation
+DEFAULT_CV = 0.05  # Fallback coefficient of variation when detailed variance calculation unavailable
+
+
 class AreaEstimator(BaseEstimator):
     """
     Area estimator for FIA data.
@@ -201,7 +205,7 @@ class AreaEstimator(BaseEstimator):
         
         return core_cols + list(plot_group_cols)
     
-    def _get_available_columns(self, table_name: str) -> List[str]:
+    def _get_available_columns(self, table_name: str) -> Optional[List[str]]:
         """Get list of available columns in a table without loading it."""
         try:
             # Query the database schema to get column names
@@ -292,6 +296,63 @@ class AreaEstimator(BaseEstimator):
         
         return data_df.lazy()
     
+    def _select_variance_columns(self, available_cols: List[str]) -> tuple[List[Union[str, pl.Expr]], List[str]]:
+        """
+        Select columns needed for variance calculation.
+
+        Parameters
+        ----------
+        available_cols : List[str]
+            List of available column names in the data
+
+        Returns
+        -------
+        tuple[List[Union[str, pl.Expr]], List[str]]
+            Tuple of (columns_to_select, group_columns)
+            - columns_to_select: List of column names or Polars expressions to select
+            - group_columns: List of grouping column names
+        """
+        # Build column list based on what's available
+        cols_to_select: List[Union[str, pl.Expr]] = ["PLT_CN"]
+
+        # Add condition ID if available
+        if "CONDID" in available_cols:
+            cols_to_select.append("CONDID")
+
+        # Add estimation unit (prefer ESTN_UNIT, fallback to UNITCD)
+        if "ESTN_UNIT" in available_cols:
+            cols_to_select.append("ESTN_UNIT")
+        elif "UNITCD" in available_cols:
+            cols_to_select.append(pl.col("UNITCD").alias("ESTN_UNIT"))
+
+        # Add stratum identifier (prefer STRATUM_CN, fallback to STRATUM)
+        if "STRATUM_CN" in available_cols:
+            cols_to_select.append("STRATUM_CN")
+        elif "STRATUM" in available_cols:
+            cols_to_select.append("STRATUM")
+
+        # Add the essential columns for variance calculation
+        cols_to_select.extend([
+            "AREA_VALUE",  # This is CONDPROP_UNADJ from calculate_values
+            "ADJ_FACTOR_AREA",
+            "EXPNS"
+        ])
+
+        # Add grouping columns if they exist
+        group_cols: List[str] = []
+        if self.config.get("grp_by"):
+            grp_by = self.config["grp_by"]
+            if isinstance(grp_by, str):
+                group_cols = [grp_by]
+            else:
+                group_cols = list(grp_by)
+
+            for col in group_cols:
+                if col in available_cols and col not in cols_to_select:
+                    cols_to_select.append(col)
+
+        return cols_to_select, group_cols
+
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate area with stratification, preserving data for variance calculation."""
         # Get stratification data
@@ -315,39 +376,8 @@ class AreaEstimator(BaseEstimator):
         # Need to check which columns are available
         available_cols = data_with_strat.collect_schema().names()
 
-        # Build column list based on what's available
-        cols_to_select = ["PLT_CN"]
-        if "CONDID" in available_cols:
-            cols_to_select.append("CONDID")
-        if "ESTN_UNIT" in available_cols:
-            cols_to_select.append("ESTN_UNIT")
-        elif "UNITCD" in available_cols:
-            cols_to_select.append(pl.col("UNITCD").alias("ESTN_UNIT"))
-
-        if "STRATUM_CN" in available_cols:
-            cols_to_select.append("STRATUM_CN")
-        elif "STRATUM" in available_cols:
-            cols_to_select.append("STRATUM")
-
-        # Add the essential columns for variance
-        cols_to_select.extend([
-            "AREA_VALUE",  # This is CONDPROP_UNADJ from calculate_values
-            "ADJ_FACTOR_AREA",
-            "EXPNS"
-        ])
-
-        # Add grouping columns if they exist
-        group_cols = []
-        if self.config.get("grp_by"):
-            grp_by = self.config["grp_by"]
-            if isinstance(grp_by, str):
-                group_cols = [grp_by]
-            else:
-                group_cols = list(grp_by)
-
-            for col in group_cols:
-                if col in available_cols and col not in cols_to_select:
-                    cols_to_select.append(col)
+        # Use helper method to select columns for variance calculation
+        cols_to_select, group_cols = self._select_variance_columns(available_cols)
 
         # Store the plot-condition data
         self.plot_condition_data = data_with_strat.select(cols_to_select).collect()
@@ -396,10 +426,10 @@ class AreaEstimator(BaseEstimator):
             import warnings
             warnings.warn(
                 "Plot-condition data not available for proper variance calculation. "
-                "Using placeholder 5% CV."
+                f"Using placeholder {DEFAULT_CV*100:.0f}% CV."
             )
             return results.with_columns([
-                (pl.col("AREA_TOTAL") * 0.05).alias("AREA_SE")
+                (pl.col("AREA_TOTAL") * DEFAULT_CV).alias("AREA_SE")
             ])
 
         # Step 1: Calculate condition-level areas
@@ -477,7 +507,7 @@ class AreaEstimator(BaseEstimator):
 
         return results
 
-    def _calculate_variance_for_group(self, plot_data: pl.DataFrame, strat_cols: List[str]) -> dict:
+    def _calculate_variance_for_group(self, plot_data: pl.DataFrame, strat_cols: List[str]) -> Dict[str, Optional[float]]:
         """Calculate variance for a single group using domain total estimation formula.
 
         For domain (subset) estimation in FIA, we're estimating a total over a domain.

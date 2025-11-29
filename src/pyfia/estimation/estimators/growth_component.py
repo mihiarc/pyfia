@@ -5,13 +5,12 @@ This implementation follows the FIA EVALIDator approach using TREE_GRM_COMPONENT
 tables and proper component-based calculations.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..utils import format_output_columns
 
 
 class GrowthComponentEstimator(BaseEstimator):
@@ -25,25 +24,33 @@ class GrowthComponentEstimator(BaseEstimator):
     def get_required_tables(self) -> List[str]:
         """Growth requires GRM component tables."""
         return [
-            "TREE_GRM_COMPONENT", "TREE_GRM_BEGIN", "TREE_GRM_MIDPT",
-            "TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM",
-            "BEGINEND"
+            "TREE_GRM_COMPONENT",
+            "TREE_GRM_BEGIN",
+            "TREE_GRM_MIDPT",
+            "TREE",
+            "COND",
+            "PLOT",
+            "POP_PLOT_STRATUM_ASSGN",
+            "POP_STRATUM",
+            "BEGINEND",
         ]
 
     def load_data(self) -> pl.LazyFrame:
         """Load and join GRM component tables following EVALIDator methodology."""
 
         # Get database connection
-        if hasattr(self.db, 'conn'):
+        if hasattr(self.db, "conn"):
             conn = self.db.conn
-        elif hasattr(self.db, 'reader') and hasattr(self.db.reader, 'conn'):
+        elif hasattr(self.db, "reader") and hasattr(self.db.reader, "conn"):
             conn = self.db.reader.conn
         else:
             conn = self.db._reader._backend._connection
 
         # Build the EVALIDator-style query
         measure = self.config.get("measure", "volume")
-        tree_type = self.config.get("tree_type", "gs")  # gs = growing stock, al = all live
+        tree_type = self.config.get(
+            "tree_type", "gs"
+        )  # gs = growing stock, al = all live
         land_type = self.config.get("land_type", "forest")
 
         # Select appropriate columns based on tree and land type
@@ -157,43 +164,47 @@ class GrowthComponentEstimator(BaseEstimator):
 
         # Calculate volume change based on component and ONEORTWO value
         # This follows the EVALIDator logic exactly
-        data = data.with_columns([
-            pl.when(pl.col("oneortwo") == 2)
-            .then(
-                pl.when(
-                    (pl.col("component") == "SURVIVOR") |
-                    (pl.col("component") == "INGROWTH") |
-                    (pl.col("component").str.starts_with("REVERSION"))
-                )
-                .then(pl.col("tree_volume") / pl.col("REMPER"))
-                .when(
-                    (pl.col("component").str.starts_with("CUT")) |
-                    (pl.col("component").str.starts_with("DIVERSION"))
-                )
-                .then(pl.col("midpt_volume") / pl.col("REMPER"))
-                .otherwise(0.0)
-            )
-            .otherwise(
-                pl.when(
-                    (pl.col("component") == "SURVIVOR") |
-                    (pl.col("component") == "CUT1") |
-                    (pl.col("component") == "DIVERSION1") |
-                    (pl.col("component") == "MORTALITY1")
-                )
+        data = data.with_columns(
+            [
+                pl.when(pl.col("oneortwo") == 2)
                 .then(
-                    pl.when(pl.col("begin_volume").is_not_null())
-                    .then(-pl.col("begin_volume") / pl.col("REMPER"))
-                    .otherwise(-pl.col("prev_volume").fill_null(0) / pl.col("REMPER"))
+                    pl.when(
+                        (pl.col("component") == "SURVIVOR")
+                        | (pl.col("component") == "INGROWTH")
+                        | (pl.col("component").str.starts_with("REVERSION"))
+                    )
+                    .then(pl.col("tree_volume") / pl.col("REMPER"))
+                    .when(
+                        (pl.col("component").str.starts_with("CUT"))
+                        | (pl.col("component").str.starts_with("DIVERSION"))
+                    )
+                    .then(pl.col("midpt_volume") / pl.col("REMPER"))
+                    .otherwise(0.0)
                 )
-                .otherwise(0.0)
-            )
-            .alias("volume_change")
-        ])
+                .otherwise(
+                    pl.when(
+                        (pl.col("component") == "SURVIVOR")
+                        | (pl.col("component") == "CUT1")
+                        | (pl.col("component") == "DIVERSION1")
+                        | (pl.col("component") == "MORTALITY1")
+                    )
+                    .then(
+                        pl.when(pl.col("begin_volume").is_not_null())
+                        .then(-pl.col("begin_volume") / pl.col("REMPER"))
+                        .otherwise(
+                            -pl.col("prev_volume").fill_null(0) / pl.col("REMPER")
+                        )
+                    )
+                    .otherwise(0.0)
+                )
+                .alias("volume_change")
+            ]
+        )
 
         # Calculate the growth value per tree
-        data = data.with_columns([
-            (pl.col("tpagrow_unadj") * pl.col("volume_change")).alias("GROWTH_TREE")
-        ])
+        data = data.with_columns(
+            [(pl.col("tpagrow_unadj") * pl.col("volume_change")).alias("GROWTH_TREE")]
+        )
 
         return data
 
@@ -209,32 +220,34 @@ class GrowthComponentEstimator(BaseEstimator):
 
         # Join with stratification
         data_with_strat = data.join(
-            strat_data,
-            left_on="STRATUM_CN",
-            right_on="CN",
-            how="inner"
+            strat_data, left_on="STRATUM_CN", right_on="CN", how="inner"
         )
 
         # Apply adjustment factors based on SUBPTYP_GRM (not diameter!)
         # This is the key difference from standard estimation
-        data_with_strat = data_with_strat.with_columns([
-            pl.when(pl.col("subptyp_grm") == 0)
-            .then(0.0)  # No adjustment
-            .when(pl.col("subptyp_grm") == 1)
-            .then(pl.col("ADJ_FACTOR_SUBP"))
-            .when(pl.col("subptyp_grm") == 2)
-            .then(pl.col("ADJ_FACTOR_MICR"))
-            .when(pl.col("subptyp_grm") == 3)
-            .then(pl.col("ADJ_FACTOR_MACR"))
-            .otherwise(0.0)
-            .alias("ADJ_FACTOR")
-        ])
+        data_with_strat = data_with_strat.with_columns(
+            [
+                pl.when(pl.col("subptyp_grm") == 0)
+                .then(0.0)  # No adjustment
+                .when(pl.col("subptyp_grm") == 1)
+                .then(pl.col("ADJ_FACTOR_SUBP"))
+                .when(pl.col("subptyp_grm") == 2)
+                .then(pl.col("ADJ_FACTOR_MICR"))
+                .when(pl.col("subptyp_grm") == 3)
+                .then(pl.col("ADJ_FACTOR_MACR"))
+                .otherwise(0.0)
+                .alias("ADJ_FACTOR")
+            ]
+        )
 
         # Apply adjustment and expansion factor
-        data_with_strat = data_with_strat.with_columns([
-            (pl.col("GROWTH_TREE") * pl.col("ADJ_FACTOR") * pl.col("EXPNS"))
-            .alias("GROWTH_EXPANDED")
-        ])
+        data_with_strat = data_with_strat.with_columns(
+            [
+                (pl.col("GROWTH_TREE") * pl.col("ADJ_FACTOR") * pl.col("EXPNS")).alias(
+                    "GROWTH_EXPANDED"
+                )
+            ]
+        )
 
         # Setup grouping
         grp_by = self.config.get("grp_by")
@@ -252,36 +265,49 @@ class GrowthComponentEstimator(BaseEstimator):
 
         # If grouping by ALSTKCD, create readable labels
         if "alstkcd" in [col.lower() for col in group_cols] or "ALSTKCD" in group_cols:
-            data_with_strat = data_with_strat.with_columns([
-                pl.when(pl.col("ALSTKCD") == 1)
-                .then(pl.lit("`0001 Overstocked"))
-                .when(pl.col("ALSTKCD") == 2)
-                .then(pl.lit("`0002 Fully stocked"))
-                .when(pl.col("ALSTKCD") == 3)
-                .then(pl.lit("`0003 Medium stocked"))
-                .when(pl.col("ALSTKCD") == 4)
-                .then(pl.lit("`0004 Poorly stocked"))
-                .when(pl.col("ALSTKCD") == 5)
-                .then(pl.lit("`0005 Nonstocked"))
-                .when(pl.col("ALSTKCD").is_null())
-                .then(pl.lit("`0006 Unavailable"))
-                .otherwise(pl.lit("`0007 Other"))
-                .alias("ALSTKCD_LABEL")
-            ])
+            data_with_strat = data_with_strat.with_columns(
+                [
+                    pl.when(pl.col("ALSTKCD") == 1)
+                    .then(pl.lit("`0001 Overstocked"))
+                    .when(pl.col("ALSTKCD") == 2)
+                    .then(pl.lit("`0002 Fully stocked"))
+                    .when(pl.col("ALSTKCD") == 3)
+                    .then(pl.lit("`0003 Medium stocked"))
+                    .when(pl.col("ALSTKCD") == 4)
+                    .then(pl.lit("`0004 Poorly stocked"))
+                    .when(pl.col("ALSTKCD") == 5)
+                    .then(pl.lit("`0005 Nonstocked"))
+                    .when(pl.col("ALSTKCD").is_null())
+                    .then(pl.lit("`0006 Unavailable"))
+                    .otherwise(pl.lit("`0007 Other"))
+                    .alias("ALSTKCD_LABEL")
+                ]
+            )
             # Replace alstkcd with the label in group_cols
-            group_cols = ["ALSTKCD_LABEL" if col.upper() == "ALSTKCD" else col for col in group_cols]
+            group_cols = [
+                "ALSTKCD_LABEL" if col.upper() == "ALSTKCD" else col
+                for col in group_cols
+            ]
 
         # Aggregate
         if group_cols:
-            results = data_with_strat.group_by(group_cols).agg([
-                pl.sum("GROWTH_EXPANDED").alias("GROWTH_TOTAL"),
-                pl.count().alias("N_TREES")
-            ]).collect()
+            results = (
+                data_with_strat.group_by(group_cols)
+                .agg(
+                    [
+                        pl.sum("GROWTH_EXPANDED").alias("GROWTH_TOTAL"),
+                        pl.count().alias("N_TREES"),
+                    ]
+                )
+                .collect()
+            )
         else:
-            results = data_with_strat.select([
-                pl.sum("GROWTH_EXPANDED").alias("GROWTH_TOTAL"),
-                pl.count().alias("N_TREES")
-            ]).collect()
+            results = data_with_strat.select(
+                [
+                    pl.sum("GROWTH_EXPANDED").alias("GROWTH_TOTAL"),
+                    pl.count().alias("N_TREES"),
+                ]
+            ).collect()
 
         # Calculate per-acre values if needed
         if self.config.get("totals", True):
@@ -307,9 +333,9 @@ class GrowthComponentEstimator(BaseEstimator):
         """
         # Apply basic filters that make sense for GRM data
         data = data.filter(
-            (pl.col("COND_STATUS_CD") == 1) &  # Forest land
-            (pl.col("STATUSCD") == 1) &        # Live trees
-            (pl.col("tpagrow_unadj") > 0)      # Has growth data
+            (pl.col("COND_STATUS_CD") == 1)  # Forest land
+            & (pl.col("STATUSCD") == 1)  # Live trees
+            & (pl.col("tpagrow_unadj") > 0)  # Has growth data
         )
 
         # Apply land type filtering
@@ -335,7 +361,7 @@ def growth_component(
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
     totals: bool = True,
-    most_recent: bool = False
+    most_recent: bool = False,
 ) -> pl.DataFrame:
     """
     Estimate forest growth using GRM component methodology.
@@ -393,7 +419,7 @@ def growth_component(
         "tree_domain": tree_domain,
         "area_domain": area_domain,
         "totals": totals,
-        "most_recent": most_recent
+        "most_recent": most_recent,
     }
 
     # Create and run estimator

@@ -80,7 +80,10 @@ class VolumeEstimator(BaseEstimator):
                 grp_by = [grp_by]
             for col in grp_by:
                 # Common COND columns for grouping
-                if col in ["OWNGRPCD", "FORTYPCD", "STDSZCD", "STDAGE", "STDORGCD"] and col not in cols:
+                if (
+                    col in ["OWNGRPCD", "FORTYPCD", "STDSZCD", "STDAGE", "STDORGCD"]
+                    and col not in cols
+                ):
                     cols.append(col)
 
         return cols
@@ -169,12 +172,7 @@ class VolumeEstimator(BaseEstimator):
             cols_to_preserve.append("ESTN_UNIT")
 
         # Add essential columns - these must exist
-        cols_to_preserve.extend([
-            "VOLUME_ADJ",
-            "ADJ_FACTOR",
-            "CONDPROP_UNADJ",
-            "EXPNS"
-        ])
+        cols_to_preserve.extend(["VOLUME_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"])
 
         # Add grouping columns if they exist
         if group_cols:
@@ -189,15 +187,13 @@ class VolumeEstimator(BaseEstimator):
         data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
-        metric_mappings = {
-            "VOLUME_ADJ": "CONDITION_VOLUME"
-        }
+        metric_mappings = {"VOLUME_ADJ": "CONDITION_VOLUME"}
 
         results = self._apply_two_stage_aggregation(
             data_with_strat=data_with_strat,
             metric_mappings=metric_mappings,
             group_cols=group_cols,
-            use_grm_adjustment=False
+            use_grm_adjustment=False,
         )
 
         # Rename columns to match expected output
@@ -210,33 +206,33 @@ class VolumeEstimator(BaseEstimator):
             # Calculate plot-level volume sums
             plot_volumes = self.plot_tree_data.group_by(
                 ["PLT_CN"] + (group_cols if group_cols else [])
-            ).agg([
-                pl.sum("VOLUME_ADJ").alias("PLOT_VOLUME")
-            ])
+            ).agg([pl.sum("VOLUME_ADJ").alias("PLOT_VOLUME")])
 
             # Count plots with non-zero volume
             if group_cols:
-                non_zero_counts = plot_volumes.filter(
-                    pl.col("PLOT_VOLUME") > 0
-                ).group_by(group_cols).agg([
-                    pl.n_unique("PLT_CN").alias("N_PLOTS_NONZERO")
-                ])
+                non_zero_counts = (
+                    plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)
+                    .group_by(group_cols)
+                    .agg([pl.n_unique("PLT_CN").alias("N_PLOTS_NONZERO")])
+                )
 
                 # Update results with correct plot count
-                results = results.drop("N_PLOTS").join(
-                    non_zero_counts,
-                    on=group_cols,
-                    how="left"
-                ).rename({"N_PLOTS_NONZERO": "N_PLOTS"})
+                results = (
+                    results.drop("N_PLOTS")
+                    .join(non_zero_counts, on=group_cols, how="left")
+                    .rename({"N_PLOTS_NONZERO": "N_PLOTS"})
+                )
             else:
-                non_zero_count = plot_volumes.filter(
-                    pl.col("PLOT_VOLUME") > 0
-                ).select(pl.n_unique("PLT_CN")).item()
+                non_zero_count = (
+                    plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)
+                    .select(pl.n_unique("PLT_CN"))
+                    .item()
+                )
 
                 # Update the N_PLOTS value
-                results = results.with_columns([
-                    pl.lit(non_zero_count).alias("N_PLOTS")
-                ])
+                results = results.with_columns(
+                    [pl.lit(non_zero_count).alias("N_PLOTS")]
+                )
 
         # Handle totals based on config
         if not self.config.get("totals", True):
@@ -256,6 +252,7 @@ class VolumeEstimator(BaseEstimator):
         if self.plot_tree_data is None:
             # Fallback to conservative estimate
             import warnings
+
             warnings.warn(
                 "Plot-tree data not available for proper variance calculation. "
                 "Using placeholder 12% CV. To enable proper variance, ensure data "
@@ -287,11 +284,13 @@ class VolumeEstimator(BaseEstimator):
         # Step 1: Aggregate to plot-condition level
         # Sum volume within each condition (trees are already adjusted)
         plot_cond_data = self.plot_tree_data.group_by(
-            ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"] +
-            (self.group_cols if self.group_cols else [])
-        ).agg([
-            pl.sum("VOLUME_ADJ").alias("y_ic"),  # Volume per condition
-        ])
+            ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
+            + (self.group_cols if self.group_cols else [])
+        ).agg(
+            [
+                pl.sum("VOLUME_ADJ").alias("y_ic"),  # Volume per condition
+            ]
+        )
 
         # Step 2: Aggregate to plot level
         # Sum across conditions within each plot
@@ -299,17 +298,23 @@ class VolumeEstimator(BaseEstimator):
         if self.group_cols:
             plot_group_cols.extend(self.group_cols)
 
-        plot_data = plot_cond_data.group_by(plot_group_cols).agg([
-            pl.sum("y_ic").alias("y_i"),  # Total volume per plot
-            pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i")  # Total area proportion per plot
-        ])
+        plot_data = plot_cond_data.group_by(plot_group_cols).agg(
+            [
+                pl.sum("y_ic").alias("y_i"),  # Total volume per plot
+                pl.sum("CONDPROP_UNADJ")
+                .cast(pl.Float64)
+                .alias("x_i"),  # Total area proportion per plot
+            ]
+        )
 
         # Step 3: Calculate variance for each group or overall
         if self.group_cols:
             # CRITICAL FIX: Get ALL plots in the evaluation (not filtered by group)
             # This ensures we include zero plots for proper variance calculation
             strat_data = self._get_stratification_data()
-            all_plots = strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
 
             # Calculate variance for each group separately
             variance_results = []
@@ -322,7 +327,9 @@ class VolumeEstimator(BaseEstimator):
                 for i, col in enumerate(self.group_cols):
                     if col in plot_data.columns:
                         group_dict[col] = group_vals[results.columns.index(col)]
-                        group_filter = group_filter & (pl.col(col) == group_vals[results.columns.index(col)])
+                        group_filter = group_filter & (
+                            pl.col(col) == group_vals[results.columns.index(col)]
+                        )
 
                 # Filter plot data for this specific group
                 group_plot_data = plot_data.filter(group_filter)
@@ -332,34 +339,44 @@ class VolumeEstimator(BaseEstimator):
                 all_plots_group = all_plots.join(
                     group_plot_data.select(["PLT_CN", "y_i", "x_i"]),
                     on="PLT_CN",
-                    how="left"
-                ).with_columns([
-                    pl.col("y_i").fill_null(0.0),  # Zero volume for plots without this group
-                    # For domain ratio estimation, both numerator and denominator must use same domain
-                    # Plots without the species have zero area contribution to maintain proper ratio
-                    pl.col("x_i").fill_null(0.0)  # Zero area for plots without this group
-                ])
+                    how="left",
+                ).with_columns(
+                    [
+                        pl.col("y_i").fill_null(
+                            0.0
+                        ),  # Zero volume for plots without this group
+                        # For domain ratio estimation, both numerator and denominator must use same domain
+                        # Plots without the species have zero area contribution to maintain proper ratio
+                        pl.col("x_i").fill_null(
+                            0.0
+                        ),  # Zero area for plots without this group
+                    ]
+                )
 
                 if len(all_plots_group) > 0:
                     # Calculate variance using ALL plots (including zeros)
                     var_stats = self._calculate_ratio_variance(all_plots_group)
 
-                    variance_results.append({
-                        **group_dict,
-                        "VOLUME_ACRE_SE": var_stats["se_acre"],
-                        "VOLUME_TOTAL_SE": var_stats["se_total"],
-                        "VOLUME_ACRE_VARIANCE": var_stats["variance_acre"],
-                        "VOLUME_TOTAL_VARIANCE": var_stats["variance_total"]
-                    })
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "VOLUME_ACRE_SE": var_stats["se_acre"],
+                            "VOLUME_TOTAL_SE": var_stats["se_total"],
+                            "VOLUME_ACRE_VARIANCE": var_stats["variance_acre"],
+                            "VOLUME_TOTAL_VARIANCE": var_stats["variance_total"],
+                        }
+                    )
                 else:
                     # No data for this group - set SE to 0
-                    variance_results.append({
-                        **group_dict,
-                        "VOLUME_ACRE_SE": 0.0,
-                        "VOLUME_TOTAL_SE": 0.0,
-                        "VOLUME_ACRE_VARIANCE": 0.0,
-                        "VOLUME_TOTAL_VARIANCE": 0.0
-                    })
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "VOLUME_ACRE_SE": 0.0,
+                            "VOLUME_TOTAL_SE": 0.0,
+                            "VOLUME_ACRE_VARIANCE": 0.0,
+                            "VOLUME_TOTAL_VARIANCE": 0.0,
+                        }
+                    )
 
             # Join variance results back to main results
             if variance_results:
@@ -369,12 +386,14 @@ class VolumeEstimator(BaseEstimator):
             # No grouping, calculate overall variance
             var_stats = self._calculate_ratio_variance(plot_data)
 
-            results = results.with_columns([
-                pl.lit(var_stats["se_acre"]).alias("VOLUME_ACRE_SE"),
-                pl.lit(var_stats["se_total"]).alias("VOLUME_TOTAL_SE"),
-                pl.lit(var_stats["variance_acre"]).alias("VOLUME_ACRE_VARIANCE"),
-                pl.lit(var_stats["variance_total"]).alias("VOLUME_TOTAL_VARIANCE")
-            ])
+            results = results.with_columns(
+                [
+                    pl.lit(var_stats["se_acre"]).alias("VOLUME_ACRE_SE"),
+                    pl.lit(var_stats["se_total"]).alias("VOLUME_TOTAL_SE"),
+                    pl.lit(var_stats["variance_acre"]).alias("VOLUME_ACRE_VARIANCE"),
+                    pl.lit(var_stats["variance_total"]).alias("VOLUME_TOTAL_VARIANCE"),
+                ]
+            )
 
         # Add CV if requested
         if self.config.get("include_cv", False):
@@ -418,47 +437,59 @@ class VolumeEstimator(BaseEstimator):
             strat_cols = ["STRATUM"]
 
         # Calculate stratum-level statistics
-        strata_stats = plot_data.group_by(strat_cols).agg([
-            pl.count("PLT_CN").alias("n_h"),
-            pl.mean("y_i").alias("ybar_h"),  # Mean volume per plot
-            pl.mean("x_i").alias("xbar_h"),  # Mean area per plot
-            pl.var("y_i", ddof=1).alias("s2_yh"),  # Volume variance
-            pl.var("x_i", ddof=1).alias("s2_xh"),  # Area variance
-            pl.first("EXPNS").cast(pl.Float64).alias("w_h"),  # Expansion factor
-            # Calculate covariance using proper formula: Cov(X,Y) = E[(X-E[X])(Y-E[Y])]
-            # For sample covariance with ddof=1: sum((x-xbar)(y-ybar))/(n-1)
-            (((pl.col("y_i") - pl.col("y_i").mean()) *
-              (pl.col("x_i") - pl.col("x_i").mean())).sum() /
-             (pl.len() - 1)).alias("cov_yxh")
-        ])
+        strata_stats = plot_data.group_by(strat_cols).agg(
+            [
+                pl.count("PLT_CN").alias("n_h"),
+                pl.mean("y_i").alias("ybar_h"),  # Mean volume per plot
+                pl.mean("x_i").alias("xbar_h"),  # Mean area per plot
+                pl.var("y_i", ddof=1).alias("s2_yh"),  # Volume variance
+                pl.var("x_i", ddof=1).alias("s2_xh"),  # Area variance
+                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),  # Expansion factor
+                # Calculate covariance using proper formula: Cov(X,Y) = E[(X-E[X])(Y-E[Y])]
+                # For sample covariance with ddof=1: sum((x-xbar)(y-ybar))/(n-1)
+                (
+                    (
+                        (pl.col("y_i") - pl.col("y_i").mean())
+                        * (pl.col("x_i") - pl.col("x_i").mean())
+                    ).sum()
+                    / (pl.len() - 1)
+                ).alias("cov_yxh"),
+            ]
+        )
 
         # Handle single-plot strata and null variances
         # Cast to Float64 to avoid decimal type issues
-        strata_stats = strata_stats.with_columns([
-            pl.when(pl.col("s2_yh").is_null())
-              .then(0.0)
-              .otherwise(pl.col("s2_yh"))
-              .cast(pl.Float64)
-              .alias("s2_yh"),
-            pl.when(pl.col("s2_xh").is_null())
-              .then(0.0)
-              .otherwise(pl.col("s2_xh"))
-              .cast(pl.Float64)
-              .alias("s2_xh"),
-            pl.when(pl.col("cov_yxh").is_null())
-              .then(0.0)
-              .otherwise(pl.col("cov_yxh"))
-              .cast(pl.Float64)
-              .alias("cov_yxh"),
-            pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
-            pl.col("ybar_h").cast(pl.Float64).alias("ybar_h")
-        ])
+        strata_stats = strata_stats.with_columns(
+            [
+                pl.when(pl.col("s2_yh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_yh"))
+                .cast(pl.Float64)
+                .alias("s2_yh"),
+                pl.when(pl.col("s2_xh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_xh"))
+                .cast(pl.Float64)
+                .alias("s2_xh"),
+                pl.when(pl.col("cov_yxh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("cov_yxh"))
+                .cast(pl.Float64)
+                .alias("cov_yxh"),
+                pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
+                pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
+            ]
+        )
 
         # Calculate population totals using expansion factors
         # Total Y = Σ_h (ybar_h × w_h × n_h)
         # Total X = Σ_h (xbar_h × w_h × n_h)
-        total_y = (strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]).sum()
-        total_x = (strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]).sum()
+        total_y = (
+            strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+        total_x = (
+            strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
 
         # Calculate ratio estimate
         ratio = total_y / total_x if total_x > 0 else 0
@@ -473,17 +504,22 @@ class VolumeEstimator(BaseEstimator):
 
         # CRITICAL FIX: The correct formula multiplies by n_h for total variance,
         # then divides by X̄² for ratio variance
-        variance_components = strata_stats.with_columns([
-            # Each stratum's contribution to the variance of the total
-            # For domain totals: multiply by n_h (number of plots in stratum)
-            # This gives us the variance of Y - RX
-            (pl.col("w_h") ** 2 *
-             (pl.col("s2_yh") +
-              ratio ** 2 * pl.col("s2_xh") -
-              2 * ratio * pl.col("cov_yxh")) *
-             pl.col("n_h")  # MULTIPLY by n_h for total variance
-            ).alias("v_h")
-        ])
+        variance_components = strata_stats.with_columns(
+            [
+                # Each stratum's contribution to the variance of the total
+                # For domain totals: multiply by n_h (number of plots in stratum)
+                # This gives us the variance of Y - RX
+                (
+                    pl.col("w_h") ** 2
+                    * (
+                        pl.col("s2_yh")
+                        + ratio**2 * pl.col("s2_xh")
+                        - 2 * ratio * pl.col("cov_yxh")
+                    )
+                    * pl.col("n_h")  # MULTIPLY by n_h for total variance
+                ).alias("v_h")
+            ]
+        )
 
         # Sum variance components across strata
         variance_of_numerator = variance_components["v_h"].sum()
@@ -492,21 +528,21 @@ class VolumeEstimator(BaseEstimator):
 
         # Convert to variance of the ratio by dividing by X̄²
         # This gives us Var(R) where R = Y/X
-        variance_of_ratio = variance_of_numerator / (total_x ** 2) if total_x > 0 else 0.0
+        variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
 
         # Standard errors
-        se_acre = variance_of_ratio ** 0.5
+        se_acre = variance_of_ratio**0.5
         # For total, multiply SE of ratio by total area
         se_total = se_acre * total_x if total_x > 0 else 0
 
         return {
             "variance_acre": variance_of_ratio,
-            "variance_total": (se_total ** 2) if se_total > 0 else 0,
+            "variance_total": (se_total**2) if se_total > 0 else 0,
             "se_acre": se_acre,
             "se_total": se_total,
             "ratio": ratio,
             "total_y": total_y,
-            "total_x": total_x
+            "total_x": total_x,
         }
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
@@ -873,12 +909,12 @@ def volume(
     """
     # Import validation functions
     from ...validation import (
+        validate_boolean,
+        validate_domain_expression,
+        validate_grp_by,
         validate_land_type,
         validate_tree_type,
         validate_vol_type,
-        validate_grp_by,
-        validate_domain_expression,
-        validate_boolean
     )
 
     # Validate inputs

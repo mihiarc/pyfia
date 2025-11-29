@@ -100,100 +100,46 @@ class AreaEstimator(BaseEstimator):
         return result
 
     def load_data(self) -> pl.LazyFrame:
-        """Load condition and plot data with lazy column selection."""
-        # Get only the columns we actually need
-        cond_cols_needed = self.get_cond_columns()
-        plot_cols_needed = self._get_plot_columns()
+        """Load condition and plot data for area estimation.
 
-        # Load COND table with only needed columns
+        Always loads all columns to avoid conflicts with other estimators that
+        share the same database connection. Polars lazy evaluation handles
+        column pruning efficiently.
+        """
+        # Load COND table (all columns to avoid conflicts with other estimators)
         if "COND" not in self.db.tables:
-            # Check what columns are available in COND
-            available_cond_cols = self._get_available_columns("COND")
-            if available_cond_cols is not None:
-                cols_to_load = [
-                    col for col in cond_cols_needed if col in available_cond_cols
-                ]
-                if cols_to_load:  # Only load if we have columns to load
-                    self.db.load_table("COND", columns=cols_to_load)
-                else:
-                    # Load all columns if no matches found
-                    self.db.load_table("COND")
-            else:
-                # Fallback: load with requested columns and let the reader handle it
-                self.db.load_table(
-                    "COND", columns=cond_cols_needed if cond_cols_needed else None
-                )
+            self.db.load_table("COND")
 
-        cond_df = self.db.tables.get("COND")
-        if cond_df is not None and cond_cols_needed:
-            # Select only needed columns from already loaded table
-            if isinstance(cond_df, pl.LazyFrame):
-                available_cols = cond_df.collect_schema().names()
-            else:
-                available_cols = cond_df.columns if hasattr(cond_df, "columns") else []
-
-            # Check if we have all needed columns
-            missing_cols = [
-                col for col in cond_cols_needed if col not in available_cols
-            ]
-            if missing_cols:
-                # Need to reload with additional columns
-                self.db.load_table("COND", columns=None)  # Reload all columns
-                cond_df = self.db.tables["COND"]
-            else:
-                cols_to_select = [
-                    col for col in cond_cols_needed if col in available_cols
-                ]
-                if cols_to_select:
-                    cond_df = cond_df.select(cols_to_select)
-
-        # Load PLOT table with only needed columns
-        if "PLOT" not in self.db.tables:
-            # Check what columns are available in PLOT
-            available_plot_cols = self._get_available_columns("PLOT")
-            if available_plot_cols is not None:
-                cols_to_load = [
-                    col for col in plot_cols_needed if col in available_plot_cols
-                ]
-                if cols_to_load:  # Only load if we have columns to load
-                    self.db.load_table("PLOT", columns=cols_to_load)
-                else:
-                    # Load all columns if no matches found
-                    self.db.load_table("PLOT")
-            else:
-                # Fallback: load with requested columns and let the reader handle it
-                self.db.load_table(
-                    "PLOT", columns=plot_cols_needed if plot_cols_needed else None
-                )
-
-        plot_df = self.db.tables.get("PLOT")
-        if plot_df is not None and plot_cols_needed:
-            # Select only needed columns from already loaded table
-            if isinstance(plot_df, pl.LazyFrame):
-                available_cols = plot_df.collect_schema().names()
-            else:
-                available_cols = plot_df.columns if hasattr(plot_df, "columns") else []
-
-            # Check if we have all needed columns
-            missing_cols = [
-                col for col in plot_cols_needed if col not in available_cols
-            ]
-            if missing_cols:
-                # Need to reload with additional columns
-                self.db.load_table("PLOT", columns=None)  # Reload all columns
-                plot_df = self.db.tables["PLOT"]
-            else:
-                cols_to_select = [
-                    col for col in plot_cols_needed if col in available_cols
-                ]
-                if cols_to_select:
-                    plot_df = plot_df.select(cols_to_select)
-
-        # Ensure LazyFrames
+        cond_df = self.db.tables["COND"]
         if not isinstance(cond_df, pl.LazyFrame):
             cond_df = cond_df.lazy()
+
+        # Load PLOT table (all columns to avoid conflicts)
+        if "PLOT" not in self.db.tables:
+            self.db.load_table("PLOT")
+
+        plot_df = self.db.tables["PLOT"]
         if not isinstance(plot_df, pl.LazyFrame):
             plot_df = plot_df.lazy()
+
+        # Apply EVALID filtering through POP_PLOT_STRATUM_ASSGN
+        if self.db.evalid:
+            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
+                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
+
+            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+            if not isinstance(ppsa, pl.LazyFrame):
+                ppsa = ppsa.lazy()
+
+            # Filter to get PLT_CNs for the specified EVALID(s)
+            valid_plots = ppsa.filter(
+                pl.col("EVALID").is_in(self.db.evalid)
+            ).select("PLT_CN").unique()
+
+            # Filter cond and plot to only include these plots
+            cond_df = cond_df.join(valid_plots, on="PLT_CN", how="inner")
+            valid_plot_cns = valid_plots.rename({"PLT_CN": "CN"})
+            plot_df = plot_df.join(valid_plot_cns, on="CN", how="inner")
 
         # Join condition and plot
         data = cond_df.join(plot_df, left_on="PLT_CN", right_on="CN", how="inner")
@@ -356,7 +302,7 @@ class AreaEstimator(BaseEstimator):
         if "ESTN_UNIT" in available_cols:
             cols_to_select.append("ESTN_UNIT")
         elif "UNITCD" in available_cols:
-            cols_to_select.append(pl.col("UNITCD").alias("ESTN_UNIT"))
+            cols_to_select.append("UNITCD")
 
         # Add stratum identifier (prefer STRATUM_CN, fallback to STRATUM)
         if "STRATUM_CN" in available_cols:

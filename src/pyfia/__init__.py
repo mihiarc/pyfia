@@ -9,10 +9,14 @@ __version__ = "0.2.0"
 __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
-from pyfia.core.config import config, get_default_db_path, get_default_engine
 from pyfia.core.data_reader import FIADataReader
 from pyfia.core.fia import FIA
-from pyfia.core.settings import PyFIASettings, settings
+from pyfia.core.settings import (
+    PyFIASettings,
+    get_default_db_path,
+    get_default_engine,
+    settings,
+)
 
 # Estimation functions - High-level API
 from pyfia.estimation.estimators.area import area
@@ -49,7 +53,6 @@ __all__ = [
     "FIA",
     "FIADataReader",
     # Configuration
-    "config",
     "get_default_db_path",
     "get_default_engine",
     "settings",

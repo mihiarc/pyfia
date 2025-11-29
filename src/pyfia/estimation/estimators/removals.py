@@ -139,7 +139,14 @@ class RemovalsEstimator(BaseEstimator):
             if not isinstance(plot, pl.LazyFrame):
                 plot = plot.lazy()
 
-            plot_cols = plot.select(["CN", "MACRO_BREAKPOINT_DIA", "STATECD", "INVYR"])
+            # Select only columns that don't already exist to avoid duplicates
+            existing_cols = data.collect_schema().names()
+            plot_cols_to_select = ["CN", "MACRO_BREAKPOINT_DIA"]
+            for col in ["STATECD", "INVYR"]:
+                if col not in existing_cols:
+                    plot_cols_to_select.append(col)
+
+            plot_cols = plot.select(plot_cols_to_select)
 
             data = data.join(plot_cols, left_on="PLT_CN", right_on="CN", how="left")
 

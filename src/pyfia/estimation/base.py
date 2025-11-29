@@ -146,19 +146,36 @@ class BaseEstimator(ABC):
         # Select only needed columns
         tree_cols = self.get_tree_columns()
         cond_cols = self.get_cond_columns()
-        
+
+        # Add grouping columns from config if specified
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            if isinstance(grp_by, str):
+                grp_by = [grp_by]
+
+            # Get available columns from each table to check where grp_by cols exist
+            tree_schema = tree_df.collect_schema().names()
+            cond_schema = cond_df.collect_schema().names()
+
+            for col in grp_by:
+                # Add to appropriate table's column list if not already present
+                if col in tree_schema and col not in tree_cols:
+                    tree_cols.append(col)
+                elif col in cond_schema and col not in cond_cols:
+                    cond_cols.append(col)
+
         if tree_cols:
             tree_df = tree_df.select(tree_cols)
         if cond_cols:
             cond_df = cond_df.select(cond_cols)
-        
+
         # Join tree and condition
         data = tree_df.join(
             cond_df,
             on=["PLT_CN", "CONDID"],
             how="inner"
         )
-        
+
         return data
     
     def _load_area_data(self) -> pl.LazyFrame:
@@ -579,22 +596,29 @@ class BaseEstimator(ABC):
         # Each plot-stratum pair and each stratum appears exactly twice
         ppsa_unique = ppsa.unique(subset=["PLT_CN", "STRATUM_CN"])
         pop_stratum_unique = pop_stratum.unique(subset=["CN"])
-        
-        # Select necessary columns and join
+
+        # Select only necessary columns from PPSA to avoid duplicate columns
+        # when joining with other tables that also have STATECD, INVYR, etc.
+        ppsa_selected = ppsa_unique.select([
+            "PLT_CN",
+            "STRATUM_CN"
+        ])
+
+        # Select necessary columns from POP_STRATUM
         pop_stratum_selected = pop_stratum_unique.select([
             pl.col("CN").alias("STRATUM_CN"),
             "EXPNS",
             "ADJ_FACTOR_MICR",
-            "ADJ_FACTOR_SUBP", 
+            "ADJ_FACTOR_SUBP",
             "ADJ_FACTOR_MACR"
         ])
-        
-        strat_data = ppsa_unique.join(
+
+        strat_data = ppsa_selected.join(
             pop_stratum_selected,
             on="STRATUM_CN",
             how="inner"
         )
-        
+
         return strat_data
     
     def _aggregate_area_only(self, strat_data: pl.LazyFrame) -> pl.DataFrame:

@@ -876,7 +876,7 @@ def biomass(
     # Validate inputs
     land_type = validate_land_type(land_type)
     tree_type = validate_tree_type(tree_type)
-    component = validate_biomass_component(component.lower())  # Normalize to lowercase
+    component = validate_biomass_component(component.lower()).upper()  # Normalize and convert to uppercase for column names
     grp_by = validate_grp_by(grp_by)
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")
     area_domain = validate_domain_expression(area_domain, "area_domain")

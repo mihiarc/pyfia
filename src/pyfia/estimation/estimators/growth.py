@@ -816,8 +816,12 @@ class GrowthEstimator(BaseEstimator):
         # Calculate ratio estimate
         ratio = total_y / total_x if total_x > 0 else 0
 
-        # Calculate variance components
-        variance_components = strata_stats.with_columns(
+        # Filter out single-plot strata (variance undefined with n=1)
+        # These strata cannot contribute to variance estimation
+        strata_with_variance = strata_stats.filter(pl.col("n_h") > 1)
+
+        # Calculate variance components only for strata with n > 1
+        variance_components = strata_with_variance.with_columns(
             [
                 (
                     pl.col("w_h") ** 2
@@ -831,8 +835,8 @@ class GrowthEstimator(BaseEstimator):
             ]
         )
 
-        # Sum variance components
-        variance_of_numerator = variance_components["v_h"].sum()
+        # Sum variance components, handling NaN values
+        variance_of_numerator = variance_components["v_h"].drop_nans().sum()
         if variance_of_numerator is None or variance_of_numerator < 0:
             variance_of_numerator = 0.0
 

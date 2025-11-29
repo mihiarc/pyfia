@@ -4,12 +4,12 @@ FIA estimators.
 Simple, focused estimator implementations without unnecessary abstractions.
 """
 
-from .area import area, AreaEstimator
-from .biomass import biomass, BiomassEstimator
-from .growth import growth, GrowthEstimator
-from .mortality import mortality, MortalityEstimator
-from .tpa import tpa, TPAEstimator
-from .volume import volume, VolumeEstimator
+from .area import AreaEstimator, area
+from .biomass import BiomassEstimator, biomass
+from .growth import GrowthEstimator, growth
+from .mortality import MortalityEstimator, mortality
+from .tpa import TPAEstimator, tpa
+from .volume import VolumeEstimator, volume
 
 __all__ = [
     # Functions (primary API)

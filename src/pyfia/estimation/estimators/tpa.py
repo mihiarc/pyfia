@@ -24,16 +24,19 @@ class TPAEstimator(BaseEstimator):
     Estimates tree density (TPA) and basal area per acre (BAA).
     """
 
+    def __init__(self, db, config):
+        """Initialize with storage for variance calculation."""
+        super().__init__(db, config)
+        self.plot_tree_data = None  # Store for variance calculation
+        self.group_cols = None  # Store grouping columns
+
     def get_required_tables(self) -> List[str]:
         """TPA requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for TPA estimation."""
-        cols = [
-            "CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD",
-            "DIA", "TPA_UNADJ"
-        ]
+        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ"]
 
         # Add grouping columns if needed
         if self.config.get("grp_by"):
@@ -49,9 +52,14 @@ class TPAEstimator(BaseEstimator):
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
         return [
-            "PLT_CN", "CONDID", "COND_STATUS_CD",
-            "CONDPROP_UNADJ", "OWNGRPCD", "FORTYPCD",
-            "SITECLCD", "RESERVCD"
+            "PLT_CN",
+            "CONDID",
+            "COND_STATUS_CD",
+            "CONDPROP_UNADJ",
+            "OWNGRPCD",
+            "FORTYPCD",
+            "SITECLCD",
+            "RESERVCD",
         ]
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
@@ -70,22 +78,26 @@ class TPAEstimator(BaseEstimator):
         5. Multiply by TPA_UNADJ to get basal area per acre
         """
         # Ensure proper data types for calculation precision
-        data = data.with_columns([
-            # TPA is directly from TPA_UNADJ
-            pl.col("TPA_UNADJ").cast(pl.Float64).alias("TPA"),
-
-            # BAA calculation with explicit formula documentation
-            # π × (DIA in inches / 24)² × TPA_UNADJ = basal area in sq ft per acre
-            (math.pi * (pl.col("DIA").cast(pl.Float64) / 24.0) ** 2 *
-             pl.col("TPA_UNADJ").cast(pl.Float64)).alias("BAA")
-        ])
+        data = data.with_columns(
+            [
+                # TPA is directly from TPA_UNADJ
+                pl.col("TPA_UNADJ").cast(pl.Float64).alias("TPA"),
+                # BAA calculation with explicit formula documentation
+                # π × (DIA in inches / 24)² × TPA_UNADJ = basal area in sq ft per acre
+                (
+                    math.pi
+                    * (pl.col("DIA").cast(pl.Float64) / 24.0) ** 2
+                    * pl.col("TPA_UNADJ").cast(pl.Float64)
+                ).alias("BAA"),
+            ]
+        )
 
         # Add size class if requested
         if self.config.get("by_size_class", False):
             # Create 2-inch diameter classes (0, 2, 4, 6, 8, ...)
-            data = data.with_columns([
-                ((pl.col("DIA") / 2.0).floor() * 2).cast(pl.Int32).alias("SIZE_CLASS")
-            ])
+            data = data.with_columns(
+                [((pl.col("DIA") / 2.0).floor() * 2).cast(pl.Int32).alias("SIZE_CLASS")]
+            )
 
         return data
 
@@ -103,25 +115,27 @@ class TPAEstimator(BaseEstimator):
         strat_data = self._get_stratification_data()
 
         # Join with stratification
-        data_with_strat = data.join(
-            strat_data,
-            on="PLT_CN",
-            how="inner"
-        )
+        data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors based on tree size
         # FIA uses different plot sizes for different tree sizes
         data_with_strat = apply_tree_adjustment_factors(
-            data_with_strat,
-            size_col="DIA",
-            macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
+            data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
         # Apply adjustment to get adjusted values
-        data_with_strat = data_with_strat.with_columns([
-            (pl.col("TPA").cast(pl.Float64) * pl.col("ADJ_FACTOR").cast(pl.Float64)).alias("TPA_ADJ"),
-            (pl.col("BAA").cast(pl.Float64) * pl.col("ADJ_FACTOR").cast(pl.Float64)).alias("BAA_ADJ")
-        ])
+        data_with_strat = data_with_strat.with_columns(
+            [
+                (
+                    pl.col("TPA").cast(pl.Float64)
+                    * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                ).alias("TPA_ADJ"),
+                (
+                    pl.col("BAA").cast(pl.Float64)
+                    * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                ).alias("BAA_ADJ"),
+            ]
+        )
 
         # Setup grouping columns - need to include condition-level grouping
         group_cols = self._setup_grouping()
@@ -134,24 +148,57 @@ class TPAEstimator(BaseEstimator):
         if self.config.get("by_size_class", False) and "SIZE_CLASS" not in group_cols:
             group_cols.append("SIZE_CLASS")
 
+        self.group_cols = group_cols  # Store for variance calculation
+
+        # CRITICAL: Store plot-tree level data for variance calculation
+        data_collected = data_with_strat.collect()
+        available_cols = data_collected.columns
+
+        # Build column list for preservation
+        cols_to_preserve = ["PLT_CN", "CONDID"]
+
+        # Add stratification columns
+        if "STRATUM_CN" in available_cols:
+            cols_to_preserve.append("STRATUM_CN")
+        if "ESTN_UNIT" in available_cols:
+            cols_to_preserve.append("ESTN_UNIT")
+        elif "UNITCD" in available_cols:
+            data_collected = data_collected.with_columns(
+                pl.col("UNITCD").alias("ESTN_UNIT")
+            )
+            cols_to_preserve.append("ESTN_UNIT")
+
+        # Add essential columns for variance calculation
+        cols_to_preserve.extend(
+            ["TPA_ADJ", "BAA_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"]
+        )
+
+        # Add grouping columns if they exist
+        if group_cols:
+            for col in group_cols:
+                if col in available_cols and col not in cols_to_preserve:
+                    cols_to_preserve.append(col)
+
+        # Store the plot-tree data for variance calculation
+        self.plot_tree_data = data_collected.select(
+            [c for c in cols_to_preserve if c in data_collected.columns]
+        )
+
+        # Convert back to lazy for two-stage aggregation
+        data_with_strat = data_collected.lazy()
+
         # Use shared two-stage aggregation method
-        metric_mappings = {
-            "TPA_ADJ": "CONDITION_TPA",
-            "BAA_ADJ": "CONDITION_BAA"
-        }
+        metric_mappings = {"TPA_ADJ": "CONDITION_TPA", "BAA_ADJ": "CONDITION_BAA"}
 
         results = self._apply_two_stage_aggregation(
             data_with_strat=data_with_strat,
             metric_mappings=metric_mappings,
             group_cols=group_cols,
-            use_grm_adjustment=False
+            use_grm_adjustment=False,
         )
 
         # Rename columns to match expected output
-        results = results.rename({
-            "TPA_ACRE": "TPA",
-            "BAA_ACRE": "BAA"
-        })
+        results = results.rename({"TPA_ACRE": "TPA", "BAA_ACRE": "BAA"})
 
         # Handle totals based on config
         if not self.config.get("totals", False):
@@ -165,75 +212,194 @@ class TPAEstimator(BaseEstimator):
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """
-        Calculate variance for TPA and BAA estimates.
+        Calculate variance for TPA and BAA estimates using proper ratio estimation formula.
 
-        Uses sample-size-adjusted coefficient of variation (CV) estimates
-        typical for FIA tree metrics. CV increases for smaller sample sizes:
-        - Base CV: 10% for large samples (>100 plots)
-        - Adjusted CV: base_cv × sqrt(100/n_plots) for smaller samples
-        - Maximum CV: 50% for very small samples
+        TPA and BAA estimation uses ratio-of-means: R = Y/X where Y is tree value and X is area.
+        The variance formula accounts for covariance between numerator and denominator.
 
-        WARNING: This is a simplified variance approximation. For production use,
-        implement full stratified variance calculation following Bechtold &
-        Patterson (2005) using plot-level residuals and stratification weights.
+        Following Bechtold & Patterson (2005) methodology for stratified sampling.
         """
-        # Base CV values typical for FIA tree metrics with adequate sample size
-        base_tpa_cv = 0.10  # 10% coefficient of variation for TPA
-        base_baa_cv = 0.10  # 10% coefficient of variation for BAA
 
-        # Adjust CV based on sample size (smaller samples have higher uncertainty)
-        # CV adjustment factor: sqrt(reference_n / actual_n)
-        reference_n = 100  # Reference sample size for base CV
+        if self.plot_tree_data is None:
+            # Fallback to sample-size-adjusted CV estimate
+            import warnings
 
-        # Calculate adjusted CV based on actual number of plots
-        results = results.with_columns([
-            # Adjust CV for sample size, with maximum of 50%
-            pl.when(pl.col("N_PLOTS") > 0)
-            .then(
-                (base_tpa_cv * (reference_n / pl.col("N_PLOTS")).sqrt())
-                .clip(base_tpa_cv, 0.50)  # Cap at 50% CV
+            warnings.warn(
+                "Plot-tree data not available for proper variance calculation. "
+                "Using sample-size-adjusted CV approximation."
             )
-            .otherwise(0.50)
-            .alias("TPA_CV_ADJ"),
+            base_cv = 0.10
+            reference_n = 100
 
-            pl.when(pl.col("N_PLOTS") > 0)
-            .then(
-                (base_baa_cv * (reference_n / pl.col("N_PLOTS")).sqrt())
-                .clip(base_baa_cv, 0.50)  # Cap at 50% CV
+            results = results.with_columns(
+                [
+                    pl.when(pl.col("N_PLOTS") > 0)
+                    .then(
+                        (base_cv * (reference_n / pl.col("N_PLOTS")).sqrt()).clip(
+                            base_cv, 0.50
+                        )
+                    )
+                    .otherwise(0.50)
+                    .alias("CV_ADJ")
+                ]
             )
-            .otherwise(0.50)
-            .alias("BAA_CV_ADJ")
-        ])
 
-        # Calculate standard errors from adjusted CV
-        # SE = estimate × CV_adjusted
-        results = results.with_columns([
-            (pl.col("TPA") * pl.col("TPA_CV_ADJ")).alias("TPA_SE"),
-            (pl.col("BAA") * pl.col("BAA_CV_ADJ")).alias("BAA_SE")
-        ])
+            results = results.with_columns(
+                [
+                    (pl.col("TPA") * pl.col("CV_ADJ")).alias("TPA_SE"),
+                    (pl.col("BAA") * pl.col("CV_ADJ")).alias("BAA_SE"),
+                ]
+            )
 
-        # Add variance if requested (variance = SE²)
+            if "TPA_TOTAL" in results.columns:
+                results = results.with_columns(
+                    [
+                        (pl.col("TPA_TOTAL") * pl.col("CV_ADJ")).alias("TPA_TOTAL_SE"),
+                        (pl.col("BAA_TOTAL") * pl.col("CV_ADJ")).alias("BAA_TOTAL_SE"),
+                    ]
+                )
+
+            results = results.drop(["CV_ADJ"])
+            return results
+
+        # Step 1: Aggregate to plot-condition level
+        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
+        if "STRATUM_CN" in self.plot_tree_data.columns:
+            plot_group_cols.insert(2, "STRATUM_CN")
+
+        # Add grouping columns
+        if self.group_cols:
+            for col in self.group_cols:
+                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
+        plot_cond_agg = [
+            pl.sum("TPA_ADJ").alias("y_tpa_ic"),
+            pl.sum("BAA_ADJ").alias("y_baa_ic"),
+        ]
+
+        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
+            plot_cond_agg
+        )
+
+        # Step 2: Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "EXPNS"]
+        if "STRATUM_CN" in plot_cond_data.columns:
+            plot_level_cols.insert(1, "STRATUM_CN")
+        if self.group_cols:
+            plot_level_cols.extend(
+                [c for c in self.group_cols if c in plot_cond_data.columns]
+            )
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
+            [
+                pl.sum("y_tpa_ic").alias("y_tpa_i"),
+                pl.sum("y_baa_ic").alias("y_baa_i"),
+                pl.lit(1.0).alias("x_i"),
+            ]
+        )
+
+        # Step 3: Calculate variance for each group or overall
+        if self.group_cols:
+            strat_data = self._get_stratification_data()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
+
+            variance_results = []
+
+            for group_vals in results.iter_rows():
+                group_filter = pl.lit(True)
+                group_dict = {}
+
+                for i, col in enumerate(self.group_cols):
+                    if col in plot_data.columns:
+                        group_dict[col] = group_vals[results.columns.index(col)]
+                        group_filter = group_filter & (
+                            pl.col(col) == group_vals[results.columns.index(col)]
+                        )
+
+                group_plot_data = plot_data.filter(group_filter)
+
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_tpa_i", "y_baa_i", "x_i"]),
+                    on="PLT_CN",
+                    how="left",
+                ).with_columns(
+                    [
+                        pl.col("y_tpa_i").fill_null(0.0),
+                        pl.col("y_baa_i").fill_null(0.0),
+                        pl.col("x_i").fill_null(0.0),
+                    ]
+                )
+
+                if len(all_plots_group) > 0:
+                    tpa_stats = self._calculate_ratio_variance(
+                        all_plots_group, "y_tpa_i"
+                    )
+                    baa_stats = self._calculate_ratio_variance(
+                        all_plots_group, "y_baa_i"
+                    )
+
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "TPA_SE": tpa_stats["se_acre"],
+                            "TPA_TOTAL_SE": tpa_stats["se_total"],
+                            "BAA_SE": baa_stats["se_acre"],
+                            "BAA_TOTAL_SE": baa_stats["se_total"],
+                        }
+                    )
+                else:
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "TPA_SE": 0.0,
+                            "TPA_TOTAL_SE": 0.0,
+                            "BAA_SE": 0.0,
+                            "BAA_TOTAL_SE": 0.0,
+                        }
+                    )
+
+            if variance_results:
+                var_df = pl.DataFrame(variance_results)
+                results = results.join(var_df, on=self.group_cols, how="left")
+        else:
+            tpa_stats = self._calculate_ratio_variance(plot_data, "y_tpa_i")
+            baa_stats = self._calculate_ratio_variance(plot_data, "y_baa_i")
+
+            results = results.with_columns(
+                [
+                    pl.lit(tpa_stats["se_acre"]).alias("TPA_SE"),
+                    pl.lit(baa_stats["se_acre"]).alias("BAA_SE"),
+                ]
+            )
+
+            if "TPA_TOTAL" in results.columns:
+                results = results.with_columns(
+                    [
+                        pl.lit(tpa_stats["se_total"]).alias("TPA_TOTAL_SE"),
+                        pl.lit(baa_stats["se_total"]).alias("BAA_TOTAL_SE"),
+                    ]
+                )
+
+        # Convert to variance if requested
         if self.config.get("variance", False):
-            results = results.with_columns([
-                (pl.col("TPA_SE") ** 2).alias("TPA_VAR"),
-                (pl.col("BAA_SE") ** 2).alias("BAA_VAR")
-            ])
-            # Drop SE columns if returning variance
+            results = results.with_columns(
+                [
+                    (pl.col("TPA_SE") ** 2).alias("TPA_VAR"),
+                    (pl.col("BAA_SE") ** 2).alias("BAA_VAR"),
+                ]
+            )
             results = results.drop(["TPA_SE", "BAA_SE"])
 
-        # Calculate standard errors for totals if present (use same adjusted CV)
-        if "TPA_TOTAL" in results.columns:
-            results = results.with_columns([
-                (pl.col("TPA_TOTAL") * pl.col("TPA_CV_ADJ")).alias("TPA_TOTAL_SE"),
-                (pl.col("BAA_TOTAL") * pl.col("BAA_CV_ADJ")).alias("BAA_TOTAL_SE")
-            ])
-
-            if self.config.get("variance", False):
-                results = results.with_columns([
-                    (pl.col("TPA_TOTAL_SE") ** 2).alias("TPA_TOTAL_VAR"),
-                    (pl.col("BAA_TOTAL_SE") ** 2).alias("BAA_TOTAL_VAR")
-                ])
-                # Drop SE columns if returning variance
+            if "TPA_TOTAL_SE" in results.columns:
+                results = results.with_columns(
+                    [
+                        (pl.col("TPA_TOTAL_SE") ** 2).alias("TPA_TOTAL_VAR"),
+                        (pl.col("BAA_TOTAL_SE") ** 2).alias("BAA_TOTAL_VAR"),
+                    ]
+                )
                 results = results.drop(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
 
         # Add warning for small sample sizes
@@ -241,16 +407,108 @@ class TPAEstimator(BaseEstimator):
             min_plots = results["N_PLOTS"].min()
             if min_plots is not None and min_plots < 10:
                 import warnings
+
                 warnings.warn(
                     f"Small sample size detected (min {min_plots} plots). "
                     "Variance estimates may be unreliable. Consider aggregating to larger areas.",
-                    UserWarning
+                    UserWarning,
                 )
 
-        # Clean up temporary columns
-        results = results.drop(["TPA_CV_ADJ", "BAA_CV_ADJ"])
-
         return results
+
+    def _calculate_ratio_variance(self, plot_data: pl.DataFrame, y_col: str):
+        """Calculate variance for ratio-of-means estimator.
+
+        For ratio estimation R = Y/X, the variance formula accounts for
+        covariance between numerator and denominator.
+        """
+        strat_cols = ["STRATUM_CN"] if "STRATUM_CN" in plot_data.columns else []
+
+        if not strat_cols:
+            plot_data = plot_data.with_columns(pl.lit(1).alias("STRATUM"))
+            strat_cols = ["STRATUM"]
+
+        strata_stats = plot_data.group_by(strat_cols).agg(
+            [
+                pl.count("PLT_CN").alias("n_h"),
+                pl.mean(y_col).alias("ybar_h"),
+                pl.mean("x_i").alias("xbar_h"),
+                pl.var(y_col, ddof=1).alias("s2_yh"),
+                pl.var("x_i", ddof=1).alias("s2_xh"),
+                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),
+                (
+                    (
+                        (pl.col(y_col) - pl.col(y_col).mean())
+                        * (pl.col("x_i") - pl.col("x_i").mean())
+                    ).sum()
+                    / (pl.len() - 1)
+                ).alias("cov_yxh"),
+            ]
+        )
+
+        strata_stats = strata_stats.with_columns(
+            [
+                pl.when(pl.col("s2_yh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_yh"))
+                .cast(pl.Float64)
+                .alias("s2_yh"),
+                pl.when(pl.col("s2_xh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_xh"))
+                .cast(pl.Float64)
+                .alias("s2_xh"),
+                pl.when(pl.col("cov_yxh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("cov_yxh"))
+                .cast(pl.Float64)
+                .alias("cov_yxh"),
+                pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
+                pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
+            ]
+        )
+
+        total_y = (
+            strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+        total_x = (
+            strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+
+        ratio = total_y / total_x if total_x > 0 else 0
+
+        variance_components = strata_stats.with_columns(
+            [
+                (
+                    pl.col("w_h") ** 2
+                    * (
+                        pl.col("s2_yh")
+                        + ratio**2 * pl.col("s2_xh")
+                        - 2 * ratio * pl.col("cov_yxh")
+                    )
+                    * pl.col("n_h")
+                ).alias("v_h")
+            ]
+        )
+
+        variance_of_numerator = variance_components["v_h"].sum()
+        if variance_of_numerator is None or variance_of_numerator < 0:
+            variance_of_numerator = 0.0
+
+        variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
+
+        se_acre = variance_of_ratio**0.5
+        se_total = se_acre * total_x if total_x > 0 else 0
+
+        return {
+            "variance_acre": variance_of_ratio,
+            "variance_total": (se_total**2) if se_total > 0 else 0,
+            "se_acre": se_acre,
+            "se_total": se_total,
+            "ratio": ratio,
+            "total_y": total_y,
+            "total_x": total_x,
+        }
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """
@@ -266,9 +524,7 @@ class TPAEstimator(BaseEstimator):
         """
         # Try to extract actual inventory year from data if available
         # For now, use a placeholder (would be extracted from INVYR in production)
-        results = results.with_columns([
-            pl.lit(2023).alias("YEAR")
-        ])
+        results = results.with_columns([pl.lit(2023).alias("YEAR")])
 
         # Build column order based on what's present
         col_order = ["YEAR"]
@@ -329,7 +585,9 @@ class TPAEstimator(BaseEstimator):
 
         # Sort by grouping columns if present (for cleaner output)
         if grouping_cols:
-            existing_group_cols = [col for col in grouping_cols if col in results.columns]
+            existing_group_cols = [
+                col for col in grouping_cols if col in results.columns
+            ]
             if existing_group_cols:
                 results = results.sort(existing_group_cols)
 
@@ -346,7 +604,7 @@ def tpa(
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
     totals: bool = False,
-    variance: bool = False
+    variance: bool = False,
 ) -> pl.DataFrame:
     """
     Estimate trees per acre (TPA) and basal area per acre (BAA) from FIA data.
@@ -563,14 +821,12 @@ def tpa(
     against FIA EVALIDator or rFIA. Historical analyses using pyfia <1.0.0 should
     be rerun with corrected aggregation.
 
-    The current implementation uses a simplified variance calculation with
-    sample-size-adjusted coefficient of variation (10% base CV for >100 plots,
-    increasing for smaller samples). This is an approximation. Full stratified
-    variance calculation following Bechtold & Patterson (2005) using plot-level
-    residuals and stratification weights is required for precise estimates.
-    Small sample sizes (<10 plots) will trigger additional warnings. For
-    applications requiring precise variance estimates, consider using the
-    FIA EVALIDator tool or rFIA R package.
+    The variance calculation follows Bechtold & Patterson (2005) methodology
+    for ratio-of-means estimation with stratified sampling. The calculation
+    accounts for covariance between the numerator (TPA/BAA) and denominator
+    (area). Small sample sizes (<10 plots) will trigger additional warnings.
+    For applications requiring the most precise variance estimates, consider
+    also validating against the FIA EVALIDator tool or rFIA R package.
 
     Examples
     --------
@@ -648,11 +904,11 @@ def tpa(
     """
     # Import validation functions
     from ...validation import (
+        validate_boolean,
+        validate_domain_expression,
+        validate_grp_by,
         validate_land_type,
         validate_tree_type,
-        validate_grp_by,
-        validate_domain_expression,
-        validate_boolean
     )
 
     # Validate inputs
@@ -683,7 +939,7 @@ def tpa(
         "tree_domain": tree_domain,
         "area_domain": area_domain,
         "totals": totals,
-        "variance": variance
+        "variance": variance,
     }
 
     # Create and run estimator - simple and clean

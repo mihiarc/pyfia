@@ -26,25 +26,20 @@ from pyfia.estimation.estimators.volume import volume
 # Reference table utilities - Useful for adding descriptive names to results
 from pyfia.utils.reference_tables import (
     join_forest_type_names,
+    join_multiple_references,
     join_species_names,
     join_state_names,
-    join_multiple_references,
 )
 
 # Note: Statistical utility functions (merge_estimation_data, calculate_stratum_estimates, etc.)
-# are internal to the estimators. Users should use the high-level estimation functions 
+# are internal to the estimators. Users should use the high-level estimation functions
 # (area, volume, tpa, etc.) which handle all statistical calculations internally.
 
-# Converter functionality - Import only if needed to avoid heavy dependencies
+# Converter functionality - Check availability without importing unused names
 try:
-    from pyfia.converter import (
-        ConverterConfig,
-        DataValidator,
-        FIAConverter,
-        SchemaOptimizer,
-        StateMerger,
-    )
-    _CONVERTER_AVAILABLE = True
+    from importlib.util import find_spec
+
+    _CONVERTER_AVAILABLE = find_spec("pyfia.converter") is not None
 except ImportError:
     _CONVERTER_AVAILABLE = False
 
@@ -78,16 +73,6 @@ __all__ = [
     "append_to_database",
 ]
 
-# Add converter classes to __all__ if available
-if _CONVERTER_AVAILABLE:
-    __all__.extend([
-        "FIAConverter",
-        "ConverterConfig",
-        "SchemaOptimizer",
-        "StateMerger",
-        "DataValidator"
-    ])
-
 
 def get_fia(db_path=None, engine=None):
     """
@@ -108,15 +93,9 @@ def get_fia(db_path=None, engine=None):
     return FIA(db_path, engine=engine)
 
 
-
-
 # High-level conversion API functions
 def convert_sqlite_to_duckdb(
-    source_path,
-    target_path,
-    state_code=None,
-    config=None,
-    **kwargs
+    source_path, target_path, state_code=None, config=None, **kwargs
 ):
     """
     Convert a SQLite FIA database to DuckDB format.
@@ -134,7 +113,7 @@ def convert_sqlite_to_duckdb(
     Example:
         # Simple conversion
         convert_sqlite_to_duckdb("OR_FIA.db", "oregon.duckdb")
-        
+
         # With configuration
         convert_sqlite_to_duckdb(
             "OR_FIA.db",
@@ -143,15 +122,13 @@ def convert_sqlite_to_duckdb(
             validation_level="comprehensive"
         )
     """
-    return FIA.convert_from_sqlite(source_path, target_path, state_code, config, **kwargs)
+    return FIA.convert_from_sqlite(
+        source_path, target_path, state_code, config, **kwargs
+    )
 
 
 def merge_state_databases(
-    source_paths,
-    target_path,
-    state_codes=None,
-    config=None,
-    **kwargs
+    source_paths, target_path, state_codes=None, config=None, **kwargs
 ):
     """
     Merge multiple state SQLite databases into a single DuckDB database.
@@ -176,12 +153,7 @@ def merge_state_databases(
 
 
 def append_to_database(
-    target_db,
-    source_path,
-    state_code=None,
-    dedupe=False,
-    dedupe_keys=None,
-    **kwargs
+    target_db, source_path, state_code=None, dedupe=False, dedupe_keys=None, **kwargs
 ):
     """
     Append data from a SQLite database to an existing DuckDB database.
@@ -200,14 +172,17 @@ def append_to_database(
     Example:
         # Append to existing database
         append_to_database("oregon.duckdb", "OR_FIA_update.db", dedupe=True)
-        
+
         # Or use with FIA instance
         db = FIA("oregon.duckdb")
         append_to_database(db, "OR_FIA_update.db", dedupe=True)
     """
     from pyfia.core.fia import FIA as FIAClass
+
     if isinstance(target_db, FIAClass):
-        return target_db.append_data(source_path, state_code, dedupe, dedupe_keys, **kwargs)
+        return target_db.append_data(
+            source_path, state_code, dedupe, dedupe_keys, **kwargs
+        )
     else:
         # Create FIA instance for the target database
         db = FIA(target_db)

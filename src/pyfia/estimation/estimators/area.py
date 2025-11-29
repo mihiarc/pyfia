@@ -132,9 +132,11 @@ class AreaEstimator(BaseEstimator):
                 ppsa = ppsa.lazy()
 
             # Filter to get PLT_CNs for the specified EVALID(s)
-            valid_plots = ppsa.filter(
-                pl.col("EVALID").is_in(self.db.evalid)
-            ).select("PLT_CN").unique()
+            valid_plots = (
+                ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
+                .select("PLT_CN")
+                .unique()
+            )
 
             # Filter cond and plot to only include these plots
             cond_df = cond_df.join(valid_plots, on="PLT_CN", how="inner")

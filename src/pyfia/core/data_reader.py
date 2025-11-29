@@ -5,15 +5,16 @@ This module provides high-performance functions for reading FIA data
 from DuckDB and SQLite databases using Polars lazy evaluation.
 """
 
+import logging
 from pathlib import Path
 from typing import Dict, List, Literal, Optional, Union, overload
-import logging
 
 import polars as pl
 
 from .backends import DatabaseBackend, create_backend
 
 logger = logging.getLogger(__name__)
+
 
 class FIADataReader:
     """
@@ -27,7 +28,9 @@ class FIADataReader:
     - Automatic database type detection
     """
 
-    def __init__(self, db_path: Union[str, Path], engine: Optional[str] = None, **backend_kwargs):
+    def __init__(
+        self, db_path: Union[str, Path], engine: Optional[str] = None, **backend_kwargs
+    ):
         """
         Initialize data reader.
 
@@ -44,14 +47,12 @@ class FIADataReader:
 
         # Create backend using factory function
         self._backend: DatabaseBackend = create_backend(
-            db_path, 
-            engine=engine,
-            **backend_kwargs
+            db_path, engine=engine, **backend_kwargs
         )
-        
+
         # Connect to database
         self._backend.connect()
-        
+
         # Cache for table schemas (delegate to backend)
         self._schemas = self._backend._schema_cache
 
@@ -79,10 +80,10 @@ class FIADataReader:
     def _is_cn_column(self, column_name: str) -> bool:
         """
         Check if a column is a CN (Control Number) field.
-        
+
         Args:
             column_name: Name of the column
-            
+
         Returns:
             True if the column is a CN field
         """
@@ -91,11 +92,11 @@ class FIADataReader:
     def _is_string_column(self, table_name: str, column_name: str) -> bool:
         """
         Check if a column should be treated as a string.
-        
+
         Args:
             table_name: Name of the table
             column_name: Name of the column
-            
+
         Returns:
             True if the column should be treated as a string
         """
@@ -104,11 +105,11 @@ class FIADataReader:
     def _is_float_column(self, table_name: str, column_name: str) -> bool:
         """
         Check if a column should be treated as a floating point number.
-        
+
         Args:
             table_name: Name of the table
             column_name: Name of the column
-            
+
         Returns:
             True if the column should be treated as a float
         """
@@ -117,24 +118,26 @@ class FIADataReader:
     def _is_integer_column(self, table_name: str, column_name: str) -> bool:
         """
         Check if a column should be treated as an integer.
-        
+
         Args:
             table_name: Name of the table
             column_name: Name of the column
-            
+
         Returns:
             True if the column should be treated as an integer
         """
         return self._backend.is_integer_column(table_name, column_name)
 
-    def _build_select_clause(self, table_name: str, columns: Optional[List[str]] = None) -> str:
+    def _build_select_clause(
+        self, table_name: str, columns: Optional[List[str]] = None
+    ) -> str:
         """
         Build SELECT clause with appropriate type casting.
-        
+
         Args:
             table_name: Name of the table
             columns: Optional list of columns to select
-            
+
         Returns:
             SELECT clause with type casting
         """
@@ -186,9 +189,13 @@ class FIADataReader:
 
         # Execute query using backend
         # For SQLite backend, we need schema overrides for proper string handling
-        if hasattr(self._backend, '__class__') and self._backend.__class__.__name__ == 'SQLiteBackend':
+        if (
+            hasattr(self._backend, "__class__")
+            and self._backend.__class__.__name__ == "SQLiteBackend"
+        ):
             schema_overrides = {
-                col: pl.Utf8 for col in (columns or self.get_table_schema(table_name).keys())
+                col: pl.Utf8
+                for col in (columns or self.get_table_schema(table_name).keys())
             }
             df = self._backend.read_dataframe(query, schema_overrides=schema_overrides)
         else:
@@ -200,7 +207,10 @@ class FIADataReader:
                 # Convert integer columns back to Int64
                 try:
                     df = df.with_columns(pl.col(col).cast(pl.Int64))
-                except:
+                except (
+                    pl.exceptions.ComputeError,
+                    pl.exceptions.InvalidOperationError,
+                ):
                     pass  # Keep as string if conversion fails
 
         # Return as lazy frame by default
@@ -247,12 +257,16 @@ class FIADataReader:
 
         # Add EVALID information
         if not plots.is_empty():
-            plots = plots.lazy().join(
-                ppsa.select(["PLT_CN", "STRATUM_CN", "EVALID"]),
-                left_on="CN",
-                right_on="PLT_CN",
-                how="left",
-            ).collect()
+            plots = (
+                plots.lazy()
+                .join(
+                    ppsa.select(["PLT_CN", "STRATUM_CN", "EVALID"]),
+                    left_on="CN",
+                    right_on="PLT_CN",
+                    how="left",
+                )
+                .collect()
+            )
 
         return plots
 

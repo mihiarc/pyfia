@@ -74,7 +74,7 @@ def setup_grouping_columns(
             df,
             required_columns="SPCD",
             context="species grouping",
-            raise_on_missing=True
+            raise_on_missing=True,
         )
         group_cols.append("SPCD")
 
@@ -84,7 +84,7 @@ def setup_grouping_columns(
             df,
             required_columns=dia_col,
             context="size class grouping",
-            raise_on_missing=True
+            raise_on_missing=True,
         )
 
         # Add size class column (standardize to UPPER_SNAKE_CASE)
@@ -98,7 +98,7 @@ def setup_grouping_columns(
             df,
             required_columns="landType",
             context="land type grouping (run add_land_type_column() first)",
-            raise_on_missing=True
+            raise_on_missing=True,
         )
         group_cols.append("landType")
 
@@ -132,18 +132,25 @@ def create_size_class_expr(
     """
     if size_class_type == "standard":
         return (
-            pl.when(pl.col(dia_col) < DiameterBreakpoints.MICROPLOT_MAX_DIA).then(pl.lit("1.0-4.9"))
-            .when(pl.col(dia_col) < 10.0).then(pl.lit("5.0-9.9"))
-            .when(pl.col(dia_col) < 20.0).then(pl.lit("10.0-19.9"))
-            .when(pl.col(dia_col) < 30.0).then(pl.lit("20.0-29.9"))
+            pl.when(pl.col(dia_col) < DiameterBreakpoints.MICROPLOT_MAX_DIA)
+            .then(pl.lit("1.0-4.9"))
+            .when(pl.col(dia_col) < 10.0)
+            .then(pl.lit("5.0-9.9"))
+            .when(pl.col(dia_col) < 20.0)
+            .then(pl.lit("10.0-19.9"))
+            .when(pl.col(dia_col) < 30.0)
+            .then(pl.lit("20.0-29.9"))
             .otherwise(pl.lit("30.0+"))
             .alias("SIZE_CLASS")
         )
     elif size_class_type == "descriptive":
         return (
-            pl.when(pl.col(dia_col) < DiameterBreakpoints.MICROPLOT_MAX_DIA).then(pl.lit("Saplings"))
-            .when(pl.col(dia_col) < 10.0).then(pl.lit("Small"))
-            .when(pl.col(dia_col) < 20.0).then(pl.lit("Medium"))
+            pl.when(pl.col(dia_col) < DiameterBreakpoints.MICROPLOT_MAX_DIA)
+            .then(pl.lit("Saplings"))
+            .when(pl.col(dia_col) < 10.0)
+            .then(pl.lit("Small"))
+            .when(pl.col(dia_col) < 20.0)
+            .then(pl.lit("Medium"))
             .otherwise(pl.lit("Large"))
             .alias("SIZE_CLASS")
         )
@@ -175,8 +182,10 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
     land_type_expr = (
         pl.when(pl.col("COND_STATUS_CD") != LandStatus.FOREST)
         .then(
-            pl.when(pl.col("COND_STATUS_CD") == LandStatus.NONFOREST).then(pl.lit("Non-forest"))
-            .when(pl.col("COND_STATUS_CD") == LandStatus.WATER).then(pl.lit("Water"))
+            pl.when(pl.col("COND_STATUS_CD") == LandStatus.NONFOREST)
+            .then(pl.lit("Non-forest"))
+            .when(pl.col("COND_STATUS_CD") == LandStatus.WATER)
+            .then(pl.lit("Water"))
             .otherwise(pl.lit("Other"))
         )
         .otherwise(
@@ -316,12 +325,12 @@ def validate_grouping_columns(
         required_columns=required_groups,
         context="grouping",
         raise_on_missing=True,
-        include_available=True  # Include available columns in error message
+        include_available=True,  # Include available columns in error message
     )
 
 
 def get_size_class_bounds(
-    size_class_type: Literal["standard", "descriptive"] = "standard"
+    size_class_type: Literal["standard", "descriptive"] = "standard",
 ) -> Dict[str, tuple[float, float]]:
     """
     Get the diameter bounds for each size class.
@@ -434,7 +443,7 @@ def get_forest_type_group(fortypcd: Optional[int]) -> str:
 def add_forest_type_group(
     df: pl.DataFrame,
     fortypcd_col: str = "FORTYPCD",
-    output_col: str = "FOREST_TYPE_GROUP"
+    output_col: str = "FOREST_TYPE_GROUP",
 ) -> pl.DataFrame:
     """
     Add forest type group column to a dataframe containing FORTYPCD.
@@ -491,7 +500,7 @@ def get_ownership_group_name(owngrpcd: Optional[int]) -> str:
         10: "Forest Service",
         20: "Other Federal",
         30: "State and Local Government",
-        40: "Private"
+        40: "Private",
     }
     return ownership_names.get(owngrpcd, f"Unknown (Code {owngrpcd})")
 
@@ -499,7 +508,7 @@ def get_ownership_group_name(owngrpcd: Optional[int]) -> str:
 def add_ownership_group_name(
     df: pl.DataFrame,
     owngrpcd_col: str = "OWNGRPCD",
-    output_col: str = "OWNERSHIP_GROUP"
+    output_col: str = "OWNERSHIP_GROUP",
 ) -> pl.DataFrame:
     """
     Add ownership group name column to a dataframe containing OWNGRPCD.
@@ -556,27 +565,58 @@ def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
     # Based on FIA forest type groupings
     group_mappings = {
         # Douglas-fir group
-        200: 200, 201: 200, 202: 200, 203: 200,
+        200: 200,
+        201: 200,
+        202: 200,
+        203: 200,
         # Ponderosa Pine group
-        220: 220, 221: 220, 222: 220,
+        220: 220,
+        221: 220,
+        222: 220,
         # Western White Pine
-        240: 240, 241: 240,
+        240: 240,
+        241: 240,
         # Fir/Spruce/Mountain Hemlock group
-        260: 260, 261: 260, 262: 260, 263: 260, 264: 260, 265: 260,
+        260: 260,
+        261: 260,
+        262: 260,
+        263: 260,
+        264: 260,
+        265: 260,
         # Lodgepole Pine
-        280: 280, 281: 280,
+        280: 280,
+        281: 280,
         # Hemlock/Sitka Spruce
-        300: 300, 301: 300, 302: 300, 303: 300, 304: 300, 305: 300,
+        300: 300,
+        301: 300,
+        302: 300,
+        303: 300,
+        304: 300,
+        305: 300,
         # California Mixed Conifer
-        370: 370, 371: 370,
+        370: 370,
+        371: 370,
         # Alder/Maple
-        910: 910, 911: 910, 912: 910, 913: 910, 914: 910, 915: 910,
+        910: 910,
+        911: 910,
+        912: 910,
+        913: 910,
+        914: 910,
+        915: 910,
         # Western Oak
-        920: 920, 921: 920, 922: 920, 923: 920, 924: 920,
+        920: 920,
+        921: 920,
+        922: 920,
+        923: 920,
+        924: 920,
         # Tanoak/Laurel
-        940: 940, 941: 940, 942: 940,
+        940: 940,
+        941: 940,
+        942: 940,
         # Other Western Hardwoods
-        950: 950, 951: 950, 952: 950,
+        950: 950,
+        951: 950,
+        952: 950,
         # Nonstocked
         999: 999,
     }
@@ -591,9 +631,7 @@ def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
 
 
 def add_forest_type_group_code(
-    df: pl.DataFrame,
-    fortypcd_col: str = "FORTYPCD",
-    output_col: str = "FORTYPGRP"
+    df: pl.DataFrame, fortypcd_col: str = "FORTYPCD", output_col: str = "FORTYPGRP"
 ) -> pl.DataFrame:
     """
     Add forest type group code column to a dataframe containing FORTYPCD.
@@ -631,15 +669,15 @@ def add_forest_type_group_code(
 def auto_enhance_grouping_data(
     data_df: pl.DataFrame,
     group_cols: List[str],
-    preserve_reference_columns: bool = True
+    preserve_reference_columns: bool = True,
 ) -> tuple[pl.DataFrame, List[str]]:
     """
     Automatically enhance grouping data with reference information.
-    
+
     This function intelligently adds enhanced columns for common FIA grouping
     variables to make output more interpretable while preserving original
     columns for reference.
-    
+
     Parameters
     ----------
     data_df : pl.DataFrame
@@ -648,12 +686,12 @@ def auto_enhance_grouping_data(
         List of grouping columns to potentially enhance
     preserve_reference_columns : bool, default True
         Whether to preserve original columns alongside enhanced ones
-        
+
     Returns
     -------
     tuple[pl.DataFrame, List[str]]
         Enhanced dataframe and updated list of grouping columns
-        
+
     Examples
     --------
     >>> # Enhance data with forest type group names
@@ -664,39 +702,38 @@ def auto_enhance_grouping_data(
     """
     enhanced_df = data_df
     enhanced_group_cols = group_cols.copy()
-    
+
     # Track columns that were enhanced for reference preservation
     enhanced_mappings = {}
-    
+
     # Enhance FORTYPCD with forest type groups
     if "FORTYPCD" in group_cols and "FORTYPCD" in enhanced_df.columns:
         # Add forest type group code (FORTYPGRP) for grouping
         enhanced_df = add_forest_type_group_code(enhanced_df)
         enhanced_mappings["FORTYPCD"] = "FORTYPGRP"
-        
+
         # Also add descriptive name for better output readability
         enhanced_df = add_forest_type_group(enhanced_df)
-        
+
         # Replace FORTYPCD with FORTYPGRP in grouping columns if not preserving references
         if not preserve_reference_columns:
             enhanced_group_cols = [
-                "FORTYPGRP" if col == "FORTYPCD" else col 
-                for col in enhanced_group_cols
+                "FORTYPGRP" if col == "FORTYPCD" else col for col in enhanced_group_cols
             ]
         else:
             # Add FORTYPGRP to grouping columns alongside FORTYPCD (if not already there)
             if "FORTYPGRP" not in enhanced_group_cols:
                 idx = enhanced_group_cols.index("FORTYPCD")
                 enhanced_group_cols.insert(idx + 1, "FORTYPGRP")
-    
+
     # Enhance OWNGRPCD with ownership group names
     if "OWNGRPCD" in group_cols and "OWNGRPCD" in enhanced_df.columns:
         enhanced_df = add_ownership_group_name(enhanced_df)
         enhanced_mappings["OWNGRPCD"] = "OWNERSHIP_GROUP"
-        
+
         if not preserve_reference_columns:
             enhanced_group_cols = [
-                "OWNERSHIP_GROUP" if col == "OWNGRPCD" else col 
+                "OWNERSHIP_GROUP" if col == "OWNGRPCD" else col
                 for col in enhanced_group_cols
             ]
         else:
@@ -704,9 +741,9 @@ def auto_enhance_grouping_data(
             if "OWNGRPCD" in enhanced_group_cols:
                 idx = enhanced_group_cols.index("OWNGRPCD")
                 enhanced_group_cols.insert(idx + 1, "OWNERSHIP_GROUP")
-    
+
     # Enhance SPCD with species information if available
     # Note: This would require species reference table, which may not always be available
     # For now, we just preserve SPCD as-is but could be extended later
-    
+
     return enhanced_df, enhanced_group_cols

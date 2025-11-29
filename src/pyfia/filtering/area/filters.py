@@ -9,12 +9,12 @@ from typing import Optional
 
 import polars as pl
 
-from ..core.parser import DomainExpressionParser
 from ...constants import (
     LandStatus,
     ReserveStatus,
     SiteClass,
 )
+from ..core.parser import DomainExpressionParser
 
 
 def apply_area_filters(
@@ -79,6 +79,8 @@ def apply_area_filters(
     # Apply user-defined area domain
     # In area estimation mode, area domain is handled through domain indicators
     if area_domain and not area_estimation_mode:
-        cond_df = DomainExpressionParser.apply_to_dataframe(cond_df, area_domain, "area")
+        cond_df = DomainExpressionParser.apply_to_dataframe(
+            cond_df, area_domain, "area"
+        )
 
     return cond_df

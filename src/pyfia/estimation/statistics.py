@@ -16,14 +16,14 @@ def calculate_ratio_of_means_variance(
     area_col: str = "AREA_USED",
     strata_col: str = "ESTN_UNIT",
     plot_col: str = "PLT_CN",
-    weight_col: str = "EXPNS"
+    weight_col: str = "EXPNS",
 ) -> pl.DataFrame:
     """
     Calculate variance using ratio-of-means estimator.
-    
+
     This is the standard FIA variance calculation following
     Bechtold & Patterson (2005).
-    
+
     Parameters
     ----------
     data : pl.DataFrame
@@ -38,62 +38,80 @@ def calculate_ratio_of_means_variance(
         Column identifying plots
     weight_col : str
         Column containing expansion factors
-        
+
     Returns
     -------
     pl.DataFrame
         Data with variance estimates added
     """
     # Calculate stratum-level statistics
-    strata_stats = data.group_by(strata_col).agg([
-        pl.count(plot_col).alias("n_h"),  # plots in stratum
-        pl.mean(response_col).alias("ybar_h"),  # mean response
-        pl.mean(area_col).alias("abar_h"),  # mean area
-        pl.std(response_col, ddof=1).alias("s_y_h"),  # std response
-        pl.std(area_col, ddof=1).alias("s_a_h"),  # std area
-        # Covariance between response and area
-        ((pl.col(response_col) - pl.mean(response_col)) * 
-         (pl.col(area_col) - pl.mean(area_col))).mean().alias("s_ya_h"),
-        pl.first(weight_col).alias("w_h")  # weight (EXPNS)
-    ])
-    
+    strata_stats = data.group_by(strata_col).agg(
+        [
+            pl.count(plot_col).alias("n_h"),  # plots in stratum
+            pl.mean(response_col).alias("ybar_h"),  # mean response
+            pl.mean(area_col).alias("abar_h"),  # mean area
+            pl.std(response_col, ddof=1).alias("s_y_h"),  # std response
+            pl.std(area_col, ddof=1).alias("s_a_h"),  # std area
+            # Covariance between response and area
+            (
+                (pl.col(response_col) - pl.mean(response_col))
+                * (pl.col(area_col) - pl.mean(area_col))
+            )
+            .mean()
+            .alias("s_ya_h"),
+            pl.first(weight_col).alias("w_h"),  # weight (EXPNS)
+        ]
+    )
+
     # Calculate population totals
-    pop_totals = strata_stats.select([
-        (pl.col("ybar_h") * pl.col("w_h")).sum().alias("Y_total"),
-        (pl.col("abar_h") * pl.col("w_h")).sum().alias("A_total"),
-        pl.col("w_h").sum().alias("W_total")
-    ])
-    
+    pop_totals = strata_stats.select(
+        [
+            (pl.col("ybar_h") * pl.col("w_h")).sum().alias("Y_total"),
+            (pl.col("abar_h") * pl.col("w_h")).sum().alias("A_total"),
+            pl.col("w_h").sum().alias("W_total"),
+        ]
+    )
+
     # Get scalars
     Y_total = pop_totals["Y_total"][0]
     A_total = pop_totals["A_total"][0]
-    
+
     # Calculate ratio estimate
     R = Y_total / A_total if A_total > 0 else 0
-    
+
     # Calculate variance components for each stratum
-    variance_components = strata_stats.with_columns([
-        # Variance of ratio estimator
-        ((pl.col("w_h") ** 2) * (1 - 1/pl.col("n_h")) / pl.col("n_h") *
-         (pl.col("s_y_h") ** 2 + 
-          (R ** 2) * pl.col("s_a_h") ** 2 - 
-          2 * R * pl.col("s_ya_h"))).alias("var_h")
-    ])
-    
+    variance_components = strata_stats.with_columns(
+        [
+            # Variance of ratio estimator
+            (
+                (pl.col("w_h") ** 2)
+                * (1 - 1 / pl.col("n_h"))
+                / pl.col("n_h")
+                * (
+                    pl.col("s_y_h") ** 2
+                    + (R**2) * pl.col("s_a_h") ** 2
+                    - 2 * R * pl.col("s_ya_h")
+                )
+            ).alias("var_h")
+        ]
+    )
+
     # Total variance
     total_variance = variance_components["var_h"].sum()
-    
+
     # Standard error
-    se = (total_variance / (A_total ** 2)) ** 0.5 if A_total > 0 else 0
-    
+    se = (total_variance / (A_total**2)) ** 0.5 if A_total > 0 else 0
+
     # Add to results
-    results = pl.DataFrame({
-        "ESTIMATE": [R],
-        "VARIANCE": [total_variance],
-        "SE": [se],
-        "SE_PERCENT": [100 * se / R if R > 0 else 0]
-    })
-    
+    results = pl.DataFrame(
+        {
+            "ESTIMATE": [R],
+            "VARIANCE": [total_variance],
+            "SE": [se],
+            "SE_PERCENT": [100 * se / R if R > 0 else 0],
+        }
+    )
+
     return results
 
 
@@ -101,11 +119,11 @@ def calculate_post_stratified_variance(
     data: pl.DataFrame,
     response_col: str,
     ps_col: str = "POST_STRATUM",
-    weight_col: str = "ADJ_FACTOR"
+    weight_col: str = "ADJ_FACTOR",
 ) -> float:
     """
     Calculate variance with post-stratification.
-    
+
     Parameters
     ----------
     data : pl.DataFrame
@@ -116,36 +134,36 @@ def calculate_post_stratified_variance(
         Post-stratum identifier column
     weight_col : str
         Adjustment factor column
-        
+
     Returns
     -------
     float
         Variance estimate
     """
     # Group by post-stratum
-    ps_stats = data.group_by(ps_col).agg([
-        pl.count().alias("n_ps"),
-        pl.mean(response_col).alias("mean_ps"),
-        pl.var(response_col, ddof=1).alias("var_ps"),
-        pl.first(weight_col).alias("weight_ps")
-    ])
-    
-    # Calculate weighted variance
-    weighted_var = (
-        ps_stats.select([
-            (pl.col("weight_ps") ** 2 * pl.col("var_ps") / pl.col("n_ps"))
-            .sum()
-        ])
-        .item()
+    ps_stats = data.group_by(ps_col).agg(
+        [
+            pl.count().alias("n_ps"),
+            pl.mean(response_col).alias("mean_ps"),
+            pl.var(response_col, ddof=1).alias("var_ps"),
+            pl.first(weight_col).alias("weight_ps"),
+        ]
     )
-    
+
+    # Calculate weighted variance
+    weighted_var = ps_stats.select(
+        [(pl.col("weight_ps") ** 2 * pl.col("var_ps") / pl.col("n_ps")).sum()]
+    ).item()
+
     return weighted_var
 
 
-def safe_divide(numerator: pl.Expr, denominator: pl.Expr, default: float = 0.0) -> pl.Expr:
+def safe_divide(
+    numerator: pl.Expr, denominator: pl.Expr, default: float = 0.0
+) -> pl.Expr:
     """
     Safe division that handles zero denominators.
-    
+
     Parameters
     ----------
     numerator : pl.Expr
@@ -154,7 +172,7 @@ def safe_divide(numerator: pl.Expr, denominator: pl.Expr, default: float = 0.0) 
         Denominator expression
     default : float
         Default value when denominator is zero
-        
+
     Returns
     -------
     pl.Expr
@@ -166,14 +184,14 @@ def safe_divide(numerator: pl.Expr, denominator: pl.Expr, default: float = 0.0) 
 def safe_sqrt(expr: pl.Expr, default: float = 0.0) -> pl.Expr:
     """
     Safe square root that handles negative values.
-    
+
     Parameters
     ----------
     expr : pl.Expr
         Expression to take square root of
     default : float
         Default value for negative inputs
-        
+
     Returns
     -------
     pl.Expr
@@ -183,13 +201,11 @@ def safe_sqrt(expr: pl.Expr, default: float = 0.0) -> pl.Expr:
 
 
 def calculate_confidence_interval(
-    estimate: float,
-    se: float,
-    confidence: float = 0.95
+    estimate: float, se: float, confidence: float = 0.95
 ) -> Tuple[float, float]:
     """
     Calculate confidence interval.
-    
+
     Parameters
     ----------
     estimate : float
@@ -198,7 +214,7 @@ def calculate_confidence_interval(
         Standard error
     confidence : float
         Confidence level (default 0.95 for 95% CI)
-        
+
     Returns
     -------
     Tuple[float, float]
@@ -214,24 +230,24 @@ def calculate_confidence_interval(
     else:
         # For other confidence levels, would need scipy.stats
         z = 1.96  # Default to 95%
-    
+
     lower = estimate - z * se
     upper = estimate + z * se
-    
+
     return lower, upper
 
 
 def calculate_cv(estimate: float, se: float) -> float:
     """
     Calculate coefficient of variation.
-    
+
     Parameters
     ----------
     estimate : float
         Point estimate
     se : float
         Standard error
-        
+
     Returns
     -------
     float
@@ -243,13 +259,11 @@ def calculate_cv(estimate: float, se: float) -> float:
 
 
 def apply_finite_population_correction(
-    variance: float,
-    n_sampled: int,
-    n_total: int
+    variance: float, n_sampled: int, n_total: int
 ) -> float:
     """
     Apply finite population correction factor.
-    
+
     Parameters
     ----------
     variance : float
@@ -258,7 +272,7 @@ def apply_finite_population_correction(
         Number of sampled units
     n_total : int
         Total population size
-        
+
     Returns
     -------
     float
@@ -271,14 +285,11 @@ def apply_finite_population_correction(
 
 
 def calculate_domain_variance(
-    data: pl.DataFrame,
-    domain_col: str,
-    response_col: str,
-    weight_col: str = "EXPNS"
+    data: pl.DataFrame, domain_col: str, response_col: str, weight_col: str = "EXPNS"
 ) -> pl.DataFrame:
     """
     Calculate variance for domain estimation.
-    
+
     Parameters
     ----------
     data : pl.DataFrame
@@ -289,7 +300,7 @@ def calculate_domain_variance(
         Response variable column
     weight_col : str
         Expansion factor column
-        
+
     Returns
     -------
     pl.DataFrame
@@ -297,59 +308,63 @@ def calculate_domain_variance(
     """
     # Filter to domain
     domain_data = data.filter(pl.col(domain_col) == 1)
-    
+
     # Calculate domain statistics
-    domain_stats = domain_data.agg([
-        pl.count().alias("n_domain"),
-        (pl.col(response_col) * pl.col(weight_col)).sum().alias("total_domain"),
-        ((pl.col(response_col) * pl.col(weight_col)) ** 2).sum().alias("sum_sq"),
-        pl.col(weight_col).sum().alias("total_weight")
-    ])
-    
+    domain_stats = domain_data.agg(
+        [
+            pl.count().alias("n_domain"),
+            (pl.col(response_col) * pl.col(weight_col)).sum().alias("total_domain"),
+            ((pl.col(response_col) * pl.col(weight_col)) ** 2).sum().alias("sum_sq"),
+            pl.col(weight_col).sum().alias("total_weight"),
+        ]
+    )
+
     n = domain_stats["n_domain"][0]
     if n > 1:
         # Calculate variance using standard formula
         mean = domain_stats["total_domain"][0] / domain_stats["total_weight"][0]
-        variance = (domain_stats["sum_sq"][0] - n * mean ** 2) / (n - 1)
+        variance = (domain_stats["sum_sq"][0] - n * mean**2) / (n - 1)
     else:
         variance = 0
-    
-    return pl.DataFrame({
-        "DOMAIN": [domain_col],
-        "ESTIMATE": [domain_stats["total_domain"][0]],
-        "VARIANCE": [variance],
-        "SE": [variance ** 0.5]
-    })
+
+    return pl.DataFrame(
+        {
+            "DOMAIN": [domain_col],
+            "ESTIMATE": [domain_stats["total_domain"][0]],
+            "VARIANCE": [variance],
+            "SE": [variance**0.5],
+        }
+    )
 
 
 class VarianceCalculator:
     """
     Simple variance calculator for FIA estimates.
-    
+
     This replaces the complex variance calculation system with a
     straightforward implementation.
     """
-    
+
     def __init__(self, method: str = "ratio_of_means"):
         """
         Initialize calculator.
-        
+
         Parameters
         ----------
         method : str
             Variance calculation method
         """
         self.method = method
-    
+
     def calculate(
         self,
         data: pl.DataFrame,
         response_col: str,
-        group_cols: Optional[List[str]] = None
+        group_cols: Optional[List[str]] = None,
     ) -> pl.DataFrame:
         """
         Calculate variance for grouped estimates.
-        
+
         Parameters
         ----------
         data : pl.DataFrame
@@ -358,7 +373,7 @@ class VarianceCalculator:
             Response variable column
         group_cols : Optional[List[str]]
             Grouping columns
-            
+
         Returns
         -------
         pl.DataFrame
@@ -375,40 +390,36 @@ class VarianceCalculator:
                         pl.lit(group[col][0]).alias(col)
                     )
                 results.append(group_result)
-            
+
             return pl.concat(results)
         else:
             # Calculate for entire dataset
             return self._calculate_single_group(data, response_col)
-    
+
     def _calculate_single_group(
-        self,
-        data: pl.DataFrame,
-        response_col: str
+        self, data: pl.DataFrame, response_col: str
     ) -> pl.DataFrame:
         """Calculate variance for a single group."""
         if self.method == "ratio_of_means":
             return calculate_ratio_of_means_variance(
                 data,
                 response_col,
-                area_col="AREA_USED" if "AREA_USED" in data.columns else "CONDPROP_UNADJ"
+                area_col="AREA_USED"
+                if "AREA_USED" in data.columns
+                else "CONDPROP_UNADJ",
             )
         elif self.method == "post_stratified":
             variance = calculate_post_stratified_variance(data, response_col)
             estimate = data[response_col].sum()
-            se = variance ** 0.5
-            return pl.DataFrame({
-                "ESTIMATE": [estimate],
-                "VARIANCE": [variance],
-                "SE": [se]
-            })
+            se = variance**0.5
+            return pl.DataFrame(
+                {"ESTIMATE": [estimate], "VARIANCE": [variance], "SE": [se]}
+            )
         else:
             # Simple variance calculation
             estimate = data[response_col].mean()
             variance = data[response_col].var(ddof=1)
-            se = variance ** 0.5 if variance else 0
-            return pl.DataFrame({
-                "ESTIMATE": [estimate],
-                "VARIANCE": [variance],
-                "SE": [se]
-            })
+            se = variance**0.5 if variance else 0
+            return pl.DataFrame(
+                {"ESTIMATE": [estimate], "VARIANCE": [variance], "SE": [se]}
+            )

@@ -6,7 +6,7 @@ for FIA data without unnecessary abstraction layers.
 
 Main API Functions:
 - area(): Estimate forest area
-- volume(): Estimate tree volume  
+- volume(): Estimate tree volume
 - biomass(): Estimate tree biomass and carbon
 - tpa(): Estimate trees per acre and basal area
 - mortality(): Estimate tree mortality
@@ -19,42 +19,23 @@ All functions follow a consistent pattern:
 """
 
 # Import base components
-from .base import BaseEstimator
-from .config import EstimatorConfig, VolumeConfig, BiomassConfig, MortalityConfig, create_config
-
 # Import utilities
 from .aggregation import (
-    aggregate_to_population,
     aggregate_by_domain,
     aggregate_plot_level,
-    merge_stratification
+    aggregate_to_population,
+    merge_stratification,
 )
-
-from .statistics import (
-    VarianceCalculator,
-    calculate_ratio_of_means_variance,
-    calculate_post_stratified_variance,
-    calculate_confidence_interval,
-    calculate_cv
-)
-
-from .utils import (
-    join_tables,
-    format_output_columns,
-    check_required_columns,
-    filter_most_recent_evalid
+from .base import BaseEstimator
+from .config import (
+    BiomassConfig,
+    EstimatorConfig,
+    MortalityConfig,
+    VolumeConfig,
+    create_config,
 )
 
 # Import estimator functions - THE MAIN PUBLIC API
-from .estimators import (
-    area,
-    biomass,
-    growth,
-    mortality,
-    tpa,
-    volume
-)
-
 # Import estimator classes for advanced usage
 from .estimators import (
     AreaEstimator,
@@ -62,8 +43,22 @@ from .estimators import (
     GrowthEstimator,
     MortalityEstimator,
     TPAEstimator,
-    VolumeEstimator
+    VolumeEstimator,
+    area,
+    biomass,
+    growth,
+    mortality,
+    tpa,
+    volume,
 )
+from .statistics import (
+    VarianceCalculator,
+    calculate_confidence_interval,
+    calculate_cv,
+    calculate_post_stratified_variance,
+    calculate_ratio_of_means_variance,
+)
+from .utils import format_output_columns
 
 __version__ = "2.0.0"  # Major version bump for simplified architecture
 
@@ -75,7 +70,6 @@ __all__ = [
     "mortality",
     "tpa",
     "volume",
-    
     # Estimator classes
     "AreaEstimator",
     "BiomassEstimator",
@@ -83,7 +77,6 @@ __all__ = [
     "MortalityEstimator",
     "TPAEstimator",
     "VolumeEstimator",
-    
     # Base components
     "BaseEstimator",
     "EstimatorConfig",
@@ -91,7 +84,6 @@ __all__ = [
     "BiomassConfig",
     "MortalityConfig",
     "create_config",
-    
     # Utilities (for advanced users)
     "aggregate_to_population",
     "aggregate_by_domain",
@@ -102,8 +94,5 @@ __all__ = [
     "calculate_post_stratified_variance",
     "calculate_confidence_interval",
     "calculate_cv",
-    "join_tables",
     "format_output_columns",
-    "check_required_columns",
-    "filter_most_recent_evalid",
 ]

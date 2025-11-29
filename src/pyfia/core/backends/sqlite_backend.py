@@ -336,7 +336,10 @@ class SQLiteBackend(DatabaseBackend):
                 if col in df.columns:
                     try:
                         df = df.with_columns(pl.col(col).cast(dtype))
-                    except:
+                    except (
+                        pl.exceptions.ComputeError,
+                        pl.exceptions.InvalidOperationError,
+                    ):
                         # Keep original type if cast fails
                         pass
 

@@ -28,64 +28,43 @@ class PyFIASettings(BaseSettings):
 
     # Database settings
     database_path: Path = Field(
-        default=Path("fia.duckdb"),
-        description="Path to FIA database"
+        default=Path("fia.duckdb"), description="Path to FIA database"
     )
     database_engine: str = Field(
-        default="duckdb",
-        description="Database engine (duckdb or sqlite)"
+        default="duckdb", description="Database engine (duckdb or sqlite)"
     )
 
     # Performance settings
     max_threads: int = Field(
-        default=4,
-        ge=1,
-        le=32,
-        description="Maximum threads for parallel processing"
+        default=4, ge=1, le=32, description="Maximum threads for parallel processing"
     )
     chunk_size: int = Field(
-        default=10000,
-        ge=1000,
-        description="Chunk size for batch processing"
+        default=10000, ge=1000, description="Chunk size for batch processing"
     )
 
     # Cache settings
-    cache_enabled: bool = Field(
-        default=True,
-        description="Enable caching"
-    )
+    cache_enabled: bool = Field(default=True, description="Enable caching")
     cache_dir: Path = Field(
-        default=Path.home() / ".pyfia" / "cache",
-        description="Cache directory"
+        default=Path.home() / ".pyfia" / "cache", description="Cache directory"
     )
 
     # Logging settings
-    log_level: str = Field(
-        default="CRITICAL",
-        description="Logging level"
-    )
+    log_level: str = Field(default="CRITICAL", description="Logging level")
     log_dir: Path = Field(
-        default=Path.home() / ".pyfia" / "logs",
-        description="Log directory"
+        default=Path.home() / ".pyfia" / "logs", description="Log directory"
     )
 
     # CLI settings
     cli_page_size: int = Field(
-        default=20,
-        ge=5,
-        le=100,
-        description="Number of rows to display in CLI"
+        default=20, ge=5, le=100, description="Number of rows to display in CLI"
     )
     cli_max_width: int = Field(
-        default=120,
-        ge=80,
-        description="Maximum width for CLI output"
+        default=120, ge=80, description="Maximum width for CLI output"
     )
 
     # Type checking settings
     type_check_on_load: bool = Field(
-        default=False,
-        description="Run type checks when loading data"
+        default=False, description="Run type checks when loading data"
     )
 
     @field_validator("database_engine")

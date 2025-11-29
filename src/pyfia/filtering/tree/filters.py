@@ -9,12 +9,12 @@ from typing import Optional
 
 import polars as pl
 
-from ..core.parser import DomainExpressionParser
 from ...constants import (
     DiameterBreakpoints,
     TreeClass,
     TreeStatus,
 )
+from ..core.parser import DomainExpressionParser
 
 
 def apply_tree_filters(
@@ -123,6 +123,8 @@ def apply_tree_filters(
 
     # Apply user-defined tree domain
     if tree_domain:
-        tree_df = DomainExpressionParser.apply_to_dataframe(tree_df, tree_domain, "tree")
+        tree_df = DomainExpressionParser.apply_to_dataframe(
+            tree_df, tree_domain, "tree"
+        )
 
     return tree_df

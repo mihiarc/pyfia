@@ -5,9 +5,9 @@ EVALIDs encode state, year, and evaluation type in a 6-digit format: SSYYTT
 This module provides utilities for correctly parsing and comparing EVALIDs.
 """
 
+import warnings
 from dataclasses import dataclass
 from typing import List, Optional, Union
-import warnings
 
 
 @dataclass
@@ -31,9 +31,11 @@ class ParsedEvalid:
 
     def __eq__(self, other: "ParsedEvalid") -> bool:
         """Check equality based on all components."""
-        return (self.state_code == other.state_code and
-                self.year_4digit == other.year_4digit and
-                self.eval_type == other.eval_type)
+        return (
+            self.state_code == other.state_code
+            and self.year_4digit == other.year_4digit
+            and self.eval_type == other.eval_type
+        )
 
 
 def parse_evalid(evalid: Union[int, str]) -> ParsedEvalid:
@@ -112,13 +114,12 @@ def parse_evalid(evalid: Union[int, str]) -> ParsedEvalid:
         state_code=state_code,
         year_2digit=year_2digit,
         year_4digit=year_4digit,
-        eval_type=eval_type
+        eval_type=eval_type,
     )
 
 
 def sort_evalids_by_year(
-    evalids: List[Union[int, str]],
-    descending: bool = True
+    evalids: List[Union[int, str]], descending: bool = True
 ) -> List[int]:
     """
     Sort EVALIDs by actual year (not numeric value).
@@ -155,7 +156,7 @@ def sort_evalids_by_year(
 def get_most_recent_evalid(
     evalids: List[Union[int, str]],
     state_code: Optional[int] = None,
-    eval_type: Optional[int] = None
+    eval_type: Optional[int] = None,
 ) -> Optional[int]:
     """
     Get the most recent EVALID from a list, optionally filtered.
@@ -262,20 +263,19 @@ def format_evalid_description(evalid: Union[int, str]) -> str:
     # Import constants if available, otherwise use fallback
     try:
         from ..constants import StateCodes
+
         state_name = StateCodes.CODE_TO_NAME.get(
-            parsed.state_code,
-            f"State {parsed.state_code}"
+            parsed.state_code, f"State {parsed.state_code}"
         )
     except ImportError:
         # Fallback if constants not available
         state_names = {
-            1: "Alabama", 13: "Georgia", 48: "Texas",
+            1: "Alabama",
+            13: "Georgia",
+            48: "Texas",
             # Add more as needed
         }
-        state_name = state_names.get(
-            parsed.state_code,
-            f"State {parsed.state_code}"
-        )
+        state_name = state_names.get(parsed.state_code, f"State {parsed.state_code}")
 
     # Format evaluation type
     eval_type_names = {
@@ -286,10 +286,7 @@ def format_evalid_description(evalid: Union[int, str]) -> str:
         9: "Growth",
     }
 
-    type_desc = eval_type_names.get(
-        parsed.eval_type,
-        f"Type {parsed.eval_type:02d}"
-    )
+    type_desc = eval_type_names.get(parsed.eval_type, f"Type {parsed.eval_type:02d}")
 
     return f"{state_name} {parsed.year_4digit} ({type_desc})"
 
@@ -313,22 +310,29 @@ def add_parsed_evalid_columns(df):
     """
     import polars as pl
 
-    return df.with_columns([
-        # Extract year with proper interpretation
-        pl.when(
-            pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32) <= 30
-        ).then(
-            2000 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
-        ).otherwise(
-            1900 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
-        ).alias("EVALID_YEAR"),
-
-        # Extract state code
-        pl.col("EVALID").cast(pl.Utf8).str.slice(0, 2).cast(pl.Int32).alias("EVALID_STATE"),
-
-        # Extract evaluation type
-        pl.col("EVALID").cast(pl.Utf8).str.slice(4, 2).cast(pl.Int32).alias("EVALID_TYPE"),
-    ])
+    return df.with_columns(
+        [
+            # Extract year with proper interpretation
+            pl.when(pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32) <= 30)
+            .then(2000 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32))
+            .otherwise(
+                1900 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
+            )
+            .alias("EVALID_YEAR"),
+            # Extract state code
+            pl.col("EVALID")
+            .cast(pl.Utf8)
+            .str.slice(0, 2)
+            .cast(pl.Int32)
+            .alias("EVALID_STATE"),
+            # Extract evaluation type
+            pl.col("EVALID")
+            .cast(pl.Utf8)
+            .str.slice(4, 2)
+            .cast(pl.Int32)
+            .alias("EVALID_TYPE"),
+        ]
+    )
 
 
 def filter_most_recent_by_group(df, group_cols=None):
@@ -348,7 +352,6 @@ def filter_most_recent_by_group(df, group_cols=None):
     polars.DataFrame or polars.LazyFrame
         Filtered DataFrame with most recent EVALIDs
     """
-    import polars as pl
 
     # Add parsed year column
     df_with_year = add_parsed_evalid_columns(df)
@@ -356,9 +359,10 @@ def filter_most_recent_by_group(df, group_cols=None):
     if group_cols:
         # Sort by group and year (descending), then take first per group
         return (
-            df_with_year
-            .sort(group_cols + ["EVALID_YEAR", "EVALID"],
-                  descending=[False] * len(group_cols) + [True, False])
+            df_with_year.sort(
+                group_cols + ["EVALID_YEAR", "EVALID"],
+                descending=[False] * len(group_cols) + [True, False],
+            )
             .group_by(group_cols)
             .first()
             .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
@@ -366,8 +370,7 @@ def filter_most_recent_by_group(df, group_cols=None):
     else:
         # Just get the single most recent
         return (
-            df_with_year
-            .sort(["EVALID_YEAR", "EVALID"], descending=[True, False])
+            df_with_year.sort(["EVALID_YEAR", "EVALID"], descending=[True, False])
             .head(1)
             .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
         )

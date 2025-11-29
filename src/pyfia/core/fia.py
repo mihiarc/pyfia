@@ -87,7 +87,7 @@ class FIA:
             table_name,
             columns=columns,
             where=where_clause,
-            lazy=True  # Keep as lazy for memory efficiency
+            lazy=True,  # Keep as lazy for memory efficiency
         )
 
         # Store as lazy frame
@@ -185,17 +185,28 @@ class FIA:
                     )
                     # Sort using parsed year for robust chronological ordering
                     df_texas = (
-                        df_texas.sort(["EVAL_TYP", "IS_FULL_STATE", "EVALID_YEAR", "EVALID_TYPE"],
-                                     descending=[False, True, True, False])
+                        df_texas.sort(
+                            ["EVAL_TYP", "IS_FULL_STATE", "EVALID_YEAR", "EVALID_TYPE"],
+                            descending=[False, True, True, False],
+                        )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
-                        .drop(["IS_FULL_STATE", "EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
+                        .drop(
+                            [
+                                "IS_FULL_STATE",
+                                "EVALID_YEAR",
+                                "EVALID_STATE",
+                                "EVALID_TYPE",
+                            ]
+                        )
                     )
                 else:
                     # Fallback if LOCATION_NM not available - use parsed year
                     df_texas = (
-                        df_texas.sort(["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
-                                     descending=[False, False, True, False])
+                        df_texas.sort(
+                            ["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
+                            descending=[False, False, True, False],
+                        )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
                         .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
@@ -204,20 +215,22 @@ class FIA:
             # For other states, use robust year sorting
             if not df_other.is_empty():
                 df_other = (
-                    df_other.sort(["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
-                                 descending=[False, False, True, False])
+                    df_other.sort(
+                        ["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
+                        descending=[False, False, True, False],
+                    )
                     .group_by(["STATECD", "EVAL_TYP"])
                     .first()
                     .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
                 )
-            
+
             # Combine Texas and other states
             df_list = []
             if not df_texas.is_empty():
                 df_list.append(df_texas)
             if not df_other.is_empty():
                 df_list.append(df_other)
-            
+
             if df_list:
                 df = pl.concat(df_list)
 
@@ -245,8 +258,12 @@ class FIA:
         self.evalid = evalid
         return self
 
-    def clip_by_state(self, state: Union[int, List[int]], most_recent: bool = True, 
-                      eval_type: Optional[str] = "ALL") -> "FIA":
+    def clip_by_state(
+        self,
+        state: Union[int, List[int]],
+        most_recent: bool = True,
+        eval_type: Optional[str] = "ALL",
+    ) -> "FIA":
         """
         Filter FIA data by state code(s).
 
@@ -258,7 +275,7 @@ class FIA:
         Args:
             state: Single state FIPS code or list of codes
             most_recent: If True, use only most recent evaluations
-            eval_type: Evaluation type to use. Default "ALL" for EXPALL which is 
+            eval_type: Evaluation type to use. Default "ALL" for EXPALL which is
                       appropriate for area estimation. Use None to get all types.
 
         Returns:
@@ -272,7 +289,9 @@ class FIA:
         # Find EVALIDs for proper statistical grouping
         if eval_type is not None:
             # Get specific evaluation type (e.g., "ALL" for EXPALL)
-            evalids = self.find_evalid(state=state, most_recent=most_recent, eval_type=eval_type)
+            evalids = self.find_evalid(
+                state=state, most_recent=most_recent, eval_type=eval_type
+            )
             if evalids:
                 # Use only the first EVALID to ensure single evaluation
                 self.clip_by_evalid([evalids[0]] if len(evalids) > 1 else evalids)
@@ -296,17 +315,17 @@ class FIA:
         """
         self.most_recent = True
         # Include state filter if it exists
-        state_filter = getattr(self, 'state_filter', None)
+        state_filter = getattr(self, "state_filter", None)
         evalids = self.find_evalid(
-            most_recent=True, 
+            most_recent=True,
             eval_type=eval_type,
-            state=state_filter  # Pass state filter to find_evalid
+            state=state_filter,  # Pass state filter to find_evalid
         )
 
         if not evalids:
             warnings.warn(f"No evaluations found for type {eval_type}")
             return self
-        
+
         # When most_recent is True, we get one EVALID per state
         # This is correct - we want the most recent evaluation for EACH state
         return self.clip_by_evalid(evalids)
@@ -333,7 +352,7 @@ class FIA:
                 "POP_PLOT_STRATUM_ASSGN",
                 columns=["PLT_CN", "STRATUM_CN", "EVALID"],
                 where=f"EVALID IN ({evalid_str})",
-                lazy=True
+                lazy=True,
             )
 
             # Filter plots to those in the evaluation
@@ -341,7 +360,7 @@ class FIA:
                 ppsa.select(["PLT_CN", "EVALID"]).unique(),
                 left_on="CN",
                 right_on="PLT_CN",
-                how="inner"
+                how="inner",
             )
         else:
             plots = self.tables["PLOT"]
@@ -383,7 +402,7 @@ class FIA:
                     "POP_PLOT_STRATUM_ASSGN",
                     columns=["PLT_CN"],
                     where=f"EVALID IN ({evalid_str})",
-                    lazy=True
+                    lazy=True,
                 ).unique()
                 plot_query = plot_query.join(
                     ppsa, left_on="CN", right_on="PLT_CN", how="inner"
@@ -391,10 +410,7 @@ class FIA:
 
             # Filter trees to those plots
             trees = self.tables["TREE"].join(
-                plot_query.select("CN"),
-                left_on="PLT_CN",
-                right_on="CN",
-                how="inner"
+                plot_query.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
             )
         else:
             trees = self.tables["TREE"]
@@ -429,7 +445,7 @@ class FIA:
                     "POP_PLOT_STRATUM_ASSGN",
                     columns=["PLT_CN"],
                     where=f"EVALID IN ({evalid_str})",
-                    lazy=True
+                    lazy=True,
                 ).unique()
                 plot_query = plot_query.join(
                     ppsa, left_on="CN", right_on="PLT_CN", how="inner"
@@ -437,10 +453,7 @@ class FIA:
 
             # Filter conditions to those plots
             conds = self.tables["COND"].join(
-                plot_query.select("CN"),
-                left_on="PLT_CN",
-                right_on="CN",
-                how="inner"
+                plot_query.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
             )
         else:
             conds = self.tables["COND"]
@@ -458,8 +471,8 @@ class FIA:
         target_path: Union[str, Path],
         state_code: Optional[int] = None,
         config: Optional[Dict] = None,
-        **kwargs
-    ) -> "ConversionResult":
+        **kwargs,
+    ) -> Dict[str, int]:
         """
         Convert a SQLite FIA database to DuckDB format.
 
@@ -467,39 +480,23 @@ class FIA:
             source_path: Path to source SQLite database
             target_path: Path to target DuckDB database
             state_code: Optional FIPS state code (auto-detected if not provided)
-            config: Optional configuration dict or ConverterConfig object
-            **kwargs: Additional configuration parameters
+            config: Optional configuration dict (unused, kept for compatibility)
+            **kwargs: Additional keyword arguments (show_progress, tables)
 
         Returns:
-            ConversionResult with conversion details
+            Dict mapping table names to row counts
 
         Example:
             result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb")
         """
-        from ..converter import FIAConverter, ConverterConfig
-        
-        # Build configuration
-        if config is None:
-            config = {}
-        
-        # Merge kwargs into config if it's a dict
-        if isinstance(config, dict):
-            config.update(kwargs)
-            # Create ConverterConfig from dict
-            source_path = Path(source_path)
-            converter_config = ConverterConfig(
-                source_dir=source_path.parent,
-                target_path=Path(target_path),
-                **config
-            )
-        else:
-            converter_config = config
-        
-        # Create converter and perform conversion
-        converter = FIAConverter(converter_config)
-        result = converter.convert_state(Path(source_path), state_code, Path(target_path))
-        
-        return result
+        from ..converter import convert_sqlite_to_duckdb
+
+        return convert_sqlite_to_duckdb(
+            source_path=Path(source_path),
+            target_path=Path(target_path),
+            state_code=state_code,
+            **kwargs,
+        )
 
     @classmethod
     def merge_states(
@@ -508,96 +505,77 @@ class FIA:
         target_path: Union[str, Path],
         state_codes: Optional[List[int]] = None,
         config: Optional[Dict] = None,
-        **kwargs
-    ) -> "ConversionResult":
+        **kwargs,
+    ) -> Dict[str, Dict[str, int]]:
         """
         Merge multiple state SQLite databases into a single DuckDB database.
 
         Args:
             source_paths: List of paths to source SQLite databases
             target_path: Path to target DuckDB database
-            state_codes: Optional list of state codes to include
-            config: Optional configuration dict or ConverterConfig object
-            **kwargs: Additional configuration parameters
+            state_codes: List of state FIPS codes (required, one per source path)
+            config: Optional configuration dict (unused, kept for compatibility)
+            **kwargs: Additional keyword arguments (tables, show_progress)
 
         Returns:
-            ConversionResult with merge details
+            Nested dict: {state_code: {table_name: row_count}}
 
         Example:
             result = FIA.merge_states(
                 ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
-                "pacific_states.duckdb"
+                "pacific_states.duckdb",
+                [41, 53, 6]
             )
         """
-        from ..converter import FIAConverter, ConverterConfig
-        
-        # Build configuration
-        if config is None:
-            config = {}
-        
-        # Merge kwargs into config if it's a dict
-        if isinstance(config, dict):
-            config.update(kwargs)
-            # Determine source directory from first path
-            source_paths = [Path(p) for p in source_paths]
-            converter_config = ConverterConfig(
-                source_dir=source_paths[0].parent,
-                target_path=Path(target_path),
-                include_states=state_codes,
-                **config
-            )
-        else:
-            converter_config = config
-        
-        # Create converter and perform merge
-        converter = FIAConverter(converter_config)
-        result = converter.merge_states(source_paths, Path(target_path))
-        
-        return result
+        from ..converter import merge_states as converter_merge_states
+
+        if state_codes is None:
+            raise ValueError("state_codes is required for merge_states")
+
+        source_paths_converted = [Path(p) for p in source_paths]
+
+        return converter_merge_states(
+            source_paths=source_paths_converted,
+            state_codes=state_codes,
+            target_path=Path(target_path),
+            **kwargs,
+        )
 
     def append_data(
         self,
         source_path: Union[str, Path],
-        state_code: Optional[int] = None,
+        state_code: int,
         dedupe: bool = False,
         dedupe_keys: Optional[List[str]] = None,
-        **kwargs
-    ) -> "ConversionResult":
+        **kwargs,
+    ) -> Dict[str, int]:
         """
         Append data from a SQLite database to this DuckDB database.
 
         Args:
             source_path: Path to source SQLite database
-            state_code: Optional FIPS state code (auto-detected if not provided)
+            state_code: FIPS state code (required)
             dedupe: Whether to remove duplicate records
             dedupe_keys: Column names to use for deduplication
-            **kwargs: Additional configuration parameters
+            **kwargs: Additional keyword arguments (show_progress)
 
         Returns:
-            ConversionResult with append details
+            Dict mapping table names to row counts
 
         Example:
             with FIA("oregon.duckdb") as db:
-                result = db.append_data("OR_FIA_update.db", dedupe=True)
+                result = db.append_data("OR_FIA_update.db", state_code=41, dedupe=True)
         """
-        from ..converter import FIAConverter, ConverterConfig
-        
-        # Build configuration for append mode
-        source_path = Path(source_path)
-        converter_config = ConverterConfig(
-            source_dir=source_path.parent,
+        from ..converter import append_state
+
+        return append_state(
+            source_path=Path(source_path),
             target_path=self.db_path,
-            append_mode=True,
-            dedupe_on_append=dedupe,
+            state_code=state_code,
+            dedupe=dedupe,
             dedupe_keys=dedupe_keys,
-            **kwargs
+            **kwargs,
         )
-        
-        # Create converter and perform append
-        converter = FIAConverter(converter_config)
-        result = converter.convert_state(source_path, state_code, self.db_path)
-        
-        return result
 
     def prepare_estimation_data(self) -> Dict[str, pl.DataFrame]:
         """

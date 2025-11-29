@@ -17,6 +17,7 @@ accurate expansion from sample plots to population estimates.
 """
 
 from typing import Optional, Union
+
 import polars as pl
 
 
@@ -25,14 +26,14 @@ def get_adjustment_factor_expr(
     macro_breakpoint_col: str = "MACRO_BREAKPOINT_DIA",
     adj_factor_micr_col: str = "ADJ_FACTOR_MICR",
     adj_factor_subp_col: str = "ADJ_FACTOR_SUBP",
-    adj_factor_macr_col: str = "ADJ_FACTOR_MACR"
+    adj_factor_macr_col: str = "ADJ_FACTOR_MACR",
 ) -> pl.Expr:
     """
     Get Polars expression for tree adjustment factor selection.
-    
+
     This is the CORE LOGIC for FIA tree expansion. It determines which
     adjustment factor to use based on tree diameter and plot design.
-    
+
     Parameters
     ----------
     size_col : str
@@ -45,12 +46,12 @@ def get_adjustment_factor_expr(
         Column name for subplot adjustment factor
     adj_factor_macr_col : str
         Column name for macroplot adjustment factor
-        
+
     Returns
     -------
     pl.Expr
         Polars expression that selects the appropriate adjustment factor
-        
+
     Notes
     -----
     The logic is:
@@ -58,7 +59,7 @@ def get_adjustment_factor_expr(
     2. Diameter < 5.0" → microplot factor
     3. 5.0" ≤ diameter < macro_breakpoint → subplot factor
     4. Diameter ≥ macro_breakpoint → macroplot factor
-    
+
     NULL or missing MACRO_BREAKPOINT_DIA is treated as 9999 (no macroplot).
     """
     return (
@@ -76,14 +77,14 @@ def apply_tree_adjustment_factors(
     data: Union[pl.DataFrame, pl.LazyFrame],
     size_col: str = "DIA",
     macro_breakpoint_col: str = "MACRO_BREAKPOINT_DIA",
-    output_col: str = "ADJ_FACTOR"
+    output_col: str = "ADJ_FACTOR",
 ) -> Union[pl.DataFrame, pl.LazyFrame]:
     """
     Apply tree adjustment factors to a dataframe.
-    
+
     This function adds the appropriate adjustment factor column based on
     tree diameter and plot design. This is REQUIRED for accurate tree expansion.
-    
+
     Parameters
     ----------
     data : Union[pl.DataFrame, pl.LazyFrame]
@@ -94,17 +95,17 @@ def apply_tree_adjustment_factors(
         Column name for macroplot breakpoint diameter
     output_col : str
         Name for the output adjustment factor column
-        
+
     Returns
     -------
     Union[pl.DataFrame, pl.LazyFrame]
         Data with adjustment factor column added
-        
+
     Raises
     ------
     ValueError
         If required columns are missing
-        
+
     Example
     -------
     >>> # Apply adjustment factors to tree data
@@ -119,13 +120,8 @@ def apply_tree_adjustment_factors(
     ... )
     """
     # Validate required columns
-    required_cols = [
-        size_col,
-        "ADJ_FACTOR_MICR",
-        "ADJ_FACTOR_SUBP",
-        "ADJ_FACTOR_MACR"
-    ]
-    
+    required_cols = [size_col, "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]
+
     # Check for missing columns using lazy frame schema
     if isinstance(data, pl.LazyFrame):
         available_cols = data.collect_schema().names()
@@ -137,39 +133,39 @@ def apply_tree_adjustment_factors(
             f"Missing required columns for tree adjustment: {missing_cols}\n"
             f"These columns must be present from joining TREE, POP_STRATUM, and PLOT tables."
         )
-    
+
     # Warn if MACRO_BREAKPOINT_DIA is missing
     if macro_breakpoint_col not in data.columns:
         import warnings
+
         warnings.warn(
             f"Column '{macro_breakpoint_col}' not found. "
             "Large tree estimates may be incorrect. "
             "Join with PLOT table to include macroplot breakpoint diameter.",
-            UserWarning
+            UserWarning,
         )
         # Add a column with default value
         data = data.with_columns(pl.lit(9999).alias(macro_breakpoint_col))
-    
+
     # Apply adjustment factor logic
     adj_expr = get_adjustment_factor_expr(
-        size_col=size_col,
-        macro_breakpoint_col=macro_breakpoint_col
+        size_col=size_col, macro_breakpoint_col=macro_breakpoint_col
     ).alias(output_col)
-    
+
     return data.with_columns(adj_expr)
 
 
 def get_tree_adjustment_sql(
     tree_alias: str = "TREE",
     plot_alias: str = "PLOT",
-    stratum_alias: str = "POP_STRATUM"
+    stratum_alias: str = "POP_STRATUM",
 ) -> str:
     """
     Get SQL CASE expression for tree adjustment factor selection.
-    
+
     This returns the EXACT SQL logic needed for proper tree expansion
     in direct SQL queries. This must be used for ALL tree-based SQL queries.
-    
+
     Parameters
     ----------
     tree_alias : str
@@ -178,12 +174,12 @@ def get_tree_adjustment_sql(
         Table alias for PLOT table
     stratum_alias : str
         Table alias for POP_STRATUM table
-        
+
     Returns
     -------
     str
         SQL CASE expression for adjustment factor
-        
+
     Example
     -------
     >>> sql = f'''
@@ -196,7 +192,7 @@ def get_tree_adjustment_sql(
     ... JOIN TREE ON ...
     ... WHERE TREE.STATUSCD = 1
     ... '''
-    
+
     Notes
     -----
     The SQL query must include these tables/columns:
@@ -207,12 +203,12 @@ def get_tree_adjustment_sql(
     - POP_STRATUM.ADJ_FACTOR_MACR: Macroplot adjustment
     """
     return f"""
-    CASE 
+    CASE
         WHEN {tree_alias}.DIA IS NULL THEN {stratum_alias}.ADJ_FACTOR_SUBP
-        ELSE 
-            CASE 
+        ELSE
+            CASE
                 WHEN {tree_alias}.DIA < 5.0 THEN {stratum_alias}.ADJ_FACTOR_MICR
-                WHEN {tree_alias}.DIA < COALESCE({plot_alias}.MACRO_BREAKPOINT_DIA, 9999) 
+                WHEN {tree_alias}.DIA < COALESCE({plot_alias}.MACRO_BREAKPOINT_DIA, 9999)
                     THEN {stratum_alias}.ADJ_FACTOR_SUBP
                 ELSE {stratum_alias}.ADJ_FACTOR_MACR
             END
@@ -227,14 +223,14 @@ def calculate_expanded_trees(
     adj_factor_subp: float,
     adj_factor_macr: float,
     expns: float,
-    macro_breakpoint: Optional[float] = None
+    macro_breakpoint: Optional[float] = None,
 ) -> float:
     """
     Calculate expanded tree count for a single tree record.
-    
+
     This function demonstrates the complete expansion calculation
     from a single tree observation to population estimate.
-    
+
     Parameters
     ----------
     tpa_unadj : float
@@ -251,12 +247,12 @@ def calculate_expanded_trees(
         Expansion factor to total acres (from POP_STRATUM.EXPNS)
     macro_breakpoint : Optional[float]
         Macroplot breakpoint diameter (from PLOT.MACRO_BREAKPOINT_DIA)
-        
+
     Returns
     -------
     float
         Expanded tree count (number of trees this sample represents)
-        
+
     Example
     -------
     >>> # A 6-inch tree on a plot
@@ -280,7 +276,7 @@ def calculate_expanded_trees(
         adj_factor = adj_factor_subp
     else:
         adj_factor = adj_factor_macr
-    
+
     # Calculate expanded tree count
     return tpa_unadj * adj_factor * expns
 
@@ -288,14 +284,14 @@ def calculate_expanded_trees(
 def get_area_adjustment_factor_expr(
     prop_basis_col: str = "PROP_BASIS",
     adj_factor_subp_col: str = "ADJ_FACTOR_SUBP",
-    adj_factor_macr_col: str = "ADJ_FACTOR_MACR"
+    adj_factor_macr_col: str = "ADJ_FACTOR_MACR",
 ) -> pl.Expr:
     """
     Get Polars expression for area adjustment factor selection.
-    
+
     Area expansion uses PROP_BASIS from COND table to determine adjustment factor.
     This is different from tree expansion which uses diameter classes.
-    
+
     Parameters
     ----------
     prop_basis_col : str
@@ -304,18 +300,18 @@ def get_area_adjustment_factor_expr(
         Column name for subplot adjustment factor
     adj_factor_macr_col : str
         Column name for macroplot adjustment factor
-        
+
     Returns
     -------
     pl.Expr
         Polars expression that selects the appropriate adjustment factor
-        
+
     Notes
     -----
     The logic is:
     1. PROP_BASIS = 'MACR' → macroplot factor
     2. Otherwise → subplot factor (default)
-    
+
     This matches the FIA area estimation methodology where conditions are
     classified as either macroplot-based or subplot-based.
     """
@@ -329,14 +325,14 @@ def get_area_adjustment_factor_expr(
 def apply_area_adjustment_factors(
     data: Union[pl.DataFrame, pl.LazyFrame],
     prop_basis_col: str = "PROP_BASIS",
-    output_col: str = "ADJ_FACTOR_AREA"
+    output_col: str = "ADJ_FACTOR_AREA",
 ) -> Union[pl.DataFrame, pl.LazyFrame]:
     """
     Apply area adjustment factors to a dataframe.
-    
+
     This function adds the appropriate adjustment factor column based on
     condition proportion basis. This is REQUIRED for accurate area expansion.
-    
+
     Parameters
     ----------
     data : Union[pl.DataFrame, pl.LazyFrame]
@@ -345,17 +341,17 @@ def apply_area_adjustment_factors(
         Column name for condition proportion basis
     output_col : str
         Name for the output adjustment factor column
-        
+
     Returns
     -------
     Union[pl.DataFrame, pl.LazyFrame]
         Data with area adjustment factor column added
-        
+
     Raises
     ------
     ValueError
         If required columns are missing
-        
+
     Example
     -------
     >>> # Apply adjustment factors to condition data
@@ -370,12 +366,8 @@ def apply_area_adjustment_factors(
     ... ])
     """
     # Validate required columns
-    required_cols = [
-        prop_basis_col,
-        "ADJ_FACTOR_SUBP", 
-        "ADJ_FACTOR_MACR"
-    ]
-    
+    required_cols = [prop_basis_col, "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR"]
+
     # Check for missing columns using lazy frame schema
     if isinstance(data, pl.LazyFrame):
         available_cols = data.collect_schema().names()
@@ -387,37 +379,36 @@ def apply_area_adjustment_factors(
             f"Missing required columns for area adjustment: {missing_cols}\\n"
             f"These columns must be present from joining COND, POP_STRATUM tables."
         )
-    
+
     # Apply adjustment factor logic
-    adj_expr = get_area_adjustment_factor_expr(
-        prop_basis_col=prop_basis_col
-    ).alias(output_col)
-    
+    adj_expr = get_area_adjustment_factor_expr(prop_basis_col=prop_basis_col).alias(
+        output_col
+    )
+
     return data.with_columns(adj_expr)
 
 
 def get_area_adjustment_sql(
-    cond_alias: str = "COND",
-    stratum_alias: str = "POP_STRATUM"
+    cond_alias: str = "COND", stratum_alias: str = "POP_STRATUM"
 ) -> str:
     """
     Get SQL CASE expression for area adjustment factor selection.
-    
+
     This returns the EXACT SQL logic needed for proper area expansion
     in direct SQL queries. This must be used for ALL area-based SQL queries.
-    
+
     Parameters
     ----------
     cond_alias : str
         Table alias for COND table
     stratum_alias : str
         Table alias for POP_STRATUM table
-        
+
     Returns
     -------
     str
         SQL CASE expression for area adjustment factor
-        
+
     Example
     -------
     >>> sql = f'''
@@ -430,7 +421,7 @@ def get_area_adjustment_sql(
     ... JOIN COND ON ...
     ... WHERE COND.COND_STATUS_CD = 1
     ... '''
-    
+
     Notes
     -----
     The SQL query must include these tables/columns:
@@ -451,14 +442,14 @@ def calculate_expanded_area(
     prop_basis: str,
     adj_factor_subp: float,
     adj_factor_macr: float,
-    expns: float
+    expns: float,
 ) -> float:
     """
     Calculate expanded area for a single condition record.
-    
+
     This function demonstrates the complete area expansion calculation
     from a single condition observation to population estimate.
-    
+
     Parameters
     ----------
     condprop_unadj : float
@@ -471,12 +462,12 @@ def calculate_expanded_area(
         Macroplot adjustment factor (from POP_STRATUM.ADJ_FACTOR_MACR)
     expns : float
         Expansion factor to total acres (from POP_STRATUM.EXPNS)
-        
+
     Returns
     -------
     float
         Expanded area (acres this condition represents)
-        
+
     Example
     -------
     >>> # A macroplot-based forestland condition
@@ -494,7 +485,7 @@ def calculate_expanded_area(
         adj_factor = adj_factor_macr
     else:
         adj_factor = adj_factor_subp
-    
+
     # Calculate expanded area
     return condprop_unadj * adj_factor * expns
 
@@ -502,20 +493,20 @@ def calculate_expanded_area(
 def validate_expansion_inputs(df: pl.DataFrame) -> dict:
     """
     Validate and report on tree expansion input data.
-    
+
     This function checks if all required columns are present and
     provides statistics on the adjustment factors and tree sizes.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
         DataFrame to validate
-        
+
     Returns
     -------
     dict
         Validation report with statistics
-        
+
     Example
     -------
     >>> report = validate_expansion_inputs(tree_data)
@@ -525,21 +516,24 @@ def validate_expansion_inputs(df: pl.DataFrame) -> dict:
     >>>     print(f"Missing columns: {report['missing_columns']}")
     """
     required_cols = [
-        "TPA_UNADJ", "DIA",
-        "ADJ_FACTOR_MICR", "ADJ_FACTOR_SUBP", "ADJ_FACTOR_MACR",
-        "EXPNS"
+        "TPA_UNADJ",
+        "DIA",
+        "ADJ_FACTOR_MICR",
+        "ADJ_FACTOR_SUBP",
+        "ADJ_FACTOR_MACR",
+        "EXPNS",
     ]
-    
+
     missing = [col for col in required_cols if col not in df.columns]
     has_macro = "MACRO_BREAKPOINT_DIA" in df.columns
-    
+
     report = {
         "is_valid": len(missing) == 0,
         "missing_columns": missing,
         "has_macro_breakpoint": has_macro,
         "n_rows": len(df),
     }
-    
+
     if report["is_valid"] and "DIA" in df.columns:
         # Add diameter statistics
         report["diameter_stats"] = {
@@ -547,28 +541,30 @@ def validate_expansion_inputs(df: pl.DataFrame) -> dict:
             "max": df["DIA"].max(),
             "mean": df["DIA"].mean(),
             "n_microplot": len(df.filter(pl.col("DIA") < 5.0)),
-            "n_subplot": len(df.filter((pl.col("DIA") >= 5.0) & (pl.col("DIA") < 20.0))),
-            "n_null": df["DIA"].null_count()
+            "n_subplot": len(
+                df.filter((pl.col("DIA") >= 5.0) & (pl.col("DIA") < 20.0))
+            ),
+            "n_null": df["DIA"].null_count(),
         }
-        
+
         if has_macro:
             report["macro_breakpoint_stats"] = {
                 "min": df["MACRO_BREAKPOINT_DIA"].min(),
                 "max": df["MACRO_BREAKPOINT_DIA"].max(),
                 "n_null": df["MACRO_BREAKPOINT_DIA"].null_count(),
-                "n_no_macro": len(df.filter(pl.col("MACRO_BREAKPOINT_DIA") >= 9999))
+                "n_no_macro": len(df.filter(pl.col("MACRO_BREAKPOINT_DIA") >= 9999)),
             }
-    
+
     return report
 
 
 # Standard query templates for reference
 TREE_COUNT_QUERY_TEMPLATE = """
 -- Standard FIA tree count query with proper expansion
-SELECT 
+SELECT
     SUM(
-        TREE.TPA_UNADJ * 
-        {tree_adjustment_factor} * 
+        TREE.TPA_UNADJ *
+        {tree_adjustment_factor} *
         POP_STRATUM.EXPNS
     ) as total_trees,
     COUNT(*) as sample_trees,
@@ -578,7 +574,7 @@ JOIN POP_PLOT_STRATUM_ASSGN ON (POP_PLOT_STRATUM_ASSGN.STRATUM_CN = POP_STRATUM.
 JOIN PLOT ON (POP_PLOT_STRATUM_ASSGN.PLT_CN = PLOT.CN)
 JOIN COND ON (COND.PLT_CN = PLOT.CN)
 JOIN TREE ON (TREE.PLT_CN = COND.PLT_CN AND TREE.CONDID = COND.CONDID)
-WHERE 
+WHERE
     TREE.STATUSCD = 1  -- Live trees
     AND COND.COND_STATUS_CD = 1  -- Forestland
     AND POP_STRATUM.EVALID = ?  -- Specific evaluation
@@ -586,10 +582,10 @@ WHERE
 
 AREA_QUERY_TEMPLATE = """
 -- Standard FIA area query with proper expansion
-SELECT 
+SELECT
     SUM(
-        COND.CONDPROP_UNADJ * 
-        {area_adjustment_factor} * 
+        COND.CONDPROP_UNADJ *
+        {area_adjustment_factor} *
         POP_STRATUM.EXPNS
     ) as total_area,
     COUNT(*) as sample_conditions,
@@ -598,7 +594,7 @@ FROM POP_STRATUM
 JOIN POP_PLOT_STRATUM_ASSGN ON (POP_PLOT_STRATUM_ASSGN.STRATUM_CN = POP_STRATUM.CN)
 JOIN PLOT ON (POP_PLOT_STRATUM_ASSGN.PLT_CN = PLOT.CN)
 JOIN COND ON (COND.PLT_CN = PLOT.CN)
-WHERE 
+WHERE
     COND.COND_STATUS_CD = 1  -- Forestland
     AND POP_STRATUM.EVALID = ?  -- Specific evaluation
 """
@@ -610,7 +606,7 @@ if __name__ == "__main__":
     print("=" * 60)
     print("\nThis module provides the CRITICAL logic for tree expansion")
     print("based on the FIA nested plot design.\n")
-    
+
     print("Key Functions:")
     print("-" * 40)
     print("1. get_adjustment_factor_expr() - Polars expression for adjustment factor")
@@ -618,32 +614,30 @@ if __name__ == "__main__":
     print("3. get_tree_adjustment_sql() - SQL CASE expression for queries")
     print("4. calculate_expanded_trees() - Example single tree calculation")
     print("5. validate_expansion_inputs() - Check data readiness")
-    
+
     print("\nExample SQL with proper expansion:")
     print("-" * 40)
     print("TREE EXPANSION:")
     tree_sql = TREE_COUNT_QUERY_TEMPLATE.replace(
-        "{tree_adjustment_factor}",
-        get_tree_adjustment_sql()
+        "{tree_adjustment_factor}", get_tree_adjustment_sql()
     )
     print(tree_sql)
-    
+
     print("\nAREA EXPANSION:")
     area_sql = AREA_QUERY_TEMPLATE.replace(
-        "{area_adjustment_factor}",
-        get_area_adjustment_sql()
+        "{area_adjustment_factor}", get_area_adjustment_sql()
     )
     print(area_sql)
-    
+
     print("\nCRITICAL Requirements:")
     print("-" * 40)
     print("✓ Always join PLOT table for MACRO_BREAKPOINT_DIA")
     print("✓ Always join POP_STRATUM for adjustment factors")
     print("✓ Use this module's functions for ALL tree expansions")
     print("✓ Handle NULL MACRO_BREAKPOINT_DIA as 9999")
-    
+
     print("\nNested Plot Design:")
     print("-" * 40)
-    print("• Microplot (6.8 ft): Trees 1.0\" - 4.9\" DBH")
-    print("• Subplot (24.0 ft): Trees ≥ 5.0\" DBH")
+    print('• Microplot (6.8 ft): Trees 1.0" - 4.9" DBH')
+    print('• Subplot (24.0 ft): Trees ≥ 5.0" DBH')
     print("• Macroplot (58.9 ft): Large trees above regional breakpoint")

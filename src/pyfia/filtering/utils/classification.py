@@ -358,16 +358,18 @@ def assign_species_group(
             .alias(output_column)
         )
     elif grouping_system == "genus":
-        species_groups = species_df.select([spcd_column, pl.col("GENUS").alias(output_column)])
+        species_groups = species_df.select(
+            [spcd_column, pl.col("GENUS").alias(output_column)]
+        )
     elif grouping_system == "family":
-        species_groups = species_df.select([spcd_column, pl.col("FAMILY").alias(output_column)])
+        species_groups = species_df.select(
+            [spcd_column, pl.col("FAMILY").alias(output_column)]
+        )
     else:
         raise ValueError(f"Unknown grouping_system: {grouping_system}")
 
     return tree_df.join(
-        species_groups.select([spcd_column, output_column]),
-        on=spcd_column,
-        how="left"
+        species_groups.select([spcd_column, output_column]), on=spcd_column, how="left"
     )
 
 
@@ -417,6 +419,8 @@ def validate_classification_columns(
     missing_columns = [col for col in required_columns if col not in df.columns]
 
     if missing_columns:
-        raise ValueError(f"Missing required columns for {classification_type}: {missing_columns}")
+        raise ValueError(
+            f"Missing required columns for {classification_type}: {missing_columns}"
+        )
 
     return True

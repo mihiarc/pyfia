@@ -12,6 +12,8 @@ import polars as pl
 from ...constants.constants import (
     DiameterBreakpoints,
 )
+
+
 def apply_adjustment_factors(
     df: pl.DataFrame,
     value_columns: "str | List[str]",
@@ -56,7 +58,9 @@ def apply_adjustment_factors(
             if factor_col in df.columns:
                 condition = pl.col(basis_column) == basis_value
                 # Ensure numeric types are float to avoid decimal type issues
-                value_expr = pl.col(col).cast(pl.Float64) * pl.col(factor_col).cast(pl.Float64)
+                value_expr = pl.col(col).cast(pl.Float64) * pl.col(factor_col).cast(
+                    pl.Float64
+                )
                 if conditional_expr is None:
                     conditional_expr = pl.when(condition).then(value_expr)
                 else:
@@ -66,11 +70,12 @@ def apply_adjustment_factors(
             adjusted_exprs.append(pl.col(col).alias(f"{col}_ADJ"))
         else:
             adjusted_exprs.append(
-                conditional_expr.otherwise(pl.col(col).cast(pl.Float64)).alias(f"{col}_ADJ")
+                conditional_expr.otherwise(pl.col(col).cast(pl.Float64)).alias(
+                    f"{col}_ADJ"
+                )
             )
 
     return df.with_columns(adjusted_exprs)
-
 
 
 def apply_tree_adjustment_factors(
@@ -133,7 +138,10 @@ def apply_tree_adjustment_factors(
         .then(pl.col(subp_factor_column))
         .when(pl.col(dia_column) < DiameterBreakpoints.MICROPLOT_MAX_DIA)
         .then(pl.col(micr_factor_column))
-        .when(pl.col(dia_column) < pl.coalesce(pl.col(macro_breakpoint_column), pl.lit(9999.0)))
+        .when(
+            pl.col(dia_column)
+            < pl.coalesce(pl.col(macro_breakpoint_column), pl.lit(9999.0))
+        )
         .then(pl.col(subp_factor_column))
         .otherwise(pl.col(macr_factor_column))
     )
@@ -233,17 +241,20 @@ def apply_tree_expansion_full(
 
     # Complete EVALIDator expansion formula
     expansion_expr = (
-        pl.col(value_column) *
-        (
+        pl.col(value_column)
+        * (
             pl.when(pl.col(dia_column).is_null())
             .then(pl.col(subp_factor_column))
             .when(pl.col(dia_column) < DiameterBreakpoints.MICROPLOT_MAX_DIA)
             .then(pl.col(micr_factor_column))
-            .when(pl.col(dia_column) < pl.coalesce(pl.col(macro_breakpoint_column), pl.lit(9999.0)))
+            .when(
+                pl.col(dia_column)
+                < pl.coalesce(pl.col(macro_breakpoint_column), pl.lit(9999.0))
+            )
             .then(pl.col(subp_factor_column))
             .otherwise(pl.col(macr_factor_column))
-        ) *
-        pl.col(expansion_column)
+        )
+        * pl.col(expansion_column)
     )
 
     return df.with_columns(expansion_expr.alias(output_column))
@@ -290,7 +301,10 @@ def get_adjustment_factor_column(
         .then(pl.col(subp_factor_column))
         .when(pl.col(dia_column) < DiameterBreakpoints.MICROPLOT_MAX_DIA)
         .then(pl.col(micr_factor_column))
-        .when(pl.col(dia_column) < pl.coalesce(pl.col(macro_breakpoint_column), pl.lit(9999.0)))
+        .when(
+            pl.col(dia_column)
+            < pl.coalesce(pl.col(macro_breakpoint_column), pl.lit(9999.0))
+        )
         .then(pl.col(subp_factor_column))
         .otherwise(pl.col(macr_factor_column))
     )
@@ -331,13 +345,13 @@ def validate_adjustment_columns(
             df,
             column_set="adjustment_basic",
             context="adjustment factors",
-            raise_on_missing=True
+            raise_on_missing=True,
         )
         is_valid_factors, _ = ColumnValidator.validate_columns(
             df,
             column_set="adjustment_factors",
             context="adjustment factors",
-            raise_on_missing=True
+            raise_on_missing=True,
         )
         return is_valid_basic and is_valid_factors
     else:
@@ -345,6 +359,6 @@ def validate_adjustment_columns(
             df,
             required_columns=required_columns,
             context="adjustment factors",
-            raise_on_missing=True
+            raise_on_missing=True,
         )
         return is_valid

@@ -6,17 +6,19 @@ abstraction layers or design patterns.
 """
 
 from enum import Enum
+
 import polars as pl
 
 from ...constants.constants import (
     LandStatus,
-    SiteClass,
     ReserveStatus,
+    SiteClass,
 )
 
 
 class LandTypeCategory(str, Enum):
     """Standard FIA land type categories."""
+
     TIMBER = "Timber"
     NON_TIMBER_FOREST = "Non-Timber Forest"
     NON_FOREST = "Non-Forest"
@@ -27,17 +29,17 @@ class LandTypeCategory(str, Enum):
 def get_land_domain_indicator(land_type: str) -> pl.Expr:
     """
     Get the domain indicator expression for a land type.
-    
+
     Parameters
     ----------
     land_type : str
         Type of land ("forest", "timber", or "all")
-        
+
     Returns
     -------
     pl.Expr
         Polars expression for the land domain indicator
-        
+
     Examples
     --------
     >>> expr = get_land_domain_indicator("forest")
@@ -58,19 +60,19 @@ def get_land_domain_indicator(land_type: str) -> pl.Expr:
 def add_land_type_categories(df: pl.DataFrame) -> pl.DataFrame:
     """
     Add comprehensive land type categories for grouping analysis.
-    
+
     Adds the standard FIA land type categories used in by_land_type analysis.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
         DataFrame with condition status and site class data
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with LAND_TYPE column added
-        
+
     Examples
     --------
     >>> df_with_categories = add_land_type_categories(cond_df)
@@ -87,7 +89,9 @@ def add_land_type_categories(df: pl.DataFrame) -> pl.DataFrame:
         .then(pl.lit(LandTypeCategory.NON_TIMBER_FOREST))
         .when(pl.col("COND_STATUS_CD") == LandStatus.NONFOREST)
         .then(pl.lit(LandTypeCategory.NON_FOREST))
-        .when(pl.col("COND_STATUS_CD").is_in([LandStatus.WATER, LandStatus.CENSUS_WATER]))
+        .when(
+            pl.col("COND_STATUS_CD").is_in([LandStatus.WATER, LandStatus.CENSUS_WATER])
+        )
         .then(pl.lit(LandTypeCategory.WATER))
         .otherwise(pl.lit(LandTypeCategory.OTHER))
         .alias("LAND_TYPE")
@@ -95,16 +99,14 @@ def add_land_type_categories(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def classify_land_types(
-    df: pl.DataFrame,
-    land_type: str = "forest",
-    by_land_type: bool = False
+    df: pl.DataFrame, land_type: str = "forest", by_land_type: bool = False
 ) -> pl.DataFrame:
     """
     Apply land type classification to a dataframe.
-    
+
     This is the main entry point for land type classification, handling
     both regular and by_land_type analysis modes.
-    
+
     Parameters
     ----------
     df : pl.DataFrame
@@ -113,27 +115,26 @@ def classify_land_types(
         Type of land classification ("forest", "timber", or "all")
     by_land_type : bool, default False
         Whether to add land type categories for grouping
-        
+
     Returns
     -------
     pl.DataFrame
         DataFrame with land type classifications and/or indicators added
-        
+
     Examples
     --------
     >>> # Regular forest land analysis
     >>> df = classify_land_types(cond_df, "forest")
-    >>> 
+    >>>
     >>> # By land type analysis with categories
     >>> df = classify_land_types(cond_df, "forest", by_land_type=True)
     """
     # Add land domain indicator
     land_expr = get_land_domain_indicator(land_type)
     df = df.with_columns(land_expr.cast(pl.Int32).alias("landD"))
-    
+
     # Add land type categories if doing by_land_type analysis
     if by_land_type:
         df = add_land_type_categories(df)
-    
-    return df
 
+    return df

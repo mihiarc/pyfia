@@ -1,7 +1,6 @@
 """Simple input validation for pyFIA public API functions."""
 
-from typing import Optional, Union, List, Any
-
+from typing import Any, List, Optional, Union
 
 # Valid values for common parameters
 VALID_LAND_TYPES = {"forest", "timber", "all"}
@@ -61,7 +60,9 @@ def validate_temporal_method(method: str) -> str:
     return method
 
 
-def validate_domain_expression(domain: Optional[str], domain_type: str) -> Optional[str]:
+def validate_domain_expression(
+    domain: Optional[str], domain_type: str
+) -> Optional[str]:
     """Basic validation of domain expression syntax."""
     if domain is None:
         return None
@@ -76,16 +77,23 @@ def validate_domain_expression(domain: Optional[str], domain_type: str) -> Optio
     # Check for common SQL injection patterns with word boundaries
     # Using word boundaries to avoid false positives (e.g., "UPDATED_DATE" is OK)
     import re
+
     dangerous_patterns = [
-        r'\bDROP\b', r'\bDELETE\b', r'\bINSERT\b',
-        r'\bUPDATE\b', r'\bALTER\b', r'\bCREATE\b',
-        r'\bEXEC\b', r'\bEXECUTE\b', r'\bTRUNCATE\b'
+        r"\bDROP\b",
+        r"\bDELETE\b",
+        r"\bINSERT\b",
+        r"\bUPDATE\b",
+        r"\bALTER\b",
+        r"\bCREATE\b",
+        r"\bEXEC\b",
+        r"\bEXECUTE\b",
+        r"\bTRUNCATE\b",
     ]
     domain_upper = domain.upper()
     for pattern in dangerous_patterns:
         if re.search(pattern, domain_upper):
             # Extract the keyword for the error message
-            keyword = pattern.replace(r'\b', '')
+            keyword = pattern.replace(r"\b", "")
             raise ValueError(
                 f"{domain_type} contains potentially dangerous SQL keyword: {keyword}. "
                 f"If this is a legitimate column name, please contact support."
@@ -94,7 +102,9 @@ def validate_domain_expression(domain: Optional[str], domain_type: str) -> Optio
     return domain
 
 
-def validate_grp_by(grp_by: Optional[Union[str, List[str]]]) -> Optional[Union[str, List[str]]]:
+def validate_grp_by(
+    grp_by: Optional[Union[str, List[str]]],
+) -> Optional[Union[str, List[str]]]:
     """Validate grp_by parameter."""
     if grp_by is None:
         return None

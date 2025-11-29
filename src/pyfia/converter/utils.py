@@ -5,12 +5,12 @@ Simple utilities including YAML schema loading without unnecessary abstractions.
 """
 
 import logging
+import sqlite3
 from pathlib import Path
-from typing import Dict, List, Optional, Any
-import yaml
+from typing import Any, Dict, List, Optional
 
 import duckdb
-import sqlite3
+import yaml
 
 logger = logging.getLogger(__name__)
 
@@ -18,16 +18,16 @@ logger = logging.getLogger(__name__)
 def load_fia_schema(schema_dir: Optional[Path] = None) -> Dict[str, Dict[str, Any]]:
     """
     Load FIA table schemas from YAML files.
-    
+
     The YAML schemas are the official source of truth for FIA table definitions.
     We use them for validation and ensuring consistency.
-    
+
     Parameters
     ----------
     schema_dir : Optional[Path]
         Directory containing YAML schema files
         If None, uses default location
-        
+
     Returns
     -------
     Dict[str, Dict[str, Any]]
@@ -36,44 +36,42 @@ def load_fia_schema(schema_dir: Optional[Path] = None) -> Dict[str, Dict[str, An
     if schema_dir is None:
         # Default to schemas directory in converter module
         schema_dir = Path(__file__).parent / "schemas"
-    
+
     if not schema_dir.exists():
         logger.warning(f"Schema directory not found: {schema_dir}")
         return {}
-    
+
     schemas = {}
-    
+
     # Load all YAML files in schema directory
     for yaml_file in schema_dir.glob("*.yaml"):
         try:
-            with open(yaml_file, 'r') as f:
+            with open(yaml_file, "r") as f:
                 schema_data = yaml.safe_load(f)
-                
+
                 # Extract table name from filename or schema content
                 table_name = yaml_file.stem.upper()
-                
+
                 # Store schema
                 schemas[table_name] = schema_data
-                
+
                 logger.debug(f"Loaded schema for table: {table_name}")
-                
+
         except Exception as e:
             logger.warning(f"Failed to load schema from {yaml_file}: {e}")
-    
+
     return schemas
 
 
 def validate_table_schema(
-    conn: duckdb.DuckDBPyConnection,
-    table_name: str,
-    expected_schema: Dict[str, Any]
+    conn: duckdb.DuckDBPyConnection, table_name: str, expected_schema: Dict[str, Any]
 ) -> List[str]:
     """
     Validate that a table matches expected FIA schema.
-    
+
     Simple validation without over-engineering - just check that
     required columns exist with appropriate types.
-    
+
     Parameters
     ----------
     conn : duckdb.DuckDBPyConnection
@@ -82,49 +80,51 @@ def validate_table_schema(
         Table name to validate
     expected_schema : Dict[str, Any]
         Expected schema from YAML
-        
+
     Returns
     -------
     List[str]
         List of validation issues (empty if valid)
     """
     issues = []
-    
+
     try:
         # Get actual table schema from DuckDB
-        actual_cols = conn.execute(f"""
-            SELECT column_name, data_type 
-            FROM information_schema.columns 
+        actual_cols = conn.execute(
+            f"""
+            SELECT column_name, data_type
+            FROM information_schema.columns
             WHERE table_name = '{table_name}'
-        """).fetchall()
-        
+        """
+        ).fetchall()
+
         actual_schema = {col: dtype for col, dtype in actual_cols}
-        
+
         # Check for required columns from YAML schema
         if "columns" in expected_schema:
             for col_def in expected_schema["columns"]:
                 col_name = col_def.get("name", "").upper()
-                
+
                 if col_name and col_name not in actual_schema:
                     issues.append(f"Missing required column: {col_name}")
-        
+
         # Don't be overly strict about types - DuckDB handles conversions well
-        
+
     except Exception as e:
         issues.append(f"Failed to validate schema: {e}")
-    
+
     return issues
 
 
 def get_sqlite_tables(sqlite_path: Path) -> List[str]:
     """
     Get list of tables from SQLite database.
-    
+
     Parameters
     ----------
     sqlite_path : Path
         Path to SQLite database
-        
+
     Returns
     -------
     List[str]
@@ -132,7 +132,7 @@ def get_sqlite_tables(sqlite_path: Path) -> List[str]:
     """
     if not sqlite_path.exists():
         raise FileNotFoundError(f"SQLite database not found: {sqlite_path}")
-    
+
     conn = sqlite3.connect(str(sqlite_path))
     try:
         cursor = conn.execute(
@@ -146,12 +146,12 @@ def get_sqlite_tables(sqlite_path: Path) -> List[str]:
 def get_duckdb_tables(duckdb_path: Path) -> List[str]:
     """
     Get list of tables from DuckDB database.
-    
+
     Parameters
     ----------
     duckdb_path : Path
         Path to DuckDB database
-        
+
     Returns
     -------
     List[str]
@@ -159,36 +159,35 @@ def get_duckdb_tables(duckdb_path: Path) -> List[str]:
     """
     if not duckdb_path.exists():
         return []
-    
+
     conn = duckdb.connect(str(duckdb_path), read_only=True)
     try:
-        result = conn.execute("""
-            SELECT table_name 
-            FROM information_schema.tables 
+        result = conn.execute(
+            """
+            SELECT table_name
+            FROM information_schema.tables
             WHERE table_schema = 'main'
             ORDER BY table_name
-        """).fetchall()
+        """
+        ).fetchall()
         return [row[0] for row in result]
     finally:
         conn.close()
 
 
-def compare_databases(
-    source_path: Path,
-    target_path: Path
-) -> Dict[str, Any]:
+def compare_databases(source_path: Path, target_path: Path) -> Dict[str, Any]:
     """
     Compare source SQLite and target DuckDB databases.
-    
+
     Simple comparison for verification without over-engineering.
-    
+
     Parameters
     ----------
     source_path : Path
         Source SQLite database
     target_path : Path
         Target DuckDB database
-        
+
     Returns
     -------
     Dict[str, Any]
@@ -196,44 +195,44 @@ def compare_databases(
     """
     source_tables = set(get_sqlite_tables(source_path))
     target_tables = set(get_duckdb_tables(target_path))
-    
+
     # Compare table lists
     common_tables = source_tables & target_tables
     missing_tables = source_tables - target_tables
     extra_tables = target_tables - source_tables
-    
+
     # Compare row counts for common tables
     row_count_comparison = {}
-    
+
     if common_tables:
         sqlite_conn = sqlite3.connect(str(source_path))
         duck_conn = duckdb.connect(str(target_path), read_only=True)
-        
+
         try:
             for table in common_tables:
                 # Get SQLite count
                 sqlite_count = sqlite_conn.execute(
                     f"SELECT COUNT(*) FROM {table}"
                 ).fetchone()[0]
-                
+
                 # Get DuckDB count
                 duck_count = duck_conn.execute(
                     f"SELECT COUNT(*) FROM {table}"
                 ).fetchone()[0]
-                
+
                 row_count_comparison[table] = {
                     "sqlite": sqlite_count,
                     "duckdb": duck_count,
-                    "difference": duck_count - sqlite_count
+                    "difference": duck_count - sqlite_count,
                 }
         finally:
             sqlite_conn.close()
             duck_conn.close()
-    
+
     # Calculate file sizes
     source_size = source_path.stat().st_size if source_path.exists() else 0
     target_size = target_path.stat().st_size if target_path.exists() else 0
-    
+
     return {
         "source_tables": len(source_tables),
         "target_tables": len(target_tables),
@@ -243,19 +242,19 @@ def compare_databases(
         "row_counts": row_count_comparison,
         "source_size_mb": source_size / 1024 / 1024,
         "target_size_mb": target_size / 1024 / 1024,
-        "compression_ratio": source_size / target_size if target_size > 0 else 0
+        "compression_ratio": source_size / target_size if target_size > 0 else 0,
     }
 
 
 def create_state_filter(state_code: int) -> str:
     """
     Create SQL filter for state-specific data.
-    
+
     Parameters
     ----------
     state_code : int
         State FIPS code
-        
+
     Returns
     -------
     str
@@ -265,20 +264,17 @@ def create_state_filter(state_code: int) -> str:
     return f"STATECD = {state_code}"
 
 
-def estimate_conversion_time(
-    source_path: Path,
-    mb_per_second: float = 50.0
-) -> float:
+def estimate_conversion_time(source_path: Path, mb_per_second: float = 50.0) -> float:
     """
     Estimate conversion time based on file size.
-    
+
     Parameters
     ----------
     source_path : Path
         Source SQLite database
     mb_per_second : float
         Estimated conversion speed in MB/s
-        
+
     Returns
     -------
     float
@@ -286,7 +282,7 @@ def estimate_conversion_time(
     """
     if not source_path.exists():
         return 0.0
-    
+
     size_mb = source_path.stat().st_size / 1024 / 1024
     return size_mb / mb_per_second
 
@@ -294,12 +290,12 @@ def estimate_conversion_time(
 def format_size(bytes_size: int) -> str:
     """
     Format byte size as human-readable string.
-    
+
     Parameters
     ----------
     bytes_size : int
         Size in bytes
-        
+
     Returns
     -------
     str
@@ -315,12 +311,12 @@ def format_size(bytes_size: int) -> str:
 def format_duration(seconds: float) -> str:
     """
     Format duration as human-readable string.
-    
+
     Parameters
     ----------
     seconds : float
         Duration in seconds
-        
+
     Returns
     -------
     str
@@ -341,11 +337,11 @@ def print_summary(
     target_path: Path,
     row_counts: Dict[str, int],
     start_time: float,
-    end_time: float
+    end_time: float,
 ) -> None:
     """
     Print conversion summary.
-    
+
     Parameters
     ----------
     source_path : Path
@@ -361,12 +357,12 @@ def print_summary(
     """
     duration = end_time - start_time
     total_rows = sum(row_counts.values())
-    
+
     # Get file sizes
     source_size = source_path.stat().st_size
     target_size = target_path.stat().st_size
     compression_ratio = source_size / target_size if target_size > 0 else 0
-    
+
     print("\n" + "=" * 60)
     print("CONVERSION SUMMARY")
     print("=" * 60)

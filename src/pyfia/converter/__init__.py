@@ -13,14 +13,14 @@ Main Functions:
 Examples
 --------
 >>> from pyfia.converter import convert_sqlite_to_duckdb, merge_states
->>> 
+>>>
 >>> # Convert single state
 >>> convert_sqlite_to_duckdb(
 ...     Path("NC_FIA.db"),
 ...     Path("north_carolina.duckdb"),
 ...     state_code=37
 ... )
->>> 
+>>>
 >>> # Create multi-state database
 >>> merge_states(
 ...     [Path("NC_FIA.db"), Path("SC_FIA.db"), Path("GA_FIA.db")],
@@ -30,21 +30,20 @@ Examples
 """
 
 from .converter import (
-    convert_sqlite_to_duckdb,
-    merge_states,
     append_state,
-    get_database_info
+    convert_sqlite_to_duckdb,
+    get_database_info,
+    merge_states,
 )
-
 from .utils import (
-    load_fia_schema,
-    validate_table_schema,
-    get_sqlite_tables,
-    get_duckdb_tables,
     compare_databases,
-    format_size,
     format_duration,
-    print_summary
+    format_size,
+    get_duckdb_tables,
+    get_sqlite_tables,
+    load_fia_schema,
+    print_summary,
+    validate_table_schema,
 )
 
 __version__ = "2.0.0"
@@ -55,7 +54,6 @@ __all__ = [
     "merge_states",
     "append_state",
     "get_database_info",
-    
     # Utility functions
     "load_fia_schema",
     "validate_table_schema",
@@ -64,5 +62,5 @@ __all__ = [
     "compare_databases",
     "format_size",
     "format_duration",
-    "print_summary"
+    "print_summary",
 ]

@@ -8,10 +8,10 @@ computation following FIA methodology.
 
 from .calculator import DomainIndicatorCalculator
 from .land_types import (
+    LandTypeCategory,
+    add_land_type_categories,
     classify_land_types,
     get_land_domain_indicator,
-    add_land_type_categories,
-    LandTypeCategory,
 )
 
 __all__ = [

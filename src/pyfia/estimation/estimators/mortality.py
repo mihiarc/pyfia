@@ -100,9 +100,6 @@ class MortalityEstimator(BaseEstimator):
         if not isinstance(grm_component, pl.LazyFrame):
             grm_component = grm_component.lazy()
 
-        # Get required columns
-        tree_cols = self.get_tree_columns()
-
         # Select and rename columns for cleaner processing
         grm_component = grm_component.select(
             [

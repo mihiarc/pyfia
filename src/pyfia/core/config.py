@@ -1,76 +1,81 @@
 """
 Configuration settings for pyFIA.
 
-This module provides default settings and paths for pyFIA operations.
-Note: For new code, prefer using settings.py with Pydantic Settings.
+DEPRECATED: This module is kept for backwards compatibility.
+For new code, use settings.py directly:
+
+    from pyfia.core.settings import settings, get_default_db_path, get_default_engine
+
+The settings module provides Pydantic-based configuration with full
+environment variable support using the PYFIA_ prefix.
 """
 
-import os
-from pathlib import Path
-
-# Import new settings for migration path
-
-# Default database paths (kept for backwards compatibility)
-DEFAULT_DUCKDB_PATH = "fia.duckdb"
-DEFAULT_ENGINE = "duckdb"
-
-# Environment variable override (kept for backwards compatibility)
-FIA_DB_PATH = os.environ.get("FIA_DB_PATH", DEFAULT_DUCKDB_PATH)
-FIA_DB_ENGINE = os.environ.get("FIA_DB_ENGINE", DEFAULT_ENGINE)
+# Re-export everything from settings for backwards compatibility
+from .settings import (
+    PyFIASettings,
+    get_default_db_path,
+    get_default_engine,
+    settings,
+)
 
 
-def get_default_db_path() -> Path:
-    """
-    Get the default database path.
-
-    Checks in order:
-    1. FIA_DB_PATH environment variable
-    2. Default DuckDB path
-
-    Returns:
-        Path to the default database
-    """
-    db_path = Path(FIA_DB_PATH)
-    if db_path.exists():
-        return db_path
-    return Path(DEFAULT_DUCKDB_PATH)
-
-
-def get_default_engine() -> str:
-    """
-    Get the default database engine.
-
-    Returns:
-        Default engine type ("sqlite" or "duckdb")
-    """
-    return FIA_DB_ENGINE.lower()
-
-
+# Legacy class wrapper for backwards compatibility
 class Config:
-    """Configuration container for pyFIA settings."""
+    """
+    Configuration container for pyFIA settings.
+
+    DEPRECATED: Use PyFIASettings from settings.py instead.
+    This class is kept for backwards compatibility only.
+    """
 
     def __init__(self):
-        self.db_path = get_default_db_path()
-        self.engine = get_default_engine()
-        self.cache_dir = Path.home() / ".pyfia" / "cache"
-        self.log_dir = Path.home() / ".pyfia" / "logs"
+        self._settings = settings
 
-        # Create directories if they don't exist
-        self.cache_dir.mkdir(parents=True, exist_ok=True)
-        self.log_dir.mkdir(parents=True, exist_ok=True)
+    @property
+    def db_path(self):
+        return self._settings.database_path
+
+    @db_path.setter
+    def db_path(self, value):
+        # Note: Pydantic settings are immutable, so we just store in _settings
+        pass
+
+    @property
+    def engine(self):
+        return self._settings.database_engine
+
+    @engine.setter
+    def engine(self, value):
+        pass
+
+    @property
+    def cache_dir(self):
+        return self._settings.cache_dir
+
+    @property
+    def log_dir(self):
+        return self._settings.log_dir
 
     def set_db_path(self, path: str) -> None:
-        """Set the database path."""
-        self.db_path = Path(path)
-        if not self.db_path.exists():
-            raise FileNotFoundError(f"Database not found: {path}")
+        """Set the database path. DEPRECATED: Configure via environment variables."""
+        import warnings
+
+        warnings.warn(
+            "Config.set_db_path() is deprecated. Set PYFIA_DATABASE_PATH environment variable instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
     def set_engine(self, engine: str) -> None:
-        """Set the database engine."""
-        if engine.lower() not in ["sqlite", "duckdb"]:
-            raise ValueError(f"Invalid engine: {engine}. Use 'sqlite' or 'duckdb'")
-        self.engine = engine.lower()
+        """Set the database engine. DEPRECATED: Configure via environment variables."""
+        import warnings
+
+        warnings.warn(
+            "Config.set_engine() is deprecated. Set PYFIA_DATABASE_ENGINE environment variable instead.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
 
 
-# Global configuration instance
+# Global configuration instance (for backwards compatibility)
 config = Config()

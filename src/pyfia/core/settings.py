@@ -2,8 +2,10 @@
 Settings management for pyFIA using Pydantic Settings.
 
 This module provides centralized configuration with environment variable support.
+It is the canonical source for all pyFIA configuration.
 """
 
+import os
 from pathlib import Path
 
 from pydantic import Field, field_validator
@@ -16,6 +18,9 @@ class PyFIASettings(BaseSettings):
 
     Environment variables are prefixed with PYFIA_.
     For example: PYFIA_DATABASE_PATH, PYFIA_LOG_LEVEL
+
+    Also supports legacy environment variables FIA_DB_PATH and FIA_DB_ENGINE
+    for backwards compatibility.
     """
 
     model_config = SettingsConfigDict(
@@ -106,8 +111,52 @@ class PyFIASettings(BaseSettings):
             return f"sqlite:///{self.database_path}"
 
 
+# Check for legacy environment variables and use them if new ones aren't set
+def _create_settings_with_legacy_support() -> PyFIASettings:
+    """Create settings with support for legacy environment variable names."""
+    # Check for legacy FIA_DB_PATH
+    legacy_db_path = os.environ.get("FIA_DB_PATH")
+    new_db_path = os.environ.get("PYFIA_DATABASE_PATH")
+
+    # Check for legacy FIA_DB_ENGINE
+    legacy_engine = os.environ.get("FIA_DB_ENGINE")
+    new_engine = os.environ.get("PYFIA_DATABASE_ENGINE")
+
+    # Build kwargs for settings - legacy takes precedence if new isn't set
+    kwargs = {}
+    if legacy_db_path and not new_db_path:
+        kwargs["database_path"] = Path(legacy_db_path)
+    if legacy_engine and not new_engine:
+        kwargs["database_engine"] = legacy_engine
+
+    return PyFIASettings(**kwargs)
+
+
 # Global settings instance
-settings = PyFIASettings()
+settings = _create_settings_with_legacy_support()
 
 # Create directories on import
 settings.create_directories()
+
+
+# Backwards compatibility functions (delegate to settings)
+def get_default_db_path() -> Path:
+    """
+    Get the default database path.
+
+    Checks environment variables and settings for database path.
+
+    Returns:
+        Path to the default database
+    """
+    return settings.database_path
+
+
+def get_default_engine() -> str:
+    """
+    Get the default database engine.
+
+    Returns:
+        Default engine type ("sqlite" or "duckdb")
+    """
+    return settings.database_engine

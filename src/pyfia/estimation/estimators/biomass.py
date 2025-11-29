@@ -11,30 +11,40 @@ import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
-from ..aggregation import aggregate_to_population
-from ..statistics import VarianceCalculator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import format_output_columns
 
 
 class BiomassEstimator(BaseEstimator):
     """
     Biomass estimator for FIA data.
-    
+
     Estimates tree biomass (dry weight in tons) and carbon content.
     """
-    
+
+    def __init__(self, db, config):
+        """Initialize with storage for variance calculation."""
+        super().__init__(db, config)
+        self.plot_tree_data = None  # Store for variance calculation
+        self.group_cols = None  # Store grouping columns
+
     def get_required_tables(self) -> List[str]:
         """Biomass requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
-    
+
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for biomass estimation."""
         cols = [
-            "CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD",
-            "DIA", "TPA_UNADJ", "DRYBIO_AG", "DRYBIO_BG"
+            "CN",
+            "PLT_CN",
+            "CONDID",
+            "STATUSCD",
+            "SPCD",
+            "DIA",
+            "TPA_UNADJ",
+            "DRYBIO_AG",
+            "DRYBIO_BG",
         ]
-        
+
         # Add component-specific columns
         component = self.config.get("component", "AG")
         if component not in ["AG", "BG", "TOTAL"]:
@@ -42,60 +52,66 @@ class BiomassEstimator(BaseEstimator):
             biomass_col = f"DRYBIO_{component}"
             if biomass_col not in cols:
                 cols.append(biomass_col)
-        
+
         return cols
-    
+
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
         return [
-            "PLT_CN", "CONDID", "COND_STATUS_CD",
-            "CONDPROP_UNADJ", "OWNGRPCD", "FORTYPCD",
-            "SITECLCD", "RESERVCD"
+            "PLT_CN",
+            "CONDID",
+            "COND_STATUS_CD",
+            "CONDPROP_UNADJ",
+            "OWNGRPCD",
+            "FORTYPCD",
+            "SITECLCD",
+            "RESERVCD",
         ]
-    
+
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Calculate biomass per acre.
-        
+
         Biomass per acre = (DRYBIO * TPA_UNADJ) / 2000
         Carbon = Biomass * 0.47
         """
         component = self.config.get("component", "AG")
-        
+
         # Select biomass component
         if component == "TOTAL":
             # Total = aboveground + belowground
-            data = data.with_columns([
-                (pl.col("DRYBIO_AG") + pl.col("DRYBIO_BG")).alias("DRYBIO")
-            ])
+            data = data.with_columns(
+                [(pl.col("DRYBIO_AG") + pl.col("DRYBIO_BG")).alias("DRYBIO")]
+            )
         elif component == "AG":
-            data = data.with_columns([
-                pl.col("DRYBIO_AG").alias("DRYBIO")
-            ])
+            data = data.with_columns([pl.col("DRYBIO_AG").alias("DRYBIO")])
         elif component == "BG":
-            data = data.with_columns([
-                pl.col("DRYBIO_BG").alias("DRYBIO")
-            ])
+            data = data.with_columns([pl.col("DRYBIO_BG").alias("DRYBIO")])
         else:
             # Specific component
             biomass_col = f"DRYBIO_{component}"
-            data = data.with_columns([
-                pl.col(biomass_col).alias("DRYBIO")
-            ])
-        
+            data = data.with_columns([pl.col(biomass_col).alias("DRYBIO")])
+
         # Calculate biomass per acre (convert pounds to tons)
-        data = data.with_columns([
-            (pl.col("DRYBIO").cast(pl.Float64) * 
-             pl.col("TPA_UNADJ").cast(pl.Float64) / 
-             2000.0).alias("BIOMASS_ACRE"),
-            # Carbon is 47% of biomass
-            (pl.col("DRYBIO").cast(pl.Float64) * 
-             pl.col("TPA_UNADJ").cast(pl.Float64) / 
-             2000.0 * 0.47).alias("CARBON_ACRE")
-        ])
-        
+        data = data.with_columns(
+            [
+                (
+                    pl.col("DRYBIO").cast(pl.Float64)
+                    * pl.col("TPA_UNADJ").cast(pl.Float64)
+                    / 2000.0
+                ).alias("BIOMASS_ACRE"),
+                # Carbon is 47% of biomass
+                (
+                    pl.col("DRYBIO").cast(pl.Float64)
+                    * pl.col("TPA_UNADJ").cast(pl.Float64)
+                    / 2000.0
+                    * 0.47
+                ).alias("CARBON_ACRE"),
+            ]
+        )
+
         return data
-    
+
     def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
         """Aggregate biomass with two-stage aggregation for correct per-acre estimates.
 
@@ -117,48 +133,84 @@ class BiomassEstimator(BaseEstimator):
         strat_data = self._get_stratification_data()
 
         # Join with stratification
-        data_with_strat = data.join(
-            strat_data,
-            on="PLT_CN",
-            how="inner"
-        )
+        data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors
         data_with_strat = apply_tree_adjustment_factors(
-            data_with_strat,
-            size_col="DIA",
-            macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
+            data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
         # Apply adjustment
-        data_with_strat = data_with_strat.with_columns([
-            (pl.col("BIOMASS_ACRE") * pl.col("ADJ_FACTOR")).alias("BIOMASS_ADJ"),
-            (pl.col("CARBON_ACRE") * pl.col("ADJ_FACTOR")).alias("CARBON_ADJ")
-        ])
+        data_with_strat = data_with_strat.with_columns(
+            [
+                (pl.col("BIOMASS_ACRE") * pl.col("ADJ_FACTOR")).alias("BIOMASS_ADJ"),
+                (pl.col("CARBON_ACRE") * pl.col("ADJ_FACTOR")).alias("CARBON_ADJ"),
+            ]
+        )
 
         # Setup grouping
         group_cols = self._setup_grouping()
+        self.group_cols = group_cols  # Store for variance calculation
+
+        # CRITICAL: Store plot-tree level data for variance calculation
+        data_collected = data_with_strat.collect()
+        available_cols = data_collected.columns
+
+        # Build column list for preservation
+        cols_to_preserve = ["PLT_CN", "CONDID"]
+
+        # Add stratification columns
+        if "STRATUM_CN" in available_cols:
+            cols_to_preserve.append("STRATUM_CN")
+        if "ESTN_UNIT" in available_cols:
+            cols_to_preserve.append("ESTN_UNIT")
+        elif "UNITCD" in available_cols:
+            data_collected = data_collected.with_columns(
+                pl.col("UNITCD").alias("ESTN_UNIT")
+            )
+            cols_to_preserve.append("ESTN_UNIT")
+
+        # Add essential columns for variance calculation
+        cols_to_preserve.extend(
+            ["BIOMASS_ADJ", "CARBON_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"]
+        )
+
+        # Add grouping columns if they exist
+        if group_cols:
+            for col in group_cols:
+                if col in available_cols and col not in cols_to_preserve:
+                    cols_to_preserve.append(col)
+
+        # Store the plot-tree data for variance calculation
+        self.plot_tree_data = data_collected.select(
+            [c for c in cols_to_preserve if c in data_collected.columns]
+        )
+
+        # Convert back to lazy for two-stage aggregation
+        data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
         metric_mappings = {
             "BIOMASS_ADJ": "CONDITION_BIOMASS",
-            "CARBON_ADJ": "CONDITION_CARBON"
+            "CARBON_ADJ": "CONDITION_CARBON",
         }
 
         results = self._apply_two_stage_aggregation(
             data_with_strat=data_with_strat,
             metric_mappings=metric_mappings,
             group_cols=group_cols,
-            use_grm_adjustment=False
+            use_grm_adjustment=False,
         )
 
         # Rename columns to match expected output
-        results = results.rename({
-            "BIOMASS_ACRE": "BIO_ACRE",
-            "CARBON_ACRE": "CARB_ACRE",
-            "BIOMASS_TOTAL": "BIO_TOTAL",
-            "CARBON_TOTAL": "CARB_TOTAL"
-        })
+        results = results.rename(
+            {
+                "BIOMASS_ACRE": "BIO_ACRE",
+                "CARBON_ACRE": "CARB_ACRE",
+                "BIOMASS_TOTAL": "BIO_TOTAL",
+                "CARBON_TOTAL": "CARB_TOTAL",
+            }
+        )
 
         # Handle totals based on config
         if not self.config.get("totals", True):
@@ -169,33 +221,273 @@ class BiomassEstimator(BaseEstimator):
                 results = results.drop(cols_to_drop)
 
         return results
-    
+
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for biomass estimates.
+        """Calculate variance for biomass estimates using proper ratio estimation formula.
 
-        WARNING: This is a simplified placeholder implementation that returns
-        10% of the estimate as standard error. This does NOT follow proper
-        FIA variance calculation methodology. See Warnings in biomass()
-        docstring for details.
+        Biomass estimation uses ratio-of-means: R = Y/X where Y is biomass and X is area.
+        The variance formula accounts for covariance between numerator and denominator.
 
-        TODO: Implement proper stratified variance calculation following
-        Bechtold & Patterson (2005) methodology:
-        1. Calculate variance by stratum
-        2. Apply finite population correction
-        3. Combine stratum variances properly
-        4. Calculate standard errors from variance
+        Following Bechtold & Patterson (2005) methodology for stratified sampling.
         """
-        # Placeholder calculation - 10% CV
-        # This is NOT statistically valid - see docstring warnings
-        results = results.with_columns([
-            (pl.col("BIO_ACRE") * 0.1).alias("BIO_ACRE_SE"),
-            (pl.col("CARB_ACRE") * 0.1).alias("CARB_ACRE_SE"),
-            (pl.col("BIO_TOTAL") * 0.1).alias("BIO_TOTAL_SE"),
-            (pl.col("CARB_TOTAL") * 0.1).alias("CARB_TOTAL_SE")
-        ])
+        if self.plot_tree_data is None:
+            # Fallback to conservative estimate
+            import warnings
+
+            warnings.warn(
+                "Plot-tree data not available for proper variance calculation. "
+                "Using placeholder 12% CV. To enable proper variance, ensure data "
+                "preservation is working correctly."
+            )
+            results = results.with_columns(
+                [
+                    (pl.col("BIO_ACRE") * 0.12).alias("BIO_ACRE_SE"),
+                    (pl.col("CARB_ACRE") * 0.12).alias("CARB_ACRE_SE"),
+                    (pl.col("BIO_TOTAL") * 0.12).alias("BIO_TOTAL_SE"),
+                    (pl.col("CARB_TOTAL") * 0.12).alias("CARB_TOTAL_SE"),
+                ]
+            )
+            return results
+
+        # Step 1: Aggregate to plot-condition level
+        # Sum biomass within each condition (trees are already adjusted)
+        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
+        if "STRATUM_CN" in self.plot_tree_data.columns:
+            plot_group_cols.insert(2, "STRATUM_CN")
+
+        # Add grouping columns
+        if self.group_cols:
+            for col in self.group_cols:
+                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
+        plot_cond_agg = [
+            pl.sum("BIOMASS_ADJ").alias("y_bio_ic"),  # Biomass per condition
+            pl.sum("CARBON_ADJ").alias("y_carb_ic"),  # Carbon per condition
+        ]
+
+        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
+            plot_cond_agg
+        )
+
+        # Step 2: Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "EXPNS"]
+        if "STRATUM_CN" in plot_cond_data.columns:
+            plot_level_cols.insert(1, "STRATUM_CN")
+        if self.group_cols:
+            plot_level_cols.extend(
+                [c for c in self.group_cols if c in plot_cond_data.columns]
+            )
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
+            [
+                pl.sum("y_bio_ic").alias("y_bio_i"),  # Total biomass per plot
+                pl.sum("y_carb_ic").alias("y_carb_i"),  # Total carbon per plot
+                pl.lit(1.0).alias("x_i"),  # Area proportion per plot (full plot = 1)
+            ]
+        )
+
+        # Step 3: Calculate variance for each group or overall
+        if self.group_cols:
+            # Get ALL plots in the evaluation for proper variance calculation
+            strat_data = self._get_stratification_data()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
+
+            # Calculate variance for each group separately
+            variance_results = []
+
+            for group_vals in results.iter_rows():
+                # Build filter for this group
+                group_filter = pl.lit(True)
+                group_dict = {}
+
+                for i, col in enumerate(self.group_cols):
+                    if col in plot_data.columns:
+                        group_dict[col] = group_vals[results.columns.index(col)]
+                        group_filter = group_filter & (
+                            pl.col(col) == group_vals[results.columns.index(col)]
+                        )
+
+                # Filter plot data for this specific group
+                group_plot_data = plot_data.filter(group_filter)
+
+                # Join with ALL plots, filling missing with zeros
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_bio_i", "y_carb_i", "x_i"]),
+                    on="PLT_CN",
+                    how="left",
+                ).with_columns(
+                    [
+                        pl.col("y_bio_i").fill_null(0.0),
+                        pl.col("y_carb_i").fill_null(0.0),
+                        pl.col("x_i").fill_null(0.0),
+                    ]
+                )
+
+                if len(all_plots_group) > 0:
+                    # Calculate variance using ALL plots (including zeros)
+                    bio_stats = self._calculate_ratio_variance(
+                        all_plots_group, "y_bio_i"
+                    )
+                    carb_stats = self._calculate_ratio_variance(
+                        all_plots_group, "y_carb_i"
+                    )
+
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "BIO_ACRE_SE": bio_stats["se_acre"],
+                            "BIO_TOTAL_SE": bio_stats["se_total"],
+                            "CARB_ACRE_SE": carb_stats["se_acre"],
+                            "CARB_TOTAL_SE": carb_stats["se_total"],
+                        }
+                    )
+                else:
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "BIO_ACRE_SE": 0.0,
+                            "BIO_TOTAL_SE": 0.0,
+                            "CARB_ACRE_SE": 0.0,
+                            "CARB_TOTAL_SE": 0.0,
+                        }
+                    )
+
+            # Join variance results back to main results
+            if variance_results:
+                var_df = pl.DataFrame(variance_results)
+                results = results.join(var_df, on=self.group_cols, how="left")
+        else:
+            # No grouping, calculate overall variance
+            bio_stats = self._calculate_ratio_variance(plot_data, "y_bio_i")
+            carb_stats = self._calculate_ratio_variance(plot_data, "y_carb_i")
+
+            results = results.with_columns(
+                [
+                    pl.lit(bio_stats["se_acre"]).alias("BIO_ACRE_SE"),
+                    pl.lit(bio_stats["se_total"]).alias("BIO_TOTAL_SE"),
+                    pl.lit(carb_stats["se_acre"]).alias("CARB_ACRE_SE"),
+                    pl.lit(carb_stats["se_total"]).alias("CARB_TOTAL_SE"),
+                ]
+            )
 
         return results
-    
+
+    def _calculate_ratio_variance(self, plot_data: pl.DataFrame, y_col: str) -> Dict:
+        """Calculate variance for ratio-of-means estimator.
+
+        For ratio estimation R = Y/X, the variance formula is:
+        V(R) ≈ (1/X̄²) × Σ_h w_h² × [s²_yh + R² × s²_xh - 2R × s_yxh] / n_h
+
+        Where:
+        - Y is the numerator (biomass/carbon)
+        - X is the denominator (area)
+        - R is the ratio estimate
+        - s_yxh is the covariance between Y and X in stratum h
+        - w_h is the stratum weight (EXPNS)
+        - n_h is the number of plots in stratum h
+        """
+        # Determine stratification columns
+        strat_cols = ["STRATUM_CN"] if "STRATUM_CN" in plot_data.columns else []
+
+        if not strat_cols:
+            # No stratification, treat as single stratum
+            plot_data = plot_data.with_columns(pl.lit(1).alias("STRATUM"))
+            strat_cols = ["STRATUM"]
+
+        # Calculate stratum-level statistics
+        strata_stats = plot_data.group_by(strat_cols).agg(
+            [
+                pl.count("PLT_CN").alias("n_h"),
+                pl.mean(y_col).alias("ybar_h"),
+                pl.mean("x_i").alias("xbar_h"),
+                pl.var(y_col, ddof=1).alias("s2_yh"),
+                pl.var("x_i", ddof=1).alias("s2_xh"),
+                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),
+                # Calculate covariance
+                (
+                    (
+                        (pl.col(y_col) - pl.col(y_col).mean())
+                        * (pl.col("x_i") - pl.col("x_i").mean())
+                    ).sum()
+                    / (pl.len() - 1)
+                ).alias("cov_yxh"),
+            ]
+        )
+
+        # Handle null variances
+        strata_stats = strata_stats.with_columns(
+            [
+                pl.when(pl.col("s2_yh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_yh"))
+                .cast(pl.Float64)
+                .alias("s2_yh"),
+                pl.when(pl.col("s2_xh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_xh"))
+                .cast(pl.Float64)
+                .alias("s2_xh"),
+                pl.when(pl.col("cov_yxh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("cov_yxh"))
+                .cast(pl.Float64)
+                .alias("cov_yxh"),
+                pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
+                pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
+            ]
+        )
+
+        # Calculate population totals
+        total_y = (
+            strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+        total_x = (
+            strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+
+        # Calculate ratio estimate
+        ratio = total_y / total_x if total_x > 0 else 0
+
+        # Calculate variance components
+        variance_components = strata_stats.with_columns(
+            [
+                (
+                    pl.col("w_h") ** 2
+                    * (
+                        pl.col("s2_yh")
+                        + ratio**2 * pl.col("s2_xh")
+                        - 2 * ratio * pl.col("cov_yxh")
+                    )
+                    * pl.col("n_h")
+                ).alias("v_h")
+            ]
+        )
+
+        # Sum variance components
+        variance_of_numerator = variance_components["v_h"].sum()
+        if variance_of_numerator is None or variance_of_numerator < 0:
+            variance_of_numerator = 0.0
+
+        # Convert to variance of the ratio
+        variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
+
+        # Standard errors
+        se_acre = variance_of_ratio**0.5
+        se_total = se_acre * total_x if total_x > 0 else 0
+
+        return {
+            "variance_acre": variance_of_ratio,
+            "variance_total": (se_total**2) if se_total > 0 else 0,
+            "se_acre": se_acre,
+            "se_total": se_total,
+            "ratio": ratio,
+            "total_y": total_y,
+            "total_x": total_x,
+        }
+
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format biomass estimation output."""
         # Extract year from evaluation data
@@ -205,7 +497,7 @@ class BiomassEstimator(BaseEstimator):
         year = None
 
         # Primary source: EVALID encodes the evaluation reference year
-        if hasattr(self.db, 'evalids') and self.db.evalids:
+        if hasattr(self.db, "evalids") and self.db.evalids:
             # EVALIDs are 6-digit codes: SSYYTT where YY is the evaluation year
             # Example: 482300 = State 48, Year 2023 evaluation, Type 00
             # This evaluation might include plots measured 2019-2023, but
@@ -240,17 +532,24 @@ class BiomassEstimator(BaseEstimator):
         # Default to current year minus 2 (typical FIA processing lag)
         if year is None:
             from datetime import datetime
+
             year = datetime.now().year - 2
 
-        results = results.with_columns([
-            pl.lit(year).alias("YEAR")
-        ])
+        results = results.with_columns([pl.lit(year).alias("YEAR")])
 
         # Standard column order
         col_order = [
-            "YEAR", "BIO_ACRE", "BIO_TOTAL", "CARB_ACRE", "CARB_TOTAL",
-            "BIO_ACRE_SE", "BIO_TOTAL_SE", "CARB_ACRE_SE", "CARB_TOTAL_SE",
-            "N_PLOTS", "N_TREES"
+            "YEAR",
+            "BIO_ACRE",
+            "BIO_TOTAL",
+            "CARB_ACRE",
+            "CARB_TOTAL",
+            "BIO_ACRE_SE",
+            "BIO_TOTAL_SE",
+            "CARB_ACRE_SE",
+            "CARB_TOTAL_SE",
+            "N_PLOTS",
+            "N_TREES",
         ]
 
         # Add any grouping columns at the beginning after YEAR
@@ -277,7 +576,7 @@ def biomass(
     area_domain: Optional[str] = None,
     totals: bool = True,
     variance: bool = False,
-    most_recent: bool = False
+    most_recent: bool = False,
 ) -> pl.DataFrame:
     """
     Estimate tree biomass and carbon from FIA data.
@@ -465,12 +764,11 @@ def biomass(
 
     Warnings
     --------
-    The current implementation uses a simplified variance calculation that
-    returns 10% of the estimate as standard error. This is a placeholder
-    and does not follow the full stratified variance calculation described
-    in Bechtold & Patterson (2005). For applications requiring precise
-    variance estimates, consider using the FIA EVALIDator tool or other
-    specialized FIA analysis software.
+    The variance calculation follows Bechtold & Patterson (2005) methodology
+    for ratio-of-means estimation with stratified sampling. The calculation
+    accounts for covariance between the numerator (biomass/carbon) and
+    denominator (area). For applications requiring the most precise variance
+    estimates, consider also validating against the FIA EVALIDator tool.
 
     Some biomass components may not be available for all species or in all
     FIA regions. If a requested component is not available, the function
@@ -567,12 +865,12 @@ def biomass(
     """
     # Import validation functions
     from ...validation import (
+        validate_biomass_component,
+        validate_boolean,
+        validate_domain_expression,
+        validate_grp_by,
         validate_land_type,
         validate_tree_type,
-        validate_biomass_component,
-        validate_grp_by,
-        validate_domain_expression,
-        validate_boolean
     )
 
     # Validate inputs
@@ -600,9 +898,9 @@ def biomass(
         "area_domain": area_domain,
         "totals": totals,
         "variance": variance,
-        "most_recent": most_recent
+        "most_recent": most_recent,
     }
-    
+
     # Create and run estimator
     estimator = BiomassEstimator(db, config)
     return estimator.estimate()

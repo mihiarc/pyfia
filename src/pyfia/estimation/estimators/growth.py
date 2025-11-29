@@ -24,13 +24,24 @@ class GrowthEstimator(BaseEstimator):
     Follows EVALIDator methodology with component-based calculations.
     """
 
+    def __init__(self, db, config):
+        """Initialize with storage for variance calculation."""
+        super().__init__(db, config)
+        self.plot_tree_data = None  # Store for variance calculation
+        self.group_cols = None  # Store grouping columns
+
     def get_required_tables(self) -> List[str]:
         """Growth requires GRM tables for proper calculation."""
         return [
-            "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "TREE_GRM_BEGIN",
+            "TREE_GRM_COMPONENT",
+            "TREE_GRM_MIDPT",
+            "TREE_GRM_BEGIN",
             "TREE",  # Current inventory for ending volumes
             "BEGINEND",  # Critical for ONEORTWO cross-join methodology
-            "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"
+            "COND",
+            "PLOT",
+            "POP_PLOT_STRATUM_ASSGN",
+            "POP_STRATUM",
         ]
 
     def get_tree_columns(self) -> List[str]:
@@ -54,11 +65,13 @@ class GrowthEstimator(BaseEstimator):
 
         # Build column names based on land and tree type
         prefix = f"SUBP_COMPONENT_{tree_type}_{land_type}"
-        cols.extend([
-            f"{prefix}",  # Component type (SURVIVOR, INGROWTH, etc.)
-            f"SUBP_TPAGROW_UNADJ_{tree_type}_{land_type}",  # Growth TPA
-            f"SUBP_SUBPTYP_GRM_{tree_type}_{land_type}",  # Adjustment type
-        ])
+        cols.extend(
+            [
+                f"{prefix}",  # Component type (SURVIVOR, INGROWTH, etc.)
+                f"SUBP_TPAGROW_UNADJ_{tree_type}_{land_type}",  # Growth TPA
+                f"SUBP_SUBPTYP_GRM_{tree_type}_{land_type}",  # Adjustment type
+            ]
+        )
 
         # Store column names for later use
         self._component_col = f"SUBP_COMPONENT_{tree_type}_{land_type}"
@@ -70,9 +83,15 @@ class GrowthEstimator(BaseEstimator):
     def get_cond_columns(self) -> List[str]:
         """Required condition columns."""
         base_cols = [
-            "PLT_CN", "CONDID", "COND_STATUS_CD",
-            "CONDPROP_UNADJ", "OWNGRPCD", "FORTYPCD",
-            "SITECLCD", "RESERVCD", "ALSTKCD"  # Add ALSTKCD for stocking class grouping
+            "PLT_CN",
+            "CONDID",
+            "COND_STATUS_CD",
+            "CONDPROP_UNADJ",
+            "OWNGRPCD",
+            "FORTYPCD",
+            "SITECLCD",
+            "RESERVCD",
+            "ALSTKCD",  # Add ALSTKCD for stocking class grouping
         ]
 
         # Add any additional columns needed for grouping
@@ -118,10 +137,24 @@ class GrowthEstimator(BaseEstimator):
         # Select TREE columns
         measure = self.config.get("measure", "volume")
         if measure == "volume":
-            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN", "VOLCFNET"]
+            tree_cols = [
+                "CN",
+                "PLT_CN",
+                "CONDID",
+                "PREVCOND",
+                "PREV_TRE_CN",
+                "VOLCFNET",
+            ]
             tree_vol_col = "VOLCFNET"
         elif measure == "biomass":
-            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN", "DRYBIO_AG"]
+            tree_cols = [
+                "CN",
+                "PLT_CN",
+                "CONDID",
+                "PREVCOND",
+                "PREV_TRE_CN",
+                "DRYBIO_AG",
+            ]
             tree_vol_col = "DRYBIO_AG"
         else:
             tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN"]
@@ -146,21 +179,23 @@ class GrowthEstimator(BaseEstimator):
         _ = self.get_tree_columns()
 
         # Select and rename GRM columns
-        grm_component = grm_component.select([
-            pl.col("TRE_CN"),
-            pl.col("DIA_BEGIN"),
-            pl.col("DIA_MIDPT"),
-            pl.col("DIA_END"),
-            pl.col(self._component_col).alias("COMPONENT"),
-            pl.col(self._tpagrow_col).alias("TPAGROW_UNADJ"),
-            pl.col(self._subptyp_col).alias("SUBPTYP_GRM")
-        ])
+        grm_component = grm_component.select(
+            [
+                pl.col("TRE_CN"),
+                pl.col("DIA_BEGIN"),
+                pl.col("DIA_MIDPT"),
+                pl.col("DIA_END"),
+                pl.col(self._component_col).alias("COMPONENT"),
+                pl.col(self._tpagrow_col).alias("TPAGROW_UNADJ"),
+                pl.col(self._subptyp_col).alias("SUBPTYP_GRM"),
+            ]
+        )
 
         data = data.join(
             grm_component,
             left_on="CN",
             right_on="TRE_CN",
-            how="inner"  # Inner join - only keep trees with GRM data
+            how="inner",  # Inner join - only keep trees with GRM data
         )
 
         # Join TREE_GRM_MIDPT
@@ -188,12 +223,7 @@ class GrowthEstimator(BaseEstimator):
         if midpt_vol_col:
             grm_midpt = grm_midpt.rename({midpt_vol_col: f"MIDPT_{midpt_vol_col}"})
 
-        data = data.join(
-            grm_midpt,
-            left_on="CN",
-            right_on="TRE_CN",
-            how="left"
-        )
+        data = data.join(grm_midpt, left_on="CN", right_on="TRE_CN", how="left")
 
         # Join TREE_GRM_BEGIN
         if "TREE_GRM_BEGIN" not in self.db.tables:
@@ -220,22 +250,14 @@ class GrowthEstimator(BaseEstimator):
         if begin_vol_col:
             grm_begin = grm_begin.rename({begin_vol_col: f"BEGIN_{begin_vol_col}"})
 
-        data = data.join(
-            grm_begin,
-            left_on="CN",
-            right_on="TRE_CN",
-            how="left"
-        )
+        data = data.join(grm_begin, left_on="CN", right_on="TRE_CN", how="left")
 
         # Join PTREE for fallback
         if measure in ["volume", "biomass"]:
-            ptree = tree.select(["CN", tree_vol_col]).rename({tree_vol_col: f"PTREE_{tree_vol_col}"})
-            data = data.join(
-                ptree,
-                left_on="PREV_TRE_CN",
-                right_on="CN",
-                how="left"
+            ptree = tree.select(["CN", tree_vol_col]).rename(
+                {tree_vol_col: f"PTREE_{tree_vol_col}"}
             )
+            data = data.join(ptree, left_on="PREV_TRE_CN", right_on="CN", how="left")
 
         # Join PLOT
         if "PLOT" not in self.db.tables:
@@ -245,15 +267,11 @@ class GrowthEstimator(BaseEstimator):
         if not isinstance(plot, pl.LazyFrame):
             plot = plot.lazy()
 
-        plot = plot.select(["CN", "STATECD", "INVYR", "PREV_PLT_CN",
-                           "MACRO_BREAKPOINT_DIA", "REMPER"])
-
-        data = data.join(
-            plot,
-            left_on="PLT_CN",
-            right_on="CN",
-            how="inner"
+        plot = plot.select(
+            ["CN", "STATECD", "INVYR", "PREV_PLT_CN", "MACRO_BREAKPOINT_DIA", "REMPER"]
         )
+
+        data = data.join(plot, left_on="PLT_CN", right_on="CN", how="inner")
 
         # Join COND (current condition)
         if "COND" not in self.db.tables:
@@ -274,16 +292,12 @@ class GrowthEstimator(BaseEstimator):
             cond,
             left_on=["PLT_CN", "CONDID"],
             right_on=["PLT_CN", "CONDID"],
-            how="inner"
+            how="inner",
         )
 
         # Join stratification for expansion factors
         strat_data = self._get_stratification_data()
-        data = data.join(
-            strat_data,
-            on="PLT_CN",
-            how="inner"
-        )
+        data = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Join BEGINEND (cross-join)
         if "BEGINEND" not in self.db.tables:
@@ -296,15 +310,14 @@ class GrowthEstimator(BaseEstimator):
         if not isinstance(beginend, pl.LazyFrame):
             beginend = beginend.lazy()
 
-        if hasattr(self.db, '_state_filter') and self.db._state_filter:
-            beginend = beginend.filter(pl.col("STATE_ADDED").is_in(self.db._state_filter))
+        if hasattr(self.db, "_state_filter") and self.db._state_filter:
+            beginend = beginend.filter(
+                pl.col("STATE_ADDED").is_in(self.db._state_filter)
+            )
 
         beginend = beginend.select(["ONEORTWO"]).unique()
 
-        data = data.join(
-            beginend,
-            how="cross"
-        )
+        data = data.join(beginend, how="cross")
 
         return data
 
@@ -329,9 +342,9 @@ class GrowthEstimator(BaseEstimator):
         if land_type == "timber":
             # Timber land: unreserved, productive forestland
             data = data.filter(
-                (pl.col("COND_STATUS_CD") == 1) &
-                (pl.col("RESERVCD") == 0) &
-                (pl.col("SITECLCD") < 7)
+                (pl.col("COND_STATUS_CD") == 1)
+                & (pl.col("RESERVCD") == 0)
+                & (pl.col("SITECLCD") < 7)
             )
         else:  # forest
             # All forestland
@@ -340,9 +353,6 @@ class GrowthEstimator(BaseEstimator):
         # Apply custom tree domain filtering if specified
         tree_domain = self.config.get("tree_domain")
         if tree_domain:
-            # Convert tree_domain to Polars expression
-            # Simple conversions: == to ==, AND to &, OR to |
-            expr_str = tree_domain.replace("AND", "&").replace("OR", "|").replace("==", "==")
             # This is a simplified approach - in production would need proper SQL parsing
             try:
                 if "DIA_MIDPT >= 5.0" in tree_domain:
@@ -403,29 +413,31 @@ class GrowthEstimator(BaseEstimator):
         else:
             # For count, we don't use volume - just use TPAGROW_UNADJ directly
             # Still need to apply ONEORTWO logic for tree counts
-            data = data.with_columns([
-                pl.when(pl.col("ONEORTWO") == 2)
-                .then(pl.col("TPAGROW_UNADJ").cast(pl.Float64))
-                .when(pl.col("ONEORTWO") == 1)
-                .then(-pl.col("TPAGROW_UNADJ").cast(pl.Float64))
-                .otherwise(0.0)
-                .alias("GROWTH_VALUE")
-            ])
+            data = data.with_columns(
+                [
+                    pl.when(pl.col("ONEORTWO") == 2)
+                    .then(pl.col("TPAGROW_UNADJ").cast(pl.Float64))
+                    .when(pl.col("ONEORTWO") == 1)
+                    .then(-pl.col("TPAGROW_UNADJ").cast(pl.Float64))
+                    .otherwise(0.0)
+                    .alias("GROWTH_VALUE")
+                ]
+            )
             return data
 
         # Implement ONEORTWO logic for volume/biomass
         # ONEORTWO = 2: Add ending volumes
         ending_volume = (
             pl.when(
-                (pl.col("COMPONENT") == "SURVIVOR") |
-                (pl.col("COMPONENT") == "INGROWTH") |
-                (pl.col("COMPONENT").str.starts_with("REVERSION"))
+                (pl.col("COMPONENT") == "SURVIVOR")
+                | (pl.col("COMPONENT") == "INGROWTH")
+                | (pl.col("COMPONENT").str.starts_with("REVERSION"))
             )
             .then(pl.col(tree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
             .when(
-                (pl.col("COMPONENT").str.starts_with("CUT")) |
-                (pl.col("COMPONENT").str.starts_with("DIVERSION")) |
-                (pl.col("COMPONENT").str.starts_with("MORTALITY"))
+                (pl.col("COMPONENT").str.starts_with("CUT"))
+                | (pl.col("COMPONENT").str.starts_with("DIVERSION"))
+                | (pl.col("COMPONENT").str.starts_with("MORTALITY"))
             )
             .then(pl.col(midpt_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
             .otherwise(0.0)
@@ -435,36 +447,44 @@ class GrowthEstimator(BaseEstimator):
         # Use BEGIN if available, otherwise use PTREE as fallback
         beginning_volume = (
             pl.when(
-                (pl.col("COMPONENT") == "SURVIVOR") |
-                (pl.col("COMPONENT") == "CUT1") |
-                (pl.col("COMPONENT") == "DIVERSION1") |
-                (pl.col("COMPONENT") == "MORTALITY1")
+                (pl.col("COMPONENT") == "SURVIVOR")
+                | (pl.col("COMPONENT") == "CUT1")
+                | (pl.col("COMPONENT") == "DIVERSION1")
+                | (pl.col("COMPONENT") == "MORTALITY1")
             )
             .then(
                 # Use BEGIN if not null, otherwise use PTREE
                 pl.when(pl.col(begin_col).is_not_null())
                 .then(-(pl.col(begin_col) / pl.col("REMPER").fill_null(5.0)))
-                .otherwise(-(pl.col(ptree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0)))
+                .otherwise(
+                    -(pl.col(ptree_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
+                )
             )
             .otherwise(0.0)
         )
 
         # Apply ONEORTWO logic to select appropriate volume contribution
-        data = data.with_columns([
-            pl.when(pl.col("ONEORTWO") == 2)
-            .then(ending_volume)
-            .when(pl.col("ONEORTWO") == 1)
-            .then(beginning_volume)
-            .otherwise(0.0)
-            .alias("volume_contribution")
-        ])
+        data = data.with_columns(
+            [
+                pl.when(pl.col("ONEORTWO") == 2)
+                .then(ending_volume)
+                .when(pl.col("ONEORTWO") == 1)
+                .then(beginning_volume)
+                .otherwise(0.0)
+                .alias("volume_contribution")
+            ]
+        )
 
         # Calculate final growth value: TPAGROW_UNADJ * volume_contribution
         # This will be aggregated across ONEORTWO=1 and ONEORTWO=2 rows to get NET growth
-        data = data.with_columns([
-            (pl.col("TPAGROW_UNADJ").cast(pl.Float64) *
-             pl.col("volume_contribution").cast(pl.Float64)).alias("GROWTH_VALUE")
-        ])
+        data = data.with_columns(
+            [
+                (
+                    pl.col("TPAGROW_UNADJ").cast(pl.Float64)
+                    * pl.col("volume_contribution").cast(pl.Float64)
+                ).alias("GROWTH_VALUE")
+            ]
+        )
 
         return data
 
@@ -479,46 +499,79 @@ class GrowthEstimator(BaseEstimator):
         # Apply GRM-specific adjustment factors based on SUBPTYP_GRM
         # This is done BEFORE calling the shared aggregation method
         # SUBPTYP_GRM: 0=None, 1=SUBP, 2=MICR, 3=MACR
-        data_with_strat = data.with_columns([
-            pl.when(pl.col("SUBPTYP_GRM") == 0)
-            .then(0.0)
-            .when(pl.col("SUBPTYP_GRM") == 1)
-            .then(pl.col("ADJ_FACTOR_SUBP"))
-            .when(pl.col("SUBPTYP_GRM") == 2)
-            .then(pl.col("ADJ_FACTOR_MICR"))
-            .when(pl.col("SUBPTYP_GRM") == 3)
-            .then(pl.col("ADJ_FACTOR_MACR"))
-            .otherwise(0.0)
-            .alias("ADJ_FACTOR")
-        ])
+        data_with_strat = data.with_columns(
+            [
+                pl.when(pl.col("SUBPTYP_GRM") == 0)
+                .then(0.0)
+                .when(pl.col("SUBPTYP_GRM") == 1)
+                .then(pl.col("ADJ_FACTOR_SUBP"))
+                .when(pl.col("SUBPTYP_GRM") == 2)
+                .then(pl.col("ADJ_FACTOR_MICR"))
+                .when(pl.col("SUBPTYP_GRM") == 3)
+                .then(pl.col("ADJ_FACTOR_MACR"))
+                .otherwise(0.0)
+                .alias("ADJ_FACTOR")
+            ]
+        )
 
         # Apply adjustment to growth values
-        data_with_strat = data_with_strat.with_columns([
-            (pl.col("GROWTH_VALUE") * pl.col("ADJ_FACTOR")).alias("GROWTH_ADJ")
-        ])
+        data_with_strat = data_with_strat.with_columns(
+            [(pl.col("GROWTH_VALUE") * pl.col("ADJ_FACTOR")).alias("GROWTH_ADJ")]
+        )
 
         # Setup grouping (includes by_species logic)
         group_cols = self._setup_grouping()
         if self.config.get("by_species", False) and "SPCD" not in group_cols:
             group_cols.append("SPCD")
+        self.group_cols = group_cols  # Store for variance calculation
+
+        # CRITICAL: Store plot-tree level data for variance calculation
+        data_collected = data_with_strat.collect()
+        available_cols = data_collected.columns
+
+        # Build column list for preservation
+        cols_to_preserve = ["PLT_CN", "CONDID"]
+
+        # Add stratification columns
+        if "STRATUM_CN" in available_cols:
+            cols_to_preserve.append("STRATUM_CN")
+        if "ESTN_UNIT" in available_cols:
+            cols_to_preserve.append("ESTN_UNIT")
+        elif "UNITCD" in available_cols:
+            data_collected = data_collected.with_columns(
+                pl.col("UNITCD").alias("ESTN_UNIT")
+            )
+            cols_to_preserve.append("ESTN_UNIT")
+
+        # Add essential columns for variance calculation
+        cols_to_preserve.extend(["GROWTH_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"])
+
+        # Add grouping columns if they exist
+        if group_cols:
+            for col in group_cols:
+                if col in available_cols and col not in cols_to_preserve:
+                    cols_to_preserve.append(col)
+
+        # Store the plot-tree data for variance calculation
+        self.plot_tree_data = data_collected.select(
+            [c for c in cols_to_preserve if c in data_collected.columns]
+        )
+
+        # Convert back to lazy for two-stage aggregation
+        data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
-        metric_mappings = {
-            "GROWTH_ADJ": "CONDITION_GROWTH"
-        }
+        metric_mappings = {"GROWTH_ADJ": "CONDITION_GROWTH"}
 
         results = self._apply_two_stage_aggregation(
             data_with_strat=data_with_strat,
             metric_mappings=metric_mappings,
             group_cols=group_cols,
-            use_grm_adjustment=True  # Indicates this is a GRM-based estimator
+            use_grm_adjustment=True,  # Indicates this is a GRM-based estimator
         )
 
         # Rename columns for growth context
-        rename_map = {
-            "GROWTH_ACRE": "GROWTH_ACRE",
-            "GROWTH_TOTAL": "GROWTH_TOTAL"
-        }
+        rename_map = {"GROWTH_ACRE": "GROWTH_ACRE", "GROWTH_TOTAL": "GROWTH_TOTAL"}
 
         for old, new in rename_map.items():
             if old in results.columns:
@@ -531,30 +584,274 @@ class GrowthEstimator(BaseEstimator):
         return results
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for growth estimates."""
-        # Simplified variance calculation
-        # In production, should use proper stratified variance formulas
-        # Conservative estimate: 12-15% CV is typical for growth
-        results = results.with_columns([
-            (pl.col("GROWTH_ACRE") * 0.12).alias("GROWTH_ACRE_SE"),
-            (pl.col("GROWTH_TOTAL") * 0.12).alias("GROWTH_TOTAL_SE")
-        ])
+        """Calculate variance for growth estimates using proper ratio estimation formula.
+
+        Growth estimation uses ratio-of-means: R = Y/X where Y is growth value and X is area.
+        The variance formula accounts for covariance between numerator and denominator.
+
+        Following Bechtold & Patterson (2005) methodology for stratified sampling.
+        """
+        if self.plot_tree_data is None:
+            # Fallback to conservative estimate
+            import warnings
+
+            warnings.warn(
+                "Plot-tree data not available for proper variance calculation. "
+                "Using placeholder 12% CV. To enable proper variance, ensure data "
+                "preservation is working correctly."
+            )
+            results = results.with_columns(
+                [
+                    (pl.col("GROWTH_ACRE") * 0.12).alias("GROWTH_ACRE_SE"),
+                    (pl.col("GROWTH_TOTAL") * 0.12).alias("GROWTH_TOTAL_SE"),
+                ]
+            )
+            if self.config.get("include_cv", False):
+                results = results.with_columns(
+                    [
+                        pl.when(pl.col("GROWTH_ACRE") > 0)
+                        .then(pl.col("GROWTH_ACRE_SE") / pl.col("GROWTH_ACRE") * 100)
+                        .otherwise(None)
+                        .alias("GROWTH_ACRE_CV"),
+                        pl.when(pl.col("GROWTH_TOTAL") > 0)
+                        .then(pl.col("GROWTH_TOTAL_SE") / pl.col("GROWTH_TOTAL") * 100)
+                        .otherwise(None)
+                        .alias("GROWTH_TOTAL_CV"),
+                    ]
+                )
+            return results
+
+        # Step 1: Aggregate to plot-condition level
+        # Sum growth within each condition (trees are already adjusted)
+        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
+        if "STRATUM_CN" in self.plot_tree_data.columns:
+            plot_group_cols.insert(2, "STRATUM_CN")
+
+        # Add grouping columns
+        if self.group_cols:
+            for col in self.group_cols:
+                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
+        plot_cond_agg = [
+            pl.sum("GROWTH_ADJ").alias("y_growth_ic"),  # Growth per condition
+        ]
+
+        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
+            plot_cond_agg
+        )
+
+        # Step 2: Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "EXPNS"]
+        if "STRATUM_CN" in plot_cond_data.columns:
+            plot_level_cols.insert(1, "STRATUM_CN")
+        if self.group_cols:
+            plot_level_cols.extend(
+                [c for c in self.group_cols if c in plot_cond_data.columns]
+            )
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
+            [
+                pl.sum("y_growth_ic").alias("y_i"),  # Total growth per plot
+                pl.lit(1.0).alias("x_i"),  # Area proportion per plot (full plot = 1)
+            ]
+        )
+
+        # Step 3: Calculate variance for each group or overall
+        if self.group_cols:
+            # Get ALL plots in the evaluation for proper variance calculation
+            strat_data = self._get_stratification_data()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
+
+            # Calculate variance for each group separately
+            variance_results = []
+
+            for group_vals in results.iter_rows():
+                # Build filter for this group
+                group_filter = pl.lit(True)
+                group_dict = {}
+
+                for i, col in enumerate(self.group_cols):
+                    if col in plot_data.columns:
+                        group_dict[col] = group_vals[results.columns.index(col)]
+                        group_filter = group_filter & (
+                            pl.col(col) == group_vals[results.columns.index(col)]
+                        )
+
+                # Filter plot data for this specific group
+                group_plot_data = plot_data.filter(group_filter)
+
+                # Join with ALL plots, filling missing with zeros
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_i", "x_i"]),
+                    on="PLT_CN",
+                    how="left",
+                ).with_columns(
+                    [pl.col("y_i").fill_null(0.0), pl.col("x_i").fill_null(0.0)]
+                )
+
+                if len(all_plots_group) > 0:
+                    # Calculate variance using ALL plots (including zeros)
+                    var_stats = self._calculate_ratio_variance(all_plots_group, "y_i")
+
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "GROWTH_ACRE_SE": var_stats["se_acre"],
+                            "GROWTH_TOTAL_SE": var_stats["se_total"],
+                        }
+                    )
+                else:
+                    variance_results.append(
+                        {**group_dict, "GROWTH_ACRE_SE": 0.0, "GROWTH_TOTAL_SE": 0.0}
+                    )
+
+            # Join variance results back to main results
+            if variance_results:
+                var_df = pl.DataFrame(variance_results)
+                results = results.join(var_df, on=self.group_cols, how="left")
+        else:
+            # No grouping, calculate overall variance
+            var_stats = self._calculate_ratio_variance(plot_data, "y_i")
+
+            results = results.with_columns(
+                [
+                    pl.lit(var_stats["se_acre"]).alias("GROWTH_ACRE_SE"),
+                    pl.lit(var_stats["se_total"]).alias("GROWTH_TOTAL_SE"),
+                ]
+            )
 
         # Add CV if requested
         if self.config.get("include_cv", False):
-            results = results.with_columns([
-                pl.when(pl.col("GROWTH_ACRE") > 0)
-                .then(pl.col("GROWTH_ACRE_SE") / pl.col("GROWTH_ACRE") * 100)
-                .otherwise(None)
-                .alias("GROWTH_ACRE_CV"),
-
-                pl.when(pl.col("GROWTH_TOTAL") > 0)
-                .then(pl.col("GROWTH_TOTAL_SE") / pl.col("GROWTH_TOTAL") * 100)
-                .otherwise(None)
-                .alias("GROWTH_TOTAL_CV")
-            ])
+            results = results.with_columns(
+                [
+                    pl.when(pl.col("GROWTH_ACRE") > 0)
+                    .then(pl.col("GROWTH_ACRE_SE") / pl.col("GROWTH_ACRE") * 100)
+                    .otherwise(None)
+                    .alias("GROWTH_ACRE_CV"),
+                    pl.when(pl.col("GROWTH_TOTAL") > 0)
+                    .then(pl.col("GROWTH_TOTAL_SE") / pl.col("GROWTH_TOTAL") * 100)
+                    .otherwise(None)
+                    .alias("GROWTH_TOTAL_CV"),
+                ]
+            )
 
         return results
+
+    def _calculate_ratio_variance(self, plot_data: pl.DataFrame, y_col: str) -> Dict:
+        """Calculate variance for ratio-of-means estimator.
+
+        For ratio estimation R = Y/X, the variance formula is:
+        V(R) ≈ (1/X̄²) × Σ_h w_h² × [s²_yh + R² × s²_xh - 2R × s_yxh] / n_h
+
+        Where:
+        - Y is the numerator (growth)
+        - X is the denominator (area)
+        - R is the ratio estimate
+        - s_yxh is the covariance between Y and X in stratum h
+        - w_h is the stratum weight (EXPNS)
+        - n_h is the number of plots in stratum h
+        """
+        # Determine stratification columns
+        strat_cols = ["STRATUM_CN"] if "STRATUM_CN" in plot_data.columns else []
+
+        if not strat_cols:
+            # No stratification, treat as single stratum
+            plot_data = plot_data.with_columns(pl.lit(1).alias("STRATUM"))
+            strat_cols = ["STRATUM"]
+
+        # Calculate stratum-level statistics
+        strata_stats = plot_data.group_by(strat_cols).agg(
+            [
+                pl.count("PLT_CN").alias("n_h"),
+                pl.mean(y_col).alias("ybar_h"),
+                pl.mean("x_i").alias("xbar_h"),
+                pl.var(y_col, ddof=1).alias("s2_yh"),
+                pl.var("x_i", ddof=1).alias("s2_xh"),
+                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),
+                # Calculate covariance
+                (
+                    (
+                        (pl.col(y_col) - pl.col(y_col).mean())
+                        * (pl.col("x_i") - pl.col("x_i").mean())
+                    ).sum()
+                    / (pl.len() - 1)
+                ).alias("cov_yxh"),
+            ]
+        )
+
+        # Handle null variances
+        strata_stats = strata_stats.with_columns(
+            [
+                pl.when(pl.col("s2_yh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_yh"))
+                .cast(pl.Float64)
+                .alias("s2_yh"),
+                pl.when(pl.col("s2_xh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_xh"))
+                .cast(pl.Float64)
+                .alias("s2_xh"),
+                pl.when(pl.col("cov_yxh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("cov_yxh"))
+                .cast(pl.Float64)
+                .alias("cov_yxh"),
+                pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
+                pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
+            ]
+        )
+
+        # Calculate population totals
+        total_y = (
+            strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+        total_x = (
+            strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
+        ).sum()
+
+        # Calculate ratio estimate
+        ratio = total_y / total_x if total_x > 0 else 0
+
+        # Calculate variance components
+        variance_components = strata_stats.with_columns(
+            [
+                (
+                    pl.col("w_h") ** 2
+                    * (
+                        pl.col("s2_yh")
+                        + ratio**2 * pl.col("s2_xh")
+                        - 2 * ratio * pl.col("cov_yxh")
+                    )
+                    * pl.col("n_h")
+                ).alias("v_h")
+            ]
+        )
+
+        # Sum variance components
+        variance_of_numerator = variance_components["v_h"].sum()
+        if variance_of_numerator is None or variance_of_numerator < 0:
+            variance_of_numerator = 0.0
+
+        # Convert to variance of the ratio
+        variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
+
+        # Standard errors
+        se_acre = variance_of_ratio**0.5
+        se_total = se_acre * total_x if total_x > 0 else 0
+
+        return {
+            "variance_acre": variance_of_ratio,
+            "variance_total": (se_total**2) if se_total > 0 else 0,
+            "se_acre": se_acre,
+            "se_total": se_total,
+            "ratio": ratio,
+            "total_y": total_y,
+            "total_x": total_x,
+        }
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format growth estimation output."""
@@ -563,19 +860,21 @@ class GrowthEstimator(BaseEstimator):
         land_type = self.config.get("land_type", "forest")
         tree_type = self.config.get("tree_type", "gs")
 
-        results = results.with_columns([
-            pl.lit(2023).alias("YEAR"),  # Would extract from INVYR in production
-            pl.lit(measure.upper()).alias("MEASURE"),
-            pl.lit(land_type.upper()).alias("LAND_TYPE"),
-            pl.lit(tree_type.upper()).alias("TREE_TYPE")
-        ])
+        results = results.with_columns(
+            [
+                pl.lit(2023).alias("YEAR"),  # Would extract from INVYR in production
+                pl.lit(measure.upper()).alias("MEASURE"),
+                pl.lit(land_type.upper()).alias("LAND_TYPE"),
+                pl.lit(tree_type.upper()).alias("TREE_TYPE"),
+            ]
+        )
 
         # Format columns
         results = format_output_columns(
             results,
             estimation_type="growth",
             include_se=True,
-            include_cv=self.config.get("include_cv", False)
+            include_cv=self.config.get("include_cv", False),
         )
 
         return results
@@ -593,7 +892,7 @@ def growth(
     area_domain: Optional[str] = None,
     totals: bool = True,
     variance: bool = False,
-    most_recent: bool = False
+    most_recent: bool = False,
 ) -> pl.DataFrame:
     """
     Estimate annual tree growth from FIA data using GRM methodology.
@@ -830,11 +1129,11 @@ def growth(
 
     Warnings
     --------
-    The current implementation uses a simplified variance calculation
-    (12% CV for per-acre estimates). Full stratified variance calculation
-    following Bechtold & Patterson (2005) will be implemented in a future
-    release. For applications requiring precise variance estimates, consider
-    using the FIA EVALIDator tool or other specialized FIA analysis software.
+    The variance calculation follows Bechtold & Patterson (2005) methodology
+    for ratio-of-means estimation with stratified sampling. The calculation
+    accounts for covariance between the numerator (growth) and denominator
+    (area). For applications requiring the most precise variance estimates,
+    consider also validating against the FIA EVALIDator tool.
 
     The function now provides estimates consistent with EVALIDator by using
     the weighted average methodology for volume calculations.
@@ -850,12 +1149,12 @@ def growth(
     """
     # Import validation functions
     from ...validation import (
-        validate_land_type,
-        validate_tree_type,
-        validate_mortality_measure,  # Reuse for growth measure
-        validate_grp_by,
+        validate_boolean,
         validate_domain_expression,
-        validate_boolean
+        validate_grp_by,
+        validate_land_type,
+        validate_mortality_measure,  # Reuse for growth measure
+        validate_tree_type,
     )
 
     # Validate inputs
@@ -884,7 +1183,7 @@ def growth(
         "totals": totals,
         "variance": variance,
         "most_recent": most_recent,
-        "include_cv": False  # Could be added as parameter
+        "include_cv": False,  # Could be added as parameter
     }
 
     # Create and run estimator

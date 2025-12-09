@@ -91,10 +91,13 @@ def validate_state(
 
     with FIA(db_path) as db:
         # Test 1: Forest Area
+        # Note: EVALIDator uses EXPCURR evaluation type for forest area (snum=2),
+        # not EXPALL. EXPCURR is designed for "current area" (forestland) estimation
+        # with different expansion factors than EXPALL.
         console.print("\n[yellow]Testing Forest Area...[/]")
         try:
             db.clip_by_state(state_code)
-            db.clip_most_recent(eval_type="ALL")
+            db.clip_most_recent(eval_type="CURR")
 
             pyfia_result = area(db, land_type="forest")
             pyfia_value, pyfia_se = extract_estimate_and_se(pyfia_result, "area")
@@ -133,11 +136,12 @@ def validate_state(
             })
 
     # Test 2: Timberland Area
+    # Note: EVALIDator uses EXPCURR for timberland area (snum=3) as well
     with FIA(db_path) as db:
         console.print("\n[yellow]Testing Timberland Area...[/]")
         try:
             db.clip_by_state(state_code)
-            db.clip_most_recent(eval_type="ALL")
+            db.clip_most_recent(eval_type="CURR")
 
             pyfia_result = area(db, land_type="timber")
             pyfia_value, pyfia_se = extract_estimate_and_se(pyfia_result, "area")

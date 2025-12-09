@@ -36,7 +36,7 @@ class TPAEstimator(BaseEstimator):
 
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for TPA estimation."""
-        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ"]
+        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ", "TREECLCD"]
 
         # Add grouping columns if needed
         if self.config.get("grp_by"):

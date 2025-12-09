@@ -338,7 +338,8 @@ class EVALIDatorClient:
         self,
         state_code: int,
         year: int,
-        component: str = "ag"
+        component: str = "ag",
+        min_diameter: float = 0.0
     ) -> EVALIDatorEstimate:
         """
         Get biomass estimate from EVALIDator.
@@ -351,17 +352,26 @@ class EVALIDatorClient:
             Inventory year
         component : str
             "ag" for aboveground, "bg" for belowground, "total" for both
+        min_diameter : float, default 0.0
+            Minimum DBH threshold. Use 0.0 for all trees, 5.0 for trees ≥5" DBH.
 
         Returns
         -------
         EVALIDatorEstimate
             Official biomass estimate in dry short tons
         """
-        snum_map = {
-            "ag": EstimateType.BIOMASS_AG_LIVE_5INCH,
-            "bg": EstimateType.BIOMASS_BG_LIVE_5INCH,
-        }
-        snum = snum_map.get(component, EstimateType.BIOMASS_AG_LIVE_5INCH)
+        # Select snum based on component and diameter threshold
+        if min_diameter >= 5.0:
+            snum_map = {
+                "ag": EstimateType.BIOMASS_AG_LIVE_5INCH,
+                "bg": EstimateType.BIOMASS_BG_LIVE_5INCH,
+            }
+        else:
+            snum_map = {
+                "ag": EstimateType.BIOMASS_AG_LIVE,
+                "bg": EstimateType.BIOMASS_BG_LIVE,
+            }
+        snum = snum_map.get(component, snum_map["ag"])
 
         data = self._make_request(
             snum=snum,

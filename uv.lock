@@ -1113,6 +1113,7 @@ dependencies = [
     { name = "pydantic" },
     { name = "pydantic-settings" },
     { name = "pyyaml" },
+    { name = "requests" },
     { name = "rich" },
 ]
 
@@ -1170,6 +1171,7 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.4.1" },
     { name = "pytest-cov", marker = "extra == 'dev'", specifier = ">=6.2.1" },
     { name = "pyyaml", specifier = ">=6.0.0" },
+    { name = "requests", specifier = ">=2.31.0" },
     { name = "rich" },
     { name = "ruff", marker = "extra == 'dev'", specifier = ">=0.12.0" },
     { name = "shapely", marker = "extra == 'spatial'", specifier = ">=2.1.1" },

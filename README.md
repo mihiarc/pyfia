@@ -13,11 +13,11 @@ pyFIA provides a programmatic API for working with Forest Inventory and Analysis
 
 ### Core Estimation Functions
 - ✅ **Trees per acre** (`tpa()`) - Live and dead tree abundance
-- ✅ **Biomass** (`biomass()`) - Above/belowground biomass and carbon  
-- ✅ **Volume** (`volume()`) - Merchantable volume (cubic feet, board feet)
+- ✅ **Biomass** (`biomass()`) - Above/belowground biomass and carbon
+- ✅ **Volume** (`volume()`) - Merchantable volume (cubic feet)
 - ✅ **Forest area** (`area()`) - Forest land area by category
 - ✅ **Mortality** (`mortality()`) - Annual mortality rates
-- ✅ **Growth** (`growMort()`) - Net growth, recruitment, and mortality
+- ✅ **Growth** (`growth()`) - Net growth estimation
 
 ### Statistical Methods
 - **Design-based estimation** following Bechtold & Patterson (2005)
@@ -50,62 +50,66 @@ pip install -e .[dev]
 ```python
 from pyfia import FIA, biomass, tpa, volume, area
 
-# Load FIA data from DuckDB
-db = FIA("path/to/FIA_database.duckdb")
+# Load FIA data and filter to a state
+with FIA("path/to/FIA_database.duckdb") as db:
+    # Filter to state (required before estimation)
+    db.clip_by_state(37)  # North Carolina
+    db.clip_most_recent(eval_type="EXPVOL")
 
-# Get trees per acre
-tpa_results = tpa(db, method='TI')
+    # Get trees per acre (live trees on forestland)
+    tpa_results = tpa(db, tree_domain="STATUSCD == 1")
 
-# Get biomass estimates
-biomass_results = biomass(db, method='TI', component='AG')
+    # Get biomass estimates
+    biomass_results = biomass(db, land_type="forest")
 
-# Get forest area
-area_results = area(db, method='TI')
+    # Get forest area
+    area_results = area(db, land_type="forest")
 
-# Get volume estimates
-volume_results = volume(db, method='TI')
+    # Get volume estimates
+    volume_results = volume(db, land_type="forest")
 ```
 
 ## Domain Filtering and Grouping
 
-pyFIA supports flexible domain filtering and grouping for FIA data analysis:
+pyFIA supports flexible domain filtering and grouping:
 
 ```python
-# Tree-level filtering
-tpa_live = tpa(db, treeDomain="STATUSCD == 1", method='TI')
+# Tree-level filtering (snake_case parameters)
+tpa_live = tpa(db, tree_domain="STATUSCD == 1")
 
 # Group by species
-biomass_by_species = biomass(db, bySpecies=True)
+biomass_by_species = biomass(db, by_species=True)
 
-# Domain filtering
-area_timberland = area(db, areaDomain="COND_STATUS_CD == 1", method='TI')
+# Area domain filtering
+area_timberland = area(db, land_type="timber")
 
-# Temporal queries
-annual_mortality = mortality(db, method='annual')
+# Group by custom column
+volume_by_owner = volume(db, grp_by="OWNGRPCD")
 ```
 
 ## Data Organization
 
 pyFIA follows FIA's evaluation-based data structure:
 - **EVALID**: 6-digit codes identifying statistically valid plot groupings
-- **Evaluation types**: VOL (volume), GRM (growth/removal/mortality), CHNG (change)
-- **Automatic EVALID management**: Use `mostRecent=True` for latest evaluations
+- **Evaluation types**: EXPALL (area), EXPVOL (volume), EXPMORT (mortality), EXPGROW (growth)
+- **EVALID management**: Use `db.clip_most_recent(eval_type="EXPVOL")` for latest evaluations
 
 ## Advanced Usage
 
 ```python
 # Context manager for automatic connection handling
 with FIA("path/to/FIA_database.duckdb") as db:
-    # Find available evaluations for a state
-    evalids = db.find_evalid(state="NC")
-    
-    # Use specific evaluation
-    results = biomass(db, evalid="372301", bySpecies=True)
-    
+    # Filter to state and most recent evaluation
+    db.clip_by_state(37)  # North Carolina
+    db.clip_most_recent(eval_type="EXPVOL")
+
+    # Biomass by species
+    results = biomass(db, by_species=True)
+
     # Multiple estimations with same connection
-    tpa_results = tpa(db, method='TI')
-    volume_results = volume(db, method='TI', treeDomain="DIA >= 10")
-    area_results = area(db, method='TI', landType='timber')
+    tpa_results = tpa(db, tree_domain="STATUSCD == 1")
+    volume_results = volume(db, tree_domain="DIA >= 10.0")
+    area_results = area(db, land_type="timber")
 ```
 
 ## Documentation

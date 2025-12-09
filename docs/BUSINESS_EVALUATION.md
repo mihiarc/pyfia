@@ -118,6 +118,85 @@ FIAPI was abandoned due to EVALIDator interface changes, leaving **no maintained
 
 ---
 
+## The Accessibility Problem: Natural Language Interfaces
+
+### The Expertise Gap
+
+The people who need FIA data most **cannot access it**:
+
+| User Segment | US Count | Current Reality |
+|-------------|----------|-----------------|
+| Private forest landowners | 11+ million | Cannot access FIA data at all; rely on consultants |
+| Consulting foresters | ~15,000 | SQL/Python barrier; use dated tools |
+| State forestry analysts | ~2,000 | Limited technical staff; long report cycles |
+| Policy makers | Thousands | Need summaries, wait for published reports |
+| Carbon project developers | Growing | Building custom pipelines from scratch |
+
+**Current requirements to access FIA data:**
+1. Understand FIA's complex database schema (200+ columns, 50+ tables)
+2. Know EVALIDs, expansion factors, and stratification
+3. SQL or Python/R programming skills
+4. Statistical knowledge for variance estimation
+
+This creates a massive barrier—users wait 2-3 years for published reports or pay $100-500/hour for consultants.
+
+### Market Timing: LLM-Based Data Querying Has Matured
+
+| Tool | Approach | Relevance |
+|------|----------|-----------|
+| **Vanna.ai** | Open-source text-to-SQL with RAG | Strong candidate for pyFIA integration |
+| **Google NL2SQL** | BigQuery + Gemini | Validates enterprise demand |
+| **Oracle Select AI** | Natural language to SQL | Proves market readiness |
+| **Databricks AI/BI** | Text-to-SQL with semantic layer | Shows enterprise willingness to pay |
+
+Text-to-SQL accuracy on benchmarks: **75-87%** general, **90%+** with domain tuning.
+
+### Strategic Opportunity: "FIA for Everyone"
+
+**No competitor offers natural language FIA queries.** pyFIA could be first.
+
+| Capability | Current Tools | pyFIA + NL |
+|------------|---------------|------------|
+| Query interface | SQL, Python, R, Web forms | Plain English |
+| Time to answer | Hours to days | Seconds |
+| Statistical validity | Manual verification | Built-in guarantees |
+| Learning curve | Weeks to months | Minutes |
+
+### Recommended Architecture
+
+```
+User: "What's the pine volume in Georgia?"
+              ↓
+    Claude API (tool calling)
+              ↓
+    pyFIA: volume(db.clip_by_state(13), tree_domain="SPGRPCD == 1")
+              ↓
+    "Georgia has 12.3 billion cubic feet of pine (± 2.1% SE)"
+```
+
+**Key insight**: Use LLM to translate questions → pyFIA function calls (not raw SQL). This guarantees statistical validity.
+
+### Cost Economics
+
+| Tier | Queries/Month | LLM Cost | Total |
+|------|---------------|----------|-------|
+| Free | 100 | ~$0.50 | ~$10/mo |
+| Pro | 1,000 | ~$5 | ~$50/mo |
+| Enterprise | 10,000 | ~$50 | ~$200/mo |
+
+Margins are excellent at scale.
+
+### New Target Segments Enabled
+
+| Segment | Size | Pain Point | Willingness to Pay |
+|---------|------|------------|-------------------|
+| **Consulting foresters** | 15,000 | Hours spent on data queries | $50-200/month |
+| **State agencies** | 50 states | Staff time, report delays | $500-2,000/month |
+| **Family forest landowners** | 11M (via services) | Zero current access | Via intermediaries |
+| **Extension services** | 100+ offices | Answering landowner questions | $100-500/month |
+
+---
+
 ## Monetization Paths
 
 ### Option A: Open Core + Enterprise (Recommended)
@@ -141,7 +220,26 @@ FIAPI was abandoned due to EVALIDator interface changes, leaving **no maintained
 **Pricing**: $199-999/month
 **Target**: 50-200 carbon/climate customers = **$120K-$2.4M ARR**
 
-### Option C: Acquisition Target
+### Option C: Natural Language Query Service (New Priority)
+
+**"Ask the Forest"** - Plain English FIA queries
+
+| Tier | Price | Features |
+|------|-------|----------|
+| **Free** | $0 | 100 queries/month, basic estimates |
+| **Professional** | $99/month | 1,000 queries, export, API access |
+| **Team** | $299/month | 5,000 queries, collaboration, custom domains |
+| **Enterprise** | Custom | Unlimited, on-prem option, SLA |
+
+**Target**: 500-2,000 subscribers = **$100K-$600K ARR**
+
+**Why this could be the primary product:**
+- Lowest barrier to adoption (no coding required)
+- Recurring revenue with usage-based expansion
+- Network effects from query data improving the model
+- Clear differentiation from all competitors
+
+### Option D: Acquisition Target
 
 Position for acquisition by:
 
@@ -157,21 +255,34 @@ Position for acquisition by:
 
 ### Immediate (0-3 months)
 
-1. **Add FIA DataMart downloader** - `pyfia.download("NC")` removes biggest friction
-2. **Publish EVALIDator validation benchmarks** - Builds trust
-3. **Target carbon companies directly** - Reach out to NCX, Pachama engineering teams
+1. **Build NL query proof-of-concept** - Claude API + pyFIA function calling; demo 10 common questions
+2. **Validate demand** - Survey 20-30 consulting foresters and state analysts on willingness to pay
+3. **Add FIA DataMart downloader** - `pyfia.download("NC")` removes friction for technical users
+4. **Identify 3-5 design partners** - Organizations willing to pilot NL interface
 
 ### Near-term (3-12 months)
 
-4. **Submit academic paper** - Environmental Modelling & Software (where rFIA published)
-5. **Add spatial query support** - Critical for practical use
-6. **Build carbon-specific features** - Pre-computed metrics aligned with IPCC guidelines
+5. **Launch "Ask the Forest" beta** - Free tier with usage limits, collect query data
+6. **Publish EVALIDator validation benchmarks** - Statistical credibility
+7. **Submit academic paper** - Environmental Modelling & Software
+8. **Add spatial query support** - "What's the volume within this shapefile?"
 
 ### Medium-term (1-2 years)
 
-7. **Small Area Estimation module** - Aligns with USFS 2025 priorities
-8. **Launch paid tier** - Validate willingness to pay
-9. **Seek partnerships** - Microsoft Planetary Computer, Esri
+9. **Launch paid tiers** - Convert beta users to Professional/Team plans
+10. **Fine-tune domain model** - Use collected queries to improve accuracy to 95%+
+11. **Small Area Estimation module** - County-level estimates (USFS 2025 priority)
+12. **Seek partnerships** - Extension services, state forestry associations, carbon platforms
+
+### Key Milestones
+
+| Milestone | Target | Success Metric |
+|-----------|--------|----------------|
+| NL Proof of Concept | Month 3 | 80% query success rate on 10 test questions |
+| Design Partners Secured | Month 3 | 5 organizations committed |
+| Beta Launch | Month 6 | 100 monthly active users |
+| First Paying Customer | Month 9 | $99+ MRR |
+| Product-Market Fit | Month 12 | 50 paying customers, <5% monthly churn |
 
 ---
 
@@ -180,18 +291,30 @@ Position for acquisition by:
 | Aspect | Assessment |
 |--------|------------|
 | **Technical quality** | Excellent |
-| **Market positioning** | Strong (only Python option) |
-| **Direct market size** | Small ($10-50M) |
+| **Market positioning** | Strong (only Python option + potential NL first-mover) |
+| **Direct market size** | Small ($10-50M) for technical tools |
+| **Addressable with NL** | Medium ($50-200M) - unlocks non-technical users |
 | **Adjacent market** | Large (carbon: $105B by 2034) |
-| **Venture-scale?** | No, unless pivoting to carbon platform |
-| **Lifestyle business?** | Yes, achievable with 20-50 enterprise customers |
-| **Acquisition potential** | Moderate-High if carbon market continues growing |
+| **Venture-scale?** | Possible with NL interface + carbon focus |
+| **Lifestyle business?** | Yes, achievable with 50-200 subscribers |
+| **Acquisition potential** | High if NL interface gains traction |
 
-**The opportunity is real but narrow.** pyFIA solves a genuine problem for a real audience. Success depends on:
+### The Revised Thesis
 
-1. Targeting carbon/climate companies (highest willingness to pay)
-2. Adding the features they need (data automation, spatial, carbon metrics)
-3. Building credibility (publication, validation, case studies)
+**The original thesis** (Python-native FIA library) addresses a real but small market of technical users.
+
+**The expanded thesis** (Natural language access to FIA data) addresses a much larger market:
+- 11M+ forest landowners who currently have zero access
+- 15,000+ consulting foresters spending hours on data queries
+- 50 state forestry agencies with limited technical staff
+- Growing carbon industry needing rapid baseline data
+
+**Success depends on:**
+
+1. **Building the NL interface first** - This is the product, pyFIA is the engine
+2. **Targeting non-technical users** - Consulting foresters, state analysts, extension services
+3. **Proving statistical validity** - Users must trust AI-generated estimates
+4. **Collecting query data** - Network effects improve the model over time
 
 ---
 
@@ -222,3 +345,17 @@ Position for acquisition by:
 - FIA DataMart. https://www.fia.fs.fed.us/
 - EVALIDator. https://www.fs.usda.gov/ccrc/tool/forest-inventory-data-online-fido-and-evalidator
 - Arbor Analytics - EVALIDator API Guide. https://arbor-analytics.com/post/2023-10-25-using-r-and-python-to-get-forest-resource-data-through-the-evalidator-api/
+
+### Natural Language & Text-to-SQL
+
+- Vanna.ai - Open source text-to-SQL. https://github.com/vanna-ai/vanna
+- Google NL2SQL with BigQuery. https://cloud.google.com/blog/products/data-analytics/nl2sql-with-bigquery-and-gemini
+- Oracle Select AI. https://blogs.oracle.com/machinelearning/introducing-natural-language-to-sql-generation-on-autonomous-database
+- Alation - Natural Language Data Interfaces Guide. https://www.alation.com/blog/natural-language-data-interfaces-guide/
+- Patterson Consulting - LLMs for Analytics UX. https://pattersonconsultingtn.com/blog/natural_language_ux_with_llms_jan_2024.html
+
+### Technology Adoption in Forestry
+
+- Barriers to technology adoption in rural areas. https://www.sciencedirect.com/science/article/pii/S0160791X23001409
+- American Forest Foundation - Family Forest Owner Challenges. https://www.forestfoundation.org/how-we-do-it/advocacy/
+- Digital Agriculture adoption barriers. https://www.researchgate.net/publication/379844456_Main_drivers_and_barriers_to_the_adoption_of_Digital_Agriculture_technologies

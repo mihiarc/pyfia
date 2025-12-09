@@ -41,22 +41,18 @@ class RemovalsEstimator(BaseEstimator):
         ]
 
     def get_tree_columns(self) -> List[str]:
-        """Required tree columns for removals estimation."""
+        """Required tree columns for removals estimation.
+
+        Note: Grouping columns (grp_by) are handled by the base class's
+        _load_tree_cond_data method which properly determines whether each
+        grouping column exists in TREE or COND tables.
+        """
         cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ"]
 
         # Add columns based on what we're measuring
         measure = self.config.get("measure", "volume")
         if measure == "biomass":
             cols.extend(["DRYBIO_AG", "DRYBIO_BG"])
-
-        # Add grouping columns if needed
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                if col not in cols:
-                    cols.append(col)
 
         return cols
 
@@ -99,127 +95,147 @@ class RemovalsEstimator(BaseEstimator):
             grm_component = grm_component.lazy()
 
         # Select and rename GRM columns
-        grm_component = grm_component.select(
-            [
-                pl.col("TRE_CN"),
-                pl.col("DIA_BEGIN"),
-                pl.col("DIA_MIDPT"),
-                pl.col("SUBP_COMPONENT_GS_FOREST").alias("COMPONENT"),
-                pl.col("SUBP_SUBPTYP_GRM_GS_FOREST").alias("SUBPTYP_GRM"),
-                pl.col("SUBP_TPAREMV_UNADJ_GS_FOREST").alias("TPAREMV_UNADJ"),
-            ]
-        )
+        # IMPORTANT: Use pre-calculated REMVCFGS_FOREST for volume removals
+        # This column is already annualized and uses proper FIA methodology
+        # Do NOT use VOLCFNET * TPAREMV_UNADJ which gives incorrect results
+        tree_type = self.config.get("tree_type", "gs")
+        land_type = self.config.get("land_type", "forest")
+
+        # Build column selection based on tree_type and land_type
+        # GS = Growing Stock, AL = All Live, SL = Sawtimber/Sawlog
+        type_suffix = "GS" if tree_type == "gs" else "AL"
+        land_suffix = "FOREST" if land_type in ("forest", "all") else "TIMBER"
+
+        grm_cols = [
+            pl.col("TRE_CN"),
+            pl.col("DIA_BEGIN"),
+            pl.col("DIA_MIDPT"),
+            pl.col(f"SUBP_COMPONENT_{type_suffix}_{land_suffix}").alias("COMPONENT"),
+            pl.col(f"SUBP_SUBPTYP_GRM_{type_suffix}_{land_suffix}").alias("SUBPTYP_GRM"),
+            pl.col(f"SUBP_TPAREMV_UNADJ_{type_suffix}_{land_suffix}").alias("TPAREMV_UNADJ"),
+            # Pre-calculated annual removal volume (cu ft/year)
+            pl.col(f"REMVCF{type_suffix}_{land_suffix}").alias("REMV_VOLUME"),
+        ]
+
+        grm_component = grm_component.select(grm_cols)
 
         # Join with GRM component data
         data = data.join(grm_component, left_on="CN", right_on="TRE_CN", how="left")
 
-        # Load TREE_GRM_MIDPT for volume calculations if needed
-        if self.config.get("measure", "volume") == "volume":
-            if "TREE_GRM_MIDPT" not in self.db.tables:
-                try:
-                    self.db.load_table("TREE_GRM_MIDPT")
-                except Exception as e:
-                    raise ValueError(f"TREE_GRM_MIDPT table not found in database: {e}")
+        # Add PLOT data for macro breakpoint
+        # NOTE: We avoid calling collect_schema() on a LazyFrame with pending joins
+        # because Polars may fail to resolve the schema if grouping columns exist
+        # in a different table than expected. Instead, always add PLOT columns.
+        if "PLOT" not in self.db.tables:
+            self.db.load_table("PLOT")
 
-            grm_midpt = self.db.tables["TREE_GRM_MIDPT"]
+        plot = self.db.tables["PLOT"]
+        if not isinstance(plot, pl.LazyFrame):
+            plot = plot.lazy()
 
-            if not isinstance(grm_midpt, pl.LazyFrame):
-                grm_midpt = grm_midpt.lazy()
+        # Select PLOT columns needed for GRM estimation
+        # Using suffix to handle potential column name conflicts
+        plot_cols = plot.select(
+            [
+                pl.col("CN").alias("PLOT_CN"),
+                pl.col("MACRO_BREAKPOINT_DIA"),
+            ]
+        )
 
-            grm_midpt = grm_midpt.select([pl.col("TRE_CN"), pl.col("VOLCFNET")])
-
-            data = data.join(grm_midpt, left_on="CN", right_on="TRE_CN", how="left")
-
-        # Add PLOT data for macro breakpoint if not already present
-        if "MACRO_BREAKPOINT_DIA" not in data.collect_schema().names():
-            if "PLOT" not in self.db.tables:
-                self.db.load_table("PLOT")
-
-            plot = self.db.tables["PLOT"]
-            if not isinstance(plot, pl.LazyFrame):
-                plot = plot.lazy()
-
-            # Select only columns that don't already exist to avoid duplicates
-            existing_cols = data.collect_schema().names()
-            plot_cols_to_select = ["CN", "MACRO_BREAKPOINT_DIA"]
-            for col in ["STATECD", "INVYR"]:
-                if col not in existing_cols:
-                    plot_cols_to_select.append(col)
-
-            plot_cols = plot.select(plot_cols_to_select)
-
-            data = data.join(plot_cols, left_on="PLT_CN", right_on="CN", how="left")
+        data = data.join(plot_cols, left_on="PLT_CN", right_on="PLOT_CN", how="left")
 
         return data
 
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """Apply removals-specific filters."""
-        # First apply base filters (handles tree_domain, area_domain, land_type)
-        data = super().apply_filters(data)
+        """Apply removals-specific filters.
 
-        # Now apply removals-specific filters while maintaining lazy evaluation
-        # Filter to removal components (CUT or DIVERSION)
+        IMPORTANT: For GRM estimates using pre-calculated columns (REMVCFGS_FOREST),
+        we should NOT apply standard COND_STATUS_CD filtering. The "FOREST" suffix
+        in the column name already indicates it's forest land removals.
+
+        The condition at T2 (current inventory) might be non-forest (e.g., after
+        harvest the land was converted to non-forest use), but the removal event
+        occurred when the land was forest. The pre-calculated columns account for
+        this correctly.
+        """
+        # Collect to DataFrame for filtering functions
+        data_df = data.collect()
+
+        # Apply tree domain filter if specified (custom SQL-like filter)
+        if self.config.get("tree_domain"):
+            from ..filters import apply_tree_filters
+
+            data_df = apply_tree_filters(
+                data_df, tree_domain=self.config["tree_domain"]
+            )
+
+        # Apply area domain filter if specified (custom SQL-like filter)
+        if self.config.get("area_domain"):
+            from ..filters import apply_area_filters
+
+            data_df = apply_area_filters(
+                data_df, area_domain=self.config["area_domain"]
+            )
+
+        # NOTE: We intentionally do NOT apply tree_type or land_type filters here
+        # because the pre-calculated REMVCFGS_FOREST column already handles these:
+        # - GS suffix = growing stock trees (DBH >= 5")
+        # - FOREST suffix = forest land at beginning of remeasurement period
+
+        # Convert back to lazy
+        data = data_df.lazy()
+
+        # Filter to trees with removal values
+        # REMV_VOLUME is the pre-calculated annual removal volume
+        # It's only non-null/non-zero for trees that were actually removed
         data = data.filter(
-            (pl.col("COMPONENT").str.starts_with("CUT"))
-            | (pl.col("COMPONENT").str.starts_with("DIVERSION"))
+            pl.col("REMV_VOLUME").is_not_null() & (pl.col("REMV_VOLUME") != 0)
         )
-
-        # Filter out null removal values
-        data = data.filter(
-            pl.col("TPAREMV_UNADJ").is_not_null() & (pl.col("TPAREMV_UNADJ") > 0)
-        )
-
-        # Apply tree type filter if specified
-        tree_type = self.config.get("tree_type", "gs")
-        if tree_type == "gs":
-            # Growing stock trees (at least 5 inches DBH)
-            data = data.filter(pl.col("DIA") >= 5.0)
 
         return data
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
-        Calculate removal values per acre.
+        Calculate removal values.
 
-        Removals can be measured as volume, biomass, or tree count.
+        Uses pre-calculated FIA columns:
+        - REMV_VOLUME: Pre-calculated annual removal volume (REMVCFGS/REMVCFAL)
+          This is already annualized - no need to divide by remeasurement period.
+
+        For biomass and count, we still need to calculate from tree attributes.
         """
         measure = self.config.get("measure", "volume")
 
         if measure == "volume":
-            # Removal volume per acre
-            # TPAREMV_UNADJ is already trees per acre removal
-            # Multiply by volume to get volume per acre
+            # Use pre-calculated annual removal volume (cu ft/year per tree)
+            # REMV_VOLUME is already annualized by FIA
             data = data.with_columns(
-                [
-                    (
-                        pl.col("VOLCFNET").cast(pl.Float64)
-                        * pl.col("TPAREMV_UNADJ").cast(pl.Float64)
-                    ).alias("REMV_VALUE")
-                ]
+                [pl.col("REMV_VOLUME").cast(pl.Float64).alias("REMV_ANNUAL")]
             )
         elif measure == "biomass":
-            # Removal biomass per acre
+            # For biomass, use TPAREMV_UNADJ × biomass / REMPER
+            # We need to load TREE_GRM_ESTN or calculate from attributes
+            # For now, estimate from volume using standard conversion
+            # Biomass (tons) ≈ Volume (cuft) × 0.03 (approximate conversion)
+            # TODO: Use proper DRYBIO columns when available
             data = data.with_columns(
                 [
                     (
-                        (pl.col("DRYBIO_AG") + pl.col("DRYBIO_BG")).cast(pl.Float64)
-                        * pl.col("TPAREMV_UNADJ").cast(pl.Float64)
-                        / 2000.0
-                    ).alias("REMV_VALUE")
+                        pl.col("REMV_VOLUME").cast(pl.Float64) * 0.03  # Approximate
+                    ).alias("REMV_ANNUAL")
                 ]
             )
         else:  # count
-            # Removal trees per acre
+            # For tree count, use TPAREMV_UNADJ
+            # Need to annualize by dividing by remeasurement period
+            remeasure_period = self.config.get("remeasure_period", 5.0)
             data = data.with_columns(
-                [pl.col("TPAREMV_UNADJ").cast(pl.Float64).alias("REMV_VALUE")]
+                [
+                    (
+                        pl.col("TPAREMV_UNADJ").cast(pl.Float64) / remeasure_period
+                    ).alias("REMV_ANNUAL")
+                ]
             )
-
-        # Annualize removals (divide by remeasurement period)
-        # Default to 5-year period if not specified
-        remeasure_period = self.config.get("remeasure_period", 5.0)
-        data = data.with_columns(
-            [(pl.col("REMV_VALUE") / remeasure_period).alias("REMV_ANNUAL")]
-        )
 
         return data
 

@@ -186,176 +186,29 @@ pyfia/
 
 ## FIA-Specific Knowledge
 
-### EVALID System - Critical for Proper FIA Estimation
+> **📚 Full Reference**: See [`docs/fia_technical_context.md`](./docs/fia_technical_context.md) for comprehensive FIA methodology, EVALID details, GRM tables, and Texas-specific handling.
 
-#### What is EVALID?
-EVALIDs are 6-digit codes that identify statistically valid plot groupings for FIA estimation. They ensure proper expansion factors and prevent double-counting of plots.
+### Quick Reference
 
-#### EVALID Format
-- Format: **SSYYTT** where:
-  - **SS** = State FIPS code (e.g., 40 for Oklahoma, 48 for Texas)
-  - **YY** = Inventory year (last 2 digits, e.g., 23 for 2023)
-  - **TT** = Evaluation type code (00, 01, 03, 07, 09, etc.)
-- Example: **482300** = Texas, 2023, All Area evaluation (type 00)
-
-#### Critical Rules for EVALID Usage
-1. **NEVER mix EVALIDs** - Use only ONE EVALID per estimation to prevent overcounting
-2. **EVALIDs are stored in multiple tables**:
-   - `POP_EVAL` - Master evaluation definitions
-   - `POP_PLOT_STRATUM_ASSGN` - Links plots to EVALIDs
-   - `POP_EVAL_TYP` - Defines evaluation types (EXPALL, EXPVOL, etc.)
-3. **pyFIA does NOT automatically filter by EVALID** - You must explicitly select EVALIDs or use helper methods
-
-#### Evaluation Types (EVAL_TYP in POP_EVAL_TYP Table)
-The evaluation type codes determine which plots are included:
-- **EXPALL**: All area estimation plots (typically EVALID ending in 00)
-  - **REQUIRED for area estimation** - includes all plots needed for unbiased area estimates
-  - Most recent and comprehensive evaluation
-- **EXPVOL**: Volume/biomass plots (typically EVALID ending in 01)
-  - Subset of plots with tree measurements
-  - Use for volume, biomass, carbon estimates
-- **EXPGROW**: Growth estimation plots
-- **EXPMORT**: Mortality estimation plots
-- **EXPREMV**: Removal estimation plots
-- **EXPCHNG**: Change estimation plots (typically EVALID ending in 03)
-- **EXPDWM**: Down woody materials plots (typically EVALID ending in 07)
-- **EXPINV**: Inventory plots (typically EVALID ending in 09)
-
-#### How to Select the Right EVALID
+**EVALID**: 6-digit codes (SSYYTT) identifying statistically valid plot groupings. Always filter by EVALID before estimation.
 
 ```python
-# Method 1: Use pyFIA's helper methods (RECOMMENDED)
+# REQUIRED: Filter to evaluation before estimation
 with FIA("data/nfi_south.duckdb") as db:
-    # Get most recent EXPALL evaluation for area estimation
-    db.clip_most_recent(eval_type="EXPALL")
-    
-    # Or get most recent EXPVOL evaluation for volume estimation
-    db.clip_most_recent(eval_type="EXPVOL")
-
-# Method 2: Query available EVALIDs directly
-import duckdb
-with duckdb.connect("data/nfi_south.duckdb") as conn:
-    # Find all EXPALL evaluations for a state
-    query = """
-    SELECT DISTINCT 
-        pe.EVALID,
-        pe.EVAL_DESCR,
-        pet.EVAL_TYP,
-        COUNT(DISTINCT ppsa.PLT_CN) as plot_count
-    FROM POP_EVAL pe
-    JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
-    JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
-    WHERE pe.STATECD = 48  -- Texas
-      AND pet.EVAL_TYP = 'EXPALL'
-    GROUP BY pe.EVALID, pe.EVAL_DESCR, pet.EVAL_TYP
-    ORDER BY pe.EVALID DESC
-    LIMIT 1
-    """
-    result = conn.execute(query).fetchone()
-    best_evalid = result[0]  # Use this EVALID
-
-# Method 3: Manually specify EVALID
-db.clip_by_evalid([482300])  # Texas 2023 EXPALL
+    db.clip_by_state(37)  # North Carolina
+    db.clip_most_recent(eval_type="EXPVOL")  # Most recent volume evaluation
+    results = volume(db)
 ```
 
-#### Common EVALID Pitfalls and Solutions
+**Evaluation Types**:
+- `EXPALL`: Area estimation (use for `area()`)
+- `EXPVOL`: Volume/biomass estimation (use for `volume()`, `biomass()`, `tpa()`)
+- `EXPMORT`/`EXPGROW`: Mortality and growth estimation
 
-**Problem 1: Mixing multiple EVALIDs**
-```python
-# WRONG - This will double-count plots!
-db.clip_by_evalid([482300, 482200])  # Two different Texas evaluations
-
-# CORRECT - Use only one EVALID
-db.clip_by_evalid([482300])  # Single evaluation
-```
-
-**Problem 2: Using wrong evaluation type**
-```python
-# WRONG for area estimation
-db.clip_most_recent(eval_type="EXPVOL")  # Missing many plots!
-
-# CORRECT for area estimation
-db.clip_most_recent(eval_type="EXPALL")  # All plots included
-```
-
-**Problem 3: Not filtering by EVALID at all**
-```python
-# WRONG - May include incompatible plot groupings
-results = area(db)  # No EVALID filtering!
-
-# CORRECT - Filter first, then estimate
-db.clip_most_recent(eval_type="EXPALL")
-results = area(db)
-```
-
-#### Checking EVALID Coverage
-
-```python
-# See which EVALIDs are in your database
-query = """
-SELECT 
-    pe.STATECD,
-    pe.EVALID,
-    pe.EVAL_DESCR,
-    pet.EVAL_TYP,
-    pe.START_INVYR,
-    pe.END_INVYR,
-    COUNT(DISTINCT ppsa.PLT_CN) as plot_count
-FROM POP_EVAL pe
-JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
-LEFT JOIN POP_PLOT_STRATUM_ASSGN ppsa ON pe.EVALID = ppsa.EVALID
-GROUP BY pe.STATECD, pe.EVALID, pe.EVAL_DESCR, pet.EVAL_TYP, 
-         pe.START_INVYR, pe.END_INVYR
-ORDER BY pe.STATECD, pet.EVAL_TYP, pe.EVALID DESC
-"""
-```
-
-#### Special Handling for Texas
-
-Texas is unique in the FIA system and requires special handling:
-
-1. **Regional vs Full State Evaluations**:
-   - Texas has separate East and West regional evaluations
-   - Full state evaluations (LOCATION_NM = "Texas") should be preferred over regional ones
-   - East Texas only evaluations (LOCATION_NM = "Texas(EAST)") cover longitude -96.42 to -93.55
-   - Full Texas evaluations cover longitude -106.63 to -93.55 (includes both East and West)
-
-2. **Duplicate Data Issues**:
-   - **CRITICAL**: Texas data contains exact duplicate rows in both POP_PLOT_STRATUM_ASSGN and POP_STRATUM tables
-   - Each plot-stratum assignment appears exactly 2x in POP_PLOT_STRATUM_ASSGN
-   - Each stratum appears exactly 2x in POP_STRATUM
-   - pyFIA automatically deduplicates these tables to prevent overcounting
-
-3. **EVALID Selection for Texas**:
-   ```python
-   # pyFIA automatically handles Texas specially
-   db = FIA("path/to/database.duckdb")
-   db.clip_most_recent(eval_type="ALL")
-   # For Texas, this will select the full state evaluation (e.g., 482200)
-   # even if a more recent East-only evaluation exists (e.g., 482320)
-   ```
-
-4. **Manual Texas Handling**:
-   ```python
-   # If you need to manually select Texas evaluations
-   import duckdb
-   
-   # Find the best Texas EXPALL evaluation (full state preferred)
-   query = """
-   SELECT EVALID, LOCATION_NM, END_INVYR
-   FROM POP_EVAL pe
-   JOIN POP_EVAL_TYP pet ON pe.CN = pet.EVAL_CN
-   WHERE pe.STATECD = 48 AND pet.EVAL_TYP = 'EXPALL'
-     AND pe.LOCATION_NM = 'Texas'  -- Full state only
-   ORDER BY pe.END_INVYR DESC
-   LIMIT 1
-   """
-   ```
-
-5. **Expected Values**:
-   - Texas total land area: ~170 million acres
-   - Texas forestland (typical): 40-45 million acres
-   - If you get values >100 million acres, check for duplicate counting
+**Critical Rules**:
+1. Never mix EVALIDs - use only ONE per estimation
+2. Match eval_type to estimation function (EXPALL for area, EXPVOL for volume)
+3. Always call `clip_most_recent()` or `clip_by_evalid()` before estimation
 
 ### Domain Filtering
 - `tree_domain`: SQL-like conditions for tree-level filtering (e.g., "STATUSCD == 1")
@@ -365,74 +218,6 @@ Texas is unique in the FIA system and requires special handling:
 ### Common Species Codes
 - 131: Loblolly pine, 110: Virginia pine, 833: Chestnut oak, 802: White oak
 - Use REF_SPECIES table for species name lookups
-
-### Estimation Units and Strata
-- Population organized by estimation units and strata
-- Proper variance calculation requires stratification
-- Use POP_PLOT_STRATUM_ASSGN for plot assignments
-
-### Growth-Removal-Mortality (GRM) Tables
-
-#### Critical for Mortality, Growth, and Removals Estimation
-The FIA Growth-Removal-Mortality methodology requires specialized GRM tables that track individual tree components across remeasurement periods. These tables are **required** for mortality, growth, and removals estimation.
-
-#### Required GRM Tables
-- **TREE_GRM_COMPONENT**: Contains component-level data for each tree
-  - Key fields: `TRE_CN`, `PLT_CN`, `DIA_BEGIN`, `DIA_MIDPT`, `DIA_END`
-  - Component fields: `SUBP_COMPONENT_*` (e.g., MORTALITY1, MORTALITY2, CUT, SURVIVOR, INGROWTH)
-  - TPA fields: `SUBP_TPAMORT_UNADJ_*`, `SUBP_TPAREMV_UNADJ_*`, `SUBP_TPAGROW_UNADJ_*`
-  - Adjustment type: `SUBP_SUBPTYP_GRM_*` (0=None, 1=SUBP, 2=MICR, 3=MACR)
-  
-- **TREE_GRM_MIDPT**: Contains tree measurements at remeasurement midpoint
-  - Key fields: `TRE_CN`, `DIA`, `SPCD`, `STATUSCD`
-  - Measurement fields: `VOLCFNET`, `DRYBIO_BOLE`, `DRYBIO_BRANCH`, etc.
-
-#### Component Types
-Components in TREE_GRM_COMPONENT identify what happened to each tree:
-- **SURVIVOR**: Trees alive at both measurements
-- **MORTALITY1**, **MORTALITY2**: Trees that died between measurements
-- **CUT**: Trees removed through harvest
-- **DIVERSION**: Trees removed for non-forest use
-- **INGROWTH**: New trees that grew into measurable size
-
-#### Land Type and Tree Type Column Naming
-GRM columns follow a naming pattern based on land type and tree type:
-```python
-# Column naming pattern: SUBP_{METRIC}_{TREE_TYPE}_{LAND_TYPE}
-# Example: SUBP_TPAMORT_UNADJ_GS_FOREST
-#   - TPAMORT_UNADJ = Trees per acre mortality (unadjusted)
-#   - GS = Growing stock trees
-#   - FOREST = Forest land
-
-# Tree types: GS (growing stock), AL (all live)
-# Land types: FOREST, TIMBER
-```
-
-#### Adjustment Factors (SUBPTYP_GRM)
-The SUBPTYP_GRM field indicates which adjustment factor to apply:
-- **0**: No adjustment (trees not sampled)
-- **1**: SUBP adjustment (subplot, typically 5.0-24.0" DBH)
-- **2**: MICR adjustment (microplot, typically <5.0" DBH)
-- **3**: MACR adjustment (macroplot, typically ≥24.0" DBH)
-
-This differs from standard tree adjustment which uses diameter breakpoints directly.
-
-#### Checking for GRM Tables
-```python
-import duckdb
-
-with duckdb.connect("your_database.duckdb", read_only=True) as conn:
-    grm_tables = conn.execute("""
-        SELECT table_name 
-        FROM information_schema.tables 
-        WHERE table_name LIKE '%GRM%'
-    """).fetchall()
-    
-    if not grm_tables:
-        print("WARNING: GRM tables not found - mortality/growth/removals will not work")
-    else:
-        print(f"GRM tables available: {[t[0] for t in grm_tables]}")
-```
 
 ## Example Usage Patterns
 

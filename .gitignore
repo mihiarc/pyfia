@@ -160,7 +160,7 @@ data/
 .claude/settings.local.json
 
 # Build tools
-uv.lock
+# uv.lock is tracked for reproducible builds
 
 # Documentation build
 site/

@@ -263,7 +263,7 @@ Position for acquisition by:
 ### Near-term (3-12 months)
 
 5. **Launch "Ask the Forest" beta** - Free tier with usage limits, collect query data
-6. **Publish EVALIDator validation benchmarks** - Statistical credibility
+6. **Publish EVALIDator validation benchmarks** - Statistical credibility (see [Validation Strategy](#validation-strategy) below)
 7. **Submit academic paper** - Environmental Modelling & Software
 8. **Add spatial query support** - "What's the volume within this shapefile?"
 
@@ -315,6 +315,83 @@ Position for acquisition by:
 2. **Targeting non-technical users** - Consulting foresters, state analysts, extension services
 3. **Proving statistical validity** - Users must trust AI-generated estimates
 4. **Collecting query data** - Network effects improve the model over time
+
+---
+
+## Validation Strategy
+
+### EVALIDator API Integration
+
+pyFIA now includes an **EVALIDator API client** (`pyfia.evalidator`) for automated validation against official USFS estimates. This is critical for building trust with users.
+
+#### Why EVALIDator Validation Matters
+
+| Stakeholder | Concern | How Validation Helps |
+|-------------|---------|---------------------|
+| **Carbon buyers** | Regulatory scrutiny | Proves estimates match official government values |
+| **Researchers** | Peer review | Reproducible validation against authoritative source |
+| **State agencies** | Audit requirements | Defensible methodology with documented accuracy |
+| **Consulting foresters** | Client trust | Can show estimates align with USFS standards |
+
+#### EVALIDator API Capabilities
+
+The USFS provides a public REST API at `https://apps.fs.usda.gov/fiadb-api/fullreport`:
+
+```python
+from pyfia.evalidator import EVALIDatorClient, compare_estimates
+
+# Get official USFS estimate
+client = EVALIDatorClient()
+official = client.get_forest_area(state_code=37, year=2023)
+
+# Compare with pyFIA
+validation = compare_estimates(
+    pyfia_value=18500000,
+    pyfia_se=350000,
+    evalidator_result=official
+)
+print(f"Validation: {validation.message}")
+# "EXCELLENT: Difference (0.54%) within 1 SE"
+```
+
+**Available estimate types:**
+- Forest/timberland area (acres)
+- Volume (net cubic feet, board feet)
+- Biomass (dry short tons)
+- Carbon (metric tonnes)
+- Tree counts
+- Growth, mortality, removals
+
+#### Validation Benchmarks (Target)
+
+| Estimate Type | Target Accuracy | Status |
+|--------------|-----------------|--------|
+| Forest area | <2% difference | Implemented |
+| Timberland area | <2% difference | Implemented |
+| Volume (net) | <5% difference | Implemented |
+| Biomass (AG) | <5% difference | Implemented |
+| Carbon | <5% difference | Implemented |
+| Mortality | <10% difference | In progress |
+| Growth | <10% difference | In progress |
+
+#### Publication Strategy
+
+1. **GitHub Documentation**: Publish validation results for each state
+2. **Academic Paper**: Include EVALIDator comparison in methodology validation
+3. **Continuous Integration**: Run validation tests against EVALIDator API nightly
+4. **Transparency**: Show both pyFIA and EVALIDator values in NL query responses
+
+#### Technical Implementation
+
+```
+pyfia.evalidator module:
+├── EVALIDatorClient      # HTTP client for FIADB-API
+├── EstimateType          # Enum of snum codes (area=2, volume=15, etc.)
+├── compare_estimates()   # Statistical comparison function
+└── validate_pyfia_estimate()  # End-to-end validation
+```
+
+See: [FIADB-API Documentation](https://apps.fs.usda.gov/fiadb-api/)
 
 ---
 

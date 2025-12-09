@@ -33,6 +33,7 @@ dependencies = [
     "rich",
     "pyyaml>=6.0.0",
     "pandas>=2.3.1",
+    "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]

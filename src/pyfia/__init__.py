@@ -35,6 +35,16 @@ from pyfia.utils.reference_tables import (
     join_state_names,
 )
 
+# EVALIDator API client - For validation against official USFS estimates
+from pyfia.evalidator import (
+    EVALIDatorClient,
+    EVALIDatorEstimate,
+    EstimateType,
+    ValidationResult,
+    compare_estimates,
+    validate_pyfia_estimate,
+)
+
 # Note: Statistical utility functions (merge_estimation_data, calculate_stratum_estimates, etc.)
 # are internal to the estimators. Users should use the high-level estimation functions
 # (area, volume, tpa, etc.) which handle all statistical calculations internally.
@@ -70,6 +80,13 @@ __all__ = [
     "join_species_names",
     "join_state_names",
     "join_multiple_references",
+    # EVALIDator validation
+    "EVALIDatorClient",
+    "EVALIDatorEstimate",
+    "EstimateType",
+    "ValidationResult",
+    "compare_estimates",
+    "validate_pyfia_estimate",
     # Conversion functions
     "convert_sqlite_to_duckdb",
     "merge_state_databases",

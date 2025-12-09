@@ -115,6 +115,11 @@ class BaseEstimator(ABC):
         if not isinstance(cond_df, pl.LazyFrame):
             cond_df = cond_df.lazy()
 
+        # Get schema from original tables BEFORE any joins
+        # This avoids errors when collecting schema from joined LazyFrames
+        tree_schema = tree_df.collect_schema().names()
+        cond_schema = cond_df.collect_schema().names()
+
         # Apply EVALID filtering if set
         # EVALID filtering happens through POP_PLOT_STRATUM_ASSGN, not directly on TREE/COND
         if self.db.evalid:
@@ -150,10 +155,6 @@ class BaseEstimator(ABC):
         if grp_by:
             if isinstance(grp_by, str):
                 grp_by = [grp_by]
-
-            # Get available columns from each table to check where grp_by cols exist
-            tree_schema = tree_df.collect_schema().names()
-            cond_schema = cond_df.collect_schema().names()
 
             for col in grp_by:
                 # Add to appropriate table's column list if not already present

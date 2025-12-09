@@ -95,9 +95,9 @@ class EstimateType:
     GROWTH_NET_VOLUME = 202  # Annual net growth volume (cu ft)
     GROWTH_NET_BIOMASS = 311  # Annual net growth biomass
 
-    # Mortality
-    MORTALITY_VOLUME = 213  # Annual mortality volume (cu ft)
-    MORTALITY_BIOMASS = 327  # Annual mortality biomass
+    # Mortality (growing-stock trees on forest land)
+    MORTALITY_VOLUME = 214  # Annual mortality volume (cu ft) - growing-stock, forest
+    MORTALITY_BIOMASS = 336  # Annual mortality biomass (AG) - growing-stock, forest
 
     # Removals
     REMOVALS_VOLUME = 226  # Annual removals volume (cu ft)
@@ -487,6 +487,174 @@ class EVALIDatorClient:
             year=year,
             units="trees",
             estimate_type=f"tree_count_{int(min_diameter)}inch_{land_type}"
+        )
+
+    def get_growth(
+        self,
+        state_code: int,
+        year: int,
+        measure: str = "volume",
+        land_type: str = "forest",
+        **kwargs
+    ) -> EVALIDatorEstimate:
+        """
+        Get annual net growth estimate from EVALIDator.
+
+        Parameters
+        ----------
+        state_code : int
+            State FIPS code
+        year : int
+            Inventory year
+        measure : {'volume', 'biomass'}, default 'volume'
+            Measurement type:
+            - 'volume': Net cubic foot growth of merchantable bole wood
+            - 'biomass': Net biomass growth of aboveground trees
+        land_type : {'forest', 'timber'}, default 'forest'
+            Land classification
+        **kwargs
+            Additional API parameters
+
+        Returns
+        -------
+        EVALIDatorEstimate
+            Growth estimate with standard error
+        """
+        if measure == "volume":
+            snum = EstimateType.GROWTH_NET_VOLUME
+            units = "cubic_feet_per_year"
+        elif measure == "biomass":
+            snum = EstimateType.GROWTH_NET_BIOMASS
+            units = "dry_tons_per_year"
+        else:
+            raise ValueError(f"Invalid measure: {measure}. Use 'volume' or 'biomass'")
+
+        data = self._make_request(
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            **kwargs
+        )
+
+        return self._parse_njson_response(
+            data=data,
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            units=units,
+            estimate_type=f"growth_{measure}_{land_type}"
+        )
+
+    def get_mortality(
+        self,
+        state_code: int,
+        year: int,
+        measure: str = "volume",
+        land_type: str = "forest",
+        **kwargs
+    ) -> EVALIDatorEstimate:
+        """
+        Get annual mortality estimate from EVALIDator.
+
+        Parameters
+        ----------
+        state_code : int
+            State FIPS code
+        year : int
+            Inventory year
+        measure : {'volume', 'biomass'}, default 'volume'
+            Measurement type:
+            - 'volume': Net cubic foot mortality of merchantable bole wood
+            - 'biomass': Net biomass mortality of aboveground trees
+        land_type : {'forest', 'timber'}, default 'forest'
+            Land classification
+        **kwargs
+            Additional API parameters
+
+        Returns
+        -------
+        EVALIDatorEstimate
+            Mortality estimate with standard error
+        """
+        if measure == "volume":
+            snum = EstimateType.MORTALITY_VOLUME
+            units = "cubic_feet_per_year"
+        elif measure == "biomass":
+            snum = EstimateType.MORTALITY_BIOMASS
+            units = "dry_tons_per_year"
+        else:
+            raise ValueError(f"Invalid measure: {measure}. Use 'volume' or 'biomass'")
+
+        data = self._make_request(
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            **kwargs
+        )
+
+        return self._parse_njson_response(
+            data=data,
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            units=units,
+            estimate_type=f"mortality_{measure}_{land_type}"
+        )
+
+    def get_removals(
+        self,
+        state_code: int,
+        year: int,
+        measure: str = "volume",
+        land_type: str = "forest",
+        **kwargs
+    ) -> EVALIDatorEstimate:
+        """
+        Get annual removals (harvest) estimate from EVALIDator.
+
+        Parameters
+        ----------
+        state_code : int
+            State FIPS code
+        year : int
+            Inventory year
+        measure : {'volume', 'biomass'}, default 'volume'
+            Measurement type:
+            - 'volume': Net cubic foot removals of merchantable bole wood
+            - 'biomass': Net biomass removals of aboveground trees
+        land_type : {'forest', 'timber'}, default 'forest'
+            Land classification
+        **kwargs
+            Additional API parameters
+
+        Returns
+        -------
+        EVALIDatorEstimate
+            Removals estimate with standard error
+        """
+        if measure == "volume":
+            snum = EstimateType.REMOVALS_VOLUME
+            units = "cubic_feet_per_year"
+        elif measure == "biomass":
+            snum = EstimateType.REMOVALS_BIOMASS
+            units = "dry_tons_per_year"
+        else:
+            raise ValueError(f"Invalid measure: {measure}. Use 'volume' or 'biomass'")
+
+        data = self._make_request(
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            **kwargs
+        )
+
+        return self._parse_njson_response(
+            data=data,
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            units=units,
+            estimate_type=f"removals_{measure}_{land_type}"
         )
 
     def get_custom_estimate(

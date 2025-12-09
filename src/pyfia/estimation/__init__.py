@@ -42,12 +42,16 @@ from .estimators import (
     BiomassEstimator,
     GrowthEstimator,
     MortalityEstimator,
+    RemovalsEstimator,
     TPAEstimator,
     VolumeEstimator,
     area,
     biomass,
+    carbon,
+    carbon_flux,
     growth,
     mortality,
+    removals,
     tpa,
     volume,
 )
@@ -66,8 +70,11 @@ __all__ = [
     # Main API functions
     "area",
     "biomass",
+    "carbon",
+    "carbon_flux",
     "growth",
     "mortality",
+    "removals",
     "tpa",
     "volume",
     # Estimator classes
@@ -75,6 +82,7 @@ __all__ = [
     "BiomassEstimator",
     "GrowthEstimator",
     "MortalityEstimator",
+    "RemovalsEstimator",
     "TPAEstimator",
     "VolumeEstimator",
     # Base components

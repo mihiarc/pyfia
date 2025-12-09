@@ -477,11 +477,17 @@ class GrowthEstimator(BaseEstimator):
 
         # Calculate final growth value: TPAGROW_UNADJ * volume_contribution
         # This will be aggregated across ONEORTWO=1 and ONEORTWO=2 rows to get NET growth
+        #
+        # CRITICAL: For biomass, DRYBIO_AG is in pounds - convert to tons (divide by 2000)
+        # Volume (VOLCFNET) is already in cubic feet - no conversion needed
+        conversion_factor = 1.0 / 2000.0 if measure == "biomass" else 1.0
+
         data = data.with_columns(
             [
                 (
                     pl.col("TPAGROW_UNADJ").cast(pl.Float64)
                     * pl.col("volume_contribution").cast(pl.Float64)
+                    * conversion_factor
                 ).alias("GROWTH_VALUE")
             ]
         )

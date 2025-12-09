@@ -87,6 +87,10 @@ class MortalityEstimator(BaseEstimator):
         """
         Load and join GRM tables for mortality calculation.
         """
+        # Initialize column names based on land_type and tree_type
+        # This sets _component_col, _tpamort_col, _subptyp_col
+        self.get_tree_columns()
+
         # Load TREE_GRM_COMPONENT as primary table
         if "TREE_GRM_COMPONENT" not in self.db.tables:
             try:

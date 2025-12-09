@@ -34,7 +34,7 @@ class VolumeEstimator(BaseEstimator):
 
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for volume estimation."""
-        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ"]
+        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ", "TREECLCD"]
 
         # Add volume columns based on vol_type
         vol_type = self.config.get("vol_type", "net")

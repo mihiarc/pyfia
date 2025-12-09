@@ -52,9 +52,15 @@ class EstimateType:
     AREA_TIMBERLAND = 3  # Area of timberland, in acres
     AREA_SAMPLED = 79  # Area of sampled land and water, in acres
 
-    # Tree counts
-    TREE_COUNT_1INCH = 4  # Number of live trees >=1" d.b.h.
-    TREE_COUNT_5INCH = 7  # Number of live trees >=5" d.b.h.
+    # Tree counts - Live trees (all species, all tree classes)
+    TREE_COUNT_1INCH_FOREST = 4  # Live trees >=1" d.b.h. on forest land
+    TREE_COUNT_5INCH_FOREST = 5  # Growing-stock trees >=5" d.b.h. on forest land (TREECLCD=2)
+    TREE_COUNT_1INCH_TIMBER = 7  # Live trees >=1" d.b.h. on timberland
+    TREE_COUNT_5INCH_TIMBER = 8  # Growing-stock trees >=5" d.b.h. on timberland (TREECLCD=2)
+
+    # Legacy aliases (for backwards compatibility)
+    TREE_COUNT_1INCH = 4  # Alias for TREE_COUNT_1INCH_FOREST
+    TREE_COUNT_5INCH = 5  # Alias for TREE_COUNT_5INCH_FOREST (corrected: was 7)
 
     # Basal area
     BASAL_AREA_1INCH = 1004  # Basal area of live trees >=1" d.b.h. (sq ft)
@@ -421,7 +427,8 @@ class EVALIDatorClient:
         self,
         state_code: int,
         year: int,
-        min_diameter: float = 1.0
+        min_diameter: float = 1.0,
+        land_type: str = "forest"
     ) -> EVALIDatorEstimate:
         """
         Get tree count estimate from EVALIDator.
@@ -433,14 +440,29 @@ class EVALIDatorClient:
         year : int
             Inventory year
         min_diameter : float
-            Minimum DBH in inches (1.0 or 5.0)
+            Minimum DBH in inches (1.0 or 5.0).
+            Note: 5" threshold returns growing-stock trees (TREECLCD=2) only,
+            while 1" threshold returns all live trees.
+        land_type : str
+            "forest" for forest land, "timber" for timberland only
 
         Returns
         -------
         EVALIDatorEstimate
             Official tree count estimate
+
+        Notes
+        -----
+        snum values used:
+        - snum=4: Live trees >=1" d.b.h. on forest land (all tree classes)
+        - snum=5: Growing-stock trees >=5" d.b.h. on forest land (TREECLCD=2)
+        - snum=7: Live trees >=1" d.b.h. on timberland (all tree classes)
+        - snum=8: Growing-stock trees >=5" d.b.h. on timberland (TREECLCD=2)
         """
-        snum = EstimateType.TREE_COUNT_5INCH if min_diameter >= 5.0 else EstimateType.TREE_COUNT_1INCH
+        if land_type == "timber":
+            snum = EstimateType.TREE_COUNT_5INCH_TIMBER if min_diameter >= 5.0 else EstimateType.TREE_COUNT_1INCH_TIMBER
+        else:
+            snum = EstimateType.TREE_COUNT_5INCH_FOREST if min_diameter >= 5.0 else EstimateType.TREE_COUNT_1INCH_FOREST
 
         data = self._make_request(
             snum=snum,
@@ -454,7 +476,7 @@ class EVALIDatorClient:
             state_code=state_code,
             year=year,
             units="trees",
-            estimate_type=f"tree_count_{int(min_diameter)}inch"
+            estimate_type=f"tree_count_{int(min_diameter)}inch_{land_type}"
         )
 
     def get_custom_estimate(

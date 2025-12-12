@@ -8,7 +8,9 @@ Provides unified carbon estimation across all 5 IPCC carbon pools:
 - Litter (forest floor litter + duff)
 - Soil organic carbon
 
-Uses biomass-to-carbon conversion factor of 0.47 (IPCC standard).
+Live tree carbon estimation uses FIA's pre-calculated CARBON_AG and CARBON_BG
+columns which incorporate species-specific carbon conversion factors. This
+matches EVALIDator snum=55000 exactly.
 """
 
 from typing import List, Optional, Union
@@ -17,9 +19,7 @@ import polars as pl
 
 from ...core import FIA
 from .biomass import biomass
-
-# IPCC standard carbon fraction of dry biomass
-CARBON_FRACTION = 0.47
+from .carbon_pools import carbon_pool
 
 
 def carbon(
@@ -39,9 +39,9 @@ def carbon(
     Estimate carbon stocks by pool from FIA data.
 
     Provides unified access to forest carbon estimation across different
-    carbon pools following IPCC guidelines. Currently supports live tree
-    carbon pools (aboveground and belowground). Dead wood, litter, and
-    soil pools require additional FIA tables (COND_DWM_CALC, etc.).
+    carbon pools following IPCC guidelines. Live tree carbon pools use FIA's
+    pre-calculated CARBON_AG and CARBON_BG columns with species-specific
+    conversion factors, matching EVALIDator snum=55000 exactly.
 
     Parameters
     ----------
@@ -61,8 +61,7 @@ def carbon(
           **Note**: Not yet implemented. Requires DWM evaluation data.
         - 'soil': Soil organic carbon
           **Note**: Not yet implemented. Requires Phase 3 plot data.
-        - 'total': Total ecosystem carbon (all pools combined)
-          **Note**: Currently returns only live tree carbon.
+        - 'total': Total live tree carbon (alias for 'live')
     grp_by : str or list of str, optional
         Column name(s) to group results by. Common grouping columns include:
 
@@ -107,17 +106,15 @@ def carbon(
         Carbon estimates with the following columns:
 
         - **CARBON_ACRE** : float
-            Carbon per acre (tons C/acre)
+            Carbon per acre (short tons/acre)
         - **CARBON_TOTAL** : float (if totals=True)
-            Total carbon expanded to population level (tons C)
+            Total carbon expanded to population level (short tons)
         - **CARBON_ACRE_SE** : float (if variance=True)
             Standard error of per-acre estimate
         - **CARBON_TOTAL_SE** : float (if variance=True and totals=True)
             Standard error of total estimate
         - **POOL** : str
             Carbon pool identifier
-        - **AREA_TOTAL** : float
-            Total area (acres) represented by the estimation
         - **N_PLOTS** : int
             Number of FIA plots included in the estimation
         - **YEAR** : int
@@ -129,6 +126,7 @@ def carbon(
     --------
     biomass : Estimate tree biomass (dry weight in tons)
     carbon_flux : Estimate net carbon flux (growth - mortality - removals)
+    carbon_pool : Direct access to CarbonPoolEstimator
 
     Examples
     --------
@@ -136,53 +134,47 @@ def carbon(
 
     >>> results = carbon(db, pool="live")
     >>> total_c = results['CARBON_TOTAL'][0]
-    >>> print(f"Total carbon: {total_c/1e9:.2f} billion tons C")
+    >>> print(f"Total carbon: {total_c/1e6:.2f} million short tons")
 
     Aboveground carbon by ownership:
 
     >>> results = carbon(db, pool="ag", grp_by="OWNGRPCD")
     >>> for row in results.iter_rows(named=True):
-    ...     print(f"Ownership {row['OWNGRPCD']}: {row['CARBON_ACRE']:.2f} tons C/acre")
+    ...     print(f"Ownership {row['OWNGRPCD']}: {row['CARBON_ACRE']:.2f} tons/acre")
 
     Standing dead tree carbon:
 
-    >>> results = carbon(db, pool="dead", tree_type="dead")
+    >>> results = carbon(db, pool="dead")
 
     Notes
     -----
-    Carbon is calculated as 47% of dry biomass following IPCC guidelines.
-    This conversion factor is applied uniformly across all tree components.
+    Live tree carbon (pools: 'ag', 'bg', 'live', 'total') uses FIA's
+    pre-calculated CARBON_AG and CARBON_BG columns which incorporate
+    species-specific carbon conversion factors. This matches EVALIDator
+    snum=55000 exactly.
+
+    Dead tree carbon currently uses biomass-derived estimation (47% of dry
+    biomass) as FIA does not provide pre-calculated carbon for dead trees.
 
     **Current Implementation Status:**
 
-    - Live tree pools (AG, BG, live): Fully implemented using TREE table
-    - Standing dead trees: Implemented via tree_type="dead" filter
+    - Live tree pools (AG, BG, live, total): Fully implemented using CARBON columns
+    - Standing dead trees: Implemented using biomass-derived carbon
     - Down woody material: Not yet implemented (requires COND_DWM_CALC)
     - Litter/duff: Not yet implemented (requires DWM evaluation)
     - Soil carbon: Not yet implemented (requires Phase 3 data)
 
     **EVALIDator Validation:**
 
-    Results can be validated against EVALIDator carbon pool estimates
-    using snum codes:
-    - 98: Aboveground live tree carbon
-    - 99: Belowground live tree carbon
-    - 100: Dead wood carbon
-    - 101: Litter carbon
-    - 102: Soil organic carbon
-    - 103: Total forest ecosystem carbon
-
-    Warnings
-    --------
-    The 'dead', 'litter', 'soil', and 'total' pools are not yet fully
-    implemented. Currently 'dead' returns standing dead tree carbon only.
-    Full implementation requires additional FIA tables that may not be
-    present in all databases.
+    Results can be validated against EVALIDator carbon pool estimates:
+    - snum=55000: Total live tree carbon (AG + BG) - matches exactly
 
     Raises
     ------
     ValueError
-        If an invalid pool is specified or required tables are not available.
+        If an invalid pool is specified.
+    NotImplementedError
+        If 'litter' or 'soil' pools are requested.
     """
     pool = pool.lower()
     valid_pools = ["ag", "bg", "live", "dead", "litter", "soil", "total"]
@@ -193,10 +185,26 @@ def carbon(
         )
 
     # Route to appropriate estimator based on pool
-    if pool in ["ag", "bg", "live"]:
-        return _estimate_live_tree_carbon(
+    if pool in ["ag", "bg", "total"]:
+        # Use FIA's pre-calculated CARBON_AG and CARBON_BG columns
+        return carbon_pool(
             db=db,
             pool=pool,
+            grp_by=grp_by,
+            by_species=by_species,
+            land_type=land_type,
+            tree_type=tree_type,
+            tree_domain=tree_domain,
+            area_domain=area_domain,
+            totals=totals,
+            variance=variance,
+            most_recent=most_recent,
+        )
+    elif pool == "live":
+        # "live" is an alias for "total" (AG + BG)
+        return carbon_pool(
+            db=db,
+            pool="total",
             grp_by=grp_by,
             by_species=by_species,
             land_type=land_type,
@@ -229,91 +237,8 @@ def carbon(
             "Soil organic carbon estimation not yet implemented. "
             "Requires SUBP_SOIL_SAMPLE_LOC table (Phase 3 data)."
         )
-    elif pool == "total":
-        # For now, return live tree carbon as proxy
-        # Full implementation would sum all pools
-        import warnings
-
-        warnings.warn(
-            "Total ecosystem carbon not fully implemented. "
-            "Returning live tree carbon only. Dead wood, litter, and soil "
-            "pools require additional tables.",
-            stacklevel=2,
-        )
-        return _estimate_live_tree_carbon(
-            db=db,
-            pool="live",
-            grp_by=grp_by,
-            by_species=by_species,
-            land_type=land_type,
-            tree_type=tree_type,
-            tree_domain=tree_domain,
-            area_domain=area_domain,
-            totals=totals,
-            variance=variance,
-            most_recent=most_recent,
-        )
 
     raise ValueError(f"Unhandled pool type: {pool}")
-
-
-def _estimate_live_tree_carbon(
-    db: Union[str, FIA],
-    pool: str,
-    grp_by: Optional[Union[str, List[str]]],
-    by_species: bool,
-    land_type: str,
-    tree_type: str,
-    tree_domain: Optional[str],
-    area_domain: Optional[str],
-    totals: bool,
-    variance: bool,
-    most_recent: bool,
-) -> pl.DataFrame:
-    """Estimate live tree carbon using biomass estimator."""
-    # Map pool to biomass component
-    component_map = {
-        "ag": "AG",
-        "bg": "BG",
-        "live": "TOTAL",
-    }
-    component = component_map.get(pool, "TOTAL")
-
-    # Call biomass estimator
-    result = biomass(
-        db=db,
-        component=component,
-        grp_by=grp_by,
-        by_species=by_species,
-        land_type=land_type,
-        tree_type=tree_type,
-        tree_domain=tree_domain,
-        area_domain=area_domain,
-        totals=totals,
-        variance=variance,
-        most_recent=most_recent,
-    )
-
-    # Rename columns for carbon context
-    rename_map = {}
-
-    # The biomass estimator returns CARB_ACRE and CARB_TOTAL
-    if "CARB_ACRE" in result.columns:
-        rename_map["CARB_ACRE"] = "CARBON_ACRE"
-    if "CARB_TOTAL" in result.columns:
-        rename_map["CARB_TOTAL"] = "CARBON_TOTAL"
-    if "CARB_ACRE_SE" in result.columns:
-        rename_map["CARB_ACRE_SE"] = "CARBON_ACRE_SE"
-    if "CARB_TOTAL_SE" in result.columns:
-        rename_map["CARB_TOTAL_SE"] = "CARBON_TOTAL_SE"
-
-    if rename_map:
-        result = result.rename(rename_map)
-
-    # Add pool identifier
-    result = result.with_columns([pl.lit(pool.upper()).alias("POOL")])
-
-    return result
 
 
 def _estimate_dead_carbon(
@@ -330,7 +255,10 @@ def _estimate_dead_carbon(
     """
     Estimate dead wood carbon.
 
-    Currently only estimates standing dead tree carbon.
+    Currently only estimates standing dead tree carbon using biomass-derived
+    carbon (47% of dry biomass). FIA does not provide pre-calculated carbon
+    columns for dead trees.
+
     Full implementation would include down woody material from COND_DWM_CALC.
     """
     import warnings
@@ -341,15 +269,14 @@ def _estimate_dead_carbon(
         stacklevel=3,
     )
 
-    # Estimate standing dead tree carbon
-    # Use biomass estimator with tree_type="dead"
+    # Estimate standing dead tree carbon using biomass estimator
     result = biomass(
         db=db,
-        component="TOTAL",  # AG + BG
+        component="TOTAL",
         grp_by=grp_by,
         by_species=by_species,
         land_type=land_type,
-        tree_type="dead",  # Filter to standing dead trees
+        tree_type="dead",
         tree_domain=tree_domain,
         area_domain=area_domain,
         totals=totals,

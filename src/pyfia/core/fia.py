@@ -61,6 +61,67 @@ class FIA:
         # Connection managed by FIADataReader
         self._reader = FIADataReader(db_path, engine=engine)
 
+    @classmethod
+    def from_download(
+        cls,
+        states: Union[str, List[str]],
+        dir: Optional[Union[str, Path]] = None,
+        common: bool = True,
+        tables: Optional[List[str]] = None,
+        force: bool = False,
+        show_progress: bool = True,
+    ) -> "FIA":
+        """
+        Download FIA data and return a connected FIA instance.
+
+        This is a convenience method that combines downloading data from
+        the FIA DataMart with opening a database connection.
+
+        Parameters
+        ----------
+        states : str or list of str
+            State abbreviations (e.g., 'GA', 'NC') or 'REF' for reference tables.
+            Supports multiple states: ['GA', 'FL', 'SC']
+        dir : str or Path, optional
+            Directory to save downloaded data. Defaults to ~/.pyfia/data/
+        common : bool, default True
+            If True, download only tables required for pyFIA functions.
+        tables : list of str, optional
+            Specific tables to download. Overrides `common` parameter.
+        force : bool, default False
+            If True, re-download even if files exist locally.
+        show_progress : bool, default True
+            Show download progress bars.
+
+        Returns
+        -------
+        FIA
+            Connected FIA database instance.
+
+        Examples
+        --------
+        >>> # Download and open Georgia data
+        >>> db = FIA.from_download("GA")
+        >>> db.clip_most_recent()
+        >>> result = db.area()
+        >>>
+        >>> # Download multiple states
+        >>> db = FIA.from_download(["GA", "FL", "SC"])
+        """
+        from pyfia.downloader import download
+
+        db_path = download(
+            states=states,
+            dir=dir,
+            common=common,
+            tables=tables,
+            format="duckdb",
+            force=force,
+            show_progress=show_progress,
+        )
+
+        return cls(db_path)
+
     def __enter__(self):
         """Context manager entry."""
         # Connection managed by FIADataReader

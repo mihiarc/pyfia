@@ -53,6 +53,26 @@ class PyFIASettings(BaseSettings):
         default=Path.home() / ".pyfia" / "cache", description="Cache directory"
     )
 
+    # Download settings
+    download_dir: Path = Field(
+        default=Path.home() / ".pyfia" / "data",
+        description="Directory for downloaded FIA data",
+    )
+    download_timeout: int = Field(
+        default=300, ge=30, le=3600, description="Download timeout in seconds"
+    )
+    download_chunk_size: int = Field(
+        default=1024 * 1024,
+        ge=1024,
+        description="Download chunk size in bytes (default 1MB)",
+    )
+    download_max_retries: int = Field(
+        default=3, ge=1, le=10, description="Maximum download retry attempts"
+    )
+    download_use_cache: bool = Field(
+        default=True, description="Use cached downloads when available"
+    )
+
     # Logging settings
     log_level: str = Field(default="CRITICAL", description="Logging level")
     log_dir: Path = Field(
@@ -144,6 +164,7 @@ class PyFIASettings(BaseSettings):
         """
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
+        self.download_dir.mkdir(parents=True, exist_ok=True)
 
     def get_connection_string(self) -> str:
         """

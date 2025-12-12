@@ -45,6 +45,17 @@ from pyfia.evalidator import (
     validate_pyfia_estimate,
 )
 
+# Data download - Download FIA data directly from DataMart
+from pyfia.downloader import (
+    download,
+    DataMartClient,
+    DownloadCache,
+    COMMON_TABLES,
+    VALID_STATE_CODES,
+    clear_cache,
+    cache_info,
+)
+
 # Note: Statistical utility functions (merge_estimation_data, calculate_stratum_estimates, etc.)
 # are internal to the estimators. Users should use the high-level estimation functions
 # (area, volume, tpa, etc.) which handle all statistical calculations internally.
@@ -87,6 +98,14 @@ __all__ = [
     "ValidationResult",
     "compare_estimates",
     "validate_pyfia_estimate",
+    # Data download
+    "download",
+    "DataMartClient",
+    "DownloadCache",
+    "COMMON_TABLES",
+    "VALID_STATE_CODES",
+    "clear_cache",
+    "cache_info",
     # Conversion functions
     "convert_sqlite_to_duckdb",
     "merge_state_databases",

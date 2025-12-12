@@ -22,28 +22,22 @@ class CachedDownload:
     Parameters
     ----------
     state : str
-        State abbreviation.
-    table : str, optional
-        Table name (None for SQLite database downloads).
+        State abbreviation or cache key (e.g., 'GA', 'MERGED_FL_GA_SC').
     path : str
-        Path to the cached file.
+        Path to the cached DuckDB file.
     downloaded_at : str
         ISO format timestamp of when the file was downloaded.
     size_bytes : int
         File size in bytes.
     checksum : str
         MD5 checksum of the file.
-    format : str
-        File format ('csv', 'sqlite', 'duckdb').
     """
 
     state: str
-    table: str | None
     path: str
     downloaded_at: str
     size_bytes: int
     checksum: str
-    format: str
 
     @property
     def age_days(self) -> float:
@@ -61,7 +55,7 @@ class DownloadCache:
     """
     Manages cached FIA data downloads with metadata tracking.
 
-    The cache stores metadata about downloaded files including timestamps,
+    The cache stores metadata about downloaded DuckDB files including timestamps,
     checksums, and file locations. This allows skipping downloads for
     files that are already present and valid.
 
@@ -73,9 +67,9 @@ class DownloadCache:
     Examples
     --------
     >>> cache = DownloadCache(Path("~/.pyfia/cache"))
-    >>> if not cache.get_cached("GA", "PLOT"):
+    >>> if not cache.get_cached("GA"):
     ...     # Download the file
-    ...     cache.add_to_cache("GA", "PLOT", downloaded_path)
+    ...     cache.add_to_cache("GA", downloaded_path)
     """
 
     METADATA_FILE = "download_metadata.json"
@@ -87,11 +81,9 @@ class DownloadCache:
         self._metadata: dict[str, CachedDownload] = {}
         self._load_metadata()
 
-    def _get_cache_key(self, state: str, table: str | None = None) -> str:
-        """Generate a unique cache key for a state/table combination."""
-        if table:
-            return f"{state.upper()}_{table.upper()}"
-        return f"{state.upper()}_SQLITE"
+    def _get_cache_key(self, state: str) -> str:
+        """Generate a unique cache key for a state or merged dataset."""
+        return state.upper()
 
     def _load_metadata(self) -> None:
         """Load metadata from disk."""
@@ -99,7 +91,13 @@ class DownloadCache:
             try:
                 with open(self.metadata_file) as f:
                     data = json.load(f)
-                    self._metadata = {k: CachedDownload(**v) for k, v in data.items()}
+                    # Handle both old format (with 'format' and 'table' fields) and new format
+                    self._metadata = {}
+                    for k, v in data.items():
+                        # Remove deprecated fields if present
+                        v.pop("format", None)
+                        v.pop("table", None)
+                        self._metadata[k] = CachedDownload(**v)
             except (json.JSONDecodeError, TypeError) as e:
                 logger.warning(f"Failed to load cache metadata: {e}")
                 self._metadata = {}
@@ -112,18 +110,14 @@ class DownloadCache:
         with open(self.metadata_file, "w") as f:
             json.dump(data, f, indent=2)
 
-    def get_cached(
-        self, state: str, table: str | None = None, max_age_days: float | None = None
-    ) -> Path | None:
+    def get_cached(self, state: str, max_age_days: float | None = None) -> Path | None:
         """
-        Get the path to a cached file if it exists and is valid.
+        Get the path to a cached DuckDB file if it exists and is valid.
 
         Parameters
         ----------
         state : str
-            State abbreviation.
-        table : str, optional
-            Table name. If None, looks for SQLite database.
+            State abbreviation or cache key (e.g., 'GA', 'MERGED_FL_GA_SC').
         max_age_days : float, optional
             Maximum age in days to consider cache valid.
             Defaults to None (no age limit).
@@ -131,9 +125,9 @@ class DownloadCache:
         Returns
         -------
         Path or None
-            Path to the cached file, or None if not found/invalid.
+            Path to the cached DuckDB file, or None if not found/invalid.
         """
-        key = self._get_cache_key(state, table)
+        key = self._get_cache_key(state)
 
         if key not in self._metadata:
             return None
@@ -159,27 +153,21 @@ class DownloadCache:
         self,
         state: str,
         path: Path,
-        table: str | None = None,
         checksum: str | None = None,
-        format: str = "csv",
     ) -> None:
         """
-        Add a download to the cache.
+        Add a downloaded DuckDB file to the cache.
 
         Parameters
         ----------
         state : str
-            State abbreviation.
+            State abbreviation or cache key (e.g., 'GA', 'MERGED_FL_GA_SC').
         path : Path
-            Path to the downloaded file.
-        table : str, optional
-            Table name. If None, assumes SQLite database.
+            Path to the downloaded DuckDB file.
         checksum : str, optional
             MD5 checksum of the file. Calculated if not provided.
-        format : str, default 'csv'
-            File format ('csv', 'sqlite', 'duckdb').
         """
-        key = self._get_cache_key(state, table)
+        key = self._get_cache_key(state)
         path = Path(path)
 
         if not path.exists():
@@ -197,35 +185,31 @@ class DownloadCache:
 
         cached = CachedDownload(
             state=state.upper(),
-            table=table.upper() if table else None,
             path=str(path.absolute()),
             downloaded_at=datetime.now().isoformat(),
             size_bytes=path.stat().st_size,
             checksum=checksum,
-            format=format,
         )
 
         self._metadata[key] = cached
         self._save_metadata()
         logger.debug(f"Added to cache: {key} -> {path}")
 
-    def remove_from_cache(self, state: str, table: str | None = None) -> bool:
+    def remove_from_cache(self, state: str) -> bool:
         """
         Remove an entry from the cache.
 
         Parameters
         ----------
         state : str
-            State abbreviation.
-        table : str, optional
-            Table name.
+            State abbreviation or cache key.
 
         Returns
         -------
         bool
             True if entry was removed, False if not found.
         """
-        key = self._get_cache_key(state, table)
+        key = self._get_cache_key(state)
 
         if key in self._metadata:
             del self._metadata[key]
@@ -301,7 +285,6 @@ class DownloadCache:
         total_size = 0
         file_count = 0
         states = set()
-        formats = {}
         stale_count = 0
 
         for cached in self._metadata.values():
@@ -310,7 +293,6 @@ class DownloadCache:
                 total_size += cached.size_bytes
                 file_count += 1
             states.add(cached.state)
-            formats[cached.format] = formats.get(cached.format, 0) + 1
             if cached.is_stale:
                 stale_count += 1
 
@@ -320,13 +302,10 @@ class DownloadCache:
             "valid_files": file_count,
             "total_size_mb": total_size / (1024 * 1024),
             "states": sorted(states),
-            "formats": formats,
             "stale_entries": stale_count,
         }
 
-    def list_cached(
-        self, state: str | None = None, format: str | None = None
-    ) -> list[CachedDownload]:
+    def list_cached(self, state: str | None = None) -> list[CachedDownload]:
         """
         List cached downloads.
 
@@ -334,8 +313,6 @@ class DownloadCache:
         ----------
         state : str, optional
             Filter by state.
-        format : str, optional
-            Filter by format ('csv', 'sqlite', 'duckdb').
 
         Returns
         -------
@@ -346,8 +323,6 @@ class DownloadCache:
         for cached in self._metadata.values():
             if state and cached.state != state.upper():
                 continue
-            if format and cached.format != format:
-                continue
             results.append(cached)
 
-        return sorted(results, key=lambda x: (x.state, x.table or ""))
+        return sorted(results, key=lambda x: x.state)

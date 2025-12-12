@@ -4,8 +4,8 @@ FIA Data Download Module.
 This module provides functionality to download FIA data directly from the
 USDA Forest Service FIA DataMart, similar to rFIA's getFIA() function in R.
 
-The main entry point is the `download()` function which handles downloading,
-caching, and optional conversion to DuckDB format.
+Downloads CSV files from FIA DataMart and converts them to DuckDB format
+for use with pyFIA.
 
 Examples
 --------
@@ -22,9 +22,6 @@ Examples
 >>>
 >>> # Download only common tables (default)
 >>> db_path = download("GA", common=True)
->>>
->>> # Download reference tables
->>> ref_path = download("REF")
 
 References
 ----------
@@ -35,7 +32,6 @@ References
 import logging
 import tempfile
 from pathlib import Path
-from typing import Literal
 
 from rich.console import Console
 
@@ -187,7 +183,6 @@ def download(
     dir: str | Path | None = None,
     common: bool = True,
     tables: list[str] | None = None,
-    format: Literal["duckdb", "sqlite", "csv"] = "duckdb",
     force: bool = False,
     show_progress: bool = True,
     use_cache: bool = True,
@@ -197,11 +192,12 @@ def download(
 
     This function downloads FIA data for one or more states from the USDA
     Forest Service FIA DataMart, similar to rFIA's getFIA() function.
+    Data is automatically converted to DuckDB format for use with pyFIA.
 
     Parameters
     ----------
     states : str or list of str
-        State abbreviations (e.g., 'GA', 'NC') or 'REF' for reference tables.
+        State abbreviations (e.g., 'GA', 'NC').
         Supports multiple states: ['GA', 'FL', 'SC']
     dir : str or Path, optional
         Directory to save downloaded data. Defaults to ~/.pyfia/data/
@@ -210,11 +206,6 @@ def download(
         If False, download all available tables.
     tables : list of str, optional
         Specific tables to download. Overrides `common` parameter.
-    format : {'duckdb', 'sqlite', 'csv'}, default 'duckdb'
-        Output format:
-        - 'duckdb': Convert to DuckDB (recommended for pyFIA workflows)
-        - 'sqlite': Download pre-built SQLite database from DataMart
-        - 'csv': Keep as CSV files (one per table)
     force : bool, default False
         If True, re-download even if files exist locally.
     show_progress : bool, default True
@@ -225,7 +216,7 @@ def download(
     Returns
     -------
     Path
-        Path to the downloaded/converted database file or directory.
+        Path to the DuckDB database file.
 
     Raises
     ------
@@ -242,7 +233,7 @@ def download(
     --------
     >>> from pyfia import download
     >>>
-    >>> # Download Georgia data (default: DuckDB format)
+    >>> # Download Georgia data
     >>> db_path = download("GA")
     >>>
     >>> # Download multiple states merged into one database
@@ -250,9 +241,6 @@ def download(
     >>>
     >>> # Download only specific tables
     >>> db_path = download("GA", tables=["PLOT", "TREE", "COND"])
-    >>>
-    >>> # Download as SQLite (faster, single file from DataMart)
-    >>> db_path = download("GA", format="sqlite")
     >>>
     >>> # Use with pyFIA immediately
     >>> from pyfia import FIA, area
@@ -265,7 +253,6 @@ def download(
     - Large states (CA, TX) may have TREE tables >1GB compressed
     - First download may take several minutes depending on connection
     - Downloaded data is cached locally to avoid re-downloading
-    - Reference tables ('REF') are state-independent lookup tables
     """
     # Normalize states to list
     if isinstance(states, str):
@@ -295,7 +282,6 @@ def download(
             cache=cache,
             common=common,
             tables=tables,
-            format=format,
             force=force,
             show_progress=show_progress,
             use_cache=use_cache,
@@ -308,7 +294,6 @@ def download(
             cache=cache,
             common=common,
             tables=tables,
-            format=format,
             force=force,
             show_progress=show_progress,
             use_cache=use_cache,
@@ -322,17 +307,17 @@ def _download_single_state(
     cache: DownloadCache,
     common: bool,
     tables: list[str] | None,
-    format: str,
     force: bool,
     show_progress: bool,
     use_cache: bool,
 ) -> Path:
     """Download FIA data for a single state."""
     state_dir = data_dir / state.lower()
+    duckdb_path = state_dir / f"{state.lower()}.duckdb"
 
     # Check cache for existing download (unless force=True)
     if use_cache and not force:
-        cached_path = cache.get_cached(state, table=None if format != "csv" else "ALL")
+        cached_path = cache.get_cached(state)
         if cached_path and cached_path.exists():
             if show_progress:
                 console.print(
@@ -340,9 +325,7 @@ def _download_single_state(
                 )
 
                 # Warn if cache is old
-                cached_entry = cache._metadata.get(
-                    cache._get_cache_key(state, None if format != "csv" else "ALL")
-                )
+                cached_entry = cache._metadata.get(cache._get_cache_key(state))
                 if cached_entry and cached_entry.is_stale:
                     console.print(
                         f"[yellow]Warning: Cached data is {cached_entry.age_days:.0f} days old. "
@@ -355,27 +338,20 @@ def _download_single_state(
         console.print(f"\n[bold]Downloading FIA data for {state}[/bold]")
         console.print(f"Data directory: {state_dir}")
 
-    # Handle different formats
-    if format == "sqlite":
-        # Download pre-built SQLite
-        if state == "REF":
-            raise DownloadError(
-                "Reference tables are not available as SQLite. "
-                "Use format='csv' or format='duckdb' instead."
-            )
+    # Remove existing file if force=True
+    if force and duckdb_path.exists():
+        duckdb_path.unlink()
 
-        output_path = client.download_state_sqlite(
-            state, dest_dir=state_dir, show_progress=show_progress
-        )
+    # Use temp directory for CSV downloads
+    with tempfile.TemporaryDirectory() as temp_dir:
+        temp_path = Path(temp_dir)
+        csv_dir = temp_path / "csv"
+        csv_dir.mkdir()
 
-        if use_cache:
-            cache.add_to_cache(state, output_path, format="sqlite")
+        # Download CSVs
+        if show_progress:
+            console.print("\n[bold]Downloading CSV files...[/bold]")
 
-        return output_path
-
-    elif format == "csv":
-        # Download CSVs and keep them
-        csv_dir = state_dir / "csv"
         downloaded = client.download_tables(
             state,
             tables=tables,
@@ -384,67 +360,35 @@ def _download_single_state(
             show_progress=show_progress,
         )
 
-        if use_cache:
-            cache.add_to_cache(state, csv_dir, table="ALL", format="csv")
+        if not downloaded:
+            raise DownloadError(f"No tables downloaded for {state}")
 
-        return csv_dir
-
-    else:  # format == "duckdb"
-        # Download CSVs and convert to DuckDB
-        duckdb_path = state_dir / f"{state.lower()}.duckdb"
-
-        # Remove existing file if force=True
-        if force and duckdb_path.exists():
-            duckdb_path.unlink()
-
-        # Use temp directory for CSV downloads
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            csv_dir = temp_path / "csv"
-            csv_dir.mkdir()
-
-            # Download CSVs
-            if show_progress:
-                console.print("\n[bold]Downloading CSV files...[/bold]")
-
-            downloaded = client.download_tables(
-                state,
-                tables=tables,
-                common=common,
-                dest_dir=csv_dir,
-                show_progress=show_progress,
-            )
-
-            if not downloaded:
-                raise DownloadError(f"No tables downloaded for {state}")
-
-            # Convert to DuckDB
-            if show_progress:
-                console.print("\n[bold]Converting to DuckDB...[/bold]")
-
-            # Get state FIPS code (if not reference tables)
-            state_code = None
-            if state != "REF":
-                try:
-                    state_code = get_state_fips(state)
-                except ValueError:
-                    pass
-
-            _convert_csvs_to_duckdb(
-                csv_dir, duckdb_path, state_code=state_code, show_progress=show_progress
-            )
-
-        if use_cache:
-            cache.add_to_cache(state, duckdb_path, format="duckdb")
-
+        # Convert to DuckDB
         if show_progress:
-            size_mb = duckdb_path.stat().st_size / (1024 * 1024)
-            console.print(
-                f"\n[bold green]Download complete![/bold green] "
-                f"Database: {duckdb_path} ({size_mb:.1f} MB)"
-            )
+            console.print("\n[bold]Converting to DuckDB...[/bold]")
 
-        return duckdb_path
+        # Get state FIPS code
+        state_code = None
+        try:
+            state_code = get_state_fips(state)
+        except ValueError:
+            pass
+
+        _convert_csvs_to_duckdb(
+            csv_dir, duckdb_path, state_code=state_code, show_progress=show_progress
+        )
+
+    if use_cache:
+        cache.add_to_cache(state, duckdb_path)
+
+    if show_progress:
+        size_mb = duckdb_path.stat().st_size / (1024 * 1024)
+        console.print(
+            f"\n[bold green]Download complete![/bold green] "
+            f"Database: {duckdb_path} ({size_mb:.1f} MB)"
+        )
+
+    return duckdb_path
 
 
 def _download_multi_state(
@@ -454,7 +398,6 @@ def _download_multi_state(
     cache: DownloadCache,
     common: bool,
     tables: list[str] | None,
-    format: str,
     force: bool,
     show_progress: bool,
     use_cache: bool,
@@ -464,19 +407,9 @@ def _download_multi_state(
     states_suffix = "_".join(sorted(states)).lower()
     merged_name = f"merged_{states_suffix}"
 
-    if format == "csv":
-        raise DownloadError(
-            "CSV format does not support multi-state merging. "
-            "Use format='duckdb' or format='sqlite' instead."
-        )
-
     merged_dir = data_dir / "merged"
     merged_dir.mkdir(parents=True, exist_ok=True)
-
-    if format == "duckdb":
-        output_path = merged_dir / f"{merged_name}.duckdb"
-    else:
-        output_path = merged_dir / f"{merged_name}.db"
+    output_path = merged_dir / f"{merged_name}.duckdb"
 
     # Check cache
     cache_key = f"MERGED_{states_suffix.upper()}"
@@ -576,7 +509,7 @@ def _download_multi_state(
         conn.close()
 
     if use_cache:
-        cache.add_to_cache(cache_key, output_path, format=format)
+        cache.add_to_cache(cache_key, output_path)
 
     if show_progress:
         size_mb = output_path.stat().st_size / (1024 * 1024)

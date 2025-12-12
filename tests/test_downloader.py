@@ -8,11 +8,8 @@ These tests verify the downloader functionality including:
 - Download client (with mocking for actual downloads)
 """
 
-import json
 import tempfile
-from datetime import datetime, timedelta
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -21,7 +18,6 @@ from pyfia.downloader import (
     VALID_STATE_CODES,
     DataMartClient,
     DownloadCache,
-    clear_cache,
     download,
 )
 from pyfia.downloader.exceptions import (
@@ -35,7 +31,6 @@ from pyfia.downloader.exceptions import (
 from pyfia.downloader.tables import (
     ALL_TABLES,
     REFERENCE_TABLES,
-    STATE_FIPS_CODES,
     get_state_fips,
     get_tables_for_download,
     validate_state_code,
@@ -140,7 +135,9 @@ class TestExceptions:
 
     def test_network_error(self):
         """Test NetworkError exception."""
-        error = NetworkError("Connection failed", url="http://example.com", status_code=500)
+        error = NetworkError(
+            "Connection failed", url="http://example.com", status_code=500
+        )
         assert "Connection failed" in str(error)
         assert error.status_code == 500
 
@@ -155,7 +152,7 @@ class TestExceptions:
         error = InsufficientSpaceError(
             required_bytes=1024 * 1024 * 100,  # 100MB
             available_bytes=1024 * 1024 * 50,  # 50MB
-            path="/data"
+            path="/data",
         )
         assert "100" in str(error) or "50" in str(error)
 
@@ -181,7 +178,7 @@ class TestDownloadCache:
             test_file.write_text("test content")
 
             # Add to cache
-            cache.add_to_cache("GA", test_file, format="duckdb")
+            cache.add_to_cache("GA", test_file)
 
             # Retrieve from cache
             cached_path = cache.get_cached("GA")
@@ -204,17 +201,13 @@ class TestDownloadCache:
             test_file.write_text("test content")
 
             # Add to cache
-            cache.add_to_cache("GA", test_file, format="duckdb")
+            cache.add_to_cache("GA", test_file)
 
             # Should be found with no age limit
             assert cache.get_cached("GA") is not None
 
             # Should be found with large age limit
             assert cache.get_cached("GA", max_age_days=30) is not None
-
-            # Should NOT be found with 0 age limit (file was just created)
-            # This depends on timing, so we skip this edge case
-            # assert cache.get_cached("GA", max_age_days=0) is None
 
     def test_clear_cache(self):
         """Test clearing the cache."""
@@ -225,7 +218,7 @@ class TestDownloadCache:
             # Create and cache a file
             test_file = cache_dir / "test.db"
             test_file.write_text("test content")
-            cache.add_to_cache("GA", test_file, format="duckdb")
+            cache.add_to_cache("GA", test_file)
 
             # Verify it's cached
             assert cache.get_cached("GA") is not None
@@ -257,7 +250,7 @@ class TestDownloadCache:
             cache1 = DownloadCache(cache_dir)
             test_file = cache_dir / "test.db"
             test_file.write_text("test content")
-            cache1.add_to_cache("GA", test_file, format="duckdb")
+            cache1.add_to_cache("GA", test_file)
 
             # Create second cache instance and verify entry persists
             cache2 = DownloadCache(cache_dir)
@@ -293,12 +286,6 @@ class TestDataMartClient:
         url = client._build_csv_url("REF", "REF_SPECIES")
         assert url == "https://apps.fs.usda.gov/fia/datamart/CSV/REF_SPECIES.zip"
 
-    def test_build_sqlite_url(self):
-        """Test SQLite URL building."""
-        client = DataMartClient()
-        url = client._build_sqlite_url("GA")
-        assert url == "https://apps.fs.usda.gov/fia/datamart/Databases/SQLite_FIADB_GA.zip"
-
     def test_check_url_exists_timeout(self):
         """Test URL check handles invalid URLs gracefully."""
         client = DataMartClient(timeout=5)
@@ -315,15 +302,6 @@ class TestDownloadFunction:
         with pytest.raises(StateNotFoundError):
             download("XX")
 
-    def test_download_normalizes_state(self):
-        """Test that download normalizes state codes."""
-        # This would actually download, so we mock the client
-        with patch.object(DataMartClient, 'download_tables') as mock_download:
-            mock_download.return_value = {}
-            with patch.object(DataMartClient, 'download_state_sqlite') as mock_sqlite:
-                # Mock will be called but won't actually download
-                pass
-
     def test_download_uses_cache(self):
         """Test that download checks cache first."""
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -337,7 +315,7 @@ class TestDownloadFunction:
             fake_db = state_dir / "ga.duckdb"
             fake_db.write_text("fake database content")
 
-            cache.add_to_cache("GA", fake_db, format="duckdb")
+            cache.add_to_cache("GA", fake_db)
 
             # Download should use cached file
             result = download("GA", dir=data_dir, use_cache=True, show_progress=False)
@@ -358,10 +336,7 @@ class TestIntegration:
         with tempfile.TemporaryDirectory() as temp_dir:
             client = DataMartClient()
             path = client.download_table(
-                "REF",
-                "REF_SPECIES",
-                Path(temp_dir),
-                show_progress=False
+                "REF", "REF_SPECIES", Path(temp_dir), show_progress=False
             )
             assert path.exists()
             assert path.suffix == ".csv"

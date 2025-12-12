@@ -12,6 +12,7 @@ References
 
 import hashlib
 import logging
+import shutil
 import tempfile
 import zipfile
 from pathlib import Path
@@ -42,19 +43,13 @@ logger = logging.getLogger(__name__)
 
 # FIA DataMart URLs
 DATAMART_CSV_BASE = "https://apps.fs.usda.gov/fia/datamart/CSV/"
-DATAMART_SQLITE_BASE = "https://apps.fs.usda.gov/fia/datamart/Databases/"
-
-# Archive downloads
-ENTIRE_CSV_ARCHIVE = "CSV_FIADB_ENTIRE.zip"
-REFERENCE_ARCHIVE = "FIADB_REFERENCE.zip"
-ENTIRE_SQLITE_ARCHIVE = "SQLite_FIADB_ENTIRE.zip"
 
 
 class DataMartClient:
     """
     HTTP client for FIA DataMart downloads.
 
-    This client handles downloading CSV and SQLite files from the FIA DataMart,
+    This client handles downloading CSV files from the FIA DataMart,
     with support for progress bars, retries, and checksum verification.
 
     Parameters
@@ -112,23 +107,6 @@ class DataMartClient:
             filename = f"{state}_{table}.zip"
 
         return f"{DATAMART_CSV_BASE}{filename}"
-
-    def _build_sqlite_url(self, state: str) -> str:
-        """
-        Build the URL for a state SQLite database download.
-
-        Parameters
-        ----------
-        state : str
-            State abbreviation (e.g., 'GA').
-
-        Returns
-        -------
-        str
-            Full URL for the SQLite ZIP file download.
-        """
-        # FIA DataMart uses pattern: SQLite_FIADB_{STATE}.zip
-        return f"{DATAMART_SQLITE_BASE}SQLite_FIADB_{state.upper()}.zip"
 
     def _download_file(
         self,
@@ -341,9 +319,6 @@ class DataMartClient:
             csv_file = csv_files[0]
             dest_path = dest_dir / csv_file.name
 
-            # Use shutil to move (handles cross-filesystem moves)
-            import shutil
-
             shutil.move(str(csv_file), str(dest_path))
 
             logger.info(f"Extracted {table} to {dest_path}")
@@ -444,101 +419,6 @@ class DataMartClient:
                 )
 
         return downloaded
-
-    def download_state_sqlite(
-        self,
-        state: str,
-        dest_dir: Path | None = None,
-        show_progress: bool = True,
-    ) -> Path:
-        """
-        Download the pre-built SQLite database for a state.
-
-        This is faster than downloading individual CSV files as it's a single
-        compressed file containing all tables.
-
-        Parameters
-        ----------
-        state : str
-            State abbreviation (e.g., 'GA').
-        dest_dir : Path, optional
-            Directory to save the SQLite file.
-            Defaults to ~/.pyfia/data/{state}/
-        show_progress : bool, default True
-            Show download progress.
-
-        Returns
-        -------
-        Path
-            Path to the extracted SQLite database file.
-
-        Examples
-        --------
-        >>> client = DataMartClient()
-        >>> db_path = client.download_state_sqlite("GA")
-        >>> print(f"Database at: {db_path}")
-        """
-        state = validate_state_code(state)
-
-        if state == "REF":
-            raise DownloadError(
-                "Reference tables are not available as SQLite. "
-                "Use download_tables('REF') instead."
-            )
-
-        url = self._build_sqlite_url(state)
-        logger.info(f"Downloading SQLite database for {state} from {url}")
-
-        # Set default destination
-        if dest_dir is None:
-            from pyfia.core.settings import settings
-
-            dest_dir = settings.cache_dir.parent / "data" / state.lower()
-
-        dest_dir.mkdir(parents=True, exist_ok=True)
-
-        # Download to temp file
-        with tempfile.TemporaryDirectory() as temp_dir:
-            temp_path = Path(temp_dir)
-            zip_path = temp_path / f"{state}.zip"
-
-            self._download_file(
-                url,
-                zip_path,
-                description=f"{state} SQLite database",
-                show_progress=show_progress,
-            )
-
-            # Extract
-            extracted = self._extract_zip(zip_path, temp_path, show_progress=False)
-
-            # Find the SQLite file
-            db_files = [
-                f
-                for f in extracted
-                if f.suffix.lower() in (".db", ".sqlite", ".sqlite3")
-            ]
-            if not db_files:
-                # Sometimes the SQLite file has no extension or different name
-                db_files = [
-                    f
-                    for f in extracted
-                    if f.is_file() and not f.suffix.lower() == ".zip"
-                ]
-
-            if not db_files:
-                raise DownloadError(f"No database file found in {state}.zip", url=url)
-
-            # Move to destination
-            db_file = db_files[0]
-            dest_path = dest_dir / f"{state}.db"
-
-            import shutil
-
-            shutil.move(str(db_file), str(dest_path))
-
-            logger.info(f"Extracted SQLite database to {dest_path}")
-            return dest_path
 
     def get_file_checksum(self, file_path: Path) -> str:
         """

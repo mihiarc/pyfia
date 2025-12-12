@@ -15,10 +15,7 @@ import pytest
 
 from pyfia import FIA, area, download
 from pyfia.downloader import (
-    COMMON_TABLES,
     DataMartClient,
-    DownloadCache,
-    clear_cache,
 )
 from pyfia.downloader.tables import get_state_fips
 
@@ -63,7 +60,6 @@ class TestDownloadE2E:
             states="RI",
             dir=temp_data_dir,
             common=True,
-            format="duckdb",
             force=True,
             show_progress=True,
         )
@@ -88,25 +84,6 @@ class TestDownloadE2E:
             ri_fips = get_state_fips("RI")
             assert plot_df["STATE_ADDED"].unique().to_list() == [ri_fips]
 
-    def test_download_state_sqlite(self, temp_data_dir):
-        """Test downloading RI pre-built SQLite database."""
-        # Download as SQLite (single file from DataMart)
-        db_path = download(
-            states="RI",
-            dir=temp_data_dir,
-            format="sqlite",
-            force=True,
-            show_progress=True,
-        )
-
-        assert db_path.exists()
-        assert db_path.suffix in (".db", ".sqlite", ".sqlite3")
-
-        # Verify we can open it with FIA class
-        with FIA(db_path) as db:
-            plot_df = db.load_table("PLOT").collect()
-            assert len(plot_df) > 0
-
     def test_download_specific_tables(self, temp_data_dir):
         """Test downloading only specific tables."""
         # Download only PLOT and SURVEY tables
@@ -114,7 +91,6 @@ class TestDownloadE2E:
             states="RI",
             dir=temp_data_dir,
             tables=["PLOT", "SURVEY"],
-            format="duckdb",
             force=True,
             show_progress=True,
         )
@@ -143,7 +119,6 @@ class TestDownloadE2E:
             states="RI",
             dir=temp_data_dir,
             tables=["SURVEY"],  # Small table for speed
-            format="duckdb",
             force=True,
             show_progress=True,
             use_cache=True,
@@ -157,7 +132,6 @@ class TestDownloadE2E:
             states="RI",
             dir=temp_data_dir,
             tables=["SURVEY"],
-            format="duckdb",
             force=False,  # Don't force re-download
             show_progress=True,
             use_cache=True,
@@ -177,7 +151,6 @@ class TestDownloadE2E:
             states="RI",
             dir=temp_data_dir,
             tables=["SURVEY"],
-            format="duckdb",
             force=True,
             show_progress=True,
             use_cache=True,
@@ -194,7 +167,6 @@ class TestDownloadE2E:
             states="RI",
             dir=temp_data_dir,
             tables=["SURVEY"],
-            format="duckdb",
             force=True,  # Force re-download
             show_progress=True,
             use_cache=True,
@@ -240,7 +212,6 @@ class TestDownloadAnalysisPipeline:
             states="RI",
             dir=temp_data_dir,
             common=True,
-            format="duckdb",
             force=True,
             show_progress=True,
         )
@@ -284,7 +255,9 @@ class TestReferenceTableDownload:
         with tempfile.TemporaryDirectory() as temp_dir:
             yield Path(temp_dir)
 
-    @pytest.mark.skip(reason="Reference tables are bundled in FIADB_REFERENCE.zip, not individual files")
+    @pytest.mark.skip(
+        reason="Reference tables are bundled in FIADB_REFERENCE.zip, not individual files"
+    )
     def test_download_reference_species(self, temp_data_dir):
         """Test downloading REF_SPECIES table.
 

@@ -8,6 +8,7 @@ from .area import AreaEstimator, area
 from .biomass import BiomassEstimator, biomass
 from .carbon import carbon
 from .carbon_flux import carbon_flux
+from .carbon_pools import CarbonPoolEstimator, carbon_pool
 from .growth import GrowthEstimator, growth
 from .mortality import MortalityEstimator, mortality
 from .removals import RemovalsEstimator, removals
@@ -20,6 +21,7 @@ __all__ = [
     "biomass",
     "carbon",
     "carbon_flux",
+    "carbon_pool",
     "growth",
     "mortality",
     "removals",
@@ -28,6 +30,7 @@ __all__ = [
     # Classes (for advanced usage)
     "AreaEstimator",
     "BiomassEstimator",
+    "CarbonPoolEstimator",
     "GrowthEstimator",
     "MortalityEstimator",
     "RemovalsEstimator",

@@ -40,6 +40,7 @@ from .config import (
 from .estimators import (
     AreaEstimator,
     BiomassEstimator,
+    CarbonPoolEstimator,
     GrowthEstimator,
     MortalityEstimator,
     RemovalsEstimator,
@@ -49,6 +50,7 @@ from .estimators import (
     biomass,
     carbon,
     carbon_flux,
+    carbon_pool,
     growth,
     mortality,
     removals,
@@ -72,6 +74,7 @@ __all__ = [
     "biomass",
     "carbon",
     "carbon_flux",
+    "carbon_pool",
     "growth",
     "mortality",
     "removals",
@@ -80,6 +83,7 @@ __all__ = [
     # Estimator classes
     "AreaEstimator",
     "BiomassEstimator",
+    "CarbonPoolEstimator",
     "GrowthEstimator",
     "MortalityEstimator",
     "RemovalsEstimator",

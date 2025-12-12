@@ -26,14 +26,20 @@ def detect_engine(db_path: Union[str, Path]) -> str:
     """
     Auto-detect database engine type.
 
-    Args:
-        db_path: Path to database file
+    Parameters
+    ----------
+    db_path : Union[str, Path]
+        Path to database file
 
-    Returns:
+    Returns
+    -------
+    str
         Engine type ('duckdb' or 'sqlite')
 
-    Raises:
-        ValueError: If engine type cannot be determined
+    Raises
+    ------
+    ValueError
+        If engine type cannot be determined
     """
     import sqlite3
     from pathlib import Path
@@ -71,36 +77,45 @@ def create_backend(
     """
     Factory function to create appropriate database backend.
 
-    Args:
-        db_path: Path to the database file
-        engine: Database engine ('duckdb' or 'sqlite'). If None, auto-detect.
-        **kwargs: Additional backend-specific configuration options:
-            - For DuckDB: read_only, memory_limit, threads
-            - For SQLite: timeout, check_same_thread
+    Parameters
+    ----------
+    db_path : Union[str, Path]
+        Path to the database file
+    engine : Optional[str], optional
+        Database engine ('duckdb' or 'sqlite'). If None, auto-detect.
+    **kwargs : Any
+        Additional backend-specific configuration options:
+        - For DuckDB: read_only, memory_limit, threads
+        - For SQLite: timeout, check_same_thread
 
-    Returns:
+    Returns
+    -------
+    DatabaseBackend
         Appropriate DatabaseBackend implementation
 
-    Raises:
-        ValueError: If engine type cannot be determined or is unsupported
+    Raises
+    ------
+    ValueError
+        If engine type cannot be determined or is unsupported
 
-    Examples:
-        >>> # Auto-detect engine
-        >>> backend = create_backend("path/to/database.duckdb")
+    Examples
+    --------
+    >>> # Auto-detect engine
+    >>> backend = create_backend("path/to/database.duckdb")
 
-        >>> # Explicitly specify SQLite with options
-        >>> backend = create_backend(
-        ...     "path/to/database.db",
-        ...     engine="sqlite",
-        ...     timeout=60.0
-        ... )
+    >>> # Explicitly specify SQLite with options
+    >>> backend = create_backend(
+    ...     "path/to/database.db",
+    ...     engine="sqlite",
+    ...     timeout=60.0
+    ... )
 
-        >>> # DuckDB with memory limit
-        >>> backend = create_backend(
-        ...     "path/to/database.duckdb",
-        ...     memory_limit="8GB",
-        ...     threads=4
-        ... )
+    >>> # DuckDB with memory limit
+    >>> backend = create_backend(
+    ...     "path/to/database.duckdb",
+    ...     memory_limit="8GB",
+    ...     threads=4
+    ... )
     """
     db_path = Path(db_path)
 

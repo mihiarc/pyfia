@@ -40,11 +40,16 @@ class SQLiteBackend(DatabaseBackend):
         """
         Initialize SQLite backend.
 
-        Args:
-            db_path: Path to SQLite database file
-            timeout: Timeout for acquiring database lock
-            check_same_thread: Allow connection to be used across threads
-            **kwargs: Additional SQLite configuration options
+        Parameters
+        ----------
+        db_path : Union[str, Path]
+            Path to SQLite database file
+        timeout : Optional[float]
+            Timeout for acquiring database lock
+        check_same_thread : bool
+            Allow connection to be used across threads
+        **kwargs : Any
+            Additional SQLite configuration options
         """
         super().__init__(db_path, **kwargs)
         self.timeout = timeout
@@ -93,11 +98,16 @@ class SQLiteBackend(DatabaseBackend):
 
         Uses pl.read_database for efficient conversion.
 
-        Args:
-            query: SQL query string
-            params: Optional query parameters (uses :param syntax)
+        Parameters
+        ----------
+        query : str
+            SQL query string
+        params : Optional[Dict[str, Any]]
+            Optional query parameters (uses :param syntax)
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with query results
         """
         if not self._connection:
@@ -136,10 +146,14 @@ class SQLiteBackend(DatabaseBackend):
         """
         Get schema information for a table.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        Dict[str, str]
             Dictionary mapping column names to SQL types
         """
         if table_name in self._schema_cache:
@@ -164,10 +178,14 @@ class SQLiteBackend(DatabaseBackend):
         """
         Check if a table exists in the database.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        bool
             True if table exists, False otherwise
         """
         if not self._connection:
@@ -187,10 +205,14 @@ class SQLiteBackend(DatabaseBackend):
         """
         Get table description for schema detection.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        List[tuple]
             List of tuples with column information
         """
         if not self._connection:
@@ -210,10 +232,14 @@ class SQLiteBackend(DatabaseBackend):
 
         FIA uses CN fields as identifiers that should always be treated as text.
 
-        Args:
-            column_name: Name of the column
+        Parameters
+        ----------
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column is a CN field
         """
         return column_name.endswith("_CN") or column_name == "CN"
@@ -222,11 +248,16 @@ class SQLiteBackend(DatabaseBackend):
         """
         Check if a column should be treated as a string.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column should be treated as a string
         """
         if self.is_cn_column(column_name):
@@ -241,11 +272,16 @@ class SQLiteBackend(DatabaseBackend):
         """
         Check if a column should be treated as a floating point number.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column should be treated as a float
         """
         schema = self.get_table_schema(table_name)
@@ -257,11 +293,16 @@ class SQLiteBackend(DatabaseBackend):
         """
         Check if a column should be treated as an integer.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column should be treated as an integer
         """
         if self.is_cn_column(column_name):
@@ -285,11 +326,16 @@ class SQLiteBackend(DatabaseBackend):
         """
         Build SELECT clause with appropriate type casting for FIA data.
 
-        Args:
-            table_name: Name of the table
-            columns: Optional list of columns to select
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        columns : Optional[List[str]]
+            Optional list of columns to select
 
-        Returns:
+        Returns
+        -------
+        str
             SELECT clause with type casting
         """
         schema = self.get_table_schema(table_name)
@@ -316,11 +362,16 @@ class SQLiteBackend(DatabaseBackend):
 
         This method provides compatibility with the data reader interface.
 
-        Args:
-            query: SQL query to execute
-            schema_overrides: Optional schema overrides for Polars
+        Parameters
+        ----------
+        query : str
+            SQL query to execute
+        schema_overrides : Optional[Dict[str, Any]]
+            Optional schema overrides for Polars
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with results
         """
         if not self._connection:
@@ -357,13 +408,20 @@ class SQLiteBackend(DatabaseBackend):
         """
         Read a table with optional filtering, handling batch processing for large IN clauses.
 
-        Args:
-            table_name: Name of the table to read
-            columns: Optional list of columns to select
-            where: Optional WHERE clause (without 'WHERE' keyword)
-            limit: Optional row limit
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to read
+        columns : Optional[List[str]]
+            Optional list of columns to select
+        where : Optional[str]
+            Optional WHERE clause (without 'WHERE' keyword)
+        limit : Optional[int]
+            Optional row limit
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with the results
         """
         # Check if we have a large IN clause that needs batching

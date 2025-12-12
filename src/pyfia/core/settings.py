@@ -75,7 +75,19 @@ class PyFIASettings(BaseSettings):
     @field_validator("database_engine")
     @classmethod
     def validate_engine(cls, v: str) -> str:
-        """Validate database engine choice."""
+        """
+        Validate database engine choice.
+
+        Parameters
+        ----------
+        v : str
+            Database engine to validate
+
+        Returns
+        -------
+        str
+            Validated and lowercased engine name
+        """
         valid_engines = ["duckdb", "sqlite"]
         if v.lower() not in valid_engines:
             raise ValueError(f"Engine must be one of {valid_engines}")
@@ -84,7 +96,19 @@ class PyFIASettings(BaseSettings):
     @field_validator("log_level")
     @classmethod
     def validate_log_level(cls, v: str) -> str:
-        """Validate log level."""
+        """
+        Validate log level.
+
+        Parameters
+        ----------
+        v : str
+            Log level to validate
+
+        Returns
+        -------
+        str
+            Validated and uppercased log level
+        """
         valid_levels = ["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
         if v.upper() not in valid_levels:
             raise ValueError(f"Log level must be one of {valid_levels}")
@@ -93,18 +117,43 @@ class PyFIASettings(BaseSettings):
     @field_validator("database_path")
     @classmethod
     def validate_database_path(cls, v: Path) -> Path:
-        """Validate database path exists."""
+        """
+        Validate database path exists.
+
+        Parameters
+        ----------
+        v : Path
+            Database path to validate
+
+        Returns
+        -------
+        Path
+            Validated database path
+        """
         if v.exists() and not v.is_file():
             raise ValueError(f"Database path {v} exists but is not a file")
         return v
 
     def create_directories(self) -> None:
-        """Create necessary directories if they don't exist."""
+        """
+        Create necessary directories if they don't exist.
+
+        Returns
+        -------
+        None
+        """
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.log_dir.mkdir(parents=True, exist_ok=True)
 
     def get_connection_string(self) -> str:
-        """Get database connection string."""
+        """
+        Get database connection string.
+
+        Returns
+        -------
+        str
+            Database connection string for the configured engine
+        """
         if self.database_engine == "duckdb":
             return f"duckdb:///{self.database_path}"
         else:
@@ -113,7 +162,14 @@ class PyFIASettings(BaseSettings):
 
 # Check for legacy environment variables and use them if new ones aren't set
 def _create_settings_with_legacy_support() -> PyFIASettings:
-    """Create settings with support for legacy environment variable names."""
+    """
+    Create settings with support for legacy environment variable names.
+
+    Returns
+    -------
+    PyFIASettings
+        Configured settings instance with legacy environment variable support
+    """
     # Check for legacy FIA_DB_PATH
     legacy_db_path = os.environ.get("FIA_DB_PATH")
     new_db_path = os.environ.get("PYFIA_DATABASE_PATH")
@@ -146,7 +202,9 @@ def get_default_db_path() -> Path:
 
     Checks environment variables and settings for database path.
 
-    Returns:
+    Returns
+    -------
+    Path
         Path to the default database
     """
     return settings.database_path
@@ -156,7 +214,9 @@ def get_default_engine() -> str:
     """
     Get the default database engine.
 
-    Returns:
+    Returns
+    -------
+    str
         Default engine type ("sqlite" or "duckdb")
     """
     return settings.database_engine

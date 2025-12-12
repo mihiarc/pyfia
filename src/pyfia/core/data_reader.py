@@ -34,10 +34,14 @@ class FIADataReader:
         """
         Initialize data reader.
 
-        Args:
-            db_path: Path to FIA database (DuckDB or SQLite)
-            engine: Database engine ('duckdb' or 'sqlite'). If None, auto-detect.
-            **backend_kwargs: Additional backend-specific options:
+        Parameters
+        ----------
+        db_path : str or Path
+            Path to FIA database (DuckDB or SQLite).
+        engine : str, optional
+            Database engine ('duckdb' or 'sqlite'). If None, auto-detect.
+        **backend_kwargs
+            Additional backend-specific options:
                 - For DuckDB: read_only, memory_limit, threads
                 - For SQLite: timeout, check_same_thread
         """
@@ -69,11 +73,15 @@ class FIADataReader:
         """
         Get schema information for a table.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table.
 
-        Returns:
-            Dictionary mapping column names to SQL types
+        Returns
+        -------
+        dict of str to str
+            Dictionary mapping column names to SQL types.
         """
         return self._backend.get_table_schema(table_name)
 
@@ -81,11 +89,15 @@ class FIADataReader:
         """
         Check if a column is a CN (Control Number) field.
 
-        Args:
-            column_name: Name of the column
+        Parameters
+        ----------
+        column_name : str
+            Name of the column.
 
-        Returns:
-            True if the column is a CN field
+        Returns
+        -------
+        bool
+            True if the column is a CN field.
         """
         return self._backend.is_cn_column(column_name)
 
@@ -93,12 +105,17 @@ class FIADataReader:
         """
         Check if a column should be treated as a string.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table.
+        column_name : str
+            Name of the column.
 
-        Returns:
-            True if the column should be treated as a string
+        Returns
+        -------
+        bool
+            True if the column should be treated as a string.
         """
         return self._backend.is_string_column(table_name, column_name)
 
@@ -106,12 +123,17 @@ class FIADataReader:
         """
         Check if a column should be treated as a floating point number.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table.
+        column_name : str
+            Name of the column.
 
-        Returns:
-            True if the column should be treated as a float
+        Returns
+        -------
+        bool
+            True if the column should be treated as a float.
         """
         return self._backend.is_float_column(table_name, column_name)
 
@@ -119,12 +141,17 @@ class FIADataReader:
         """
         Check if a column should be treated as an integer.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table.
+        column_name : str
+            Name of the column.
 
-        Returns:
-            True if the column should be treated as an integer
+        Returns
+        -------
+        bool
+            True if the column should be treated as an integer.
         """
         return self._backend.is_integer_column(table_name, column_name)
 
@@ -134,12 +161,17 @@ class FIADataReader:
         """
         Build SELECT clause with appropriate type casting.
 
-        Args:
-            table_name: Name of the table
-            columns: Optional list of columns to select
+        Parameters
+        ----------
+        table_name : str
+            Name of the table.
+        columns : list of str, optional
+            Optional list of columns to select.
 
-        Returns:
-            SELECT clause with type casting
+        Returns
+        -------
+        str
+            SELECT clause with type casting.
         """
         return self._backend.build_select_clause(table_name, columns)
 
@@ -171,14 +203,21 @@ class FIADataReader:
         """
         Read a table from the FIA database.
 
-        Args:
-            table_name: Name of the table to read
-            columns: Optional list of columns to select
-            where: Optional WHERE clause (without 'WHERE' keyword)
-            lazy: If True, return LazyFrame; if False, return DataFrame
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to read.
+        columns : list of str, optional
+            Optional list of columns to select.
+        where : str, optional
+            Optional WHERE clause (without 'WHERE' keyword).
+        lazy : bool, default True
+            If True, return LazyFrame; if False, return DataFrame.
 
-        Returns:
-            Polars DataFrame or LazyFrame
+        Returns
+        -------
+        pl.DataFrame or pl.LazyFrame
+            Polars DataFrame or LazyFrame.
         """
         # Build SELECT clause with appropriate type casting
         select_clause = self._build_select_clause(table_name, columns)
@@ -220,11 +259,15 @@ class FIADataReader:
         """
         Read PLOT data filtered by EVALID.
 
-        Args:
-            evalid: List of EVALID values to filter by
+        Parameters
+        ----------
+        evalid : list of int
+            List of EVALID values to filter by.
 
-        Returns:
-            DataFrame with plot data
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with plot data.
         """
         # First get plot CNs from assignments
         evalid_str = ", ".join(str(e) for e in evalid)
@@ -274,11 +317,15 @@ class FIADataReader:
         """
         Read TREE data for specified plots.
 
-        Args:
-            plot_cns: List of plot CNs to get trees for
+        Parameters
+        ----------
+        plot_cns : list of str
+            List of plot CNs to get trees for.
 
-        Returns:
-            DataFrame with tree data
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with tree data.
         """
         if not plot_cns:
             return pl.DataFrame()
@@ -300,11 +347,15 @@ class FIADataReader:
         """
         Read COND data for specified plots.
 
-        Args:
-            plot_cns: List of plot CNs to get conditions for
+        Parameters
+        ----------
+        plot_cns : list of str
+            List of plot CNs to get conditions for.
 
-        Returns:
-            DataFrame with condition data
+        Returns
+        -------
+        pl.DataFrame
+            DataFrame with condition data.
         """
         if not plot_cns:
             return pl.DataFrame()
@@ -326,11 +377,15 @@ class FIADataReader:
         """
         Read population estimation tables for specified EVALIDs.
 
-        Args:
-            evalid: List of EVALID values
+        Parameters
+        ----------
+        evalid : list of int
+            List of EVALID values.
 
-        Returns:
-            Dictionary with population tables
+        Returns
+        -------
+        dict of str to pl.DataFrame
+            Dictionary with population tables.
         """
         evalid_str = ", ".join(str(e) for e in evalid)
 
@@ -384,11 +439,15 @@ class FIADataReader:
         This is the main method for loading a complete set of FIA data
         filtered by evaluation ID.
 
-        Args:
-            evalid: Single EVALID or list of EVALIDs
+        Parameters
+        ----------
+        evalid : int or list of int
+            Single EVALID or list of EVALIDs.
 
-        Returns:
-            Dictionary with all relevant tables
+        Returns
+        -------
+        dict of str to pl.DataFrame
+            Dictionary with all relevant tables.
         """
         if isinstance(evalid, int):
             evalid = [evalid]

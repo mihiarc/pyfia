@@ -393,6 +393,10 @@ def _download_single_state(
         # Download CSVs and convert to DuckDB
         duckdb_path = state_dir / f"{state.lower()}.duckdb"
 
+        # Remove existing file if force=True
+        if force and duckdb_path.exists():
+            duckdb_path.unlink()
+
         # Use temp directory for CSV downloads
         with tempfile.TemporaryDirectory() as temp_dir:
             temp_path = Path(temp_dir)

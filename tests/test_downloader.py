@@ -297,7 +297,7 @@ class TestDataMartClient:
         """Test SQLite URL building."""
         client = DataMartClient()
         url = client._build_sqlite_url("GA")
-        assert url == "https://apps.fs.usda.gov/fia/datamart/Databases/GA.zip"
+        assert url == "https://apps.fs.usda.gov/fia/datamart/Databases/SQLite_FIADB_GA.zip"
 
     def test_check_url_exists_timeout(self):
         """Test URL check handles invalid URLs gracefully."""

@@ -70,6 +70,7 @@ nav:
   - Getting Started: getting-started.md
   - User Guide:
     - Overview: guides/index.md
+    - Downloading Data: guides/downloading.md
     - Domain Filtering: guides/filtering.md
     - Variance Estimation: variance_calculation_guide.md
     - Lazy Evaluation: lazy_evaluation_guide.md
@@ -90,6 +91,7 @@ nav:
     - Utilities:
       - Reference Tables: api/reference_tables.md
       - EVALIDator: api/evalidator.md
+      - Data Download: api/downloader.md
     - Data Conversion: api/conversion.md
   - Examples: examples.md
   - Development:

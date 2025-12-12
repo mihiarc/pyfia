@@ -13,8 +13,11 @@ PyFIA implements design-based estimation following the methodology described in 
 FIA data is organized by evaluation groups. Each EVALID represents a complete inventory cycle for a state or region. PyFIA automatically selects the most recent evaluation when you filter by state.
 
 ```python
-db = pyfia.FIA("georgia.duckdb")
-db.clip_by_state("GA")  # Auto-selects most recent EVALID
+from pyfia import download, FIA
+
+db_path = download("GA")  # Download Georgia data
+db = FIA(db_path)
+db.clip_by_state("GA")    # Auto-selects most recent EVALID
 ```
 
 ### Domain Filtering
@@ -31,6 +34,7 @@ FIA uses a stratified sampling design. Each plot/tree has an expansion factor in
 
 ## Guides
 
+- **[Downloading Data](downloading.md)**: Download FIA data directly from the DataMart
 - **[Domain Filtering](filtering.md)**: Control which plots, conditions, and trees are included
 - **[Variance Estimation](../variance_calculation_guide.md)**: Understanding uncertainty in estimates
 - **[Lazy Evaluation](../lazy_evaluation_guide.md)**: Memory-efficient workflows for large datasets

@@ -28,6 +28,14 @@ result = estimator(db, **options)  # Returns pl.DataFrame
 | [`growth()`](growth.md) | Annual tree growth |
 | [`removals()`](removals.md) | Timber removals |
 
+## Data Download
+
+| Function | Description |
+|----------|-------------|
+| [`download()`](downloader.md) | Download FIA data from DataMart |
+| [`DataMartClient`](downloader.md) | Low-level HTTP client for downloads |
+| [`DownloadCache`](downloader.md) | Cache management for downloads |
+
 ## Utility Functions
 
 | Function | Description |

@@ -10,6 +10,7 @@ PyFIA provides statistically valid estimation methods following [Bechtold & Patt
 
 ## Features
 
+- **Direct Data Download**: Download FIA data directly from the DataMart with `download("GA")`
 - **Statistical Rigor**: Design-based estimation with proper variance calculations
 - **High Performance**: Built on [Polars](https://pola.rs/) and [DuckDB](https://duckdb.org/) for fast data processing
 - **EVALIDator Compatible**: Results validated against official USFS estimates
@@ -19,17 +20,16 @@ PyFIA provides statistically valid estimation methods following [Bechtold & Patt
 ## Quick Example
 
 ```python
-import pyfia
+from pyfia import download, FIA, area
 
-# Connect to FIA database
-db = pyfia.FIA("georgia.duckdb")
+# Download Georgia FIA data directly
+db_path = download("GA")
 
-# Filter to Georgia's most recent inventory
-db.clip_by_state("GA")
-
-# Calculate total volume by species
-result = pyfia.volume(db, grp_by="SPCD")
-print(result)
+# Connect and analyze
+with FIA(db_path) as db:
+    db.clip_most_recent()
+    result = area(db, land_type="forest")
+    print(result)
 ```
 
 ## Installation
@@ -38,9 +38,41 @@ print(result)
 pip install pyfia
 ```
 
+## Getting Started
+
+### Download FIA Data
+
+```python
+from pyfia import download
+
+# Download a single state
+db_path = download("GA")
+
+# Download multiple states (merged into single database)
+db_path = download(["GA", "FL", "SC"])
+
+# Download to specific directory
+db_path = download("GA", dir="./data")
+```
+
+### Run Analysis
+
+```python
+from pyfia import FIA, volume
+
+with FIA(db_path) as db:
+    db.clip_by_state("GA")
+    result = volume(db, grp_by="SPCD")
+    print(result)
+```
+
 ## Documentation Overview
 
 <div class="grid cards" markdown>
+
+-   :material-download: **[Downloading Data](guides/downloading.md)**
+
+    Download FIA data directly from the DataMart
 
 -   :material-rocket-launch: **[Getting Started](getting-started.md)**
 
@@ -76,10 +108,22 @@ pip install pyfia
 
 FIA data analysis traditionally requires complex SQL queries and careful attention to statistical methodology. PyFIA handles:
 
-1. **Proper stratified estimation** with expansion factors
-2. **Variance calculation** following ratio-of-means methodology
-3. **EVALID filtering** for consistent evaluation groups
-4. **Domain-specific filtering** (forest land, timberland, growing stock)
+1. **Direct data access** with automatic downloads from FIA DataMart
+2. **Proper stratified estimation** with expansion factors
+3. **Variance calculation** following ratio-of-means methodology
+4. **EVALID filtering** for consistent evaluation groups
+5. **Domain-specific filtering** (forest land, timberland, growing stock)
+
+## Comparison with rFIA
+
+PyFIA brings the ease of rFIA's `getFIA()` to Python:
+
+| Feature | rFIA (R) | PyFIA (Python) |
+|---------|----------|----------------|
+| Download data | `getFIA(states='GA')` | `download("GA")` |
+| Multiple states | `getFIA(states=c('GA','FL'))` | `download(["GA", "FL"])` |
+| Estimate area | `area(fiaData)` | `area(db)` |
+| Estimate volume | `biomass(fiaData)` | `volume(db)` |
 
 ## License
 

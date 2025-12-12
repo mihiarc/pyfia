@@ -23,26 +23,78 @@ theme:
     - navigation.tabs
     - navigation.sections
     - navigation.expand
+    - navigation.indexes
     - toc.follow
     - search.suggest
     - content.code.copy
+    - content.code.annotate
 
 plugins:
   - search
   - mkdocstrings:
+      default_handler: python
       handlers:
         python:
+          paths: [src]
           options:
+            docstring_style: numpy
+            docstring_section_style: spacy
             show_source: true
+            show_root_heading: true
+            show_root_full_path: false
+            show_symbol_type_heading: true
+            show_symbol_type_toc: true
+            members_order: source
+            merge_init_into_class: true
+            show_signature_annotations: true
+            separate_signature: true
+            signature_crossrefs: true
 
 markdown_extensions:
-  - pymdownx.highlight
+  - pymdownx.highlight:
+      anchor_linenums: true
+      line_spans: __span
+      pygments_lang_class: true
+  - pymdownx.inlinehilite
   - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
   - admonition
+  - pymdownx.details
   - tables
+  - toc:
+      permalink: true
 
 nav:
   - Home: index.md
   - Getting Started: getting-started.md
-  - API Reference: api-reference.md
+  - User Guide:
+    - Overview: guides/index.md
+    - Domain Filtering: guides/filtering.md
+    - Variance Estimation: variance_calculation_guide.md
+    - Lazy Evaluation: lazy_evaluation_guide.md
+  - API Reference:
+    - Overview: api/index.md
+    - Core:
+      - FIA Database: api/fia.md
+      - Data Reader: api/data_reader.md
+      - Settings: api/settings.md
+    - Estimation Functions:
+      - Area: api/area.md
+      - Volume: api/volume.md
+      - Trees Per Acre: api/tpa.md
+      - Biomass: api/biomass.md
+      - Mortality: api/mortality.md
+      - Growth: api/growth.md
+      - Removals: api/removals.md
+    - Utilities:
+      - Reference Tables: api/reference_tables.md
+      - EVALIDator: api/evalidator.md
+    - Data Conversion: api/conversion.md
   - Examples: examples.md
+  - Development:
+    - Contributing: DEVELOPMENT.md
+    - Architecture: ARCHITECTURE_DIAGRAMS.md
+  - FIA Reference:
+    - Technical Context: fia_technical_context.md
+    - Query Library: queries/README.md

@@ -5,22 +5,23 @@
 This document specifies the investigation and resolution of two known methodology differences between pyFIA and EVALIDator:
 
 1. **Carbon Estimation** - **RESOLVED** (was 1.62% difference, now 0.00%)
-2. **Growth Estimation** (0.56% difference): Data synchronization difference
+2. **Growth Estimation** - **RESOLVED** (was 0.56% difference, now 0.00%)
 
 ## Current State
 
-### Validation Results (December 2025)
+### Validation Results (December 2025) - ALL EXACT MATCHES
 
 | Estimator | pyFIA | EVALIDator | Difference | Status |
 |-----------|-------|------------|------------|--------|
-| Area | 22,788,741 | 22,788,741 | 0.00% | EXACT |
-| Volume | 49,706,497,327 | 49,706,497,327 | 0.00% | EXACT |
-| Biomass | 1,633,483,010 | 1,633,483,010 | 0.00% | EXACT |
-| TPA | 21,073,339,000 | 21,073,339,000 | 0.00% | EXACT |
+| Forest Area | 24,172,679 | 24,172,679 | 0.00% | EXACT |
+| Timberland Area | 23,596,942 | 23,596,942 | 0.00% | EXACT |
+| Volume (GS) | 43,933,377,540 | 43,933,377,540 | 0.00% | EXACT |
+| Biomass (AG) | 1,345,620,513 | 1,345,620,513 | 0.00% | EXACT |
+| TPA | 14,111,238,542 | 14,111,238,542 | 0.00% | EXACT |
 | **Carbon (Live)** | **767,736,994** | **767,736,994** | **0.00%** | **EXACT** |
-| Mortality | 1,224,527,000 | 1,224,527,000 | 0.00% | EXACT |
-| Removals | 1,576,851,000 | 1,576,851,000 | 0.00% | EXACT |
-| Growth | 2,030,335,500 | 2,041,792,321 | 0.56% | Data Sync |
+| **Growth** | **2,041,792,321** | **2,041,792,321** | **0.00%** | **EXACT** |
+| Mortality | 463,584,044 | 463,584,044 | 0.00% | EXACT |
+| Removals | 1,408,728,566 | 1,408,728,566 | 0.00% | EXACT |
 
 ---
 
@@ -110,58 +111,69 @@ Difference: 0 short tons (0.000000%)
 
 ---
 
-## Issue 2: Growth Estimation Data Synchronization
+## Issue 2: Growth Estimation Methodology - RESOLVED
 
-### Problem Statement
+### Problem Statement (Historical)
 
-pyFIA's growth estimate is ~11.5 million cu ft/year (0.56%) lower than EVALIDator, despite using the correct methodology (BEGINEND cross-join, ONEORTWO logic).
+pyFIA's growth estimate was ~11.5 million cu ft/year (0.56%) lower than EVALIDator, with a plot count discrepancy of 48 plots.
 
 ### Root Cause Analysis
 
-**Plot Count Discrepancy**:
-- pyFIA: 4,641 plots with forest GRM data
-- EVALIDator: 4,689 plots reported
-- Difference: 48 plots
+**Initial Theory (WRONG)**: Database version differences / data synchronization.
 
-**Likely Cause**: Database version differences between DuckDB export and EVALIDator's Oracle backend (FIADB 1.9.4.00).
+**Actual Root Cause**: Incorrect `COND_STATUS_CD` filtering in `growth.py` line 349-351.
 
-### Current Status
-
-**Accepted as Data Sync Tolerance**:
-- 0.56% is within reasonable database version tolerance
-- The methodology is correct (verified by exact matches on other estimators)
-- Re-test recommended when database is updated
-
-### Investigation Commands
-
+**The Bug**:
 ```python
-import polars as pl
-from pyfia import FIA
-
-EVALID = 132303
-db_path = "data/georgia.duckdb"
-
-with FIA(db_path) as db:
-    db.clip_by_evalid(EVALID)
-
-    db.load_table("TREE")
-    db.load_table("TREE_GRM_COMPONENT")
-    db.load_table("POP_PLOT_STRATUM_ASSGN")
-
-    ppsa = db.tables["POP_PLOT_STRATUM_ASSGN"].collect()
-    ppsa_filtered = ppsa.filter(pl.col("EVALID") == EVALID)
-    eval_plots = set(ppsa_filtered["PLT_CN"].unique().to_list())
-
-    print(f"Plots in evaluation: {len(eval_plots):,}")
-    print(f"EVALIDator reports: 4,689")
-    print(f"Difference: {4689 - len(eval_plots):,}")
+# OLD (INCORRECT) - filtered to COND_STATUS_CD = 1
+data = data.filter(pl.col("COND_STATUS_CD") == 1)
 ```
 
-### Acceptance Criteria
+This filter incorrectly **excluded DIVERSION trees** - trees that were on forest land at T1 but diverted to non-forest by T2. These trees have:
+- Non-forest `COND_STATUS_CD` at T2 (because the land was diverted)
+- Valid GRM data with non-null `SUBP_TPAGROW_UNADJ_GS_FOREST`
+- Volume contribution to growth calculation (as a loss)
 
-- [x] Root cause documented (data sync between database versions)
-- [ ] If methodology issue found, fix implemented and validated
-- [x] Documented as known limitation with tolerance
+**Key Insight**: The GRM column names (`SUBP_TPAGROW_UNADJ_GS_FOREST`) already incorporate land basis filtering through the `_FOREST` suffix. The tree-level `COND_STATUS_CD` filter was redundant and incorrect.
+
+### Solution Implemented (December 2025)
+
+**Removed the `COND_STATUS_CD` filter** from `growth.py` `apply_filters()` method:
+
+```python
+# NEW (CORRECT) - No COND_STATUS_CD filter
+# Land filtering is handled by GRM column selection (_FOREST suffix)
+# DIVERSION trees on non-forest conditions are correctly included
+```
+
+### Files Changed
+
+| File | Change |
+|------|--------|
+| `src/pyfia/estimation/estimators/growth.py` | Removed COND_STATUS_CD filter from apply_filters() |
+
+### Validation Results
+
+```
+Before Fix:
+  pyFIA:      2,030,335,500 cu ft/year
+  EVALIDator: 2,041,792,321 cu ft/year
+  Difference: 0.56%
+
+After Fix:
+  pyFIA:      2,041,792,321 cu ft/year
+  EVALIDator: 2,041,792,321 cu ft/year
+  Difference: 0.00%
+
+*** EXACT MATCH ***
+```
+
+### Acceptance Criteria - COMPLETED
+
+- [x] Root cause identified (COND_STATUS_CD filter excluded DIVERSION trees)
+- [x] Fix implemented (removed incorrect filter)
+- [x] Validation test passing (exact match with EVALIDator)
+- [x] No regressions in other estimators
 
 ---
 
@@ -170,15 +182,14 @@ with FIA(db_path) as db:
 | Issue | Status | Resolution |
 |-------|--------|------------|
 | Carbon (1.62% diff) | **RESOLVED** | Created CarbonPoolEstimator using FIA CARBON columns |
-| Growth (0.56% diff) | Documented | Accepted as data sync tolerance |
+| Growth (0.56% diff) | **RESOLVED** | Removed incorrect COND_STATUS_CD filter |
 
 ### Key Accomplishments
 
 1. **Carbon estimation now matches EVALIDator exactly** (0.00% difference)
-2. All 8 estimators validated against EVALIDator:
-   - 7 exact matches (0.00%)
-   - 1 within data sync tolerance (0.56%)
-3. Clean implementation with no backward compatibility debt
+2. **Growth estimation now matches EVALIDator exactly** (0.00% difference)
+3. **All 9 estimators validated against EVALIDator with exact matches (0.00%)**
+4. Clean implementations with no backward compatibility debt
 
 ---
 
@@ -187,4 +198,4 @@ with FIA(db_path) as db:
 - EVALIDator API: https://apps.fs.usda.gov/fiadb-api/evalidator
 - FIA Database User Guide: https://www.fia.fs.usda.gov/library/database-documentation/
 - Bechtold & Patterson (2005): FIA sampling methodology
-- Test file: `tests/test_carbon_pools_evalidator.py`
+- Test files: `tests/test_carbon_pools_evalidator.py`, `tests/test_evalidator_comprehensive.py`

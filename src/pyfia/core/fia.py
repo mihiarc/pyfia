@@ -23,20 +23,28 @@ class FIA:
     This class provides methods for loading FIA data from DuckDB databases,
     filtering by EVALID, and preparing data for estimation functions.
 
-    Attributes:
-        db_path (Path): Path to the DuckDB database
-        tables (Dict[str, pl.LazyFrame]): Loaded FIA tables as lazy frames
-        evalid (Optional[List[int]]): Active EVALID filter
-        most_recent (bool): Whether to use most recent evaluations
+    Attributes
+    ----------
+    db_path : Path
+        Path to the DuckDB database.
+    tables : Dict[str, pl.LazyFrame]
+        Loaded FIA tables as lazy frames.
+    evalid : list of int or None
+        Active EVALID filter.
+    most_recent : bool
+        Whether to use most recent evaluations.
     """
 
     def __init__(self, db_path: Union[str, Path], engine: Optional[str] = None):
         """
         Initialize FIA database connection.
 
-        Args:
-            db_path: Path to FIA database (DuckDB or SQLite)
-            engine: Database engine ('duckdb', 'sqlite', or None for auto-detect)
+        Parameters
+        ----------
+        db_path : str or Path
+            Path to FIA database (DuckDB or SQLite).
+        engine : str, optional
+            Database engine ('duckdb', 'sqlite', or None for auto-detect).
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
@@ -47,7 +55,9 @@ class FIA:
         self.evalid: Optional[List[int]] = None
         self.most_recent: bool = False
         self.state_filter: Optional[List[int]] = None  # Add state filter
-        self._valid_plot_cns: Optional[List[str]] = None  # Cache for EVALID plot filtering
+        self._valid_plot_cns: Optional[List[str]] = (
+            None  # Cache for EVALID plot filtering
+        )
         # Connection managed by FIADataReader
         self._reader = FIADataReader(db_path, engine=engine)
 
@@ -69,8 +79,10 @@ class FIA:
 
         This method caches the result to avoid repeated database queries.
 
-        Returns:
-            List of plot CNs or None if no EVALID filter is set
+        Returns
+        -------
+        list of str or None
+            List of plot CNs or None if no EVALID filter is set.
         """
         if self.evalid is None:
             return None
@@ -96,12 +108,17 @@ class FIA:
         """
         Load a table from the FIA database as a lazy frame.
 
-        Args:
-            table_name: Name of the FIA table to load
-            columns: Optional list of columns to load (None loads all)
+        Parameters
+        ----------
+        table_name : str
+            Name of the FIA table to load (e.g., 'PLOT', 'TREE', 'COND').
+        columns : list of str, optional
+            Columns to load. Loads all columns if None.
 
-        Returns:
-            Polars LazyFrame of the table
+        Returns
+        -------
+        pl.LazyFrame
+            Polars LazyFrame of the requested table.
         """
         # Build base WHERE clause for state filter
         base_where_clause = None
@@ -169,14 +186,21 @@ class FIA:
 
         Identify evaluation IDs for filtering FIA data based on specific criteria.
 
-        Args:
-            most_recent: If True, return only most recent evaluations
-            state: State code(s) to filter by
-            year: End inventory year(s) to filter by
-            eval_type: Evaluation type ('VOL', 'GRM', 'CHNG', etc.)
+        Parameters
+        ----------
+        most_recent : bool, default True
+            If True, return only most recent evaluations per state.
+        state : int or list of int, optional
+            State FIPS code(s) to filter by.
+        year : int or list of int, optional
+            End inventory year(s) to filter by.
+        eval_type : str, optional
+            Evaluation type ('VOL', 'GRM', 'CHNG', 'ALL', etc.).
 
-        Returns:
-            List of EVALID values matching criteria
+        Returns
+        -------
+        list of int
+            EVALID values matching the specified criteria.
         """
         # Load required tables if not already loaded
         try:
@@ -308,11 +332,15 @@ class FIA:
         This is the core filtering method that ensures statistically valid
         plot groupings by evaluation.
 
-        Args:
-            evalid: Single EVALID or list of EVALIDs to filter by
+        Parameters
+        ----------
+        evalid : int or list of int
+            Single EVALID or list of EVALIDs to filter by.
 
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        FIA
+            Self for method chaining.
         """
         if isinstance(evalid, int):
             evalid = [evalid]
@@ -338,14 +366,20 @@ class FIA:
         2. Finding appropriate EVALIDs for the state(s)
         3. Combining both filters for optimal performance
 
-        Args:
-            state: Single state FIPS code or list of codes
-            most_recent: If True, use only most recent evaluations
-            eval_type: Evaluation type to use. Default "ALL" for EXPALL which is
-                      appropriate for area estimation. Use None to get all types.
+        Parameters
+        ----------
+        state : int or list of int
+            Single state FIPS code or list of codes.
+        most_recent : bool, default True
+            If True, use only most recent evaluations.
+        eval_type : str, optional, default 'ALL'
+            Evaluation type to use. Default 'ALL' for EXPALL which is
+            appropriate for area estimation. Use None to get all types.
 
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        FIA
+            Self for method chaining.
         """
         if isinstance(state, int):
             state = [state]
@@ -373,11 +407,15 @@ class FIA:
         """
         Filter to most recent evaluation of specified type.
 
-        Args:
-            eval_type: Evaluation type (default 'VOL' for volume)
+        Parameters
+        ----------
+        eval_type : str, default 'VOL'
+            Evaluation type ('VOL' for volume, 'GRM' for growth, etc.).
 
-        Returns:
-            Self for method chaining
+        Returns
+        -------
+        FIA
+            Self for method chaining.
         """
         self.most_recent = True
         # Include state filter if it exists
@@ -400,11 +438,15 @@ class FIA:
         """
         Get PLOT table filtered by current EVALID and state settings.
 
-        Args:
-            columns: Optional list of columns to return
+        Parameters
+        ----------
+        columns : list of str, optional
+            Columns to return. Returns all columns if None.
 
-        Returns:
-            Filtered PLOT dataframe
+        Returns
+        -------
+        pl.DataFrame
+            Filtered PLOT dataframe.
         """
         # Load PLOT table if needed (with state filter applied)
         if "PLOT" not in self.tables:
@@ -448,11 +490,15 @@ class FIA:
         """
         Get TREE table filtered by current EVALID and state settings.
 
-        Args:
-            columns: Optional list of columns to return
+        Parameters
+        ----------
+        columns : list of str, optional
+            Columns to return. Returns all columns if None.
 
-        Returns:
-            Filtered TREE dataframe
+        Returns
+        -------
+        pl.DataFrame
+            Filtered TREE dataframe.
         """
         # Load TREE table if needed (with state filter applied)
         if "TREE" not in self.tables:
@@ -491,11 +537,15 @@ class FIA:
         """
         Get COND table filtered by current EVALID and state settings.
 
-        Args:
-            columns: Optional list of columns to return
+        Parameters
+        ----------
+        columns : list of str, optional
+            Columns to return. Returns all columns if None.
 
-        Returns:
-            Filtered COND dataframe
+        Returns
+        -------
+        pl.DataFrame
+            Filtered COND dataframe.
         """
         # Load COND table if needed (with state filter applied)
         if "COND" not in self.tables:
@@ -542,18 +592,27 @@ class FIA:
         """
         Convert a SQLite FIA database to DuckDB format.
 
-        Args:
-            source_path: Path to source SQLite database
-            target_path: Path to target DuckDB database
-            state_code: Optional FIPS state code (auto-detected if not provided)
-            config: Optional configuration dict (unused, kept for compatibility)
-            **kwargs: Additional keyword arguments (show_progress, tables)
+        Parameters
+        ----------
+        source_path : str or Path
+            Path to source SQLite database.
+        target_path : str or Path
+            Path to target DuckDB database.
+        state_code : int, optional
+            FIPS state code. Auto-detected from filename if not provided.
+        config : dict, optional
+            Configuration dict (unused, kept for compatibility).
+        **kwargs : dict
+            Additional keyword arguments (show_progress, tables).
 
-        Returns:
-            Dict mapping table names to row counts
+        Returns
+        -------
+        Dict[str, int]
+            Mapping of table names to row counts.
 
-        Example:
-            result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb")
+        Examples
+        --------
+        >>> result = FIA.convert_from_sqlite("OR_FIA.db", "oregon.duckdb")
         """
         from ..converter import convert_sqlite_to_duckdb
 
@@ -576,22 +635,31 @@ class FIA:
         """
         Merge multiple state SQLite databases into a single DuckDB database.
 
-        Args:
-            source_paths: List of paths to source SQLite databases
-            target_path: Path to target DuckDB database
-            state_codes: List of state FIPS codes (required, one per source path)
-            config: Optional configuration dict (unused, kept for compatibility)
-            **kwargs: Additional keyword arguments (tables, show_progress)
+        Parameters
+        ----------
+        source_paths : list of str or Path
+            Paths to source SQLite databases.
+        target_path : str or Path
+            Path to target DuckDB database.
+        state_codes : list of int
+            State FIPS codes (required, one per source path).
+        config : dict, optional
+            Configuration dict (unused, kept for compatibility).
+        **kwargs : dict
+            Additional keyword arguments (tables, show_progress).
 
-        Returns:
-            Nested dict: {state_code: {table_name: row_count}}
+        Returns
+        -------
+        Dict[str, Dict[str, int]]
+            Nested dict: {state_code: {table_name: row_count}}.
 
-        Example:
-            result = FIA.merge_states(
-                ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
-                "pacific_states.duckdb",
-                [41, 53, 6]
-            )
+        Examples
+        --------
+        >>> result = FIA.merge_states(
+        ...     ["OR_FIA.db", "WA_FIA.db", "CA_FIA.db"],
+        ...     "pacific_states.duckdb",
+        ...     [41, 53, 6]
+        ... )
         """
         from ..converter import merge_states as converter_merge_states
 
@@ -618,19 +686,28 @@ class FIA:
         """
         Append data from a SQLite database to this DuckDB database.
 
-        Args:
-            source_path: Path to source SQLite database
-            state_code: FIPS state code (required)
-            dedupe: Whether to remove duplicate records
-            dedupe_keys: Column names to use for deduplication
-            **kwargs: Additional keyword arguments (show_progress)
+        Parameters
+        ----------
+        source_path : str or Path
+            Path to source SQLite database.
+        state_code : int
+            FIPS state code (required).
+        dedupe : bool, default False
+            Whether to remove duplicate records.
+        dedupe_keys : list of str, optional
+            Column names to use for deduplication.
+        **kwargs : dict
+            Additional keyword arguments (show_progress).
 
-        Returns:
-            Dict mapping table names to row counts
+        Returns
+        -------
+        Dict[str, int]
+            Mapping of table names to row counts.
 
-        Example:
-            with FIA("oregon.duckdb") as db:
-                result = db.append_data("OR_FIA_update.db", state_code=41, dedupe=True)
+        Examples
+        --------
+        >>> with FIA("oregon.duckdb") as db:
+        ...     result = db.append_data("OR_FIA_update.db", state_code=41, dedupe=True)
         """
         from ..converter import append_state
 
@@ -650,8 +727,12 @@ class FIA:
         This method loads and filters the core tables needed for most
         FIA estimation procedures, properly filtered by EVALID.
 
-        Returns:
-            Dictionary with filtered dataframes for estimation
+        Returns
+        -------
+        Dict[str, pl.DataFrame]
+            Dictionary with filtered dataframes for estimation containing:
+            'plot', 'tree', 'cond', 'pop_plot_stratum_assgn',
+            'pop_stratum', 'pop_estn_unit'.
         """
         # Ensure we have an EVALID filter
         if not self.evalid and not self.most_recent:

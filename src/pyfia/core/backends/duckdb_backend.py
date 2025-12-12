@@ -40,12 +40,18 @@ class DuckDBBackend(DatabaseBackend):
         """
         Initialize DuckDB backend.
 
-        Args:
-            db_path: Path to DuckDB database file
-            read_only: Open database in read-only mode
-            memory_limit: Memory limit for DuckDB (e.g., '4GB')
-            threads: Number of threads for DuckDB to use
-            **kwargs: Additional DuckDB configuration options
+        Parameters
+        ----------
+        db_path : Union[str, Path]
+            Path to DuckDB database file
+        read_only : bool
+            Open database in read-only mode
+        memory_limit : Optional[str]
+            Memory limit for DuckDB (e.g., '4GB')
+        threads : Optional[int]
+            Number of threads for DuckDB to use
+        **kwargs : Any
+            Additional DuckDB configuration options
         """
         super().__init__(db_path, **kwargs)
         self.read_only = read_only
@@ -99,11 +105,16 @@ class DuckDBBackend(DatabaseBackend):
 
         Uses native DuckDB result.pl() for efficient conversion.
 
-        Args:
-            query: SQL query string
-            params: Optional query parameters (uses $param syntax)
+        Parameters
+        ----------
+        query : str
+            SQL query string
+        params : Optional[Dict[str, Any]]
+            Optional query parameters (uses $param syntax)
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with query results
         """
         if not self._connection:
@@ -141,10 +152,14 @@ class DuckDBBackend(DatabaseBackend):
         """
         Get schema information for a table.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        Dict[str, str]
             Dictionary mapping column names to SQL types
         """
         if table_name in self._schema_cache:
@@ -166,10 +181,14 @@ class DuckDBBackend(DatabaseBackend):
         """
         Check if a table exists in the database.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        bool
             True if table exists, False otherwise
         """
         if not self._connection:
@@ -188,10 +207,14 @@ class DuckDBBackend(DatabaseBackend):
         """
         Get table description for schema detection.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        List[tuple]
             List of tuples with column information
         """
         if not self._connection:
@@ -209,10 +232,14 @@ class DuckDBBackend(DatabaseBackend):
 
         FIA uses CN fields as identifiers that should always be treated as text.
 
-        Args:
-            column_name: Name of the column
+        Parameters
+        ----------
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column is a CN field
         """
         return column_name.endswith("_CN") or column_name == "CN"
@@ -221,11 +248,16 @@ class DuckDBBackend(DatabaseBackend):
         """
         Check if a column should be treated as a string.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column should be treated as a string
         """
         if self.is_cn_column(column_name):
@@ -240,11 +272,16 @@ class DuckDBBackend(DatabaseBackend):
         """
         Check if a column should be treated as a floating point number.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column should be treated as a float
         """
         schema = self.get_table_schema(table_name)
@@ -256,11 +293,16 @@ class DuckDBBackend(DatabaseBackend):
         """
         Check if a column should be treated as an integer.
 
-        Args:
-            table_name: Name of the table
-            column_name: Name of the column
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
 
-        Returns:
+        Returns
+        -------
+        bool
             True if the column should be treated as an integer
         """
         if self.is_cn_column(column_name):
@@ -277,11 +319,16 @@ class DuckDBBackend(DatabaseBackend):
         """
         Build SELECT clause with appropriate type casting for FIA data.
 
-        Args:
-            table_name: Name of the table
-            columns: Optional list of columns to select
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        columns : Optional[List[str]]
+            Optional list of columns to select
 
-        Returns:
+        Returns
+        -------
+        str
             SELECT clause with type casting
         """
         schema = self.get_table_schema(table_name)
@@ -306,11 +353,16 @@ class DuckDBBackend(DatabaseBackend):
 
         This method provides compatibility with the data reader interface.
 
-        Args:
-            query: SQL query to execute
-            **kwargs: Additional arguments (ignored for DuckDB)
+        Parameters
+        ----------
+        query : str
+            SQL query to execute
+        **kwargs : Any
+            Additional arguments (ignored for DuckDB)
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with results
         """
         return self.execute_query(query)

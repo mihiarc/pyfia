@@ -42,9 +42,12 @@ class DatabaseBackend(ABC):
         """
         Initialize database backend.
 
-        Args:
-            db_path: Path to database file
-            **kwargs: Backend-specific configuration options
+        Parameters
+        ----------
+        db_path : Union[str, Path]
+            Path to database file
+        **kwargs : Any
+            Backend-specific configuration options
         """
         self.db_path = Path(db_path)
         if not self.db_path.exists():
@@ -73,11 +76,16 @@ class DatabaseBackend(ABC):
         """
         Execute a SQL query and return results as Polars DataFrame.
 
-        Args:
-            query: SQL query string
-            params: Optional query parameters
+        Parameters
+        ----------
+        query : str
+            SQL query string
+        params : Optional[Dict[str, Any]], optional
+            Optional query parameters
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with query results
         """
         pass
@@ -87,10 +95,14 @@ class DatabaseBackend(ABC):
         """
         Get schema information for a table.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        Dict[str, str]
             Dictionary mapping column names to SQL types
         """
         pass
@@ -100,10 +112,14 @@ class DatabaseBackend(ABC):
         """
         Check if a table exists in the database.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        bool
             True if table exists, False otherwise
         """
         pass
@@ -113,10 +129,14 @@ class DatabaseBackend(ABC):
         """
         Get table description for schema detection.
 
-        Args:
-            table_name: Name of the table
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
 
-        Returns:
+        Returns
+        -------
+        List[tuple]
             List of tuples with column information
         """
         pass
@@ -131,13 +151,20 @@ class DatabaseBackend(ABC):
         """
         Read a table with optional filtering.
 
-        Args:
-            table_name: Name of the table to read
-            columns: Optional list of columns to select
-            where: Optional WHERE clause (without 'WHERE' keyword)
-            limit: Optional row limit
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to read
+        columns : Optional[List[str]], optional
+            Optional list of columns to select
+        where : Optional[str], optional
+            Optional WHERE clause (without 'WHERE' keyword)
+        limit : Optional[int], optional
+            Optional row limit
 
-        Returns:
+        Returns
+        -------
+        pl.DataFrame
             Polars DataFrame with the results
         """
         # Build query
@@ -160,11 +187,14 @@ class DatabaseBackend(ABC):
         """
         Context manager for database transactions.
 
-        Yields:
-            None
+        Yields
+        ------
+        None
 
-        Raises:
-            Exception: If transaction fails
+        Raises
+        ------
+        Exception
+            If transaction fails
         """
         if not self._connection:
             self.connect()

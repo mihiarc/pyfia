@@ -327,6 +327,16 @@ class GrowthEstimator(BaseEstimator):
 
         CRITICAL: Include ALL components (SURVIVOR, INGROWTH, REVERSION, CUT, DIVERSION, MORTALITY)
         because the BEGINEND cross-join methodology needs all components to calculate NET growth properly.
+
+        IMPORTANT: Do NOT filter by COND_STATUS_CD for GRM estimates!
+        The GRM column names (e.g., SUBP_TPAGROW_UNADJ_GS_FOREST) already incorporate
+        land basis filtering through the _FOREST suffix. DIVERSION trees may have
+        non-forest COND_STATUS_CD at T2 (because the land was diverted from forest
+        to non-forest during the measurement period), but they should still be
+        included in growth calculations because:
+        1. They were on forest land at T1
+        2. The GRM TPA columns already account for land basis
+        3. Filtering by COND_STATUS_CD incorrectly excludes 48+ plots
         """
         # Apply area filters only (skip tree filters since GRM data structure is different)
         from ...filtering import apply_area_filters
@@ -338,17 +348,13 @@ class GrowthEstimator(BaseEstimator):
         if area_domain:
             data = apply_area_filters(data, area_domain)
 
-        # Apply land type filtering
-        if land_type == "timber":
-            # Timber land: unreserved, productive forestland
-            data = data.filter(
-                (pl.col("COND_STATUS_CD") == 1)
-                & (pl.col("RESERVCD") == 0)
-                & (pl.col("SITECLCD") < 7)
-            )
-        else:  # forest
-            # All forestland
-            data = data.filter(pl.col("COND_STATUS_CD") == 1)
+        # NOTE: For GRM estimates, land type filtering is handled by the GRM column selection
+        # (e.g., SUBP_TPAGROW_UNADJ_GS_FOREST vs SUBP_TPAGROW_UNADJ_GS_TIMBER)
+        # We do NOT filter by COND_STATUS_CD here because DIVERSION trees have
+        # non-forest conditions at T2 but should still contribute to growth estimates.
+        #
+        # For timberland, additional filters (RESERVCD, SITECLCD) would need to be
+        # applied at the plot level, but the GRM _TIMBER columns handle this internally.
 
         # Apply custom tree domain filtering if specified
         tree_domain = self.config.get("tree_domain")
@@ -375,11 +381,11 @@ class GrowthEstimator(BaseEstimator):
         # Note: We don't filter to positive only, because ONEORTWO=1 rows may have negative contributions
         data = data.filter(pl.col("TPAGROW_UNADJ").is_not_null())
 
-        # Apply tree type filter if specified
-        tree_type = self.config.get("tree_type", "gs")
-        if tree_type == "gs":
-            # Growing stock trees (typically >= 5 inches DBH with merchantable volume)
-            data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
+        # NOTE: Do NOT filter by DIA_MIDPT >= 5.0 for tree_type='gs'!
+        # The GRM columns (e.g., SUBP_TPAGROW_UNADJ_GS_FOREST) are already specific
+        # to growing stock. INGROWTH trees have DIA_MIDPT < 5.0 but ARE valid GS growth
+        # because they grow INTO growing stock size (DIA_END >= 5.0) during the period.
+        # Filtering by DIA_MIDPT would incorrectly exclude these ingrowth trees.
 
         return data
 
@@ -427,6 +433,7 @@ class GrowthEstimator(BaseEstimator):
 
         # Implement ONEORTWO logic for volume/biomass
         # ONEORTWO = 2: Add ending volumes
+        # CRITICAL: MORTALITY gets 0 for ending volumes - they died, so no ending volume!
         ending_volume = (
             pl.when(
                 (pl.col("COMPONENT") == "SURVIVOR")
@@ -437,10 +444,10 @@ class GrowthEstimator(BaseEstimator):
             .when(
                 (pl.col("COMPONENT").str.starts_with("CUT"))
                 | (pl.col("COMPONENT").str.starts_with("DIVERSION"))
-                | (pl.col("COMPONENT").str.starts_with("MORTALITY"))
+                # MORTALITY is intentionally NOT included here - they died, no ending volume
             )
             .then(pl.col(midpt_col).fill_null(0) / pl.col("REMPER").fill_null(5.0))
-            .otherwise(0.0)
+            .otherwise(0.0)  # MORTALITY and others get 0 for ending volume
         )
 
         # ONEORTWO = 1: Subtract beginning volumes

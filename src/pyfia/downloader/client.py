@@ -127,7 +127,8 @@ class DataMartClient:
         str
             Full URL for the SQLite ZIP file download.
         """
-        return f"{DATAMART_SQLITE_BASE}{state.upper()}.zip"
+        # FIA DataMart uses pattern: SQLite_FIADB_{STATE}.zip
+        return f"{DATAMART_SQLITE_BASE}SQLite_FIADB_{state.upper()}.zip"
 
     def _download_file(
         self,
@@ -169,7 +170,7 @@ class DataMartClient:
                 )
 
                 if response.status_code == 404:
-                    raise TableNotFoundError(dest_path.stem, url=url)
+                    raise TableNotFoundError(dest_path.stem)
 
                 response.raise_for_status()
 

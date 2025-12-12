@@ -261,7 +261,12 @@ class BaseEstimator(ABC):
             elif tree_type == "dead":
                 data_df = data_df.filter(pl.col("STATUSCD") == 2)
             elif tree_type == "gs":
-                data_df = data_df.filter(pl.col("STATUSCD").is_in([1, 2]))
+                # Growing stock = live trees (STATUSCD=1) with TREECLCD=2
+                # TREECLCD: 2=Growing stock, 3=Rough cull, 4=Rotten cull
+                gs_filter = pl.col("STATUSCD") == 1
+                if "TREECLCD" in data_df.columns:
+                    gs_filter = gs_filter & (pl.col("TREECLCD") == 2)
+                data_df = data_df.filter(gs_filter)
             # "all" means no filter
 
         # Apply land type filter

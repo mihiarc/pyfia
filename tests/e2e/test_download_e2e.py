@@ -205,8 +205,14 @@ class TestDownloadAnalysisPipeline:
         with tempfile.TemporaryDirectory() as temp_dir:
             yield Path(temp_dir)
 
+    @pytest.mark.filterwarnings("ignore:No evaluations found:UserWarning")
+    @pytest.mark.filterwarnings("ignore:No EVALID specified:UserWarning")
     def test_download_and_estimate_area(self, temp_data_dir):
-        """Test downloading RI data and running area estimation."""
+        """Test downloading RI data and running area estimation.
+
+        Note: RI is a small state and may not have all evaluation types.
+        The warnings about missing evaluations are expected and suppressed.
+        """
         # Download Rhode Island data
         db_path = download(
             states="RI",
@@ -218,10 +224,10 @@ class TestDownloadAnalysisPipeline:
 
         # Run area estimation
         with FIA(db_path) as db:
-            # Find most recent evaluation
+            # Find most recent evaluation (may warn if EXPALL not available)
             db.clip_most_recent(eval_type="EXPALL")
 
-            # Estimate forest area
+            # Estimate forest area (may auto-select evaluations if none set)
             result = area(db, land_type="forest")
 
             # Verify we got results

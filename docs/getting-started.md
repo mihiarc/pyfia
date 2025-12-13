@@ -54,20 +54,6 @@ db_path = download("GA", tables=["PLOT", "TREE", "COND"])
 
 For more details, see the [Downloading Data](guides/downloading.md) guide.
 
-### Alternative: Manual Download
-
-You can also manually download databases from the [FIA DataMart](https://apps.fs.usda.gov/fia/datamart/datamart.html) and convert them:
-
-```python
-import pyfia
-
-# Convert a SQLite FIA database to DuckDB
-pyfia.convert_sqlite_to_duckdb(
-    "GA_FIADB_ENTIRE.db",  # Source SQLite
-    "georgia.duckdb"        # Target DuckDB
-)
-```
-
 ## Quick Start
 
 ### 1. Download and Connect

@@ -51,14 +51,6 @@ result = estimator(db, **options)  # Returns pl.DataFrame
 | [`EVALIDatorClient`](evalidator.md) | Client for USFS EVALIDator API |
 | [`validate_pyfia_estimate()`](evalidator.md#validate_pyfia_estimate) | Compare estimates |
 
-## Data Conversion
-
-| Function | Description |
-|----------|-------------|
-| [`convert_sqlite_to_duckdb()`](conversion.md#convert_sqlite_to_duckdb) | Convert SQLite to DuckDB |
-| [`merge_state_databases()`](conversion.md#merge_state_databases) | Merge multiple states |
-| [`append_to_database()`](conversion.md#append_to_database) | Append data to existing database |
-
 ## Return Value Schema
 
 All estimation functions return a `polars.DataFrame` with these columns:

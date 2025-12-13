@@ -55,9 +55,6 @@ pyfia/
 │       ├── mortality.py
 │       ├── tpa.py
 │       └── volume.py
-├── converter/          # SQLite to DuckDB conversion (~900 lines)
-│   ├── converter.py   # DuckDB sqlite_scanner integration
-│   └── utils.py       # Helper functions
 ├── filtering/          # Domain filtering and indicators
 │   ├── core/parser.py # Centralized domain expression parser
 │   ├── tree/filters.py
@@ -81,11 +78,6 @@ pyfia/
 **Data Reader (`pyfia.core.data_reader.FIADataReader`)**
 - Efficient data loading with WHERE clause support
 - Backend-specific optimizations
-
-**Converter (`pyfia.converter/`)**
-- `convert_sqlite_to_duckdb()` - Single state conversion
-- `merge_states()` - Multi-state database creation
-- `append_state()` - Incremental database building
 
 ## Dependencies
 
@@ -162,41 +154,6 @@ All public API functions use NumPy-style docstrings. The `mortality()` function 
 5. See Also
 6. Notes
 7. Examples
-
-## Database Conversion
-
-### Single State
-```python
-from pyfia.converter import convert_sqlite_to_duckdb
-
-convert_sqlite_to_duckdb(
-    source_path=Path("SQLite_FIADB_NC.db"),
-    target_path=Path("north_carolina.duckdb"),
-    state_code=37
-)
-```
-
-### Multi-State
-```python
-from pyfia.converter import merge_states
-
-merge_states(
-    source_paths=[Path("SQLite_FIADB_NC.db"), Path("SQLite_FIADB_SC.db")],
-    state_codes=[37, 45],
-    target_path=Path("carolinas.duckdb")
-)
-```
-
-### Append State
-```python
-from pyfia.converter import append_state
-
-append_state(
-    source_path=Path("SQLite_FIADB_GA.db"),
-    target_path=Path("southeast.duckdb"),
-    state_code=13
-)
-```
 
 ## Refactoring Guidelines
 

@@ -135,7 +135,7 @@ def apply_tree_adjustment_factors(
         )
 
     # Warn if MACRO_BREAKPOINT_DIA is missing
-    if macro_breakpoint_col not in data.columns:
+    if macro_breakpoint_col not in available_cols:
         import warnings
 
         warnings.warn(

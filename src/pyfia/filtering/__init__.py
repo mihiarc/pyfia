@@ -6,7 +6,6 @@ This module provides all filtering functionality including:
 - Domain expression parsing
 - Domain indicator calculation
 - Grouping and classification utilities
-- Adjustment factor calculations
 """
 
 # Core parsing functionality
@@ -25,10 +24,6 @@ from .indicators.land_types import (
 
 # Tree filtering
 from .tree.filters import apply_tree_filters
-from .utils.adjustment import (
-    apply_adjustment_factors,
-    apply_tree_adjustment_factors,
-)
 from .utils.classification import (
     assign_forest_type_group,
     assign_size_class,
@@ -71,9 +66,6 @@ __all__ = [
     "add_species_info",
     "add_ownership_group_name",
     "add_forest_type_group",
-    # Adjustment
-    "apply_adjustment_factors",
-    "apply_tree_adjustment_factors",
     # Classification
     "assign_tree_basis",
     "assign_size_class",

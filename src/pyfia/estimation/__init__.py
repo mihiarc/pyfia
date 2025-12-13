@@ -19,13 +19,6 @@ All functions follow a consistent pattern:
 """
 
 # Import base components
-# Import utilities
-from .aggregation import (
-    aggregate_by_domain,
-    aggregate_plot_level,
-    aggregate_to_population,
-    merge_stratification,
-)
 from .base import BaseEstimator
 from .config import (
     BiomassConfig,
@@ -97,10 +90,6 @@ __all__ = [
     "MortalityConfig",
     "create_config",
     # Utilities (for advanced users)
-    "aggregate_to_population",
-    "aggregate_by_domain",
-    "aggregate_plot_level",
-    "merge_stratification",
     "VarianceCalculator",
     "calculate_ratio_of_means_variance",
     "calculate_post_stratified_variance",

@@ -34,7 +34,8 @@ class TestAreaEstimation:
             "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
             "LON": [-78.5, -78.6, -78.7, -78.8, -78.9],
             "ECOSUBCD": ["231A", "231A", "231B", "231A", "231A"],
-            "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0]
+            "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0],
+            "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0],  # Standard macroplot breakpoint
         })
 
     @pytest.fixture

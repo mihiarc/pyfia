@@ -71,7 +71,7 @@ pyfia/
 │   ├── core/            # Database and settings
 │   ├── estimation/      # Statistical estimation
 │   ├── filtering/       # Domain filtering
-│   └── converter/       # Data format conversion
+│   └── downloader/      # FIA data download from DataMart
 ├── tests/               # Test suite
 ├── docs/                # Technical documentation
 ├── ../business/         # Business docs (outside repo)

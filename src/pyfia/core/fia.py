@@ -115,7 +115,6 @@ class FIA:
             dir=dir,
             common=common,
             tables=tables,
-            format="duckdb",
             force=force,
             show_progress=show_progress,
         )

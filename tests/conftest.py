@@ -1,90 +1,136 @@
 """
 Pytest configuration and shared fixtures for pyFIA tests.
 
-This module provides reusable test fixtures for consistent testing
-across all pyFIA modules.
+Test Structure:
+- unit/: Fast, isolated tests (no database)
+- integration/: Tests with database interactions
+- e2e/: End-to-end workflow tests
+- validation/: EVALIDator comparison tests
+- property/: Property-based tests with Hypothesis
+
+Run specific categories:
+    pytest tests/unit/           # Fast unit tests only
+    pytest tests/integration/    # Integration tests
+    pytest -m "not slow"         # Skip slow tests
+    pytest -m "not network"      # Skip network tests
 """
 
 import os
-import sqlite3
-import tempfile
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import polars as pl
 import pytest
 
 from pyfia import FIA
 
-# Import centralized fixtures to make them available globally
-from fixtures import *
+# Register fixtures from modular fixture files
+pytest_plugins = [
+    "tests.fixtures.data",
+    "tests.fixtures.mocks",
+    "tests.fixtures.grm",
+]
+
+
+# =============================================================================
+# Database Fixtures
+# =============================================================================
+
+@pytest.fixture(scope="session")
+def georgia_db_path():
+    """Path to the Georgia DuckDB database for testing.
+
+    Uses PYFIA_DATABASE_PATH env var if set, otherwise looks for
+    data/georgia.duckdb relative to project root.
+    """
+    # Check environment variable first
+    env_path = os.getenv("PYFIA_DATABASE_PATH")
+    if env_path and Path(env_path).exists():
+        return Path(env_path)
+
+    # Look relative to project root
+    project_root = Path(__file__).parent.parent
+    candidates = [
+        project_root / "data" / "georgia.duckdb",
+        project_root / "fia.duckdb",
+    ]
+
+    for path in candidates:
+        if path.exists():
+            return path
+
+    pytest.skip("No FIA database found for testing")
 
 
 @pytest.fixture(scope="session")
-def temp_db_path():
-    """Create a temporary database file for testing."""
-    with tempfile.NamedTemporaryFile(suffix=".db", delete=False) as tmp:
-        yield Path(tmp.name)
-    # Cleanup happens automatically
-
-
-@pytest.fixture(scope="session")
-def use_real_data() -> bool:
-    """Return True if PYFIA_DATABASE_PATH is set and exists."""
-    db_path = os.getenv("PYFIA_DATABASE_PATH")
-    return bool(db_path and Path(db_path).exists())
-
-
-@pytest.fixture(scope="session")
-def real_fia_instance(use_real_data):
-    """Create a FIA instance pointing to the real DuckDB if available."""
-    if not use_real_data:
-        return None
-    return FIA(os.getenv("PYFIA_DATABASE_PATH"))
-
-
-@pytest.fixture(scope="session")
-def sample_fia_db():
-    """Use the development DuckDB for tests instead of constructing a SQLite DB."""
-    # Always prefer the local development DuckDB `fia.duckdb` in repo root
-    db_path = Path.cwd() / "fia.duckdb"
-    if not db_path.exists():
-        pytest.skip("Development database 'fia.duckdb' not found; skip DB-backed tests")
-    yield db_path
-
-    # Note: By using `fia.duckdb`, all population tables including POP_EVAL_TYP
-    # are available and align with production. This avoids divergence between
-    # synthetic schemas and real converter output.
+def georgia_db(georgia_db_path):
+    """Session-scoped FIA database connection for Georgia data."""
+    db = FIA(str(georgia_db_path))
+    yield db
+    db.close()
 
 
 @pytest.fixture
-def sample_fia_instance(sample_fia_db, use_real_data):
-    """Create a FIA instance backing tests; prefer real DB if configured.
+def fia_db(georgia_db_path):
+    """Function-scoped FIA database for tests that modify state."""
+    db = FIA(str(georgia_db_path))
+    yield db
+    db.close()
 
-    When using the real database, clip to a manageable scope to keep tests fast.
-    """
-    if use_real_data:
-        db = FIA(os.getenv("PYFIA_DATABASE_PATH"))
-        try:
-            # Default to Georgia (13), most recent evaluation for bounded size
-            db.clip_by_state(13, most_recent=True)
-        except Exception:
-            pass
-        return db
-    return FIA(str(sample_fia_db))
 
+@pytest.fixture
+def georgia_fia(georgia_db_path):
+    """FIA instance clipped to Georgia most recent evaluation."""
+    db = FIA(str(georgia_db_path))
+    db.clip_by_state(13, most_recent=True)
+    yield db
+    db.close()
+
+
+# =============================================================================
+# Test Configuration
+# =============================================================================
 
 @pytest.fixture
 def sample_evaluation():
-    """Create a sample evaluation info dict."""
+    """Sample evaluation metadata for testing."""
     return {
-        "evalid": 372301,
-        "statecd": 37,
-        "eval_typ": "VOL",
+        "evalid": 132301,
+        "statecd": 13,
+        "eval_typ": "EXPALL",
         "start_invyr": 2018,
         "end_invyr": 2023,
-        "nplots": 10
     }
 
 
+# =============================================================================
+# Hypothesis Configuration
+# =============================================================================
 
+def pytest_configure(config):
+    """Configure hypothesis profiles for different test scenarios."""
+    from hypothesis import settings, Verbosity, Phase
+
+    # Development profile - fast iteration
+    settings.register_profile(
+        "dev",
+        max_examples=10,
+        verbosity=Verbosity.normal,
+        phases=[Phase.generate, Phase.target],
+    )
+
+    # CI profile - thorough testing
+    settings.register_profile(
+        "ci",
+        max_examples=100,
+        verbosity=Verbosity.normal,
+    )
+
+    # Nightly profile - exhaustive testing
+    settings.register_profile(
+        "nightly",
+        max_examples=1000,
+        verbosity=Verbosity.verbose,
+    )
+
+    # Load profile from environment or default to dev
+    profile = os.getenv("HYPOTHESIS_PROFILE", "dev")
+    settings.load_profile(profile)

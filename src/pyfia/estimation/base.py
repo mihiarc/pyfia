@@ -569,7 +569,7 @@ class BaseEstimator(ABC):
         Returns
         -------
         pl.LazyFrame
-            Joined PPSA and POP_STRATUM data
+            Joined PPSA, POP_STRATUM, and PLOT data including MACRO_BREAKPOINT_DIA
         """
         # Load PPSA
         if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
@@ -581,11 +581,18 @@ class BaseEstimator(ABC):
             self.db.load_table("POP_STRATUM")
         pop_stratum = self.db.tables["POP_STRATUM"]
 
+        # Load PLOT table for MACRO_BREAKPOINT_DIA
+        if "PLOT" not in self.db.tables:
+            self.db.load_table("PLOT")
+        plot = self.db.tables["PLOT"]
+
         # Ensure LazyFrames
         if not isinstance(ppsa, pl.LazyFrame):
             ppsa = ppsa.lazy()
         if not isinstance(pop_stratum, pl.LazyFrame):
             pop_stratum = pop_stratum.lazy()
+        if not isinstance(plot, pl.LazyFrame):
+            plot = plot.lazy()
 
         # Apply EVALID filter
         if self.db.evalid:
@@ -613,9 +620,19 @@ class BaseEstimator(ABC):
             ]
         )
 
+        # Select MACRO_BREAKPOINT_DIA from PLOT table
+        # This is CRITICAL for correct adjustment factor selection in states with macroplots
+        plot_selected = plot.select(
+            [pl.col("CN").alias("PLT_CN"), "MACRO_BREAKPOINT_DIA"]
+        )
+
+        # Join PPSA with POP_STRATUM
         strat_data = ppsa_selected.join(
             pop_stratum_selected, on="STRATUM_CN", how="inner"
         )
+
+        # Join with PLOT to get MACRO_BREAKPOINT_DIA
+        strat_data = strat_data.join(plot_selected, on="PLT_CN", how="left")
 
         return strat_data
 

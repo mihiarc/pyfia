@@ -102,10 +102,25 @@ testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]
+addopts = [
+    "--import-mode=importlib",
+    "--strict-markers",
+    "-v",
+]
 markers = [
-    "network: marks tests that require network access (EVALIDator API)",
-    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
-    "integration: marks integration tests",
+    "unit: Fast, isolated unit tests (no external dependencies)",
+    "integration: Tests for component interactions (may use database)",
+    "e2e: End-to-end workflow tests (slowest, full pipelines)",
+    "validation: Tests comparing pyFIA results to EVALIDator",
+    "property: Property-based tests using Hypothesis",
+    "network: Tests requiring network access (EVALIDator API, downloads)",
+    "slow: Tests taking >5 seconds (deselect with '-m \"not slow\"')",
+    "db: Tests requiring database access",
+    "real_api: Tests using real FIA DataMart API",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::PendingDeprecationWarning",
 ]
 
 [dependency-groups]

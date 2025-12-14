@@ -13,6 +13,7 @@ from ...core import FIA
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import format_output_columns
+from ..variance import calculate_ratio_variance
 
 
 class VolumeEstimator(BaseEstimator):
@@ -355,7 +356,7 @@ class VolumeEstimator(BaseEstimator):
 
                 if len(all_plots_group) > 0:
                     # Calculate variance using ALL plots (including zeros)
-                    var_stats = self._calculate_ratio_variance(all_plots_group)
+                    var_stats = calculate_ratio_variance(all_plots_group, y_col="y_i")
 
                     variance_results.append(
                         {
@@ -384,7 +385,7 @@ class VolumeEstimator(BaseEstimator):
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
             # No grouping, calculate overall variance
-            var_stats = self._calculate_ratio_variance(plot_data)
+            var_stats = calculate_ratio_variance(plot_data, y_col="y_i")
 
             results = results.with_columns(
                 [
@@ -411,139 +412,6 @@ class VolumeEstimator(BaseEstimator):
             )
 
         return results
-
-    def _calculate_ratio_variance(self, plot_data: pl.DataFrame) -> dict:
-        """Calculate variance for ratio-of-means estimator.
-
-        For ratio estimation R = Y/X, the variance formula is:
-        V(R) ≈ (1/X̄²) × Σ_h w_h² × [s²_yh + R² × s²_xh - 2R × s_yxh] / n_h
-
-        Where:
-        - Y is the numerator (volume)
-        - X is the denominator (area)
-        - R is the ratio estimate
-        - s_yxh is the covariance between Y and X in stratum h
-        - w_h is the stratum weight (EXPNS)
-        - n_h is the number of plots in stratum h
-        """
-
-        # Determine stratification columns
-        strat_cols = ["STRATUM_CN"] if "STRATUM_CN" in plot_data.columns else []
-
-        if not strat_cols:
-            # No stratification, treat as single stratum
-            strat_cols = [pl.lit(1).alias("STRATUM")]
-            plot_data = plot_data.with_columns(strat_cols)
-            strat_cols = ["STRATUM"]
-
-        # Calculate stratum-level statistics
-        strata_stats = plot_data.group_by(strat_cols).agg(
-            [
-                pl.count("PLT_CN").alias("n_h"),
-                pl.mean("y_i").alias("ybar_h"),  # Mean volume per plot
-                pl.mean("x_i").alias("xbar_h"),  # Mean area per plot
-                pl.var("y_i", ddof=1).alias("s2_yh"),  # Volume variance
-                pl.var("x_i", ddof=1).alias("s2_xh"),  # Area variance
-                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),  # Expansion factor
-                # Calculate covariance using proper formula: Cov(X,Y) = E[(X-E[X])(Y-E[Y])]
-                # For sample covariance with ddof=1: sum((x-xbar)(y-ybar))/(n-1)
-                (
-                    (
-                        (pl.col("y_i") - pl.col("y_i").mean())
-                        * (pl.col("x_i") - pl.col("x_i").mean())
-                    ).sum()
-                    / (pl.len() - 1)
-                ).alias("cov_yxh"),
-            ]
-        )
-
-        # Handle single-plot strata and null variances
-        # Cast to Float64 to avoid decimal type issues
-        strata_stats = strata_stats.with_columns(
-            [
-                pl.when(pl.col("s2_yh").is_null())
-                .then(0.0)
-                .otherwise(pl.col("s2_yh"))
-                .cast(pl.Float64)
-                .alias("s2_yh"),
-                pl.when(pl.col("s2_xh").is_null())
-                .then(0.0)
-                .otherwise(pl.col("s2_xh"))
-                .cast(pl.Float64)
-                .alias("s2_xh"),
-                pl.when(pl.col("cov_yxh").is_null())
-                .then(0.0)
-                .otherwise(pl.col("cov_yxh"))
-                .cast(pl.Float64)
-                .alias("cov_yxh"),
-                pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
-                pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
-            ]
-        )
-
-        # Calculate population totals using expansion factors
-        # Total Y = Σ_h (ybar_h × w_h × n_h)
-        # Total X = Σ_h (xbar_h × w_h × n_h)
-        total_y = (
-            strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-        ).sum()
-        total_x = (
-            strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-        ).sum()
-
-        # Calculate ratio estimate
-        ratio = total_y / total_x if total_x > 0 else 0
-
-        # Calculate variance components for ratio estimator
-        # For FIA ratio estimation with stratified sampling:
-        # V(R) = Σ_h [(N_h/n_h) × w_h² × (s²_yh + R² × s²_xh - 2R × cov_yxh)] / X̄²
-        # Where:
-        # - N_h/n_h represents the finite population correction (we'll approximate as 1)
-        # - w_h = EXPNS (expansion factor in acres per plot)
-        # - The division by X̄² converts from variance of totals to variance of ratio
-
-        # CRITICAL FIX: The correct formula multiplies by n_h for total variance,
-        # then divides by X̄² for ratio variance
-        variance_components = strata_stats.with_columns(
-            [
-                # Each stratum's contribution to the variance of the total
-                # For domain totals: multiply by n_h (number of plots in stratum)
-                # This gives us the variance of Y - RX
-                (
-                    pl.col("w_h") ** 2
-                    * (
-                        pl.col("s2_yh")
-                        + ratio**2 * pl.col("s2_xh")
-                        - 2 * ratio * pl.col("cov_yxh")
-                    )
-                    * pl.col("n_h")  # MULTIPLY by n_h for total variance
-                ).alias("v_h")
-            ]
-        )
-
-        # Sum variance components across strata
-        variance_of_numerator = variance_components["v_h"].sum()
-        if variance_of_numerator is None or variance_of_numerator < 0:
-            variance_of_numerator = 0.0
-
-        # Convert to variance of the ratio by dividing by X̄²
-        # This gives us Var(R) where R = Y/X
-        variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
-
-        # Standard errors
-        se_acre = variance_of_ratio**0.5
-        # For total, multiply SE of ratio by total area
-        se_total = se_acre * total_x if total_x > 0 else 0
-
-        return {
-            "variance_acre": variance_of_ratio,
-            "variance_total": (se_total**2) if se_total > 0 else 0,
-            "se_acre": se_acre,
-            "se_total": se_total,
-            "ratio": ratio,
-            "total_y": total_y,
-            "total_x": total_x,
-        }
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format volume estimation output."""

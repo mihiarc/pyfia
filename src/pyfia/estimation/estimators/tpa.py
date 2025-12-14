@@ -12,6 +12,7 @@ import polars as pl
 
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
+from ..variance import calculate_ratio_variance
 
 if TYPE_CHECKING:
     from ...core import FIA
@@ -334,10 +335,10 @@ class TPAEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    tpa_stats = self._calculate_ratio_variance(
+                    tpa_stats = calculate_ratio_variance(
                         all_plots_group, "y_tpa_i"
                     )
-                    baa_stats = self._calculate_ratio_variance(
+                    baa_stats = calculate_ratio_variance(
                         all_plots_group, "y_baa_i"
                     )
 
@@ -365,8 +366,8 @@ class TPAEstimator(BaseEstimator):
                 var_df = pl.DataFrame(variance_results)
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
-            tpa_stats = self._calculate_ratio_variance(plot_data, "y_tpa_i")
-            baa_stats = self._calculate_ratio_variance(plot_data, "y_baa_i")
+            tpa_stats = calculate_ratio_variance(plot_data, "y_tpa_i")
+            baa_stats = calculate_ratio_variance(plot_data, "y_baa_i")
 
             results = results.with_columns(
                 [
@@ -415,106 +416,6 @@ class TPAEstimator(BaseEstimator):
                 )
 
         return results
-
-    def _calculate_ratio_variance(self, plot_data: pl.DataFrame, y_col: str):
-        """Calculate variance for ratio-of-means estimator.
-
-        For ratio estimation R = Y/X, the variance formula accounts for
-        covariance between numerator and denominator.
-        """
-        strat_cols = ["STRATUM_CN"] if "STRATUM_CN" in plot_data.columns else []
-
-        if not strat_cols:
-            plot_data = plot_data.with_columns(pl.lit(1).alias("STRATUM"))
-            strat_cols = ["STRATUM"]
-
-        strata_stats = plot_data.group_by(strat_cols).agg(
-            [
-                pl.count("PLT_CN").alias("n_h"),
-                pl.mean(y_col).alias("ybar_h"),
-                pl.mean("x_i").alias("xbar_h"),
-                pl.var(y_col, ddof=1).alias("s2_yh"),
-                pl.var("x_i", ddof=1).alias("s2_xh"),
-                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),
-                (
-                    (
-                        (pl.col(y_col) - pl.col(y_col).mean())
-                        * (pl.col("x_i") - pl.col("x_i").mean())
-                    ).sum()
-                    / (pl.len() - 1)
-                ).alias("cov_yxh"),
-            ]
-        )
-
-        strata_stats = strata_stats.with_columns(
-            [
-                pl.when(pl.col("s2_yh").is_null())
-                .then(0.0)
-                .otherwise(pl.col("s2_yh"))
-                .cast(pl.Float64)
-                .alias("s2_yh"),
-                pl.when(pl.col("s2_xh").is_null())
-                .then(0.0)
-                .otherwise(pl.col("s2_xh"))
-                .cast(pl.Float64)
-                .alias("s2_xh"),
-                pl.when(pl.col("cov_yxh").is_null())
-                .then(0.0)
-                .otherwise(pl.col("cov_yxh"))
-                .cast(pl.Float64)
-                .alias("cov_yxh"),
-                pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
-                pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
-            ]
-        )
-
-        total_y = (
-            strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-        ).sum()
-        total_x = (
-            strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-        ).sum()
-
-        ratio = total_y / total_x if total_x > 0 else 0
-
-        # Filter out single-plot strata (variance undefined with n=1)
-        # These strata cannot contribute to variance estimation
-        strata_with_variance = strata_stats.filter(pl.col("n_h") > 1)
-
-        # Calculate variance components only for strata with n > 1
-        variance_components = strata_with_variance.with_columns(
-            [
-                (
-                    pl.col("w_h") ** 2
-                    * (
-                        pl.col("s2_yh")
-                        + ratio**2 * pl.col("s2_xh")
-                        - 2 * ratio * pl.col("cov_yxh")
-                    )
-                    * pl.col("n_h")
-                ).alias("v_h")
-            ]
-        )
-
-        # Sum variance components, handling NaN values
-        variance_of_numerator = variance_components["v_h"].drop_nans().sum()
-        if variance_of_numerator is None or variance_of_numerator < 0:
-            variance_of_numerator = 0.0
-
-        variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
-
-        se_acre = variance_of_ratio**0.5
-        se_total = se_acre * total_x if total_x > 0 else 0
-
-        return {
-            "variance_acre": variance_of_ratio,
-            "variance_total": (se_total**2) if se_total > 0 else 0,
-            "se_acre": se_acre,
-            "se_total": se_total,
-            "ratio": ratio,
-            "total_y": total_y,
-            "total_x": total_x,
-        }
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """

@@ -7,7 +7,7 @@ straightforward approach without unnecessary abstractions.
 
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Literal, Optional, Union
 
 import polars as pl
 
@@ -158,9 +158,17 @@ class BaseEstimator(ABC):
 
             for col in grp_by:
                 # Add to appropriate table's column list if not already present
-                if col in tree_schema and col not in tree_cols:
+                if (
+                    tree_cols is not None
+                    and col in tree_schema
+                    and col not in tree_cols
+                ):
                     tree_cols.append(col)
-                elif col in cond_schema and col not in cond_cols:
+                elif (
+                    cond_cols is not None
+                    and col in cond_schema
+                    and col not in cond_cols
+                ):
                     cond_cols.append(col)
 
         if tree_cols:
@@ -526,7 +534,7 @@ class BaseEstimator(ABC):
             results = condition_agg.select(final_agg_exprs)
 
         # Collect results
-        results = results.collect()
+        results_df: pl.DataFrame = results.collect()
 
         # Calculate per-acre values using ratio-of-means
         per_acre_exprs = []
@@ -541,7 +549,7 @@ class BaseEstimator(ABC):
                 .alias(f"{metric_name}_ACRE")
             )
 
-        results = results.with_columns(per_acre_exprs)
+        results_df = results_df.with_columns(per_acre_exprs)
 
         # Clean up intermediate columns (keep totals and per-acre values)
         cols_to_drop = ["N_CONDITIONS", "AREA_TOTAL"]
@@ -550,11 +558,11 @@ class BaseEstimator(ABC):
             cols_to_drop.append(f"{metric_name}_NUM")
 
         # Only drop columns that exist
-        cols_to_drop = [col for col in cols_to_drop if col in results.columns]
+        cols_to_drop = [col for col in cols_to_drop if col in results_df.columns]
         if cols_to_drop:
-            results = results.drop(cols_to_drop)
+            results_df = results_df.drop(cols_to_drop)
 
-        return results
+        return results_df
 
     @lru_cache(maxsize=1)
     def _get_stratification_data(self) -> pl.LazyFrame:
@@ -749,7 +757,9 @@ class BaseEstimator(ABC):
                     plot_years = plot_data.select("INVYR")
                 if not plot_years.is_empty():
                     # Use max year as it best represents the evaluation period
-                    year = int(plot_years["INVYR"].max())
+                    max_year = plot_years["INVYR"].max()
+                    if max_year is not None:
+                        year = int(max_year)  # type: ignore[arg-type]
             except Exception:
                 pass
 
@@ -942,7 +952,7 @@ class GRMBaseEstimator(BaseEstimator):
         self._grm_columns = None
 
     @property
-    def component_type(self) -> str:
+    def component_type(self) -> Literal["growth", "mortality", "removals"]:
         """Return the GRM component type: 'growth', 'mortality', or 'removals'."""
         raise NotImplementedError("Subclasses must implement component_type property")
 

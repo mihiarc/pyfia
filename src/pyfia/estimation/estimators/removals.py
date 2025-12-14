@@ -5,7 +5,7 @@ Simple implementation for calculating average annual removals of merchantable
 bole wood volume of growing-stock trees.
 """
 
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 import polars as pl
 
@@ -22,7 +22,7 @@ class RemovalsEstimator(GRMBaseEstimator):
     """
 
     @property
-    def component_type(self) -> str:
+    def component_type(self) -> Literal["growth", "mortality", "removals"]:
         """Return 'removals' as the GRM component type."""
         return "removals"
 
@@ -83,7 +83,7 @@ class RemovalsEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """Aggregate removals with two-stage aggregation."""
         # Use shared GRM aggregation
         results = self._aggregate_grm_results(

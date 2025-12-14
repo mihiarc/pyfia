@@ -142,7 +142,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """
         Aggregate carbon with two-stage aggregation for correct per-acre estimates.
 
@@ -164,7 +164,7 @@ class CarbonPoolEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors based on tree DIA
-        data_with_strat = apply_tree_adjustment_factors(
+        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 

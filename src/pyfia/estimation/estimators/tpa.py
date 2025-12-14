@@ -111,7 +111,7 @@ class TPAEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """
         Aggregate TPA and BAA with proper FIA two-stage stratification.
 
@@ -129,7 +129,7 @@ class TPAEstimator(BaseEstimator):
 
         # Apply adjustment factors based on tree size
         # FIA uses different plot sizes for different tree sizes
-        data_with_strat = apply_tree_adjustment_factors(
+        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
@@ -380,15 +380,17 @@ class TPAEstimator(BaseEstimator):
 
         # Add warning for small sample sizes
         if "N_PLOTS" in results.columns:
-            min_plots = results["N_PLOTS"].min()
-            if min_plots is not None and min_plots < 10:
-                import warnings
+            min_plots_val = results["N_PLOTS"].min()
+            if min_plots_val is not None:
+                min_plots = int(min_plots_val)  # type: ignore[arg-type]
+                if min_plots < 10:
+                    import warnings
 
-                warnings.warn(
-                    f"Small sample size detected (min {min_plots} plots). "
-                    "Variance estimates may be unreliable. Consider aggregating to larger areas.",
-                    UserWarning,
-                )
+                    warnings.warn(
+                        f"Small sample size detected (min {min_plots} plots). "
+                        "Variance estimates may be unreliable. Consider aggregating to larger areas.",
+                        UserWarning,
+                    )
 
         return results
 

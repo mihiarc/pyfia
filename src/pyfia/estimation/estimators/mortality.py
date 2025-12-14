@@ -5,7 +5,7 @@ Implements FIA's Growth-Removal-Mortality methodology for calculating
 annual tree mortality using TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables.
 """
 
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 import polars as pl
 
@@ -22,7 +22,7 @@ class MortalityEstimator(GRMBaseEstimator):
     """
 
     @property
-    def component_type(self) -> str:
+    def component_type(self) -> Literal["growth", "mortality", "removals"]:
         """Return 'mortality' as the GRM component type."""
         return "mortality"
 
@@ -34,6 +34,8 @@ class MortalityEstimator(GRMBaseEstimator):
         """Load GRM data for mortality estimation."""
         # Use the simple GRM data loading pattern
         data = self._load_simple_grm_data()
+        if data is None:
+            return None
 
         # Add PLOT data for additional info if needed
         if "PLOT" not in self.db.tables:
@@ -130,7 +132,7 @@ class MortalityEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """Aggregate mortality with two-stage aggregation."""
         # Use shared GRM aggregation
         results = self._aggregate_grm_results(

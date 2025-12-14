@@ -196,7 +196,8 @@ def load_grm_component(
     if include_dia_end:
         cols.insert(4, pl.col("DIA_END"))
 
-    return grm_component.select(cols)
+    result: pl.LazyFrame = grm_component.select(cols)
+    return result
 
 
 def load_grm_midpt(
@@ -246,7 +247,8 @@ def load_grm_midpt(
     if include_additional_cols:
         cols.extend([c for c in include_additional_cols if c not in cols])
 
-    return grm_midpt.select(cols)
+    result: pl.LazyFrame = grm_midpt.select(cols)
+    return result
 
 
 def load_grm_begin(
@@ -286,7 +288,8 @@ def load_grm_begin(
     elif measure == "biomass":
         cols.append("DRYBIO_AG")
 
-    return grm_begin.select(cols)
+    result: pl.LazyFrame = grm_begin.select(cols)
+    return result
 
 
 def apply_grm_adjustment(data: pl.LazyFrame) -> pl.LazyFrame:

@@ -69,7 +69,7 @@ class DuckDBBackend(DatabaseBackend):
         }
 
         # Add configuration options
-        config_options = {}
+        config_options: dict[str, Any] = {}
         if self.memory_limit:
             config_options["memory_limit"] = self.memory_limit
         if self.threads:
@@ -79,7 +79,7 @@ class DuckDBBackend(DatabaseBackend):
             connect_kwargs["config"] = config_options
 
         try:
-            self._connection = duckdb.connect(**connect_kwargs)
+            self._connection = duckdb.connect(**connect_kwargs)  # type: ignore[arg-type]
             logger.info(f"Connected to DuckDB database: {self.db_path}")
         except Exception as e:
             logger.error(f"Failed to connect to DuckDB: {e}")
@@ -127,12 +127,12 @@ class DuckDBBackend(DatabaseBackend):
                 # DuckDB uses $parameter_name syntax
                 for key, value in params.items():
                     query = query.replace(f":{key}", f"${key}")
-                result = self._connection.execute(query, params)
+                result = self._connection.execute(query, params)  # type: ignore[union-attr]
             else:
-                result = self._connection.execute(query)
+                result = self._connection.execute(query)  # type: ignore[union-attr]
 
             # Native DuckDB to Polars conversion
-            df = result.pl()
+            df: pl.DataFrame = result.pl()
 
             execution_time = (time.time() - start_time) * 1000
             logger.debug(
@@ -169,7 +169,9 @@ class DuckDBBackend(DatabaseBackend):
             self.connect()
 
         try:
-            result = self._connection.execute(f"DESCRIBE {table_name}").fetchall()
+            result = self._connection.execute(  # type: ignore[union-attr]
+                f"DESCRIBE {table_name}"
+            ).fetchall()
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
             return schema
@@ -195,7 +197,7 @@ class DuckDBBackend(DatabaseBackend):
             self.connect()
 
         try:
-            result = self._connection.execute(
+            result = self._connection.execute(  # type: ignore[union-attr]
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
                 [table_name],
             ).fetchone()
@@ -221,7 +223,9 @@ class DuckDBBackend(DatabaseBackend):
             self.connect()
 
         try:
-            return self._connection.execute(f"DESCRIBE {table_name}").fetchall()
+            return self._connection.execute(  # type: ignore[union-attr, no-any-return]
+                f"DESCRIBE {table_name}"
+            ).fetchall()
         except Exception as e:
             logger.error(f"Failed to describe table {table_name}: {e}")
             raise

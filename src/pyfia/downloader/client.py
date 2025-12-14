@@ -456,6 +456,6 @@ class DataMartClient:
         """
         try:
             response = self.session.head(url, timeout=30, allow_redirects=True)
-            return response.status_code == 200
+            return bool(response.status_code == 200)
         except requests.exceptions.RequestException:
             return False

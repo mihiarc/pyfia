@@ -18,9 +18,7 @@ __all__ = [
 ]
 
 
-def create_backend(
-    db_path: Union[str, Path], **kwargs: Any
-) -> DatabaseBackend:
+def create_backend(db_path: Union[str, Path], **kwargs: Any) -> DatabaseBackend:
     """
     Create a DuckDB database backend.
 

@@ -105,8 +105,8 @@ def setup_grouping_columns(
         group_cols.append("landType")
 
     # Remove duplicates while preserving order
-    seen = set()
-    group_cols = [x for x in group_cols if not (x in seen or seen.add(x))]
+    seen: set[str] = set()
+    group_cols = [x for x in group_cols if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
 
     return df, group_cols
 
@@ -244,8 +244,8 @@ def prepare_plot_groups(
         final_groups.extend(additional_groups)
 
     # Remove duplicates while preserving order
-    seen = set()
-    final_groups = [x for x in final_groups if not (x in seen or seen.add(x))]
+    seen: set[str] = set()
+    final_groups = [x for x in final_groups if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
 
     return final_groups
 
@@ -504,6 +504,8 @@ def get_ownership_group_name(owngrpcd: Optional[int]) -> str:
         30: "State and Local Government",
         40: "Private",
     }
+    if owngrpcd is None:
+        return "Unknown (Code None)"
     return ownership_names.get(owngrpcd, f"Unknown (Code {owngrpcd})")
 
 

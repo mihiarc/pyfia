@@ -14,7 +14,6 @@ from .area.filters import apply_area_filters
 from .core.parser import DomainExpressionParser
 
 # Domain indicators
-from .indicators.calculator import DomainIndicatorCalculator
 from .indicators.land_types import (
     LandTypeCategory,
     add_land_type_categories,
@@ -54,7 +53,6 @@ __all__ = [
     "apply_tree_filters",
     "apply_area_filters",
     # Domain indicators
-    "DomainIndicatorCalculator",
     "classify_land_types",
     "get_land_domain_indicator",
     "add_land_type_categories",

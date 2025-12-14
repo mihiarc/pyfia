@@ -367,10 +367,12 @@ class AreaEstimator(BaseEstimator):
 
                 for i, col in enumerate(self.group_cols):
                     if col in plot_data.columns:
-                        group_dict[col] = group_vals[results.columns.index(col)]
-                        group_filter = group_filter & (
-                            pl.col(col) == group_vals[results.columns.index(col)]
-                        )
+                        val = group_vals[results.columns.index(col)]
+                        group_dict[col] = val
+                        if val is None:
+                            group_filter = group_filter & pl.col(col).is_null()
+                        else:
+                            group_filter = group_filter & (pl.col(col) == val)
 
                 group_plot_data = plot_data.filter(group_filter)
 

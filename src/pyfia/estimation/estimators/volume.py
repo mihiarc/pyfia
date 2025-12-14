@@ -153,39 +153,9 @@ class VolumeEstimator(BaseEstimator):
         self.group_cols = group_cols  # Store for variance calculation
 
         # CRITICAL: Store plot-tree level data for variance calculation
-        # First, collect the data to ensure VOLUME_ADJ is computed
-        data_collected = data_with_strat.collect()
-        available_cols = data_collected.columns
-
-        # Build column list for preservation
-        cols_to_preserve = ["PLT_CN", "CONDID"]
-
-        # Add stratification columns
-        if "STRATUM_CN" in available_cols:
-            cols_to_preserve.append("STRATUM_CN")
-        if "ESTN_UNIT" in available_cols:
-            cols_to_preserve.append("ESTN_UNIT")
-        elif "UNITCD" in available_cols:
-            # If we have UNITCD, rename it to ESTN_UNIT
-            data_collected = data_collected.with_columns(
-                pl.col("UNITCD").alias("ESTN_UNIT")
-            )
-            cols_to_preserve.append("ESTN_UNIT")
-
-        # Add essential columns - these must exist
-        cols_to_preserve.extend(["VOLUME_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"])
-
-        # Add grouping columns if they exist
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in cols_to_preserve:
-                    cols_to_preserve.append(col)
-
-        # Store the plot-tree data for variance calculation
-        self.plot_tree_data = data_collected.select(cols_to_preserve)
-
-        # Convert back to lazy for two-stage aggregation
-        data_with_strat = data_collected.lazy()
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+            data_with_strat, metric_cols=["VOLUME_ADJ"], group_cols=group_cols
+        )
 
         # Use shared two-stage aggregation method
         metric_mappings = {"VOLUME_ADJ": "CONDITION_VOLUME"}
@@ -282,109 +252,23 @@ class VolumeEstimator(BaseEstimator):
                 )
             return results
 
-        # Step 1: Aggregate to plot-condition level
-        # Sum volume within each condition (trees are already adjusted)
-        plot_cond_data = self.plot_tree_data.group_by(
-            ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-            + (self.group_cols if self.group_cols else [])
-        ).agg(
-            [
-                pl.sum("VOLUME_ADJ").alias("y_ic"),  # Volume per condition
-            ]
-        )
-
-        # Step 2: Aggregate to plot level
-        # Sum across conditions within each plot
-        plot_group_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"]
+        # Calculate variance for each group or overall
         if self.group_cols:
-            plot_group_cols.extend(self.group_cols)
-
-        plot_data = plot_cond_data.group_by(plot_group_cols).agg(
-            [
-                pl.sum("y_ic").alias("y_i"),  # Total volume per plot
-                pl.sum("CONDPROP_UNADJ")
-                .cast(pl.Float64)
-                .alias("x_i"),  # Total area proportion per plot
-            ]
-        )
-
-        # Step 3: Calculate variance for each group or overall
-        if self.group_cols:
-            # CRITICAL FIX: Get ALL plots in the evaluation (not filtered by group)
-            # This ensures we include zero plots for proper variance calculation
-            strat_data = self._get_stratification_data()
-            all_plots = (
-                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            # Use shared helper for grouped variance calculation
+            metric_mappings = {
+                "VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")
+            }
+            results = self._calculate_grouped_variance(
+                self.plot_tree_data, results, self.group_cols, metric_mappings
             )
-
-            # Calculate variance for each group separately
-            variance_results = []
-
-            for group_vals in results.iter_rows():
-                # Build filter for this group
-                group_filter = pl.lit(True)
-                group_dict = {}
-
-                for i, col in enumerate(self.group_cols):
-                    if col in plot_data.columns:
-                        group_dict[col] = group_vals[results.columns.index(col)]
-                        group_filter = group_filter & (
-                            pl.col(col) == group_vals[results.columns.index(col)]
-                        )
-
-                # Filter plot data for this specific group
-                group_plot_data = plot_data.filter(group_filter)
-
-                # CRITICAL: Join with ALL plots, filling missing with zeros
-                # This includes plots that don't have trees in this group
-                all_plots_group = all_plots.join(
-                    group_plot_data.select(["PLT_CN", "y_i", "x_i"]),
-                    on="PLT_CN",
-                    how="left",
-                ).with_columns(
-                    [
-                        pl.col("y_i").fill_null(
-                            0.0
-                        ),  # Zero volume for plots without this group
-                        # For domain ratio estimation, both numerator and denominator must use same domain
-                        # Plots without the species have zero area contribution to maintain proper ratio
-                        pl.col("x_i").fill_null(
-                            0.0
-                        ),  # Zero area for plots without this group
-                    ]
-                )
-
-                if len(all_plots_group) > 0:
-                    # Calculate variance using ALL plots (including zeros)
-                    var_stats = calculate_ratio_variance(all_plots_group, y_col="y_i")
-
-                    variance_results.append(
-                        {
-                            **group_dict,
-                            "VOLUME_ACRE_SE": var_stats["se_acre"],
-                            "VOLUME_TOTAL_SE": var_stats["se_total"],
-                            "VOLUME_ACRE_VARIANCE": var_stats["variance_acre"],
-                            "VOLUME_TOTAL_VARIANCE": var_stats["variance_total"],
-                        }
-                    )
-                else:
-                    # No data for this group - set SE to 0
-                    variance_results.append(
-                        {
-                            **group_dict,
-                            "VOLUME_ACRE_SE": 0.0,
-                            "VOLUME_TOTAL_SE": 0.0,
-                            "VOLUME_ACRE_VARIANCE": 0.0,
-                            "VOLUME_TOTAL_VARIANCE": 0.0,
-                        }
-                    )
-
-            # Join variance results back to main results
-            if variance_results:
-                var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=self.group_cols, how="left")
         else:
-            # No grouping, calculate overall variance
+            # No grouping, calculate overall variance using simple aggregation
+            plot_data = self.plot_tree_data.group_by(["PLT_CN", "STRATUM_CN", "EXPNS"]).agg(
+                [
+                    pl.sum("VOLUME_ADJ").alias("y_i"),
+                    pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),
+                ]
+            )
             var_stats = calculate_ratio_variance(plot_data, y_col="y_i")
 
             results = results.with_columns(
@@ -419,10 +303,11 @@ class VolumeEstimator(BaseEstimator):
         vol_type = self.config.get("vol_type", "net")
         land_type = self.config.get("land_type", "forest")
         tree_type = self.config.get("tree_type", "live")
+        year = self._extract_evaluation_year()
 
         results = results.with_columns(
             [
-                pl.lit(2023).alias("YEAR"),  # Would extract from INVYR in production
+                pl.lit(year).alias("YEAR"),
                 pl.lit(vol_type.upper()).alias("VOL_TYPE"),
                 pl.lit(land_type.upper()).alias("LAND_TYPE"),
                 pl.lit(tree_type.upper()).alias("TREE_TYPE"),

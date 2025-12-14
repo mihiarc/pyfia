@@ -636,6 +636,258 @@ class BaseEstimator(ABC):
         # This would be implemented by area estimator
         return pl.DataFrame()
 
+    def _preserve_plot_tree_data(
+        self,
+        data_with_strat: pl.LazyFrame,
+        metric_cols: List[str],
+        group_cols: Optional[List[str]] = None,
+    ) -> tuple[pl.DataFrame, pl.LazyFrame]:
+        """
+        Preserve plot-tree level data for variance calculation.
+
+        This shared method handles the common pattern of collecting data and
+        preserving necessary columns for later variance calculation.
+
+        Parameters
+        ----------
+        data_with_strat : pl.LazyFrame
+            Data with stratification columns joined
+        metric_cols : List[str]
+            Metric columns to preserve (e.g., ["VOLUME_ADJ"], ["BIOMASS_ADJ", "CARBON_ADJ"])
+        group_cols : List[str], optional
+            Grouping columns to preserve
+
+        Returns
+        -------
+        tuple[pl.DataFrame, pl.LazyFrame]
+            (plot_tree_data for variance, data_with_strat as LazyFrame for aggregation)
+        """
+        # Collect the data to ensure metrics are computed
+        data_collected = data_with_strat.collect()
+        available_cols = data_collected.columns
+
+        # Build column list for preservation
+        cols_to_preserve = ["PLT_CN", "CONDID"]
+
+        # Add stratification columns
+        if "STRATUM_CN" in available_cols:
+            cols_to_preserve.append("STRATUM_CN")
+        if "ESTN_UNIT" in available_cols:
+            cols_to_preserve.append("ESTN_UNIT")
+        elif "UNITCD" in available_cols:
+            # If we have UNITCD, rename it to ESTN_UNIT
+            data_collected = data_collected.with_columns(
+                pl.col("UNITCD").alias("ESTN_UNIT")
+            )
+            cols_to_preserve.append("ESTN_UNIT")
+
+        # Add essential columns for variance calculation
+        cols_to_preserve.extend(metric_cols)
+        essential_cols = ["ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"]
+        for col in essential_cols:
+            if col in available_cols and col not in cols_to_preserve:
+                cols_to_preserve.append(col)
+
+        # Add grouping columns if they exist
+        if group_cols:
+            for col in group_cols:
+                if col in available_cols and col not in cols_to_preserve:
+                    cols_to_preserve.append(col)
+
+        # Store the plot-tree data for variance calculation
+        plot_tree_data = data_collected.select(
+            [c for c in cols_to_preserve if c in data_collected.columns]
+        )
+
+        # Convert back to lazy for two-stage aggregation
+        data_lazy = data_collected.lazy()
+
+        return plot_tree_data, data_lazy
+
+    def _extract_evaluation_year(self) -> int:
+        """
+        Extract evaluation year from EVALID or INVYR.
+
+        The year extraction follows FIA conventions:
+        1. Primary: Extract from EVALID (SSYYTT format where YY is year)
+        2. Fallback: Use max INVYR from PLOT table
+        3. Default: Current year minus 2 (typical FIA processing lag)
+
+        Returns
+        -------
+        int
+            The evaluation year
+        """
+        year = None
+
+        # Primary source: EVALID encodes the evaluation reference year
+        # EVALIDs are 6-digit codes: SSYYTT where YY is the evaluation year
+        if hasattr(self.db, "evalids") and self.db.evalids:
+            try:
+                evalid = self.db.evalids[0]  # Use first EVALID
+                year_part = int(str(evalid)[2:4])  # Extract YY portion
+
+                # Handle century correctly - FIA data starts in 1990s
+                if year_part >= 90:  # Years 90-99 are 1990-1999
+                    year = 1900 + year_part
+                else:  # Years 00-89 are 2000-2089
+                    year = 2000 + year_part
+
+                # Validate year is reasonable (1990-2050)
+                if year < 1990 or year > 2050:
+                    year = None  # Fall back to other methods
+            except (IndexError, ValueError, TypeError):
+                pass
+
+        # Fallback: If no EVALID, use most recent INVYR as approximation
+        if year is None and "PLOT" in self.db.tables:
+            try:
+                plot_data = self.db.tables["PLOT"]
+                if isinstance(plot_data, pl.LazyFrame):
+                    plot_years = plot_data.select("INVYR").collect()
+                else:
+                    plot_years = plot_data.select("INVYR")
+                if not plot_years.is_empty():
+                    # Use max year as it best represents the evaluation period
+                    year = int(plot_years["INVYR"].max())
+            except Exception:
+                pass
+
+        # Default to current year minus 2 (typical FIA processing lag)
+        if year is None:
+            from datetime import datetime
+
+            year = datetime.now().year - 2
+
+        return year
+
+    def _calculate_grouped_variance(
+        self,
+        plot_tree_data: pl.DataFrame,
+        results: pl.DataFrame,
+        group_cols: List[str],
+        metric_mappings: Dict[str, tuple[str, str]],
+        y_col_alias: str = "y_i",
+    ) -> pl.DataFrame:
+        """
+        Calculate variance for grouped estimates using ratio-of-means formula.
+
+        This shared method implements the common variance calculation pattern
+        used across multiple estimators (volume, biomass, tpa, carbon, etc.).
+
+        Parameters
+        ----------
+        plot_tree_data : pl.DataFrame
+            Plot-tree level data preserved during aggregation
+        results : pl.DataFrame
+            Aggregated results with grouping columns
+        group_cols : List[str]
+            Columns used for grouping
+        metric_mappings : Dict[str, tuple[str, str]]
+            Mapping of adjusted metric column to (SE column name, variance column name)
+            e.g., {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
+        y_col_alias : str, default "y_i"
+            Alias for the y column in plot-level aggregation
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added
+        """
+        from .variance import calculate_ratio_variance
+
+        # Get the first metric column for aggregation
+        metric_col = list(metric_mappings.keys())[0]
+
+        # Step 1: Aggregate to plot-condition level
+        base_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
+        plot_cond_group_cols = [c for c in base_group_cols if c in plot_tree_data.columns]
+        plot_cond_group_cols.extend([c for c in group_cols if c in plot_tree_data.columns])
+
+        plot_cond_data = plot_tree_data.group_by(plot_cond_group_cols).agg(
+            [pl.sum(metric_col).alias("y_ic")]
+        )
+
+        # Step 2: Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"]
+        plot_level_cols = [c for c in plot_level_cols if c in plot_cond_data.columns]
+        plot_level_cols.extend([c for c in group_cols if c in plot_cond_data.columns])
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
+            [
+                pl.sum("y_ic").alias(y_col_alias),
+                pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),
+            ]
+        )
+
+        # Step 3: Get ALL plots for proper variance calculation
+        strat_data = self._get_stratification_data()
+        all_plots = strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+
+        # Step 4: Calculate variance for each group
+        variance_results = []
+
+        for group_vals in results.iter_rows():
+            # Build filter for this group
+            group_filter = pl.lit(True)
+            group_dict = {}
+
+            for col in group_cols:
+                if col in plot_data.columns:
+                    col_idx = results.columns.index(col)
+                    group_dict[col] = group_vals[col_idx]
+                    group_filter = group_filter & (pl.col(col) == group_vals[col_idx])
+
+            # Filter plot data for this specific group
+            group_plot_data = plot_data.filter(group_filter)
+
+            # Join with ALL plots, filling missing with zeros
+            all_plots_group = all_plots.join(
+                group_plot_data.select(["PLT_CN", y_col_alias, "x_i"]),
+                on="PLT_CN",
+                how="left",
+            ).with_columns(
+                [
+                    pl.col(y_col_alias).fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
+
+            if len(all_plots_group) > 0:
+                # Calculate variance using ALL plots (including zeros)
+                var_stats = calculate_ratio_variance(all_plots_group, y_col=y_col_alias)
+
+                result_dict = {**group_dict}
+                for adj_col, (se_col, var_col) in metric_mappings.items():
+                    result_dict[se_col] = var_stats["se_acre"]
+                    result_dict[var_col] = var_stats["variance_acre"]
+                    # Also add total SE/variance
+                    total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
+                    total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
+                    result_dict[total_se_col] = var_stats["se_total"]
+                    result_dict[total_var_col] = var_stats["variance_total"]
+
+                variance_results.append(result_dict)
+            else:
+                # No data for this group - set SE to 0
+                result_dict = {**group_dict}
+                for adj_col, (se_col, var_col) in metric_mappings.items():
+                    result_dict[se_col] = 0.0
+                    result_dict[var_col] = 0.0
+                    total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
+                    total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
+                    result_dict[total_se_col] = 0.0
+                    result_dict[total_var_col] = 0.0
+
+                variance_results.append(result_dict)
+
+        # Join variance results back to main results
+        if variance_results:
+            var_df = pl.DataFrame(variance_results)
+            results = results.join(var_df, on=group_cols, how="left")
+
+        return results
+
     # === Abstract Methods ===
 
     @abstractmethod

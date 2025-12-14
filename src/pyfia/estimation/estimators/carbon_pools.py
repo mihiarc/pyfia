@@ -179,41 +179,11 @@ class CarbonPoolEstimator(BaseEstimator):
         self.group_cols = group_cols
 
         # CRITICAL: Store plot-tree level data for variance calculation
-        data_collected = data_with_strat.collect()
-        available_cols = data_collected.columns
-
-        # Build column list for preservation
-        cols_to_preserve = ["PLT_CN", "CONDID"]
-
-        # Add stratification columns
-        if "STRATUM_CN" in available_cols:
-            cols_to_preserve.append("STRATUM_CN")
-        if "ESTN_UNIT" in available_cols:
-            cols_to_preserve.append("ESTN_UNIT")
-        elif "UNITCD" in available_cols:
-            data_collected = data_collected.with_columns(
-                pl.col("UNITCD").alias("ESTN_UNIT")
-            )
-            cols_to_preserve.append("ESTN_UNIT")
-
-        # Add essential columns for variance calculation
-        cols_to_preserve.extend(
-            ["CARBON_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"]
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+            data_with_strat,
+            metric_cols=["CARBON_ADJ"],
+            group_cols=group_cols,
         )
-
-        # Add grouping columns if they exist
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in cols_to_preserve:
-                    cols_to_preserve.append(col)
-
-        # Store the plot-tree data for variance calculation
-        self.plot_tree_data = data_collected.select(
-            [c for c in cols_to_preserve if c in data_collected.columns]
-        )
-
-        # Convert back to lazy for two-stage aggregation
-        data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
         metric_mappings = {"CARBON_ADJ": "CONDITION_CARBON"}
@@ -371,34 +341,8 @@ class CarbonPoolEstimator(BaseEstimator):
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format carbon estimation output."""
-        # Extract year from evaluation data
-        year = None
-
-        if hasattr(self.db, "evalids") and self.db.evalids:
-            try:
-                evalid = self.db.evalids[0]
-                year_part = int(str(evalid)[2:4])
-                if year_part >= 90:
-                    year = 1900 + year_part
-                else:
-                    year = 2000 + year_part
-                if year < 1990 or year > 2050:
-                    year = None
-            except (IndexError, ValueError, TypeError):
-                pass
-
-        if year is None and "PLOT" in self.db.tables:
-            try:
-                plot_years = self.db.tables["PLOT"].select("INVYR").collect()
-                if not plot_years.is_empty():
-                    year = int(plot_years["INVYR"].max())
-            except Exception:
-                pass
-
-        if year is None:
-            from datetime import datetime
-
-            year = datetime.now().year - 2
+        # Extract year from evaluation data using shared helper
+        year = self._extract_evaluation_year()
 
         # Add pool identifier
         pool = self.config.get("pool", "total").upper()

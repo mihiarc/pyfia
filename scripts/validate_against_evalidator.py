@@ -14,7 +14,9 @@ from rich.table import Table
 from rich import box
 
 from pyfia import FIA, area, volume, biomass, tpa
-from pyfia.evalidator import EVALIDatorClient, compare_estimates, EstimateType
+from pyfia.evalidator.client import EVALIDatorClient
+from pyfia.evalidator.estimate_types import EstimateType
+from pyfia.evalidator.validation import compare_estimates
 
 console = Console()
 

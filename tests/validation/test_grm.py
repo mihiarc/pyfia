@@ -1,7 +1,7 @@
 """Growth, Removals, Mortality (GRM) validation against EVALIDator."""
 
 from pyfia import FIA, growth, mortality, removals
-from pyfia.evalidator import compare_estimates
+from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
     GEORGIA_STATE_CODE,

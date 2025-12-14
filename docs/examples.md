@@ -36,16 +36,18 @@ print(result.head(10))
 ## Forest Area by Forest Type
 
 ```python
-# Area by forest type group
-area_by_type = pyfia.area(
+# Area by forest type - names added automatically!
+result = pyfia.area(
     db,
     land_type="forest",
-    grp_by="FORTYPGRPCD"
+    grp_by="FORTYPCD"
 )
 
-# Add forest type names
-result = pyfia.join_forest_type_names(area_by_type, db)
+# Result includes both FORTYPCD and FOREST_TYPE_GROUP columns
 print(result)
+# FORTYPCD | FOREST_TYPE_GROUP       | AREA        | ...
+# 161      | Loblolly/Shortleaf Pine | 15,913,000  | ...
+# 503      | Oak/Hickory             | 8,592,600   | ...
 ```
 
 ## Trees Per Acre Analysis

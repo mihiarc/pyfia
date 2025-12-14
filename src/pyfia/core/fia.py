@@ -13,7 +13,25 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from .data_reader import FIADataReader
-from .evalid_parser import add_parsed_evalid_columns
+
+
+def _add_parsed_evalid_columns(df: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+    """
+    Add parsed EVALID columns to a DataFrame for sorting.
+
+    EVALID format: SSYYTT (State, Year 2-digit, Type)
+    Year uses Y2K windowing: 00-30 -> 2000-2030, 31-99 -> 1931-1999
+    """
+    return df.with_columns(
+        [
+            pl.when(pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32) <= 30)
+            .then(2000 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32))
+            .otherwise(1900 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32))
+            .alias("EVALID_YEAR"),
+            pl.col("EVALID").cast(pl.Utf8).str.slice(0, 2).cast(pl.Int32).alias("EVALID_STATE"),
+            pl.col("EVALID").cast(pl.Utf8).str.slice(4, 2).cast(pl.Int32).alias("EVALID_TYPE"),
+        ]
+    )
 
 
 class FIA:
@@ -310,7 +328,7 @@ class FIA:
 
         if most_recent:
             # Add parsed EVALID columns for robust year sorting
-            df = add_parsed_evalid_columns(df)
+            df = _add_parsed_evalid_columns(df)
 
             # Special handling for Texas (STATECD=48)
             # Texas has separate East/West evaluations, but we want the full state

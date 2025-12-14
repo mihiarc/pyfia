@@ -801,8 +801,12 @@ class BaseEstimator(ABC):
 
         # Step 1: Aggregate to plot-condition level
         base_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
-        plot_cond_group_cols = [c for c in base_group_cols if c in plot_tree_data.columns]
-        plot_cond_group_cols.extend([c for c in group_cols if c in plot_tree_data.columns])
+        plot_cond_group_cols = [
+            c for c in base_group_cols if c in plot_tree_data.columns
+        ]
+        plot_cond_group_cols.extend(
+            [c for c in group_cols if c in plot_tree_data.columns]
+        )
 
         plot_cond_data = plot_tree_data.group_by(plot_cond_group_cols).agg(
             [pl.sum(metric_col).alias("y_ic")]
@@ -822,7 +826,9 @@ class BaseEstimator(ABC):
 
         # Step 3: Get ALL plots for proper variance calculation
         strat_data = self._get_stratification_data()
-        all_plots = strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+        all_plots = (
+            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+        )
 
         # Step 4: Calculate variance for each group
         variance_results = []
@@ -959,6 +965,7 @@ class GRMBaseEstimator(BaseEstimator):
     def get_required_tables(self) -> List[str]:
         """GRM estimators require GRM tables."""
         from .grm import get_grm_required_tables
+
         return get_grm_required_tables(self.component_type)
 
     def get_cond_columns(self) -> List[str]:
@@ -1066,6 +1073,7 @@ class GRMBaseEstimator(BaseEstimator):
         # Apply area domain filter
         if self.config.get("area_domain"):
             from ..filtering.area.filters import apply_area_filters
+
             data_df = apply_area_filters(
                 data_df, area_domain=self.config["area_domain"]
             )
@@ -1073,6 +1081,7 @@ class GRMBaseEstimator(BaseEstimator):
         # Apply tree domain filter
         if self.config.get("tree_domain"):
             from ..filtering.core.parser import DomainExpressionParser
+
             data_df = DomainExpressionParser.apply_to_dataframe(
                 data_df, self.config["tree_domain"], "tree"
             )
@@ -1183,14 +1192,17 @@ class GRMBaseEstimator(BaseEstimator):
 
         if self.plot_tree_data is None:
             import warnings
+
             warnings.warn(
                 f"Plot-tree data not available for proper variance calculation. "
-                f"Using placeholder {placeholder_cv*100:.0f}% CV."
+                f"Using placeholder {placeholder_cv * 100:.0f}% CV."
             )
-            results = results.with_columns([
-                (pl.col(acre_col) * placeholder_cv).alias(acre_se_col),
-                (pl.col(total_col) * placeholder_cv).alias(total_se_col),
-            ])
+            results = results.with_columns(
+                [
+                    (pl.col(acre_col) * placeholder_cv).alias(acre_se_col),
+                    (pl.col(total_col) * placeholder_cv).alias(total_se_col),
+                ]
+            )
             return results
 
         # Aggregate to plot-condition level
@@ -1216,10 +1228,12 @@ class GRMBaseEstimator(BaseEstimator):
                 [c for c in self.group_cols if c in plot_cond_data.columns]
             )
 
-        plot_data = plot_cond_data.group_by(plot_level_cols).agg([
-            pl.sum("y_ic").alias("y_i"),
-            pl.lit(1.0).alias("x_i"),
-        ])
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
+            [
+                pl.sum("y_ic").alias("y_i"),
+                pl.lit(1.0).alias("x_i"),
+            ]
+        )
 
         # Calculate variance
         if self.group_cols:
@@ -1247,34 +1261,42 @@ class GRMBaseEstimator(BaseEstimator):
                     group_plot_data.select(["PLT_CN", "y_i", "x_i"]),
                     on="PLT_CN",
                     how="left",
-                ).with_columns([
-                    pl.col("y_i").fill_null(0.0),
-                    pl.col("x_i").fill_null(0.0),
-                ])
+                ).with_columns(
+                    [
+                        pl.col("y_i").fill_null(0.0),
+                        pl.col("x_i").fill_null(0.0),
+                    ]
+                )
 
                 if len(all_plots_group) > 0:
                     var_stats = calculate_ratio_variance(all_plots_group, "y_i")
-                    variance_results.append({
-                        **group_dict,
-                        acre_se_col: var_stats["se_acre"],
-                        total_se_col: var_stats["se_total"],
-                    })
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            acre_se_col: var_stats["se_acre"],
+                            total_se_col: var_stats["se_total"],
+                        }
+                    )
                 else:
-                    variance_results.append({
-                        **group_dict,
-                        acre_se_col: 0.0,
-                        total_se_col: 0.0,
-                    })
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            acre_se_col: 0.0,
+                            total_se_col: 0.0,
+                        }
+                    )
 
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
             var_stats = calculate_ratio_variance(plot_data, "y_i")
-            results = results.with_columns([
-                pl.lit(var_stats["se_acre"]).alias(acre_se_col),
-                pl.lit(var_stats["se_total"]).alias(total_se_col),
-            ])
+            results = results.with_columns(
+                [
+                    pl.lit(var_stats["se_acre"]).alias(acre_se_col),
+                    pl.lit(var_stats["se_total"]).alias(total_se_col),
+                ]
+            )
 
         return results
 
@@ -1296,12 +1318,14 @@ class GRMBaseEstimator(BaseEstimator):
         # Extract year using shared helper
         year = self._extract_evaluation_year()
 
-        results = results.with_columns([
-            pl.lit(year).alias("YEAR"),
-            pl.lit(measure.upper()).alias("MEASURE"),
-            pl.lit(land_type.upper()).alias("LAND_TYPE"),
-            pl.lit(tree_type.upper()).alias("TREE_TYPE"),
-        ])
+        results = results.with_columns(
+            [
+                pl.lit(year).alias("YEAR"),
+                pl.lit(measure.upper()).alias("MEASURE"),
+                pl.lit(land_type.upper()).alias("LAND_TYPE"),
+                pl.lit(tree_type.upper()).alias("TREE_TYPE"),
+            ]
+        )
 
         results = format_output_columns(
             results,

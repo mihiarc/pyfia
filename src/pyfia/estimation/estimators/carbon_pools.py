@@ -13,7 +13,7 @@ Key differences from biomass-derived carbon:
 - Matches EVALIDator exactly for live tree carbon estimates
 """
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
@@ -21,7 +21,6 @@ from ...core import FIA
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..variance import calculate_ratio_variance
-
 
 # Unit conversion constant
 # CARBON_AG and CARBON_BG are stored in pounds in the FIA database
@@ -126,9 +125,9 @@ class CarbonPoolEstimator(BaseEstimator):
         elif pool == "bg":
             carbon_expr = pl.col("CARBON_BG").fill_null(0.0)
         else:  # total
-            carbon_expr = (
-                pl.col("CARBON_AG").fill_null(0.0) + pl.col("CARBON_BG").fill_null(0.0)
-            )
+            carbon_expr = pl.col("CARBON_AG").fill_null(0.0) + pl.col(
+                "CARBON_BG"
+            ).fill_null(0.0)
 
         # Calculate carbon per acre in short tons (FIA/EVALIDator standard)
         data = data.with_columns(
@@ -303,9 +302,7 @@ class CarbonPoolEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    carb_stats = calculate_ratio_variance(
-                        all_plots_group, "y_carb_i"
-                    )
+                    carb_stats = calculate_ratio_variance(all_plots_group, "y_carb_i")
                     variance_results.append(
                         {
                             **group_dict,
@@ -472,7 +469,9 @@ def carbon_pool(
     pool = pool.lower()
     valid_pools = ["ag", "bg", "total"]
     if pool not in valid_pools:
-        raise ValueError(f"Invalid pool '{pool}'. Must be one of: {', '.join(valid_pools)}")
+        raise ValueError(
+            f"Invalid pool '{pool}'. Must be one of: {', '.join(valid_pools)}"
+        )
 
     # Validate other inputs
     land_type = validate_land_type(land_type)

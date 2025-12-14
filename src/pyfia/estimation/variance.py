@@ -135,12 +135,8 @@ def calculate_ratio_variance(
     # Calculate population totals using expansion factors
     # Total Y = Σ_h (ybar_h × w_h × n_h)
     # Total X = Σ_h (xbar_h × w_h × n_h)
-    total_y = (
-        strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-    ).sum()
-    total_x = (
-        strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-    ).sum()
+    total_y = (strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]).sum()
+    total_x = (strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]).sum()
 
     # Calculate ratio estimate
     ratio = total_y / total_x if total_x > 0 else 0

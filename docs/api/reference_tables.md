@@ -2,9 +2,14 @@
 
 Functions to join descriptive names to estimation results.
 
-## Overview
+## Auto-Enhancement
 
-FIA uses numeric codes for species, forest types, states, etc. These utility functions add human-readable names to your results.
+PyFIA **automatically adds descriptive names** for common grouping columns:
+
+| Grouping Column | Auto-Added Column |
+|-----------------|-------------------|
+| `FORTYPCD` | `FOREST_TYPE_GROUP` |
+| `OWNGRPCD` | `OWNERSHIP_GROUP` |
 
 ```python
 import pyfia
@@ -12,10 +17,26 @@ import pyfia
 db = pyfia.FIA("georgia.duckdb")
 db.clip_by_state("GA")
 
+# Forest type names added automatically!
+result = pyfia.area(db, grp_by="FORTYPCD")
+print(result.columns)
+# ['YEAR', 'FORTYPCD', 'FOREST_TYPE_GROUP', 'AREA', ...]
+
+# Ownership names added automatically!
+result = pyfia.volume(db, grp_by="OWNGRPCD")
+print(result.columns)
+# ['YEAR', 'OWNGRPCD', 'OWNERSHIP_GROUP', 'VOLCFNET_TOTAL', ...]
+```
+
+## Manual Reference Table Joins
+
+For columns that aren't auto-enhanced (like species), use these functions:
+
+```python
 # Get volume by species
 result = pyfia.volume(db, grp_by="SPCD")
 
-# Add species names
+# Add species names manually
 result = pyfia.join_species_names(result, db)
 print(result)
 ```

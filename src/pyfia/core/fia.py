@@ -15,7 +15,9 @@ import polars as pl
 from .data_reader import FIADataReader
 
 
-def _add_parsed_evalid_columns(df: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame | pl.LazyFrame:
+def _add_parsed_evalid_columns(
+    df: pl.DataFrame | pl.LazyFrame,
+) -> pl.DataFrame | pl.LazyFrame:
     """
     Add parsed EVALID columns to a DataFrame for sorting.
 
@@ -26,10 +28,20 @@ def _add_parsed_evalid_columns(df: pl.DataFrame | pl.LazyFrame) -> pl.DataFrame 
         [
             pl.when(pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32) <= 30)
             .then(2000 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32))
-            .otherwise(1900 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32))
+            .otherwise(
+                1900 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
+            )
             .alias("EVALID_YEAR"),
-            pl.col("EVALID").cast(pl.Utf8).str.slice(0, 2).cast(pl.Int32).alias("EVALID_STATE"),
-            pl.col("EVALID").cast(pl.Utf8).str.slice(4, 2).cast(pl.Int32).alias("EVALID_TYPE"),
+            pl.col("EVALID")
+            .cast(pl.Utf8)
+            .str.slice(0, 2)
+            .cast(pl.Int32)
+            .alias("EVALID_STATE"),
+            pl.col("EVALID")
+            .cast(pl.Utf8)
+            .str.slice(4, 2)
+            .cast(pl.Int32)
+            .alias("EVALID_TYPE"),
         ]
     )
 
@@ -328,7 +340,7 @@ class FIA:
 
         if most_recent:
             # Add parsed EVALID columns for robust year sorting
-            df = _add_parsed_evalid_columns(df)
+            df = _add_parsed_evalid_columns(df)  # type: ignore[assignment]
 
             # Special handling for Texas (STATECD=48)
             # Texas has separate East/West evaluations, but we want the full state
@@ -732,7 +744,8 @@ class FIA:
         """
         from pyfia.estimation.tpa import tpa
 
-        return tpa(self, **kwargs)
+        result: pl.DataFrame = tpa(self, **kwargs)
+        return result
 
     def biomass(self, **kwargs) -> pl.DataFrame:
         """
@@ -742,7 +755,8 @@ class FIA:
         """
         from pyfia.estimation.biomass import biomass
 
-        return biomass(self, **kwargs)
+        result: pl.DataFrame = biomass(self, **kwargs)
+        return result
 
     def volume(self, **kwargs) -> pl.DataFrame:
         """
@@ -752,7 +766,8 @@ class FIA:
         """
         from pyfia.estimation.volume import volume
 
-        return volume(self, **kwargs)
+        result: pl.DataFrame = volume(self, **kwargs)
+        return result
 
     def mortality(self, **kwargs) -> pl.DataFrame:
         """

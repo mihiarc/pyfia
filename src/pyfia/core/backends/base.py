@@ -202,10 +202,10 @@ class DatabaseBackend(ABC):
         try:
             yield
             if hasattr(self._connection, "commit"):
-                self._connection.commit()
+                self._connection.commit()  # type: ignore[union-attr]
         except Exception:
             if hasattr(self._connection, "rollback"):
-                self._connection.rollback()
+                self._connection.rollback()  # type: ignore[union-attr]
             raise
 
     def __enter__(self) -> "DatabaseBackend":

@@ -99,7 +99,7 @@ class FIADataReader:
         bool
             True if the column is a CN field.
         """
-        return self._backend.is_cn_column(column_name)
+        return self._backend.is_cn_column(column_name)  # type: ignore[attr-defined, no-any-return]
 
     def _is_string_column(self, table_name: str, column_name: str) -> bool:
         """
@@ -117,7 +117,7 @@ class FIADataReader:
         bool
             True if the column should be treated as a string.
         """
-        return self._backend.is_string_column(table_name, column_name)
+        return self._backend.is_string_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
 
     def _is_float_column(self, table_name: str, column_name: str) -> bool:
         """
@@ -135,7 +135,7 @@ class FIADataReader:
         bool
             True if the column should be treated as a float.
         """
-        return self._backend.is_float_column(table_name, column_name)
+        return self._backend.is_float_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
 
     def _is_integer_column(self, table_name: str, column_name: str) -> bool:
         """
@@ -153,7 +153,7 @@ class FIADataReader:
         bool
             True if the column should be treated as an integer.
         """
-        return self._backend.is_integer_column(table_name, column_name)
+        return self._backend.is_integer_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
 
     def _build_select_clause(
         self, table_name: str, columns: Optional[List[str]] = None
@@ -173,7 +173,7 @@ class FIADataReader:
         str
             SELECT clause with type casting.
         """
-        return self._backend.build_select_clause(table_name, columns)
+        return self._backend.build_select_clause(table_name, columns)  # type: ignore[attr-defined, no-any-return]
 
     @overload
     def read_table(
@@ -227,7 +227,7 @@ class FIADataReader:
             query += f" WHERE {where}"
 
         # Execute query using backend
-        df = self._backend.read_dataframe(query)
+        df: pl.DataFrame = self._backend.read_dataframe(query)  # type: ignore[attr-defined]
 
         # Post-process to convert types
         for col in df.columns:
@@ -241,8 +241,10 @@ class FIADataReader:
                 ):
                     pass  # Keep as string if conversion fails
 
-        # Return as lazy frame by default
-        return df.lazy() if lazy else df.collect()
+        # Return as lazy frame or DataFrame based on lazy parameter
+        if lazy:
+            return df.lazy()
+        return df
 
     def read_plot_data(self, evalid: List[int]) -> pl.DataFrame:
         """

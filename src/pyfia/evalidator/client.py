@@ -128,7 +128,8 @@ class EVALIDatorClient:
         if "error" in data:
             raise ValueError(f"EVALIDator API error: {data['error']}")
 
-        return data
+        result: Dict[str, Any] = data
+        return result
 
     def _parse_njson_response(
         self,

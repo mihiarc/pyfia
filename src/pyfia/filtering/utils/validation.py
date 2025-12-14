@@ -212,7 +212,7 @@ class ColumnValidator:
         ... )
         """
         if isinstance(columns, list):
-            columns = {col: None for col in columns}
+            columns = {col: None for col in columns}  # type: ignore[misc]
 
         for col_name, dtype in columns.items():
             if col_name not in df.columns:

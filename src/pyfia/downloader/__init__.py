@@ -159,9 +159,10 @@ def _convert_csvs_to_duckdb(
                         SELECT * FROM read_csv_auto('{csv_file}', header=true, ignore_errors=true)
                     """)
 
-                row_count = conn.execute(
+                row_result = conn.execute(
                     f"SELECT COUNT(*) FROM {table_name}"
-                ).fetchone()[0]
+                ).fetchone()
+                row_count = row_result[0] if row_result else 0
                 if show_progress:
                     console.print(f"[green]{row_count:,} rows[/green]")
 
@@ -478,10 +479,11 @@ def _download_multi_state(
 
                     try:
                         # Check if table exists
-                        existing = conn.execute(
+                        existing_result = conn.execute(
                             "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
                             [table_name],
-                        ).fetchone()[0]
+                        ).fetchone()
+                        existing = existing_result[0] if existing_result else 0
 
                         if existing > 0:
                             # Append to existing table

@@ -227,18 +227,7 @@ class FIADataReader:
             query += f" WHERE {where}"
 
         # Execute query using backend
-        # For SQLite backend, we need schema overrides for proper string handling
-        if (
-            hasattr(self._backend, "__class__")
-            and self._backend.__class__.__name__ == "SQLiteBackend"
-        ):
-            schema_overrides = {
-                col: pl.Utf8
-                for col in (columns or self.get_table_schema(table_name).keys())
-            }
-            df = self._backend.read_dataframe(query, schema_overrides=schema_overrides)
-        else:
-            df = self._backend.read_dataframe(query)
+        df = self._backend.read_dataframe(query)
 
         # Post-process to convert types
         for col in df.columns:

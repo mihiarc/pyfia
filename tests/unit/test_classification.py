@@ -18,7 +18,7 @@ from pyfia.filtering.utils.classification import (
     assign_tree_basis,
     validate_classification_columns,
 )
-from pyfia.constants.constants import PlotBasis
+from pyfia.constants import PlotBasis
 
 
 class TestAssignTreeBasis:

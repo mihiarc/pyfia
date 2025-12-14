@@ -7,6 +7,39 @@ Simple utilities for common operations.
 import polars as pl
 
 
+def _enhance_grouping_columns(df: pl.DataFrame) -> pl.DataFrame:
+    """
+    Add descriptive names for common FIA grouping columns.
+
+    Automatically detects grouping columns like FORTYPCD and OWNGRPCD
+    and adds human-readable name columns alongside them.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Results dataframe that may contain grouping columns
+
+    Returns
+    -------
+    pl.DataFrame
+        Dataframe with descriptive name columns added
+    """
+    from ..filtering.utils.grouping_functions import (
+        add_forest_type_group,
+        add_ownership_group_name,
+    )
+
+    # Enhance FORTYPCD if present and not already enhanced
+    if "FORTYPCD" in df.columns and "FOREST_TYPE_GROUP" not in df.columns:
+        df = add_forest_type_group(df)
+
+    # Enhance OWNGRPCD if present and not already enhanced
+    if "OWNGRPCD" in df.columns and "OWNERSHIP_GROUP" not in df.columns:
+        df = add_ownership_group_name(df)
+
+    return df
+
+
 def format_output_columns(
     df: pl.DataFrame,
     estimation_type: str,
@@ -90,6 +123,9 @@ def format_output_columns(
                         .alias(cv_col)
                     ]
                 )
+
+    # Enhance grouping columns with descriptive names
+    df = _enhance_grouping_columns(df)
 
     # Order columns consistently
     priority_cols = ["YEAR", "EVALID", "STATECD", "PLOT", "SPCD"]

@@ -10,7 +10,7 @@ Positive values indicate net carbon sequestration (carbon sink).
 Negative values indicate net carbon emission (carbon source).
 """
 
-from typing import List, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import polars as pl
 
@@ -263,12 +263,13 @@ def _scalar_flux(
         if forest_area > 0:
             acre_se = net_se / forest_area
             result["NET_CARBON_FLUX_ACRE_SE"] = [acre_se]
-            result["NET_CARBON_FLUX_CV"] = [
+            cv_value: Optional[float] = (
                 abs(acre_se / net_acre) * 100 if net_acre != 0 else None
-            ]
+            )
+            result["NET_CARBON_FLUX_CV"] = [cv_value]  # type: ignore[list-item]
         else:
-            result["NET_CARBON_FLUX_ACRE_SE"] = [None]
-            result["NET_CARBON_FLUX_CV"] = [None]
+            result["NET_CARBON_FLUX_ACRE_SE"] = [None]  # type: ignore[list-item]
+            result["NET_CARBON_FLUX_CV"] = [None]  # type: ignore[list-item]
 
     if include_components:
         result["GROWTH_CARBON_TOTAL"] = [growth_c]
@@ -503,7 +504,7 @@ def _empty_result(
     include_components: bool,
 ) -> pl.DataFrame:
     """Return empty DataFrame with correct schema."""
-    schema = {col: pl.Int64 for col in group_cols}
+    schema: Dict[str, Any] = {col: pl.Int64 for col in group_cols}
     schema["NET_CARBON_FLUX_ACRE"] = pl.Float64
     schema["AREA_TOTAL"] = pl.Float64
 

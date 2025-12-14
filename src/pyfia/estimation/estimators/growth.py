@@ -6,7 +6,7 @@ annual tree growth using TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and
 TREE_GRM_BEGIN tables following EVALIDator approach.
 """
 
-from typing import List, Optional, Union
+from typing import List, Literal, Optional, Union
 
 import polars as pl
 
@@ -24,7 +24,7 @@ class GrowthEstimator(GRMBaseEstimator):
     """
 
     @property
-    def component_type(self) -> str:
+    def component_type(self) -> Literal["growth", "mortality", "removals"]:
         """Return 'growth' as the GRM component type."""
         return "growth"
 
@@ -144,7 +144,7 @@ class GrowthEstimator(GRMBaseEstimator):
         data = data.join(grm_begin, left_on="CN", right_on="TRE_CN", how="left")
 
         # Join PTREE for fallback
-        if measure in ("volume", "biomass"):
+        if measure in ("volume", "biomass") and tree_vol_col is not None:
             ptree = tree.select(["CN", tree_vol_col]).rename(
                 {tree_vol_col: f"PTREE_{tree_vol_col}"}
             )
@@ -225,7 +225,9 @@ class GrowthEstimator(GRMBaseEstimator):
         tree_domain = self.config.get("tree_domain")
 
         if area_domain:
-            data = apply_area_filters(data, area_domain)
+            # apply_area_filters expects DataFrame, collect and convert back
+            data_df = apply_area_filters(data.collect(), area_domain)
+            data = data_df.lazy()
 
         if tree_domain:
             try:
@@ -336,7 +338,7 @@ class GrowthEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """Aggregate growth with two-stage aggregation."""
         from ..grm import apply_grm_adjustment
 

@@ -72,12 +72,12 @@ def calculate_ratio_of_means_variance(
         ]
     )
 
-    # Get scalars
-    Y_total = pop_totals["Y_total"][0]
-    A_total = pop_totals["A_total"][0]
+    # Get scalars (uppercase follows Bechtold & Patterson notation)
+    Y_total = pop_totals["Y_total"][0]  # noqa: N806
+    A_total = pop_totals["A_total"][0]  # noqa: N806
 
     # Calculate ratio estimate
-    R = Y_total / A_total if A_total > 0 else 0
+    R = Y_total / A_total if A_total > 0 else 0  # noqa: N806
 
     # Calculate variance components for each stratum
     variance_components = strata_stats.with_columns(
@@ -155,7 +155,7 @@ def calculate_post_stratified_variance(
         [(pl.col("weight_ps") ** 2 * pl.col("var_ps") / pl.col("n_ps")).sum()]
     ).item()
 
-    return weighted_var
+    return float(weighted_var) if weighted_var is not None else 0.0
 
 
 def safe_divide(
@@ -309,8 +309,8 @@ def calculate_domain_variance(
     # Filter to domain
     domain_data = data.filter(pl.col(domain_col) == 1)
 
-    # Calculate domain statistics
-    domain_stats = domain_data.agg(
+    # Calculate domain statistics using select with aggregation expressions
+    domain_stats = domain_data.select(
         [
             pl.count().alias("n_domain"),
             (pl.col(response_col) * pl.col(weight_col)).sum().alias("total_domain"),
@@ -417,9 +417,9 @@ class VarianceCalculator:
             )
         else:
             # Simple variance calculation
-            estimate = data[response_col].mean()
-            variance = data[response_col].var(ddof=1)
-            se = variance**0.5 if variance else 0
-            return pl.DataFrame(
-                {"ESTIMATE": [estimate], "VARIANCE": [variance], "SE": [se]}
-            )
+            mean_val = data[response_col].mean()
+            var_val = data[response_col].var(ddof=1)
+            est = float(mean_val) if mean_val is not None else 0.0  # type: ignore[arg-type]
+            var = float(var_val) if var_val is not None else 0.0  # type: ignore[arg-type]
+            se = var**0.5 if var else 0
+            return pl.DataFrame({"ESTIMATE": [est], "VARIANCE": [var], "SE": [se]})

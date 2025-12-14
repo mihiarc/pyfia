@@ -229,7 +229,7 @@ class AreaEstimator(BaseEstimator):
 
         return cols_to_select, group_cols
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """Aggregate area with stratification, preserving data for variance calculation."""
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -238,7 +238,7 @@ class AreaEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply area adjustment factors based on PROP_BASIS
-        data_with_strat = apply_area_adjustment_factors(
+        data_with_strat = apply_area_adjustment_factors(  # type: ignore[assignment]
             data_with_strat, prop_basis_col="PROP_BASIS", output_col="ADJ_FACTOR_AREA"
         )
 
@@ -272,24 +272,24 @@ class AreaEstimator(BaseEstimator):
         ]
 
         if group_cols:
-            results = data_with_strat.group_by(group_cols).agg(agg_exprs)
+            results_lazy = data_with_strat.group_by(group_cols).agg(agg_exprs)
         else:
-            results = data_with_strat.select(agg_exprs)
+            results_lazy = data_with_strat.select(agg_exprs)
 
-        results = results.collect()
+        results_df: pl.DataFrame = results_lazy.collect()
 
         # Add percentage
         # For grouped data: percentage of total area in groups
         # For ungrouped data: percentage of total land area (using TOTAL_EXPNS)
         if group_cols:
-            total_area = results["AREA_TOTAL"].sum()
-            results = results.with_columns(
+            total_area = results_df["AREA_TOTAL"].sum()
+            results_df = results_df.with_columns(
                 [(100 * pl.col("AREA_TOTAL") / total_area).alias("AREA_PERCENT")]
             )
         else:
             # For ungrouped data, calculate percentage of total land area
             # TOTAL_EXPNS represents the total land area when summed
-            results = results.with_columns(
+            results_df = results_df.with_columns(
                 [
                     (100 * pl.col("AREA_TOTAL") / pl.col("TOTAL_EXPNS")).alias(
                         "AREA_PERCENT"
@@ -297,7 +297,7 @@ class AreaEstimator(BaseEstimator):
                 ]
             )
 
-        return results
+        return results_df
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """Calculate variance for area estimates using proper total estimation formula."""
@@ -336,8 +336,8 @@ class AreaEstimator(BaseEstimator):
 
         if not strat_cols:
             # No stratification columns found, treat as single stratum
-            strat_cols = [pl.lit(1).alias("STRATUM")]
-            cond_data = cond_data.with_columns(strat_cols)
+            strat_expr = [pl.lit(1).alias("STRATUM")]
+            cond_data = cond_data.with_columns(strat_expr)
             strat_cols = ["STRATUM"]
 
         # Step 2: Aggregate to plot level (sum conditions within plot)
@@ -398,8 +398,11 @@ class AreaEstimator(BaseEstimator):
 
             # Calculate SE% using actual area total
             area_total = results["AREA_TOTAL"][0]
+            se_total = var_stats["se_total"]
             se_percent = (
-                100 * var_stats["se_total"] / area_total if area_total > 0 else 0
+                100 * se_total / area_total
+                if area_total is not None and area_total > 0 and se_total is not None
+                else 0
             )
 
             results = results.with_columns(

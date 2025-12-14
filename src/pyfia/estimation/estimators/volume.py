@@ -131,7 +131,7 @@ class VolumeEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """Aggregate volume with two-stage aggregation for correct per-acre estimates.
 
         CRITICAL FIX: This method implements two-stage aggregation following FIA
@@ -148,7 +148,7 @@ class VolumeEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors based on tree size
-        data_with_strat = apply_tree_adjustment_factors(
+        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 

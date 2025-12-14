@@ -214,13 +214,8 @@ class BaseEstimator(ABC):
             valid_plot_cns = valid_plots.rename({"PLT_CN": "CN"})
             plot_df = plot_df.join(valid_plot_cns, on="CN", how="inner")
 
-        # Join condition and plot
-        data = cond_df.join(
-            plot_df.select(["CN", "STATECD", "COUNTYCD", "PLOT"]),
-            left_on="PLT_CN",
-            right_on="CN",
-            how="inner",
-        )
+        # Join condition and plot (all PLOT columns for grouping flexibility)
+        data = cond_df.join(plot_df, left_on="PLT_CN", right_on="CN", how="inner")
 
         return data
 

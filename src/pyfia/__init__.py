@@ -36,14 +36,9 @@ from pyfia.utils.reference_tables import (
 )
 
 # EVALIDator API client - For validation against official USFS estimates
-from pyfia.evalidator import (
-    EVALIDatorClient,
-    EVALIDatorEstimate,
-    EstimateType,
-    ValidationResult,
-    compare_estimates,
-    validate_pyfia_estimate,
-)
+from pyfia.evalidator.client import EVALIDatorClient, EVALIDatorEstimate
+from pyfia.evalidator.estimate_types import EstimateType
+from pyfia.evalidator.validation import ValidationResult, compare_estimates, validate_pyfia_estimate
 
 # Data download - Download FIA data directly from DataMart
 from pyfia.downloader import (

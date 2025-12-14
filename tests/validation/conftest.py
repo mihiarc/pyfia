@@ -148,7 +148,7 @@ def fia_db():
 @pytest.fixture(scope="module")
 def evalidator_client():
     """Create EVALIDator client with extended timeout for validation tests."""
-    from pyfia.evalidator import EVALIDatorClient
+    from pyfia.evalidator.client import EVALIDatorClient
 
     return EVALIDatorClient(timeout=120)
 

@@ -1,7 +1,8 @@
 """Tree count (TPA) estimation validation against EVALIDator."""
 
 from pyfia import FIA, tpa
-from pyfia.evalidator import compare_estimates, EstimateType
+from pyfia.evalidator.estimate_types import EstimateType
+from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
     GEORGIA_STATE_CODE,

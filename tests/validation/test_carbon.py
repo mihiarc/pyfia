@@ -2,7 +2,7 @@
 
 from pyfia import FIA
 from pyfia.estimation.estimators.carbon import carbon
-from pyfia.evalidator import compare_estimates
+from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
     GEORGIA_STATE_CODE,

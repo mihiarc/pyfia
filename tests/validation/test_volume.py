@@ -1,7 +1,7 @@
 """Volume estimation validation against EVALIDator."""
 
 from pyfia import FIA, volume
-from pyfia.evalidator import compare_estimates
+from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
     GEORGIA_STATE_CODE,

@@ -760,7 +760,7 @@ class FIA:
 
         See mortality() function for full parameter documentation.
         """
-        from pyfia.estimation.mortality.mortality import mortality
+        from pyfia.estimation.estimators.mortality import mortality
 
         return mortality(self, **kwargs)
 
@@ -770,6 +770,42 @@ class FIA:
 
         See area() function for full parameter documentation.
         """
-        from pyfia.estimation.area import area
+        from pyfia.estimation.estimators.area import area
 
         return area(self, **kwargs)
+
+    def growth(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate annual growth.
+
+        See growth() function for full parameter documentation.
+        """
+        from pyfia.estimation.estimators.growth import growth
+
+        return growth(self, **kwargs)
+
+    def removals(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate annual removals/harvest.
+
+        See removals() function for full parameter documentation.
+        """
+        from pyfia.estimation.estimators.removals import removals
+
+        return removals(self, **kwargs)
+
+    def carbon_flux(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate annual net carbon flux.
+
+        Calculates net carbon sequestration as:
+            Net Carbon Flux = Growth_carbon - Mortality_carbon - Removals_carbon
+
+        Positive values indicate net carbon sequestration (carbon sink).
+        Negative values indicate net carbon emission (carbon source).
+
+        See carbon_flux() function for full parameter documentation.
+        """
+        from pyfia.estimation.estimators.carbon_flux import carbon_flux
+
+        return carbon_flux(self, **kwargs)

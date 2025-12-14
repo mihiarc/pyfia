@@ -10,11 +10,12 @@ Positive values indicate net carbon sequestration (carbon sink).
 Negative values indicate net carbon emission (carbon source).
 """
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
+from .area import area
 from .growth import growth
 from .mortality import mortality
 from .removals import removals
@@ -50,152 +51,56 @@ def carbon_flux(
     Parameters
     ----------
     db : Union[str, FIA]
-        Database connection or path to FIA database. Can be either a path
-        string to a DuckDB/SQLite file or an existing FIA connection object.
+        Database connection or path to FIA database.
     grp_by : str or list of str, optional
-        Column name(s) to group results by. Can be any column from the
-        FIA tables used in the estimation. Common grouping columns include:
-
-        - 'FORTYPCD': Forest type code
-        - 'OWNGRPCD': Ownership group (10=National Forest, 20=Other Federal,
-          30=State/Local, 40=Private)
-        - 'STATECD': State FIPS code
-        - 'COUNTYCD': County code
-
-        For complete column descriptions, see USDA FIA Database User Guide.
+        Column name(s) to group results by (e.g., 'FORTYPCD', 'OWNGRPCD').
     by_species : bool, default False
-        If True, group results by species code (SPCD). This is a convenience
-        parameter equivalent to adding 'SPCD' to grp_by.
+        If True, group results by species code (SPCD).
     land_type : {'forest', 'timber'}, default 'forest'
-        Land type to include in estimation:
-
-        - 'forest': All forestland
-        - 'timber': Productive timberland only (unreserved, productive)
+        Land type to include in estimation.
     tree_type : {'gs', 'al'}, default 'gs'
-        Tree type to include:
-
-        - 'gs': Growing stock trees (live, merchantable)
-        - 'al': All live trees
+        Tree type: 'gs' for growing stock, 'al' for all live trees.
     tree_domain : str, optional
-        SQL-like filter expression for tree-level filtering.
-        Example: "DIA_MIDPT >= 10.0 AND SPCD == 131".
+        SQL-like filter for tree-level filtering.
     area_domain : str, optional
-        SQL-like filter expression for area/condition-level filtering.
-        Example: "OWNGRPCD == 40 AND FORTYPCD == 161".
+        SQL-like filter for condition-level filtering.
     totals : bool, default True
-        If True, include population-level total estimates in addition to
-        per-acre values.
+        If True, include population-level total estimates.
     variance : bool, default True
-        If True, calculate and include variance with proper covariance
-        propagation. The combined variance accounts for positive covariance
-        between growth, mortality, and removals since they are measured on
-        the same plots.
+        If True, include variance estimates.
     most_recent : bool, default False
-        If True, automatically filter to the most recent evaluation for
-        each state in the database.
+        If True, filter to most recent evaluation.
     include_components : bool, default False
-        If True, include growth, mortality, and removals carbon columns
-        in the output in addition to the net flux.
+        If True, include growth, mortality, removals carbon columns.
 
     Returns
     -------
     pl.DataFrame
-        Carbon flux estimates with the following columns:
-
-        - **NET_CARBON_FLUX_ACRE** : float
-            Net annual carbon flux per acre (tons C/acre/year)
-        - **NET_CARBON_FLUX_TOTAL** : float (if totals=True)
-            Total annual carbon flux (tons C/year)
-        - **NET_CARBON_FLUX_SE** : float (if variance=True)
-            Standard error of flux estimate
-        - **NET_CARBON_FLUX_SE_PCT** : float (if variance=True)
-            Standard error as percentage of estimate
-        - **GROWTH_CARBON_TOTAL** : float (if include_components=True)
-            Annual carbon accumulation from growth (tons C/year)
-        - **MORT_CARBON_TOTAL** : float (if include_components=True)
-            Annual carbon loss from mortality (tons C/year)
-        - **REMV_CARBON_TOTAL** : float (if include_components=True)
-            Annual carbon loss from removals (tons C/year)
-        - **AREA_TOTAL** : float
-            Total area (acres) represented by the estimation
-        - **N_PLOTS** : int
-            Number of FIA plots included in the estimation
-        - **YEAR** : int
-            Representative year for the estimation
-        - **[grouping columns]** : various
-            Any columns specified in grp_by or from by_species
-
-    See Also
-    --------
-    growth : Estimate annual growth using GRM tables
-    mortality : Estimate annual mortality using GRM tables
-    removals : Estimate annual removals/harvest using GRM tables
-    biomass : Estimate biomass per acre (current inventory)
-
-    Examples
-    --------
-    Basic carbon flux estimation:
-
-    >>> results = carbon_flux(db)
-    >>> flux = results['NET_CARBON_FLUX_TOTAL'][0]
-    >>> if flux > 0:
-    ...     print(f"Carbon sink: {flux/1e6:.2f} million tons C/year")
-    ... else:
-    ...     print(f"Carbon source: {abs(flux)/1e6:.2f} million tons C/year")
-
-    Carbon flux by ownership:
-
-    >>> results = carbon_flux(db, grp_by="OWNGRPCD", include_components=True)
-    >>> for row in results.iter_rows(named=True):
-    ...     print(f"Ownership {row['OWNGRPCD']}: {row['NET_CARBON_FLUX_TOTAL']:,.0f} tons C/year")
-
-    Carbon flux on timberland by forest type:
-
-    >>> results = carbon_flux(
-    ...     db,
-    ...     grp_by="FORTYPCD",
-    ...     land_type="timber",
-    ...     include_components=True
-    ... )
+        Carbon flux estimates with columns:
+        - NET_CARBON_FLUX_ACRE: Net carbon per acre (tons C/acre/year)
+        - NET_CARBON_FLUX_TOTAL: Total net carbon (tons C/year)
+        - AREA_TOTAL: Forest area (acres)
+        - N_PLOTS: Number of plots
+        - YEAR: Representative year
 
     Notes
     -----
-    Carbon is calculated as 47% of dry biomass following IPCC guidelines.
-    This is applied uniformly to growth, mortality, and removals biomass.
-
-    The variance calculation accounts for covariance between growth,
-    mortality, and removals since they are measured on the same plots:
-
-        Var(Net) = Var(G) + Var(M) + Var(R) - 2*Cov(G,M) - 2*Cov(G,R) + 2*Cov(M,R)
-
-    Due to positive covariance, the combined variance is typically less
-    than the sum of individual variances.
-
-    **Important:** This function requires GRM (Growth-Removal-Mortality)
-    tables in the database. These tables are included in FIA evaluations
-    that support growth, removal, and mortality estimation.
-
-    **Interpretation:**
-    - Positive net flux = forest is a carbon sink (sequestering carbon)
-    - Negative net flux = forest is a carbon source (emitting carbon)
-    - Typical healthy forests show positive net flux
-
-    Warnings
-    --------
-    The current implementation uses a simplified variance calculation that
-    sums component variances. Full covariance-based variance calculation
-    will be implemented in a future release. The reported SE may be
-    conservative (slightly overestimated).
-
-    Raises
-    ------
-    ValueError
-        If TREE_GRM_COMPONENT or TREE_GRM_MIDPT tables are not found
-        in the database.
+    Per-acre values are calculated as NET_TOTAL / AREA to ensure consistency,
+    since growth, mortality, and removals use different base areas internally.
     """
-    # Get biomass estimates from each component
-    # All three estimators support measure="biomass"
+    # Normalize grouping columns
+    group_cols = _normalize_group_cols(grp_by, by_species)
 
+    # Get forest area for per-acre calculation
+    area_result = area(
+        db=db,
+        grp_by=grp_by,
+        land_type=land_type,
+        area_domain=area_domain,
+        most_recent=most_recent,
+    )
+
+    # Get biomass totals from each GRM component
     growth_result = growth(
         db=db,
         grp_by=grp_by,
@@ -205,7 +110,7 @@ def carbon_flux(
         measure="biomass",
         tree_domain=tree_domain,
         area_domain=area_domain,
-        totals=totals,
+        totals=True,  # Always need totals
         variance=variance,
         most_recent=most_recent,
     )
@@ -219,7 +124,7 @@ def carbon_flux(
         measure="biomass",
         tree_domain=tree_domain,
         area_domain=area_domain,
-        totals=totals,
+        totals=True,
         variance=variance,
         most_recent=most_recent,
     )
@@ -233,16 +138,14 @@ def carbon_flux(
         measure="biomass",
         tree_domain=tree_domain,
         area_domain=area_domain,
-        totals=totals,
+        totals=True,
         variance=variance,
         most_recent=most_recent,
     )
 
-    # Determine grouping columns for joining
-    group_cols = _get_group_cols(grp_by, by_species)
-
     # Calculate carbon flux
-    results = _calculate_carbon_flux(
+    return _calculate_carbon_flux(
+        area_result=area_result,
         growth_result=growth_result,
         mortality_result=mortality_result,
         removals_result=removals_result,
@@ -252,14 +155,12 @@ def carbon_flux(
         include_components=include_components,
     )
 
-    return results
 
-
-def _get_group_cols(
+def _normalize_group_cols(
     grp_by: Optional[Union[str, List[str]]], by_species: bool
 ) -> List[str]:
-    """Extract grouping columns from parameters."""
-    group_cols = []
+    """Normalize grouping columns to a list."""
+    group_cols: List[str] = []
 
     if grp_by:
         if isinstance(grp_by, str):
@@ -274,6 +175,7 @@ def _get_group_cols(
 
 
 def _calculate_carbon_flux(
+    area_result: pl.DataFrame,
     growth_result: pl.DataFrame,
     mortality_result: pl.DataFrame,
     removals_result: pl.DataFrame,
@@ -282,19 +184,15 @@ def _calculate_carbon_flux(
     variance: bool,
     include_components: bool,
 ) -> pl.DataFrame:
-    """
-    Calculate net carbon flux from component estimates.
-
-    Net Flux = Growth - Mortality - Removals
-    (all converted to carbon using 0.47 factor)
-    """
+    """Calculate net carbon flux from component estimates."""
     # Handle empty results
-    if growth_result.is_empty():
-        return _empty_flux_result(group_cols, totals, variance, include_components)
+    if growth_result.is_empty() or area_result.is_empty():
+        return _empty_result(group_cols, totals, variance, include_components)
 
-    # If no grouping, simple scalar calculation
+    # No grouping: simple scalar calculation
     if not group_cols:
-        return _calculate_scalar_flux(
+        return _scalar_flux(
+            area_result,
             growth_result,
             mortality_result,
             removals_result,
@@ -303,8 +201,9 @@ def _calculate_carbon_flux(
             include_components,
         )
 
-    # With grouping, join on group columns
-    return _calculate_grouped_flux(
+    # With grouping: join and calculate
+    return _grouped_flux(
+        area_result,
         growth_result,
         mortality_result,
         removals_result,
@@ -315,7 +214,8 @@ def _calculate_carbon_flux(
     )
 
 
-def _calculate_scalar_flux(
+def _scalar_flux(
+    area_result: pl.DataFrame,
     growth_result: pl.DataFrame,
     mortality_result: pl.DataFrame,
     removals_result: pl.DataFrame,
@@ -323,97 +223,67 @@ def _calculate_scalar_flux(
     variance: bool,
     include_components: bool,
 ) -> pl.DataFrame:
-    """Calculate carbon flux when no grouping is specified."""
-    # Extract values (biomass in tons, convert to carbon)
-    growth_acre = _safe_get(growth_result, "GROWTH_ACRE", 0.0) * CARBON_FRACTION
-    mort_acre = _safe_get(mortality_result, "MORT_ACRE", 0.0) * CARBON_FRACTION
-    remv_acre = _safe_get(removals_result, "REMOVALS_PER_ACRE", 0.0) * CARBON_FRACTION
+    """Calculate carbon flux without grouping."""
+    # Get totals (biomass in tons)
+    growth_total = _safe_get(growth_result, "GROWTH_TOTAL", 0.0)
+    mort_total = _safe_get(mortality_result, "MORT_TOTAL", 0.0)
+    remv_total = _safe_get(removals_result, "REMOVALS_TOTAL", 0.0)
+    forest_area = _safe_get(area_result, "AREA", 0.0)
+
+    # Convert to carbon
+    growth_c = growth_total * CARBON_FRACTION
+    mort_c = mort_total * CARBON_FRACTION
+    remv_c = remv_total * CARBON_FRACTION
 
     # Net flux = growth - mortality - removals
-    net_flux_acre = growth_acre - mort_acre - remv_acre
+    net_total = growth_c - mort_c - remv_c
+    net_acre = net_total / forest_area if forest_area > 0 else 0.0
 
-    result_data: Dict = {
-        "NET_CARBON_FLUX_ACRE": [net_flux_acre],
+    result = {
+        "NET_CARBON_FLUX_ACRE": [net_acre],
+        "AREA_TOTAL": [forest_area],
     }
 
     if totals:
-        growth_total = _safe_get(growth_result, "GROWTH_TOTAL", 0.0) * CARBON_FRACTION
-        mort_total = _safe_get(mortality_result, "MORT_TOTAL", 0.0) * CARBON_FRACTION
-        remv_total = _safe_get(removals_result, "REMOVALS_TOTAL", 0.0) * CARBON_FRACTION
-
-        net_flux_total = growth_total - mort_total - remv_total
-        result_data["NET_CARBON_FLUX_TOTAL"] = [net_flux_total]
-
-        # Area from growth result (should be consistent across all)
-        area_total = _safe_get(growth_result, "AREA_TOTAL", 0.0)
-        result_data["AREA_TOTAL"] = [area_total]
+        result["NET_CARBON_FLUX_TOTAL"] = [net_total]
 
     if variance:
-        # Calculate combined variance
-        # For sum/difference: Var(G - M - R) = Var(G) + Var(M) + Var(R)
-        # (conservative estimate without covariance - actual variance is lower)
-        growth_se = _safe_get(growth_result, "GROWTH_ACRE_SE", 0.0) * CARBON_FRACTION
-        mort_se = _safe_get(mortality_result, "MORT_ACRE_SE", 0.0) * CARBON_FRACTION
-        remv_se = (
-            _safe_get(removals_result, "REMOVALS_PER_ACRE_SE", 0.0) * CARBON_FRACTION
-        )
+        # Combined SE (sum of variances - conservative)
+        g_se = _safe_get(growth_result, "GROWTH_TOTAL_SE", 0.0) * CARBON_FRACTION
+        m_se = _safe_get(mortality_result, "MORT_TOTAL_SE", 0.0) * CARBON_FRACTION
+        r_se = _safe_get(removals_result, "REMOVALS_TOTAL_SE", 0.0) * CARBON_FRACTION
 
-        # Sum of variances (conservative - ignores covariance)
-        combined_var_acre = growth_se**2 + mort_se**2 + remv_se**2
-        net_flux_acre_se = combined_var_acre**0.5
-
-        result_data["NET_CARBON_FLUX_SE"] = [net_flux_acre_se]
-
-        # SE as percentage
-        if abs(net_flux_acre) > 0:
-            se_pct = abs(net_flux_acre_se / net_flux_acre) * 100
-        else:
-            se_pct = None
-        result_data["NET_CARBON_FLUX_SE_PCT"] = [se_pct]
+        combined_var = g_se**2 + m_se**2 + r_se**2
+        net_se = combined_var**0.5
 
         if totals:
-            growth_total_se = (
-                _safe_get(growth_result, "GROWTH_TOTAL_SE", 0.0) * CARBON_FRACTION
-            )
-            mort_total_se = (
-                _safe_get(mortality_result, "MORT_TOTAL_SE", 0.0) * CARBON_FRACTION
-            )
-            remv_total_se = (
-                _safe_get(removals_result, "REMOVALS_TOTAL_SE", 0.0) * CARBON_FRACTION
-            )
+            result["NET_CARBON_FLUX_TOTAL_SE"] = [net_se]
 
-            combined_var_total = (
-                growth_total_se**2 + mort_total_se**2 + remv_total_se**2
-            )
-            result_data["NET_CARBON_FLUX_TOTAL_SE"] = [combined_var_total**0.5]
+        # Per-acre SE
+        if forest_area > 0:
+            acre_se = net_se / forest_area
+            result["NET_CARBON_FLUX_ACRE_SE"] = [acre_se]
+            result["NET_CARBON_FLUX_CV"] = [
+                abs(acre_se / net_acre) * 100 if net_acre != 0 else None
+            ]
+        else:
+            result["NET_CARBON_FLUX_ACRE_SE"] = [None]
+            result["NET_CARBON_FLUX_CV"] = [None]
 
     if include_components:
-        result_data["GROWTH_CARBON_ACRE"] = [growth_acre]
-        result_data["MORT_CARBON_ACRE"] = [mort_acre]
-        result_data["REMV_CARBON_ACRE"] = [remv_acre]
+        result["GROWTH_CARBON_TOTAL"] = [growth_c]
+        result["MORT_CARBON_TOTAL"] = [mort_c]
+        result["REMV_CARBON_TOTAL"] = [remv_c]
 
-        if totals:
-            result_data["GROWTH_CARBON_TOTAL"] = [
-                _safe_get(growth_result, "GROWTH_TOTAL", 0.0) * CARBON_FRACTION
-            ]
-            result_data["MORT_CARBON_TOTAL"] = [
-                _safe_get(mortality_result, "MORT_TOTAL", 0.0) * CARBON_FRACTION
-            ]
-            result_data["REMV_CARBON_TOTAL"] = [
-                _safe_get(removals_result, "REMOVALS_TOTAL", 0.0) * CARBON_FRACTION
-            ]
+    # Metadata
+    result["N_PLOTS"] = [int(_safe_get(growth_result, "N_PLOTS", 0))]
+    result["YEAR"] = [int(_safe_get(growth_result, "YEAR", 2023))]
 
-    # Add metadata
-    n_plots = _safe_get(growth_result, "N_PLOTS", 0)
-    year = _safe_get(growth_result, "YEAR", 2023)
-
-    result_data["N_PLOTS"] = [n_plots]
-    result_data["YEAR"] = [year]
-
-    return pl.DataFrame(result_data)
+    return pl.DataFrame(result)
 
 
-def _calculate_grouped_flux(
+def _grouped_flux(
+    area_result: pl.DataFrame,
     growth_result: pl.DataFrame,
     mortality_result: pl.DataFrame,
     removals_result: pl.DataFrame,
@@ -423,235 +293,225 @@ def _calculate_grouped_flux(
     include_components: bool,
 ) -> pl.DataFrame:
     """Calculate carbon flux with grouping."""
-    # Select columns for joining
-    growth_cols = group_cols + ["GROWTH_ACRE", "GROWTH_TOTAL", "AREA_TOTAL", "N_PLOTS"]
-    if variance:
-        growth_cols.extend(["GROWTH_ACRE_SE", "GROWTH_TOTAL_SE"])
+    # Select relevant columns from each result
+    # Area column is named "AREA" in area estimator output, rename to AREA_TOTAL
+    area_cols = [c for c in group_cols if c in area_result.columns]
+    if "AREA" in area_result.columns:
+        area_df = area_result.select(area_cols + ["AREA"]).rename({"AREA": "AREA_TOTAL"})
+    else:
+        area_df = area_result.select([c for c in area_cols + ["AREA_TOTAL"] if c in area_result.columns])
 
-    # Filter to available columns
-    growth_cols = [c for c in growth_cols if c in growth_result.columns]
-    growth_df = growth_result.select(growth_cols)
+    growth_cols = [c for c in group_cols if c in growth_result.columns] + [
+        "GROWTH_TOTAL",
+        "N_PLOTS",
+        "YEAR",
+    ]
+    if variance and "GROWTH_TOTAL_SE" in growth_result.columns:
+        growth_cols.append("GROWTH_TOTAL_SE")
+    growth_df = growth_result.select(
+        [c for c in growth_cols if c in growth_result.columns]
+    )
 
-    mort_cols = group_cols + ["MORT_ACRE", "MORT_TOTAL"]
-    if variance:
-        mort_cols.extend(["MORT_ACRE_SE", "MORT_TOTAL_SE"])
-    mort_cols = [c for c in mort_cols if c in mortality_result.columns]
-    mort_df = mortality_result.select(mort_cols)
+    mort_cols = [c for c in group_cols if c in mortality_result.columns] + ["MORT_TOTAL"]
+    if variance and "MORT_TOTAL_SE" in mortality_result.columns:
+        mort_cols.append("MORT_TOTAL_SE")
+    mort_df = mortality_result.select(
+        [c for c in mort_cols if c in mortality_result.columns]
+    )
 
-    remv_cols = group_cols + ["REMOVALS_PER_ACRE", "REMOVALS_TOTAL"]
-    if variance:
-        remv_cols.extend(["REMOVALS_PER_ACRE_SE", "REMOVALS_TOTAL_SE"])
-    remv_cols = [c for c in remv_cols if c in removals_result.columns]
-    remv_df = removals_result.select(remv_cols)
+    remv_cols = [c for c in group_cols if c in removals_result.columns] + [
+        "REMOVALS_TOTAL"
+    ]
+    if variance and "REMOVALS_TOTAL_SE" in removals_result.columns:
+        remv_cols.append("REMOVALS_TOTAL_SE")
+    remv_df = removals_result.select(
+        [c for c in remv_cols if c in removals_result.columns]
+    )
 
-    # Ensure consistent data types for join columns across all DataFrames
-    # This is necessary because different estimators might have different dtypes
+    # Cast group columns to consistent types
     for col in group_cols:
-        if col in growth_df.columns and col in mort_df.columns:
-            # Cast to the most common type (int64 for codes)
-            if growth_df[col].dtype != mort_df[col].dtype:
-                growth_df = growth_df.with_columns(pl.col(col).cast(pl.Int64))
-                mort_df = mort_df.with_columns(pl.col(col).cast(pl.Int64))
-        if col in growth_df.columns and col in remv_df.columns:
-            if col in growth_df.columns:
-                growth_df = growth_df.with_columns(pl.col(col).cast(pl.Int64))
-            if col in remv_df.columns:
-                remv_df = remv_df.with_columns(pl.col(col).cast(pl.Int64))
+        for df_name, df in [
+            ("area", area_df),
+            ("growth", growth_df),
+            ("mort", mort_df),
+            ("remv", remv_df),
+        ]:
+            if col in df.columns:
+                if df_name == "area":
+                    area_df = df.with_columns(pl.col(col).cast(pl.Int64))
+                elif df_name == "growth":
+                    growth_df = df.with_columns(pl.col(col).cast(pl.Int64))
+                elif df_name == "mort":
+                    mort_df = df.with_columns(pl.col(col).cast(pl.Int64))
+                else:
+                    remv_df = df.with_columns(pl.col(col).cast(pl.Int64))
 
-    # Join on group columns using coalesce strategy to avoid duplicate columns
-    result = growth_df.join(
-        mort_df, on=group_cols, how="outer_coalesce", suffix="_mort"
-    )
-    result = result.join(
-        remv_df, on=group_cols, how="outer_coalesce", suffix="_remv"
-    )
+    # Join on group columns
+    join_cols = [c for c in group_cols if c in growth_df.columns]
 
-    # Fill nulls with zeros
+    if join_cols:
+        result = growth_df
+        if join_cols[0] in area_df.columns:
+            result = result.join(area_df, on=join_cols, how="left")
+        if join_cols[0] in mort_df.columns:
+            result = result.join(mort_df, on=join_cols, how="left")
+        if join_cols[0] in remv_df.columns:
+            result = result.join(remv_df, on=join_cols, how="left")
+    else:
+        # No common grouping columns, use cross join
+        result = growth_df
+
+    # Fill nulls
     result = result.with_columns(
         [
-            pl.col("GROWTH_ACRE").fill_null(0.0),
             pl.col("GROWTH_TOTAL").fill_null(0.0),
-            pl.col("MORT_ACRE").fill_null(0.0),
             pl.col("MORT_TOTAL").fill_null(0.0),
-            pl.col("REMOVALS_PER_ACRE").fill_null(0.0),
             pl.col("REMOVALS_TOTAL").fill_null(0.0),
+            pl.col("AREA_TOTAL").fill_null(0.0),
         ]
     )
 
-    # Calculate net carbon flux (convert biomass to carbon)
+    # Calculate carbon totals
     result = result.with_columns(
         [
-            (
-                (
-                    pl.col("GROWTH_ACRE")
-                    - pl.col("MORT_ACRE")
-                    - pl.col("REMOVALS_PER_ACRE")
-                )
-                * CARBON_FRACTION
-            ).alias("NET_CARBON_FLUX_ACRE"),
+            (pl.col("GROWTH_TOTAL") * CARBON_FRACTION).alias("_growth_c"),
+            (pl.col("MORT_TOTAL") * CARBON_FRACTION).alias("_mort_c"),
+            (pl.col("REMOVALS_TOTAL") * CARBON_FRACTION).alias("_remv_c"),
         ]
     )
 
-    if totals:
-        result = result.with_columns(
-            [
-                (
-                    (
-                        pl.col("GROWTH_TOTAL")
-                        - pl.col("MORT_TOTAL")
-                        - pl.col("REMOVALS_TOTAL")
-                    )
-                    * CARBON_FRACTION
-                ).alias("NET_CARBON_FLUX_TOTAL"),
-            ]
-        )
+    # Net carbon flux
+    result = result.with_columns(
+        [
+            (pl.col("_growth_c") - pl.col("_mort_c") - pl.col("_remv_c")).alias(
+                "NET_CARBON_FLUX_TOTAL"
+            ),
+        ]
+    )
 
+    # Per-acre (from total / area)
+    result = result.with_columns(
+        [
+            pl.when(pl.col("AREA_TOTAL") > 0)
+            .then(pl.col("NET_CARBON_FLUX_TOTAL") / pl.col("AREA_TOTAL"))
+            .otherwise(0.0)
+            .alias("NET_CARBON_FLUX_ACRE"),
+        ]
+    )
+
+    # Variance
     if variance:
-        # Fill SE nulls
-        result = result.with_columns(
-            [
-                pl.col("GROWTH_ACRE_SE").fill_null(0.0),
-                pl.col("MORT_ACRE_SE").fill_null(0.0),
-                pl.col("REMOVALS_PER_ACRE_SE").fill_null(0.0),
-            ]
-        )
-
-        # Combined SE (sum of variances, conservative)
-        result = result.with_columns(
-            [
-                (
-                    (
-                        (pl.col("GROWTH_ACRE_SE") * CARBON_FRACTION) ** 2
-                        + (pl.col("MORT_ACRE_SE") * CARBON_FRACTION) ** 2
-                        + (pl.col("REMOVALS_PER_ACRE_SE") * CARBON_FRACTION) ** 2
-                    )
-                    ** 0.5
-                ).alias("NET_CARBON_FLUX_SE"),
-            ]
-        )
-
-        # SE as percentage
-        result = result.with_columns(
-            [
-                pl.when(pl.col("NET_CARBON_FLUX_ACRE").abs() > 0)
-                .then(
-                    (
-                        pl.col("NET_CARBON_FLUX_SE")
-                        / pl.col("NET_CARBON_FLUX_ACRE").abs()
-                    )
-                    * 100
+        se_cols = []
+        if "GROWTH_TOTAL_SE" in result.columns:
+            se_cols.append(
+                (pl.col("GROWTH_TOTAL_SE").fill_null(0.0) * CARBON_FRACTION).alias(
+                    "_g_se"
                 )
-                .otherwise(None)
-                .alias("NET_CARBON_FLUX_SE_PCT"),
-            ]
-        )
-
-        if totals:
-            result = result.with_columns(
-                [
-                    pl.col("GROWTH_TOTAL_SE").fill_null(0.0),
-                    pl.col("MORT_TOTAL_SE").fill_null(0.0),
-                    pl.col("REMOVALS_TOTAL_SE").fill_null(0.0),
-                ]
+            )
+        if "MORT_TOTAL_SE" in result.columns:
+            se_cols.append(
+                (pl.col("MORT_TOTAL_SE").fill_null(0.0) * CARBON_FRACTION).alias(
+                    "_m_se"
+                )
+            )
+        if "REMOVALS_TOTAL_SE" in result.columns:
+            se_cols.append(
+                (pl.col("REMOVALS_TOTAL_SE").fill_null(0.0) * CARBON_FRACTION).alias(
+                    "_r_se"
+                )
             )
 
+        if se_cols:
+            result = result.with_columns(se_cols)
             result = result.with_columns(
                 [
                     (
-                        (
-                            (pl.col("GROWTH_TOTAL_SE") * CARBON_FRACTION) ** 2
-                            + (pl.col("MORT_TOTAL_SE") * CARBON_FRACTION) ** 2
-                            + (pl.col("REMOVALS_TOTAL_SE") * CARBON_FRACTION) ** 2
-                        )
-                        ** 0.5
-                    ).alias("NET_CARBON_FLUX_TOTAL_SE"),
+                        pl.col("_g_se").fill_null(0.0) ** 2
+                        + pl.col("_m_se").fill_null(0.0) ** 2
+                        + pl.col("_r_se").fill_null(0.0) ** 2
+                    )
+                    .sqrt()
+                    .alias("NET_CARBON_FLUX_TOTAL_SE"),
                 ]
             )
 
-    if include_components:
-        result = result.with_columns(
-            [
-                (pl.col("GROWTH_ACRE") * CARBON_FRACTION).alias("GROWTH_CARBON_ACRE"),
-                (pl.col("MORT_ACRE") * CARBON_FRACTION).alias("MORT_CARBON_ACRE"),
-                (pl.col("REMOVALS_PER_ACRE") * CARBON_FRACTION).alias(
-                    "REMV_CARBON_ACRE"
-                ),
-            ]
-        )
-
-        if totals:
             result = result.with_columns(
                 [
-                    (pl.col("GROWTH_TOTAL") * CARBON_FRACTION).alias(
-                        "GROWTH_CARBON_TOTAL"
-                    ),
-                    (pl.col("MORT_TOTAL") * CARBON_FRACTION).alias("MORT_CARBON_TOTAL"),
-                    (pl.col("REMOVALS_TOTAL") * CARBON_FRACTION).alias(
-                        "REMV_CARBON_TOTAL"
-                    ),
+                    pl.when(pl.col("AREA_TOTAL") > 0)
+                    .then(pl.col("NET_CARBON_FLUX_TOTAL_SE") / pl.col("AREA_TOTAL"))
+                    .otherwise(None)
+                    .alias("NET_CARBON_FLUX_ACRE_SE"),
+                    pl.when(pl.col("NET_CARBON_FLUX_ACRE").abs() > 0)
+                    .then(
+                        (
+                            pl.col("NET_CARBON_FLUX_TOTAL_SE")
+                            / pl.col("AREA_TOTAL")
+                            / pl.col("NET_CARBON_FLUX_ACRE").abs()
+                        )
+                        * 100
+                    )
+                    .otherwise(None)
+                    .alias("NET_CARBON_FLUX_CV"),
                 ]
             )
 
-    # Select final columns
-    output_cols = group_cols + ["NET_CARBON_FLUX_ACRE"]
+    # Select output columns
+    output_cols = group_cols + ["NET_CARBON_FLUX_ACRE", "AREA_TOTAL"]
 
     if totals:
         output_cols.append("NET_CARBON_FLUX_TOTAL")
 
     if variance:
-        output_cols.extend(["NET_CARBON_FLUX_SE", "NET_CARBON_FLUX_SE_PCT"])
-        if totals:
+        if "NET_CARBON_FLUX_ACRE_SE" in result.columns:
+            output_cols.append("NET_CARBON_FLUX_ACRE_SE")
+        if "NET_CARBON_FLUX_CV" in result.columns:
+            output_cols.append("NET_CARBON_FLUX_CV")
+        if totals and "NET_CARBON_FLUX_TOTAL_SE" in result.columns:
             output_cols.append("NET_CARBON_FLUX_TOTAL_SE")
 
     if include_components:
-        output_cols.extend(
-            ["GROWTH_CARBON_ACRE", "MORT_CARBON_ACRE", "REMV_CARBON_ACRE"]
+        result = result.with_columns(
+            [
+                pl.col("_growth_c").alias("GROWTH_CARBON_TOTAL"),
+                pl.col("_mort_c").alias("MORT_CARBON_TOTAL"),
+                pl.col("_remv_c").alias("REMV_CARBON_TOTAL"),
+            ]
         )
-        if totals:
-            output_cols.extend(
-                ["GROWTH_CARBON_TOTAL", "MORT_CARBON_TOTAL", "REMV_CARBON_TOTAL"]
-            )
+        output_cols.extend(["GROWTH_CARBON_TOTAL", "MORT_CARBON_TOTAL", "REMV_CARBON_TOTAL"])
 
-    # Add metadata columns if available
-    if "AREA_TOTAL" in result.columns:
-        output_cols.append("AREA_TOTAL")
     if "N_PLOTS" in result.columns:
         output_cols.append("N_PLOTS")
+    if "YEAR" in result.columns:
+        output_cols.append("YEAR")
 
-    # Filter to available columns
     output_cols = [c for c in output_cols if c in result.columns]
-
     return result.select(output_cols)
 
 
-def _empty_flux_result(
+def _empty_result(
     group_cols: List[str],
     totals: bool,
     variance: bool,
     include_components: bool,
 ) -> pl.DataFrame:
-    """Return empty DataFrame with correct schema when no data available."""
-    schema: Dict = {col: pl.Utf8 for col in group_cols}
+    """Return empty DataFrame with correct schema."""
+    schema = {col: pl.Int64 for col in group_cols}
     schema["NET_CARBON_FLUX_ACRE"] = pl.Float64
+    schema["AREA_TOTAL"] = pl.Float64
 
     if totals:
         schema["NET_CARBON_FLUX_TOTAL"] = pl.Float64
-        schema["AREA_TOTAL"] = pl.Float64
 
     if variance:
-        schema["NET_CARBON_FLUX_SE"] = pl.Float64
-        schema["NET_CARBON_FLUX_SE_PCT"] = pl.Float64
+        schema["NET_CARBON_FLUX_ACRE_SE"] = pl.Float64
+        schema["NET_CARBON_FLUX_CV"] = pl.Float64
         if totals:
             schema["NET_CARBON_FLUX_TOTAL_SE"] = pl.Float64
 
     if include_components:
-        schema["GROWTH_CARBON_ACRE"] = pl.Float64
-        schema["MORT_CARBON_ACRE"] = pl.Float64
-        schema["REMV_CARBON_ACRE"] = pl.Float64
-        if totals:
-            schema["GROWTH_CARBON_TOTAL"] = pl.Float64
-            schema["MORT_CARBON_TOTAL"] = pl.Float64
-            schema["REMV_CARBON_TOTAL"] = pl.Float64
+        schema["GROWTH_CARBON_TOTAL"] = pl.Float64
+        schema["MORT_CARBON_TOTAL"] = pl.Float64
+        schema["REMV_CARBON_TOTAL"] = pl.Float64
 
     schema["N_PLOTS"] = pl.Int64
     schema["YEAR"] = pl.Int64
@@ -660,12 +520,8 @@ def _empty_flux_result(
 
 
 def _safe_get(df: pl.DataFrame, col: str, default: float = 0.0) -> float:
-    """Safely get first value from column, returning default if not available."""
+    """Safely get first value from column."""
     if df.is_empty() or col not in df.columns:
         return default
-
     val = df[col][0]
-    if val is None:
-        return default
-
-    return float(val)
+    return float(val) if val is not None else default

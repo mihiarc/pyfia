@@ -297,9 +297,13 @@ def _grouped_flux(
     # Area column is named "AREA" in area estimator output, rename to AREA_TOTAL
     area_cols = [c for c in group_cols if c in area_result.columns]
     if "AREA" in area_result.columns:
-        area_df = area_result.select(area_cols + ["AREA"]).rename({"AREA": "AREA_TOTAL"})
+        area_df = area_result.select(area_cols + ["AREA"]).rename(
+            {"AREA": "AREA_TOTAL"}
+        )
     else:
-        area_df = area_result.select([c for c in area_cols + ["AREA_TOTAL"] if c in area_result.columns])
+        area_df = area_result.select(
+            [c for c in area_cols + ["AREA_TOTAL"] if c in area_result.columns]
+        )
 
     growth_cols = [c for c in group_cols if c in growth_result.columns] + [
         "GROWTH_TOTAL",
@@ -312,7 +316,9 @@ def _grouped_flux(
         [c for c in growth_cols if c in growth_result.columns]
     )
 
-    mort_cols = [c for c in group_cols if c in mortality_result.columns] + ["MORT_TOTAL"]
+    mort_cols = [c for c in group_cols if c in mortality_result.columns] + [
+        "MORT_TOTAL"
+    ]
     if variance and "MORT_TOTAL_SE" in mortality_result.columns:
         mort_cols.append("MORT_TOTAL_SE")
     mort_df = mortality_result.select(
@@ -477,7 +483,9 @@ def _grouped_flux(
                 pl.col("_remv_c").alias("REMV_CARBON_TOTAL"),
             ]
         )
-        output_cols.extend(["GROWTH_CARBON_TOTAL", "MORT_CARBON_TOTAL", "REMV_CARBON_TOTAL"])
+        output_cols.extend(
+            ["GROWTH_CARBON_TOTAL", "MORT_CARBON_TOTAL", "REMV_CARBON_TOTAL"]
+        )
 
     if "N_PLOTS" in result.columns:
         output_cols.append("N_PLOTS")

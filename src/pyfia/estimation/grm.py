@@ -7,12 +7,12 @@ TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and TREE_GRM_BEGIN tables.
 """
 
 from dataclasses import dataclass
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import List, Literal, Optional
 
 import polars as pl
 
 # Re-export shared variance function for backward compatibility
-from .variance import calculate_ratio_variance
+from .variance import calculate_ratio_variance  # noqa: F401
 
 # Valid tree types for GRM estimation
 TreeType = Literal["gs", "al", "sl", "live", "sawtimber"]

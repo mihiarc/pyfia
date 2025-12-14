@@ -82,38 +82,48 @@ class MortalityEstimator(GRMBaseEstimator):
         measure = self.config.get("measure", "volume")
 
         if measure == "volume":
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * pl.col("VOLCFNET").cast(pl.Float64)
-                ).alias("MORT_VALUE")
-            ])
+            data = data.with_columns(
+                [
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * pl.col("VOLCFNET").cast(pl.Float64)
+                    ).alias("MORT_VALUE")
+                ]
+            )
         elif measure == "sawlog":
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * pl.col("VOLCSNET").cast(pl.Float64)
-                ).alias("MORT_VALUE")
-            ])
+            data = data.with_columns(
+                [
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * pl.col("VOLCSNET").cast(pl.Float64)
+                    ).alias("MORT_VALUE")
+                ]
+            )
         elif measure == "biomass":
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(pl.Float64)
-                    / 2000.0
-                ).alias("MORT_VALUE")
-            ])
+            data = data.with_columns(
+                [
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(
+                            pl.Float64
+                        )
+                        / 2000.0
+                    ).alias("MORT_VALUE")
+                ]
+            )
         elif measure == "basal_area":
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * (pl.col("DIA").cast(pl.Float64) ** 2 * 0.005454154)
-                ).alias("MORT_VALUE")
-            ])
+            data = data.with_columns(
+                [
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * (pl.col("DIA").cast(pl.Float64) ** 2 * 0.005454154)
+                    ).alias("MORT_VALUE")
+                ]
+            )
         else:  # tpa or count
-            data = data.with_columns([
-                pl.col("TPA_UNADJ").cast(pl.Float64).alias("MORT_VALUE")
-            ])
+            data = data.with_columns(
+                [pl.col("TPA_UNADJ").cast(pl.Float64).alias("MORT_VALUE")]
+            )
 
         # Create annual column for consistency
         data = data.with_columns([pl.col("MORT_VALUE").alias("MORT_ANNUAL")])
@@ -156,22 +166,24 @@ class MortalityEstimator(GRMBaseEstimator):
 
         # Add rate SE if rate was calculated
         if "MORT_RATE" in results.columns:
-            results = results.with_columns([
-                (pl.col("MORT_RATE") * 0.20).alias("MORT_RATE_SE")
-            ])
+            results = results.with_columns(
+                [(pl.col("MORT_RATE") * 0.20).alias("MORT_RATE_SE")]
+            )
 
         # Add CV if requested
         if self.config.get("include_cv", False):
-            results = results.with_columns([
-                pl.when(pl.col("MORT_ACRE") > 0)
-                .then(pl.col("MORT_ACRE_SE") / pl.col("MORT_ACRE") * 100)
-                .otherwise(None)
-                .alias("MORT_ACRE_CV"),
-                pl.when(pl.col("MORT_TOTAL") > 0)
-                .then(pl.col("MORT_TOTAL_SE") / pl.col("MORT_TOTAL") * 100)
-                .otherwise(None)
-                .alias("MORT_TOTAL_CV"),
-            ])
+            results = results.with_columns(
+                [
+                    pl.when(pl.col("MORT_ACRE") > 0)
+                    .then(pl.col("MORT_ACRE_SE") / pl.col("MORT_ACRE") * 100)
+                    .otherwise(None)
+                    .alias("MORT_ACRE_CV"),
+                    pl.when(pl.col("MORT_TOTAL") > 0)
+                    .then(pl.col("MORT_TOTAL_SE") / pl.col("MORT_TOTAL") * 100)
+                    .otherwise(None)
+                    .alias("MORT_TOTAL_CV"),
+                ]
+            )
 
         return results
 

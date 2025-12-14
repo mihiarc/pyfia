@@ -35,7 +35,16 @@ class VolumeEstimator(BaseEstimator):
 
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for volume estimation."""
-        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ", "TREECLCD"]
+        cols = [
+            "CN",
+            "PLT_CN",
+            "CONDID",
+            "STATUSCD",
+            "SPCD",
+            "DIA",
+            "TPA_UNADJ",
+            "TREECLCD",
+        ]
 
         # Add volume columns based on vol_type
         vol_type = self.config.get("vol_type", "net")
@@ -255,15 +264,15 @@ class VolumeEstimator(BaseEstimator):
         # Calculate variance for each group or overall
         if self.group_cols:
             # Use shared helper for grouped variance calculation
-            metric_mappings = {
-                "VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")
-            }
+            metric_mappings = {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
             results = self._calculate_grouped_variance(
                 self.plot_tree_data, results, self.group_cols, metric_mappings
             )
         else:
             # No grouping, calculate overall variance using simple aggregation
-            plot_data = self.plot_tree_data.group_by(["PLT_CN", "STRATUM_CN", "EXPNS"]).agg(
+            plot_data = self.plot_tree_data.group_by(
+                ["PLT_CN", "STRATUM_CN", "EXPNS"]
+            ).agg(
                 [
                     pl.sum("VOLUME_ADJ").alias("y_i"),
                     pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),

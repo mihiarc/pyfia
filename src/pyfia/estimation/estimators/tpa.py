@@ -37,7 +37,16 @@ class TPAEstimator(BaseEstimator):
 
     def get_tree_columns(self) -> List[str]:
         """Required tree columns for TPA estimation."""
-        cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ", "TREECLCD"]
+        cols = [
+            "CN",
+            "PLT_CN",
+            "CONDID",
+            "STATUSCD",
+            "SPCD",
+            "DIA",
+            "TPA_UNADJ",
+            "TREECLCD",
+        ]
 
         # Add grouping columns if needed
         if self.config.get("grp_by"):
@@ -305,12 +314,8 @@ class TPAEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    tpa_stats = calculate_ratio_variance(
-                        all_plots_group, "y_tpa_i"
-                    )
-                    baa_stats = calculate_ratio_variance(
-                        all_plots_group, "y_baa_i"
-                    )
+                    tpa_stats = calculate_ratio_variance(all_plots_group, "y_tpa_i")
+                    baa_stats = calculate_ratio_variance(all_plots_group, "y_baa_i")
 
                     variance_results.append(
                         {

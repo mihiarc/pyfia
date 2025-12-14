@@ -56,24 +56,30 @@ class RemovalsEstimator(GRMBaseEstimator):
         measure = self.config.get("measure", "volume")
 
         if measure == "volume":
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * pl.col("VOLCFNET").cast(pl.Float64)
-                ).alias("REMV_ANNUAL")
-            ])
+            data = data.with_columns(
+                [
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * pl.col("VOLCFNET").cast(pl.Float64)
+                    ).alias("REMV_ANNUAL")
+                ]
+            )
         elif measure == "biomass":
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(pl.Float64)
-                    / 2000.0  # Convert pounds to tons
-                ).alias("REMV_ANNUAL")
-            ])
+            data = data.with_columns(
+                [
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(
+                            pl.Float64
+                        )
+                        / 2000.0  # Convert pounds to tons
+                    ).alias("REMV_ANNUAL")
+                ]
+            )
         else:  # count
-            data = data.with_columns([
-                pl.col("TPA_UNADJ").cast(pl.Float64).alias("REMV_ANNUAL")
-            ])
+            data = data.with_columns(
+                [pl.col("TPA_UNADJ").cast(pl.Float64).alias("REMV_ANNUAL")]
+            )
 
         return data
 
@@ -108,16 +114,18 @@ class RemovalsEstimator(GRMBaseEstimator):
         )
 
         # Add coefficient of variation
-        results = results.with_columns([
-            pl.when(pl.col("REMV_ACRE") > 0)
-            .then(pl.col("REMV_ACRE_SE") / pl.col("REMV_ACRE") * 100)
-            .otherwise(0.0)
-            .alias("REMV_ACRE_CV"),
-            pl.when(pl.col("REMV_TOTAL") > 0)
-            .then(pl.col("REMV_TOTAL_SE") / pl.col("REMV_TOTAL") * 100)
-            .otherwise(0.0)
-            .alias("REMV_TOTAL_CV"),
-        ])
+        results = results.with_columns(
+            [
+                pl.when(pl.col("REMV_ACRE") > 0)
+                .then(pl.col("REMV_ACRE_SE") / pl.col("REMV_ACRE") * 100)
+                .otherwise(0.0)
+                .alias("REMV_ACRE_CV"),
+                pl.when(pl.col("REMV_TOTAL") > 0)
+                .then(pl.col("REMV_TOTAL_SE") / pl.col("REMV_TOTAL") * 100)
+                .otherwise(0.0)
+                .alias("REMV_TOTAL_CV"),
+            ]
+        )
 
         return results
 

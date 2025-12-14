@@ -61,8 +61,6 @@ class GrowthEstimator(GRMBaseEstimator):
         """
         from ..grm import load_grm_begin, load_grm_component, load_grm_midpt
 
-        tree_type = self.config.get("tree_type", "gs")
-        land_type = self.config.get("land_type", "forest")
         measure = self.config.get("measure", "volume")
 
         # Resolve GRM column names
@@ -78,10 +76,24 @@ class GrowthEstimator(GRMBaseEstimator):
 
         # Select TREE columns
         if measure == "volume":
-            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN", "VOLCFNET"]
+            tree_cols = [
+                "CN",
+                "PLT_CN",
+                "CONDID",
+                "PREVCOND",
+                "PREV_TRE_CN",
+                "VOLCFNET",
+            ]
             tree_vol_col = "VOLCFNET"
         elif measure == "biomass":
-            tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN", "DRYBIO_AG"]
+            tree_cols = [
+                "CN",
+                "PLT_CN",
+                "CONDID",
+                "PREVCOND",
+                "PREV_TRE_CN",
+                "DRYBIO_AG",
+            ]
             tree_vol_col = "DRYBIO_AG"
         else:
             tree_cols = ["CN", "PLT_CN", "CONDID", "PREVCOND", "PREV_TRE_CN"]
@@ -113,7 +125,9 @@ class GrowthEstimator(GRMBaseEstimator):
         else:
             midpt_cols = None
 
-        grm_midpt = load_grm_midpt(self.db, measure=measure, include_additional_cols=midpt_cols)
+        grm_midpt = load_grm_midpt(
+            self.db, measure=measure, include_additional_cols=midpt_cols
+        )
 
         if measure in ("volume", "biomass"):
             vol_col = "VOLCFNET" if measure == "volume" else "DRYBIO_AG"
@@ -248,14 +262,16 @@ class GrowthEstimator(GRMBaseEstimator):
             ptree_col = "PTREE_DRYBIO_AG"
         else:
             # For count, use TPA_UNADJ directly with ONEORTWO logic
-            data = data.with_columns([
-                pl.when(pl.col("ONEORTWO") == 2)
-                .then(pl.col("TPA_UNADJ").cast(pl.Float64))
-                .when(pl.col("ONEORTWO") == 1)
-                .then(-pl.col("TPA_UNADJ").cast(pl.Float64))
-                .otherwise(0.0)
-                .alias("GROWTH_VALUE")
-            ])
+            data = data.with_columns(
+                [
+                    pl.when(pl.col("ONEORTWO") == 2)
+                    .then(pl.col("TPA_UNADJ").cast(pl.Float64))
+                    .when(pl.col("ONEORTWO") == 1)
+                    .then(-pl.col("TPA_UNADJ").cast(pl.Float64))
+                    .otherwise(0.0)
+                    .alias("GROWTH_VALUE")
+                ]
+            )
             return data
 
         # ONEORTWO = 2: Add ending volumes
@@ -294,25 +310,29 @@ class GrowthEstimator(GRMBaseEstimator):
         )
 
         # Apply ONEORTWO logic
-        data = data.with_columns([
-            pl.when(pl.col("ONEORTWO") == 2)
-            .then(ending_volume)
-            .when(pl.col("ONEORTWO") == 1)
-            .then(beginning_volume)
-            .otherwise(0.0)
-            .alias("volume_contribution")
-        ])
+        data = data.with_columns(
+            [
+                pl.when(pl.col("ONEORTWO") == 2)
+                .then(ending_volume)
+                .when(pl.col("ONEORTWO") == 1)
+                .then(beginning_volume)
+                .otherwise(0.0)
+                .alias("volume_contribution")
+            ]
+        )
 
         # Convert biomass from pounds to tons
         conversion_factor = 1.0 / 2000.0 if measure == "biomass" else 1.0
 
-        data = data.with_columns([
-            (
-                pl.col("TPA_UNADJ").cast(pl.Float64)
-                * pl.col("volume_contribution").cast(pl.Float64)
-                * conversion_factor
-            ).alias("GROWTH_VALUE")
-        ])
+        data = data.with_columns(
+            [
+                (
+                    pl.col("TPA_UNADJ").cast(pl.Float64)
+                    * pl.col("volume_contribution").cast(pl.Float64)
+                    * conversion_factor
+                ).alias("GROWTH_VALUE")
+            ]
+        )
 
         return data
 
@@ -324,9 +344,9 @@ class GrowthEstimator(GRMBaseEstimator):
         data_with_strat = apply_grm_adjustment(data)
 
         # Apply adjustment to growth values
-        data_with_strat = data_with_strat.with_columns([
-            (pl.col("GROWTH_VALUE") * pl.col("ADJ_FACTOR")).alias("GROWTH_ADJ")
-        ])
+        data_with_strat = data_with_strat.with_columns(
+            [(pl.col("GROWTH_VALUE") * pl.col("ADJ_FACTOR")).alias("GROWTH_ADJ")]
+        )
 
         # Setup grouping
         group_cols = self._setup_grouping()
@@ -369,16 +389,18 @@ class GrowthEstimator(GRMBaseEstimator):
 
         # Add CV if requested
         if self.config.get("include_cv", False):
-            results = results.with_columns([
-                pl.when(pl.col("GROWTH_ACRE") > 0)
-                .then(pl.col("GROWTH_ACRE_SE") / pl.col("GROWTH_ACRE") * 100)
-                .otherwise(None)
-                .alias("GROWTH_ACRE_CV"),
-                pl.when(pl.col("GROWTH_TOTAL") > 0)
-                .then(pl.col("GROWTH_TOTAL_SE") / pl.col("GROWTH_TOTAL") * 100)
-                .otherwise(None)
-                .alias("GROWTH_TOTAL_CV"),
-            ])
+            results = results.with_columns(
+                [
+                    pl.when(pl.col("GROWTH_ACRE") > 0)
+                    .then(pl.col("GROWTH_ACRE_SE") / pl.col("GROWTH_ACRE") * 100)
+                    .otherwise(None)
+                    .alias("GROWTH_ACRE_CV"),
+                    pl.when(pl.col("GROWTH_TOTAL") > 0)
+                    .then(pl.col("GROWTH_TOTAL_SE") / pl.col("GROWTH_TOTAL") * 100)
+                    .otherwise(None)
+                    .alias("GROWTH_TOTAL_CV"),
+                ]
+            )
 
         return results
 

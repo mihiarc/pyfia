@@ -5,7 +5,7 @@ Simple implementation for calculating tree biomass and carbon
 without unnecessary abstractions.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
@@ -299,12 +299,8 @@ class BiomassEstimator(BaseEstimator):
 
                 if len(all_plots_group) > 0:
                     # Calculate variance using ALL plots (including zeros)
-                    bio_stats = calculate_ratio_variance(
-                        all_plots_group, "y_bio_i"
-                    )
-                    carb_stats = calculate_ratio_variance(
-                        all_plots_group, "y_carb_i"
-                    )
+                    bio_stats = calculate_ratio_variance(all_plots_group, "y_bio_i")
+                    carb_stats = calculate_ratio_variance(all_plots_group, "y_carb_i")
 
                     variance_results.append(
                         {

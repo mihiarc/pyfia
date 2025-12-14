@@ -9,7 +9,7 @@ from enum import Enum
 
 import polars as pl
 
-from ...constants import (
+from ...constants.status_codes import (
     LandStatus,
     ReserveStatus,
     SiteClass,

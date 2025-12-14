@@ -10,10 +10,7 @@ from typing import List, Optional
 
 import polars as pl
 
-from ...constants import (
-    DiameterBreakpoints,
-    PlotBasis,
-)
+from ...constants.plot_design import DiameterBreakpoints, PlotBasis
 
 
 def assign_tree_basis(

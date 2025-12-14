@@ -10,10 +10,12 @@ from typing import Dict, List, Literal, Optional, Union
 
 import polars as pl
 
-from ...constants import (
+from ...constants.plot_design import (
     DESCRIPTIVE_SIZE_CLASSES,
     STANDARD_SIZE_CLASSES,
     DiameterBreakpoints,
+)
+from ...constants.status_codes import (
     LandStatus,
     ReserveStatus,
     SiteClass,

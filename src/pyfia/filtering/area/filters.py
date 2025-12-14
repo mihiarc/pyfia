@@ -9,11 +9,7 @@ from typing import Optional
 
 import polars as pl
 
-from ...constants import (
-    LandStatus,
-    ReserveStatus,
-    SiteClass,
-)
+from ...constants.status_codes import LandStatus, ReserveStatus, SiteClass
 from ..core.parser import DomainExpressionParser
 
 

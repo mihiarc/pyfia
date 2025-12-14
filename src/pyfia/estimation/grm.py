@@ -11,6 +11,9 @@ from typing import Dict, List, Literal, Optional, Tuple
 
 import polars as pl
 
+# Re-export shared variance function for backward compatibility
+from .variance import calculate_ratio_variance
+
 # Valid tree types for GRM estimation
 TreeType = Literal["gs", "al", "sl", "live", "sawtimber"]
 # Valid land types for GRM estimation
@@ -407,155 +410,6 @@ def filter_by_evalid(
     valid_plots = valid_plots.select("PLT_CN").unique()
 
     return data.join(valid_plots, on="PLT_CN", how="inner")
-
-
-def calculate_ratio_variance(
-    plot_data: pl.DataFrame,
-    y_col: str,
-    x_col: str = "x_i",
-    stratum_col: str = "STRATUM_CN",
-    weight_col: str = "EXPNS",
-) -> Dict[str, float]:
-    """Calculate variance for ratio-of-means estimator.
-
-    Implements the stratified ratio-of-means variance formula from
-    Bechtold & Patterson (2005):
-
-    V(R) ≈ (1/X̄²) × Σ_h w_h² × [s²_yh + R² × s²_xh - 2R × s_yxh] / n_h
-
-    Where:
-    - Y is the numerator (growth/mortality/removals value)
-    - X is the denominator (area)
-    - R is the ratio estimate
-    - s_yxh is the covariance between Y and X in stratum h
-    - w_h is the stratum weight (EXPNS)
-    - n_h is the number of plots in stratum h
-
-    Parameters
-    ----------
-    plot_data : pl.DataFrame
-        Plot-level data with columns for Y values, X values (area),
-        stratum assignment, and weights
-    y_col : str
-        Column name for Y values (numerator)
-    x_col : str, default 'x_i'
-        Column name for X values (denominator/area)
-    stratum_col : str, default 'STRATUM_CN'
-        Column name for stratum assignment
-    weight_col : str, default 'EXPNS'
-        Column name for stratum weights (expansion factors)
-
-    Returns
-    -------
-    dict
-        Dictionary with keys:
-        - variance_acre: Variance of per-acre estimate
-        - variance_total: Variance of total estimate
-        - se_acre: Standard error of per-acre estimate
-        - se_total: Standard error of total estimate
-        - ratio: The ratio estimate R
-        - total_y: Total Y value
-        - total_x: Total X value (area)
-    """
-    # Determine stratification columns
-    if stratum_col not in plot_data.columns:
-        # No stratification, treat as single stratum
-        plot_data = plot_data.with_columns(pl.lit(1).alias("_STRATUM"))
-        stratum_col = "_STRATUM"
-
-    # Calculate stratum-level statistics
-    strata_stats = plot_data.group_by(stratum_col).agg(
-        [
-            pl.count("PLT_CN").alias("n_h"),
-            pl.mean(y_col).alias("ybar_h"),
-            pl.mean(x_col).alias("xbar_h"),
-            pl.var(y_col, ddof=1).alias("s2_yh"),
-            pl.var(x_col, ddof=1).alias("s2_xh"),
-            pl.first(weight_col).cast(pl.Float64).alias("w_h"),
-            # Calculate covariance
-            (
-                (
-                    (pl.col(y_col) - pl.col(y_col).mean())
-                    * (pl.col(x_col) - pl.col(x_col).mean())
-                ).sum()
-                / (pl.len() - 1)
-            ).alias("cov_yxh"),
-        ]
-    )
-
-    # Handle null variances (single observation or all same values)
-    strata_stats = strata_stats.with_columns(
-        [
-            pl.when(pl.col("s2_yh").is_null())
-            .then(0.0)
-            .otherwise(pl.col("s2_yh"))
-            .cast(pl.Float64)
-            .alias("s2_yh"),
-            pl.when(pl.col("s2_xh").is_null())
-            .then(0.0)
-            .otherwise(pl.col("s2_xh"))
-            .cast(pl.Float64)
-            .alias("s2_xh"),
-            pl.when(pl.col("cov_yxh").is_null())
-            .then(0.0)
-            .otherwise(pl.col("cov_yxh"))
-            .cast(pl.Float64)
-            .alias("cov_yxh"),
-            pl.col("xbar_h").cast(pl.Float64).alias("xbar_h"),
-            pl.col("ybar_h").cast(pl.Float64).alias("ybar_h"),
-        ]
-    )
-
-    # Calculate population totals
-    total_y = (
-        strata_stats["ybar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-    ).sum()
-    total_x = (
-        strata_stats["xbar_h"] * strata_stats["w_h"] * strata_stats["n_h"]
-    ).sum()
-
-    # Calculate ratio estimate
-    ratio = total_y / total_x if total_x > 0 else 0
-
-    # Filter out single-plot strata (variance undefined with n=1)
-    strata_with_variance = strata_stats.filter(pl.col("n_h") > 1)
-
-    # Calculate variance components only for strata with n > 1
-    variance_components = strata_with_variance.with_columns(
-        [
-            (
-                pl.col("w_h") ** 2
-                * (
-                    pl.col("s2_yh")
-                    + ratio**2 * pl.col("s2_xh")
-                    - 2 * ratio * pl.col("cov_yxh")
-                )
-                * pl.col("n_h")
-            ).alias("v_h")
-        ]
-    )
-
-    # Sum variance components, handling NaN values
-    variance_of_numerator = variance_components["v_h"].drop_nans().sum()
-    if variance_of_numerator is None or variance_of_numerator < 0:
-        variance_of_numerator = 0.0
-
-    # Convert to variance of the ratio
-    variance_of_ratio = variance_of_numerator / (total_x**2) if total_x > 0 else 0.0
-
-    # Standard errors
-    se_acre = variance_of_ratio**0.5
-    se_total = se_acre * total_x if total_x > 0 else 0
-
-    return {
-        "variance_acre": variance_of_ratio,
-        "variance_total": (se_total**2) if se_total > 0 else 0,
-        "se_acre": se_acre,
-        "se_total": se_total,
-        "ratio": ratio,
-        "total_y": total_y,
-        "total_x": total_x,
-    }
 
 
 def get_grm_required_tables(

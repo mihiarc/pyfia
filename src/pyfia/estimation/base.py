@@ -913,3 +913,401 @@ class BaseEstimator(ABC):
         if hasattr(self, "_owns_db") and self._owns_db:
             if hasattr(self.db, "close"):
                 self.db.close()
+
+
+class GRMBaseEstimator(BaseEstimator):
+    """
+    Base class for Growth-Removal-Mortality (GRM) estimators.
+
+    Provides shared functionality for growth, mortality, and removals estimation
+    using FIA's GRM tables (TREE_GRM_COMPONENT, TREE_GRM_MIDPT, TREE_GRM_BEGIN).
+
+    Subclasses must implement:
+    - component_type: Property returning 'growth', 'mortality', or 'removals'
+    - calculate_values: Component-specific value calculation
+    - get_component_filter: Optional filter for specific components
+    """
+
+    def __init__(self, db, config):
+        """Initialize with GRM-specific attributes."""
+        super().__init__(db, config)
+        self.plot_tree_data: Optional[pl.DataFrame] = None
+        self.group_cols: Optional[List[str]] = None
+        self._grm_columns = None
+
+    @property
+    def component_type(self) -> str:
+        """Return the GRM component type: 'growth', 'mortality', or 'removals'."""
+        raise NotImplementedError("Subclasses must implement component_type property")
+
+    @property
+    def metric_prefix(self) -> str:
+        """Return the metric column prefix (e.g., 'GROWTH', 'MORT', 'REMV')."""
+        prefixes = {"growth": "GROWTH", "mortality": "MORT", "removals": "REMV"}
+        return prefixes.get(self.component_type, "VALUE")
+
+    @property
+    def value_column(self) -> str:
+        """Return the value column name for this component."""
+        return f"{self.metric_prefix}_VALUE"
+
+    @property
+    def adjusted_column(self) -> str:
+        """Return the adjusted value column name."""
+        return f"{self.metric_prefix}_ADJ"
+
+    def get_required_tables(self) -> List[str]:
+        """GRM estimators require GRM tables."""
+        from .grm import get_grm_required_tables
+        return get_grm_required_tables(self.component_type)
+
+    def get_cond_columns(self) -> List[str]:
+        """Standard condition columns for GRM estimation."""
+        base_cols = [
+            "PLT_CN",
+            "CONDID",
+            "COND_STATUS_CD",
+            "CONDPROP_UNADJ",
+            "OWNGRPCD",
+            "FORTYPCD",
+            "SITECLCD",
+            "RESERVCD",
+        ]
+
+        # Add grouping columns if they come from COND table
+        if self.config.get("grp_by"):
+            grp_cols = self.config["grp_by"]
+            if isinstance(grp_cols, str):
+                grp_cols = [grp_cols]
+            for col in grp_cols:
+                if col not in base_cols:
+                    base_cols.append(col)
+
+        return base_cols
+
+    def _resolve_grm_columns(self):
+        """Resolve GRM column names based on config."""
+        from .grm import resolve_grm_columns
+
+        if self._grm_columns is None:
+            tree_type = self.config.get("tree_type", "gs")
+            land_type = self.config.get("land_type", "forest")
+            self._grm_columns = resolve_grm_columns(
+                component_type=self.component_type,
+                tree_type=tree_type,
+                land_type=land_type,
+            )
+        return self._grm_columns
+
+    def _load_simple_grm_data(self) -> Optional[pl.LazyFrame]:
+        """
+        Load GRM data using the simple pattern (for mortality/removals).
+
+        This pattern:
+        1. Loads GRM component table
+        2. Joins with GRM midpt table
+        3. Applies EVALID filtering
+        4. Joins with aggregated COND data
+        """
+        from .grm import (
+            aggregate_cond_to_plot,
+            filter_by_evalid,
+            load_grm_component,
+            load_grm_midpt,
+        )
+
+        measure = self.config.get("measure", "volume")
+
+        # Resolve GRM column names
+        grm_cols = self._resolve_grm_columns()
+
+        # Load GRM component table
+        grm_component = load_grm_component(
+            self.db,
+            grm_cols,
+            include_dia_end=(self.component_type != "removals"),
+        )
+
+        # Load GRM midpt table
+        grm_midpt = load_grm_midpt(self.db, measure=measure)
+
+        # Join component with midpt
+        data = grm_component.join(grm_midpt, on="TRE_CN", how="inner")
+
+        # Apply EVALID filtering
+        data = filter_by_evalid(data, self.db)
+
+        # Load and aggregate COND to plot level
+        if "COND" not in self.db.tables:
+            self.db.load_table("COND")
+
+        cond = self.db.tables["COND"]
+        if not isinstance(cond, pl.LazyFrame):
+            cond = cond.lazy()
+
+        cond_agg = aggregate_cond_to_plot(cond)
+        data = data.join(cond_agg, on="PLT_CN", how="left")
+
+        return data
+
+    def _apply_grm_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """
+        Apply common GRM filters.
+
+        Applies:
+        1. Area domain filter
+        2. Tree domain filter
+        3. Positive TPA_UNADJ filter
+        4. Component-specific filters (via get_component_filter)
+        """
+        # Collect to DataFrame for filtering
+        data_df = data.collect()
+
+        # Apply area domain filter
+        if self.config.get("area_domain"):
+            from ..filtering.area.filters import apply_area_filters
+            data_df = apply_area_filters(
+                data_df, area_domain=self.config["area_domain"]
+            )
+
+        # Apply tree domain filter
+        if self.config.get("tree_domain"):
+            from ..filtering.core.parser import DomainExpressionParser
+            data_df = DomainExpressionParser.apply_to_dataframe(
+                data_df, self.config["tree_domain"], "tree"
+            )
+
+        data = data_df.lazy()
+
+        # Filter to records with positive TPA
+        data = data.filter(
+            pl.col("TPA_UNADJ").is_not_null() & (pl.col("TPA_UNADJ") > 0)
+        )
+
+        # Apply component-specific filter
+        component_filter = self.get_component_filter()
+        if component_filter is not None:
+            data = data.filter(component_filter)
+
+        # Apply tree type filter (growing stock >= 5 inches)
+        tree_type = self.config.get("tree_type", "gs")
+        if tree_type == "gs" and "DIA_MIDPT" in data.collect_schema().names():
+            data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
+
+        return data
+
+    def get_component_filter(self) -> Optional[pl.Expr]:
+        """
+        Return component-specific filter expression.
+
+        Override in subclasses to filter to specific GRM components.
+        Returns None for no additional filtering.
+        """
+        return None
+
+    def _aggregate_grm_results(
+        self,
+        data: pl.LazyFrame,
+        value_col: str,
+        adjusted_col: str,
+    ) -> pl.DataFrame:
+        """
+        Aggregate GRM results with two-stage aggregation.
+
+        Common aggregation pattern for all GRM estimators:
+        1. Get stratification data
+        2. Apply GRM adjustment factors
+        3. Setup grouping
+        4. Preserve plot-tree data for variance
+        5. Apply two-stage aggregation
+        """
+        from .grm import apply_grm_adjustment
+
+        # Get stratification data
+        strat_data = self._get_stratification_data()
+
+        # Join with stratification
+        data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
+
+        # Apply GRM-specific adjustment factors
+        data_with_strat = apply_grm_adjustment(data_with_strat)
+
+        # Apply adjustment to values
+        data_with_strat = data_with_strat.with_columns(
+            [(pl.col(value_col) * pl.col("ADJ_FACTOR")).alias(adjusted_col)]
+        )
+
+        # Setup grouping
+        group_cols = self._setup_grouping()
+        if self.config.get("by_species", False) and "SPCD" not in group_cols:
+            group_cols.append("SPCD")
+        self.group_cols = group_cols
+
+        # Store plot-tree level data for variance calculation
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+            data_with_strat,
+            metric_cols=[adjusted_col],
+            group_cols=group_cols,
+        )
+
+        # Build metric mappings for two-stage aggregation
+        condition_col = f"CONDITION_{self.metric_prefix}"
+        metric_mappings = {adjusted_col: condition_col}
+
+        results = self._apply_two_stage_aggregation(
+            data_with_strat=data_with_strat,
+            metric_mappings=metric_mappings,
+            group_cols=group_cols,
+            use_grm_adjustment=True,
+        )
+
+        return results
+
+    def _calculate_grm_variance(
+        self,
+        results: pl.DataFrame,
+        adjusted_col: str,
+        acre_se_col: str,
+        total_se_col: str,
+        placeholder_cv: float = 0.15,
+    ) -> pl.DataFrame:
+        """
+        Calculate variance for GRM estimates.
+
+        Common variance calculation pattern using ratio-of-means formula.
+        """
+        from .grm import calculate_ratio_variance
+
+        acre_col = f"{self.metric_prefix}_ACRE"
+        total_col = f"{self.metric_prefix}_TOTAL"
+
+        if self.plot_tree_data is None:
+            import warnings
+            warnings.warn(
+                f"Plot-tree data not available for proper variance calculation. "
+                f"Using placeholder {placeholder_cv*100:.0f}% CV."
+            )
+            results = results.with_columns([
+                (pl.col(acre_col) * placeholder_cv).alias(acre_se_col),
+                (pl.col(total_col) * placeholder_cv).alias(total_se_col),
+            ])
+            return results
+
+        # Aggregate to plot-condition level
+        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
+        if "STRATUM_CN" in self.plot_tree_data.columns:
+            plot_group_cols.insert(2, "STRATUM_CN")
+
+        if self.group_cols:
+            for col in self.group_cols:
+                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
+        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
+            [pl.sum(adjusted_col).alias("y_ic")]
+        )
+
+        # Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "EXPNS"]
+        if "STRATUM_CN" in plot_cond_data.columns:
+            plot_level_cols.insert(1, "STRATUM_CN")
+        if self.group_cols:
+            plot_level_cols.extend(
+                [c for c in self.group_cols if c in plot_cond_data.columns]
+            )
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg([
+            pl.sum("y_ic").alias("y_i"),
+            pl.lit(1.0).alias("x_i"),
+        ])
+
+        # Calculate variance
+        if self.group_cols:
+            strat_data = self._get_stratification_data()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
+
+            variance_results = []
+
+            for group_vals in results.iter_rows():
+                group_filter = pl.lit(True)
+                group_dict = {}
+
+                for i, col in enumerate(self.group_cols):
+                    if col in plot_data.columns:
+                        group_dict[col] = group_vals[results.columns.index(col)]
+                        group_filter = group_filter & (
+                            pl.col(col) == group_vals[results.columns.index(col)]
+                        )
+
+                group_plot_data = plot_data.filter(group_filter)
+
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_i", "x_i"]),
+                    on="PLT_CN",
+                    how="left",
+                ).with_columns([
+                    pl.col("y_i").fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ])
+
+                if len(all_plots_group) > 0:
+                    var_stats = calculate_ratio_variance(all_plots_group, "y_i")
+                    variance_results.append({
+                        **group_dict,
+                        acre_se_col: var_stats["se_acre"],
+                        total_se_col: var_stats["se_total"],
+                    })
+                else:
+                    variance_results.append({
+                        **group_dict,
+                        acre_se_col: 0.0,
+                        total_se_col: 0.0,
+                    })
+
+            if variance_results:
+                var_df = pl.DataFrame(variance_results)
+                results = results.join(var_df, on=self.group_cols, how="left")
+        else:
+            var_stats = calculate_ratio_variance(plot_data, "y_i")
+            results = results.with_columns([
+                pl.lit(var_stats["se_acre"]).alias(acre_se_col),
+                pl.lit(var_stats["se_total"]).alias(total_se_col),
+            ])
+
+        return results
+
+    def _format_grm_output(
+        self,
+        results: pl.DataFrame,
+        estimation_type: str,
+        include_cv: bool = False,
+    ) -> pl.DataFrame:
+        """
+        Format GRM estimation output with standard columns.
+        """
+        from .utils import format_output_columns
+
+        measure = self.config.get("measure", "volume")
+        land_type = self.config.get("land_type", "forest")
+        tree_type = self.config.get("tree_type", "gs")
+
+        # Extract year using shared helper
+        year = self._extract_evaluation_year()
+
+        results = results.with_columns([
+            pl.lit(year).alias("YEAR"),
+            pl.lit(measure.upper()).alias("MEASURE"),
+            pl.lit(land_type.upper()).alias("LAND_TYPE"),
+            pl.lit(tree_type.upper()).alias("TREE_TYPE"),
+        ])
+
+        results = format_output_columns(
+            results,
+            estimation_type=estimation_type,
+            include_se=True,
+            include_cv=include_cv,
+        )
+
+        return results

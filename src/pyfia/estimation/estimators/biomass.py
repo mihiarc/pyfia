@@ -154,41 +154,11 @@ class BiomassEstimator(BaseEstimator):
         self.group_cols = group_cols  # Store for variance calculation
 
         # CRITICAL: Store plot-tree level data for variance calculation
-        data_collected = data_with_strat.collect()
-        available_cols = data_collected.columns
-
-        # Build column list for preservation
-        cols_to_preserve = ["PLT_CN", "CONDID"]
-
-        # Add stratification columns
-        if "STRATUM_CN" in available_cols:
-            cols_to_preserve.append("STRATUM_CN")
-        if "ESTN_UNIT" in available_cols:
-            cols_to_preserve.append("ESTN_UNIT")
-        elif "UNITCD" in available_cols:
-            data_collected = data_collected.with_columns(
-                pl.col("UNITCD").alias("ESTN_UNIT")
-            )
-            cols_to_preserve.append("ESTN_UNIT")
-
-        # Add essential columns for variance calculation
-        cols_to_preserve.extend(
-            ["BIOMASS_ADJ", "CARBON_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"]
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+            data_with_strat,
+            metric_cols=["BIOMASS_ADJ", "CARBON_ADJ"],
+            group_cols=group_cols,
         )
-
-        # Add grouping columns if they exist
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in cols_to_preserve:
-                    cols_to_preserve.append(col)
-
-        # Store the plot-tree data for variance calculation
-        self.plot_tree_data = data_collected.select(
-            [c for c in cols_to_preserve if c in data_collected.columns]
-        )
-
-        # Convert back to lazy for two-stage aggregation
-        data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
         metric_mappings = {
@@ -378,51 +348,7 @@ class BiomassEstimator(BaseEstimator):
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format biomass estimation output."""
-        # Extract year from evaluation data
-        # IMPORTANT: Use EVALID year (evaluation reference year) not INVYR
-        # EVALID year represents the complete statistical estimate for that year
-        # while INVYR varies by plot due to FIA's rotating panel design
-        year = None
-
-        # Primary source: EVALID encodes the evaluation reference year
-        if hasattr(self.db, "evalids") and self.db.evalids:
-            # EVALIDs are 6-digit codes: SSYYTT where YY is the evaluation year
-            # Example: 482300 = State 48, Year 2023 evaluation, Type 00
-            # This evaluation might include plots measured 2019-2023, but
-            # statistically represents forest conditions as of 2023
-            try:
-                evalid = self.db.evalids[0]  # Use first EVALID
-                year_part = int(str(evalid)[2:4])  # Extract YY portion
-
-                # Handle century correctly - FIA data starts in 1990s
-                if year_part >= 90:  # Years 90-99 are 1990-1999
-                    year = 1900 + year_part
-                else:  # Years 00-89 are 2000-2089
-                    year = 2000 + year_part
-
-                # Validate year is reasonable (1990-2050)
-                if year < 1990 or year > 2050:
-                    year = None  # Fall back to other methods
-            except (IndexError, ValueError, TypeError):
-                pass
-
-        # Fallback: If no EVALID, use most recent INVYR as approximation
-        # Note: This is less accurate as plots have different INVYR values
-        if year is None and "PLOT" in self.db.tables:
-            try:
-                plot_years = self.db.tables["PLOT"].select("INVYR").collect()
-                if not plot_years.is_empty():
-                    # Use max year as it best represents the evaluation period
-                    year = int(plot_years["INVYR"].max())
-            except Exception:
-                pass
-
-        # Default to current year minus 2 (typical FIA processing lag)
-        if year is None:
-            from datetime import datetime
-
-            year = datetime.now().year - 2
-
+        year = self._extract_evaluation_year()
         results = results.with_columns([pl.lit(year).alias("YEAR")])
 
         # Standard column order

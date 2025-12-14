@@ -384,34 +384,12 @@ class GrowthEstimator(BaseEstimator):
             group_cols.append("SPCD")
         self.group_cols = group_cols
 
-        # Store plot-tree level data for variance calculation
-        data_collected = data_with_strat.collect()
-        available_cols = data_collected.columns
-
-        cols_to_preserve = ["PLT_CN", "CONDID"]
-
-        if "STRATUM_CN" in available_cols:
-            cols_to_preserve.append("STRATUM_CN")
-        if "ESTN_UNIT" in available_cols:
-            cols_to_preserve.append("ESTN_UNIT")
-        elif "UNITCD" in available_cols:
-            data_collected = data_collected.with_columns(
-                pl.col("UNITCD").alias("ESTN_UNIT")
-            )
-            cols_to_preserve.append("ESTN_UNIT")
-
-        cols_to_preserve.extend(["GROWTH_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"])
-
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in cols_to_preserve:
-                    cols_to_preserve.append(col)
-
-        self.plot_tree_data = data_collected.select(
-            [c for c in cols_to_preserve if c in data_collected.columns]
+        # Store plot-tree level data for variance calculation using shared helper
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+            data_with_strat,
+            metric_cols=["GROWTH_ADJ"],
+            group_cols=group_cols,
         )
-
-        data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
         metric_mappings = {"GROWTH_ADJ": "CONDITION_GROWTH"}
@@ -574,9 +552,12 @@ class GrowthEstimator(BaseEstimator):
         land_type = self.config.get("land_type", "forest")
         tree_type = self.config.get("tree_type", "gs")
 
+        # Extract actual inventory year using shared helper
+        year = self._extract_evaluation_year()
+
         results = results.with_columns(
             [
-                pl.lit(2023).alias("YEAR"),
+                pl.lit(year).alias("YEAR"),
                 pl.lit(measure.upper()).alias("MEASURE"),
                 pl.lit(land_type.upper()).alias("LAND_TYPE"),
                 pl.lit(tree_type.upper()).alias("TREE_TYPE"),

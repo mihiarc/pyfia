@@ -152,41 +152,11 @@ class TPAEstimator(BaseEstimator):
         self.group_cols = group_cols  # Store for variance calculation
 
         # CRITICAL: Store plot-tree level data for variance calculation
-        data_collected = data_with_strat.collect()
-        available_cols = data_collected.columns
-
-        # Build column list for preservation
-        cols_to_preserve = ["PLT_CN", "CONDID"]
-
-        # Add stratification columns
-        if "STRATUM_CN" in available_cols:
-            cols_to_preserve.append("STRATUM_CN")
-        if "ESTN_UNIT" in available_cols:
-            cols_to_preserve.append("ESTN_UNIT")
-        elif "UNITCD" in available_cols:
-            data_collected = data_collected.with_columns(
-                pl.col("UNITCD").alias("ESTN_UNIT")
-            )
-            cols_to_preserve.append("ESTN_UNIT")
-
-        # Add essential columns for variance calculation
-        cols_to_preserve.extend(
-            ["TPA_ADJ", "BAA_ADJ", "ADJ_FACTOR", "CONDPROP_UNADJ", "EXPNS"]
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+            data_with_strat,
+            metric_cols=["TPA_ADJ", "BAA_ADJ"],
+            group_cols=group_cols,
         )
-
-        # Add grouping columns if they exist
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in cols_to_preserve:
-                    cols_to_preserve.append(col)
-
-        # Store the plot-tree data for variance calculation
-        self.plot_tree_data = data_collected.select(
-            [c for c in cols_to_preserve if c in data_collected.columns]
-        )
-
-        # Convert back to lazy for two-stage aggregation
-        data_with_strat = data_collected.lazy()
 
         # Use shared two-stage aggregation method
         metric_mappings = {"TPA_ADJ": "CONDITION_TPA", "BAA_ADJ": "CONDITION_BAA"}
@@ -429,9 +399,9 @@ class TPAEstimator(BaseEstimator):
         5. Total columns (if requested)
         6. Sample size columns (N_PLOTS, N_TREES)
         """
-        # Try to extract actual inventory year from data if available
-        # For now, use a placeholder (would be extracted from INVYR in production)
-        results = results.with_columns([pl.lit(2023).alias("YEAR")])
+        # Extract actual inventory year from EVALID or INVYR
+        year = self._extract_evaluation_year()
+        results = results.with_columns([pl.lit(year).alias("YEAR")])
 
         # Build column order based on what's present
         col_order = ["YEAR"]

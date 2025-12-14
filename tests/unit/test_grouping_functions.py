@@ -24,7 +24,7 @@ from pyfia.filtering.utils.grouping_functions import (
     setup_grouping_columns,
     validate_grouping_columns,
 )
-from pyfia.constants import LandStatus
+from pyfia.constants.status_codes import LandStatus
 
 
 class TestCreateSizeClassExpr:

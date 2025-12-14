@@ -9,11 +9,8 @@ from typing import Optional
 
 import polars as pl
 
-from ...constants import (
-    DiameterBreakpoints,
-    TreeClass,
-    TreeStatus,
-)
+from ...constants.plot_design import DiameterBreakpoints
+from ...constants.status_codes import TreeClass, TreeStatus
 from ..core.parser import DomainExpressionParser
 
 

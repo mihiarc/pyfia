@@ -266,12 +266,15 @@ Following Bechtold & Patterson (2005), Chapter 4, Section 4.2 (pp. 55-60):
 - Accounts for stratification weights (EXPNS already incorporates 1/n_h)
 - Single-plot strata excluded from variance calculation (variance undefined)
 
-### Temporal Methods
-- **TI**: Temporally Indifferent (all available data)
-- **Annual**: Single year estimates
-- **SMA**: Simple Moving Average
-- **LMA**: Linear Moving Average
-- **EMA**: Exponential Moving Average
+### Temporal Methods (FIA Methodology)
+
+FIA supports multiple temporal estimation methods, though **pyFIA currently implements only TI**:
+
+- **TI**: Temporally Indifferent (all available data) - **implemented in pyFIA, matches EVALIDator default**
+- Annual: Single year estimates - *not implemented*
+- SMA: Simple Moving Average - *not implemented*
+- LMA: Linear Moving Average - *not implemented*
+- EMA: Exponential Moving Average - *not implemented*
 
 ## Data Quality Notes
 

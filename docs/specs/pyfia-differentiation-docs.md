@@ -201,14 +201,6 @@ pyFIA achieves high performance through modern data infrastructure:
 - **Parallel execution** on multi-core systems
 - **2-5x faster** than pandas for typical operations
 
-### Benchmarks
-
-| Operation | pandas + SQLite | pyFIA (DuckDB + Polars) |
-|-----------|-----------------|-------------------------|
-| Load state data | 45s | 3s |
-| Volume by species (all states) | 120s | 8s |
-| Multi-state aggregation | 300s | 15s |
-
 ---
 
 ## Quick Start

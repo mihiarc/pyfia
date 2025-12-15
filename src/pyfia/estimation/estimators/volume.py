@@ -13,7 +13,7 @@ from ...core import FIA
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import format_output_columns
-from ..variance import calculate_ratio_variance
+from ..variance import calculate_domain_total_variance
 
 
 class VolumeEstimator(BaseEstimator):
@@ -223,12 +223,14 @@ class VolumeEstimator(BaseEstimator):
         return results
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for volume estimates using proper ratio estimation formula.
+        """Calculate variance for volume estimates using domain total variance formula.
 
-        Volume estimation uses ratio-of-means: R = Y/X where Y is volume and X is area.
-        The variance formula accounts for covariance between numerator and denominator.
+        Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+        V(Ŷ) = Σ_h w_h² × s²_yh × n_h
 
-        Following Bechtold & Patterson (2005) methodology for stratified sampling.
+        This matches EVALIDator's variance calculation for tree-based estimates.
+        The simpler domain total formula is appropriate because the y values already
+        incorporate expansion factors through the estimation pipeline.
 
         Raises
         ------
@@ -246,12 +248,17 @@ class VolumeEstimator(BaseEstimator):
         # Calculate variance for each group or overall
         if self.group_cols:
             # Use shared helper for grouped variance calculation
+            # Pass use_domain_total_variance=True to match EVALIDator
             metric_mappings = {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
             results = self._calculate_grouped_variance(
-                self.plot_tree_data, results, self.group_cols, metric_mappings
+                self.plot_tree_data,
+                results,
+                self.group_cols,
+                metric_mappings,
+                use_domain_total_variance=True,
             )
         else:
-            # No grouping, calculate overall variance using simple aggregation
+            # No grouping, calculate overall variance using domain total formula
             plot_data = self.plot_tree_data.group_by(
                 ["PLT_CN", "STRATUM_CN", "EXPNS"]
             ).agg(
@@ -260,13 +267,38 @@ class VolumeEstimator(BaseEstimator):
                     pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),
                 ]
             )
-            var_stats = calculate_ratio_variance(plot_data, y_col="y_i")
+
+            # CRITICAL: Include ALL plots in variance calculation (not just those with data)
+            # Plots without volume should contribute zeros, which affects the variance
+            strat_data = self._get_stratification_data()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
+
+            # Join with all plots, filling missing with zeros
+            all_plots_with_values = all_plots.join(
+                plot_data.select(["PLT_CN", "y_i", "x_i"]),
+                on="PLT_CN",
+                how="left",
+            ).with_columns(
+                [
+                    pl.col("y_i").fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
+
+            var_stats = calculate_domain_total_variance(all_plots_with_values, y_col="y_i")
+
+            # Calculate per-acre SE by dividing total SE by total area
+            total_area = (all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]).sum()
+            se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
+            variance_acre = (se_acre**2) if se_acre > 0 else 0.0
 
             results = results.with_columns(
                 [
-                    pl.lit(var_stats["se_acre"]).alias("VOLUME_ACRE_SE"),
+                    pl.lit(se_acre).alias("VOLUME_ACRE_SE"),
                     pl.lit(var_stats["se_total"]).alias("VOLUME_TOTAL_SE"),
-                    pl.lit(var_stats["variance_acre"]).alias("VOLUME_ACRE_VARIANCE"),
+                    pl.lit(variance_acre).alias("VOLUME_ACRE_VARIANCE"),
                     pl.lit(var_stats["variance_total"]).alias("VOLUME_TOTAL_VARIANCE"),
                 ]
             )

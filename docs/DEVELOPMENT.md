@@ -135,6 +135,20 @@ area(db, area_domain="SLOPE < 30")           # Low slope areas
 tpa(db, tree_domain="DIA >= 10.0")           # Large trees
 ```
 
+### Variance Calculation
+pyFIA implements the stratified domain total variance formula from Bechtold & Patterson (2005):
+
+```
+V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+```
+
+Key implementation details:
+- **All plots included**: Include plots with zero values in variance calculation
+- **Per-acre SE**: Calculated as `SE_total / total_area`
+- **Single-plot strata**: Excluded (variance undefined with n=1)
+
+The `calculate_domain_total_variance()` function in `variance.py` implements this formula and matches EVALIDator output within 1-3%.
+
 ## Testing Patterns
 
 - **Use real FIA data** when possible (georgia.duckdb, nfi_south.duckdb)

@@ -256,15 +256,61 @@ Example: SUBP_TPAMORT_UNADJ_GS_FOREST
 ### Variance Calculation
 Following Bechtold & Patterson (2005), Chapter 4, Section 4.2 (pp. 55-60):
 
-- **Post-stratified variance estimation** using ratio-of-means estimators
-- **Domain total variance formula** (derived from Eq. 4.1 and 4.8):
-  ```
-  V(Ŷ_D) = Σ_h [w_h² × s²_yh × n_h]
-  ```
-  Where w_h = EXPNS (expansion factor), s²_yh = sample variance, n_h = plots in stratum h
-- **Per-acre variance**: V(per_acre) = V(total) / (total_area)²
-- Accounts for stratification weights (EXPNS already incorporates 1/n_h)
-- Single-plot strata excluded from variance calculation (variance undefined)
+#### Domain Total Variance Formula
+For tree-based estimates (volume, biomass, tree count, growth, mortality, removals),
+pyFIA uses the **stratified domain total variance formula**:
+
+```
+V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+```
+
+Where:
+- Ŷ = estimated population total for the domain
+- w_h = EXPNS (expansion factor = acres/plot in stratum h)
+- s²_yh = sample variance of Y in stratum h (with ddof=1)
+- n_h = number of plots in stratum h
+
+This formula matches EVALIDator's variance calculation methodology and produces
+SE estimates within 1-3% of official USFS estimates.
+
+#### Key Implementation Details
+
+1. **All plots included**: Variance calculations must include ALL plots in the
+   evaluation, not just those with non-zero values. Plots without trees in the
+   domain contribute zeros, which affects the variance calculation.
+
+2. **Per-acre SE derivation**: SE per acre is calculated by dividing total SE
+   by total area:
+   ```
+   SE_per_acre = SE_total / total_area
+   ```
+
+3. **Single-plot strata**: Strata with only one plot are excluded from variance
+   calculation (variance is undefined with n=1).
+
+4. **Ratio vs. Domain Total**: EVALIDator uses domain total variance (shown above)
+   rather than ratio-of-means variance with covariance terms. The simpler formula
+   is appropriate because tree attribute values (y_i) already incorporate the
+   expansion to plot-level totals.
+
+#### Area Variance
+For area estimates, a slightly different approach is used that accounts for
+post-stratification variance components (V1/V2). pyFIA SE estimates for area
+are typically within 2-3% of EVALIDator.
+
+#### Validation Results
+pyFIA variance calculations have been validated against EVALIDator for Georgia
+(EVALID 132301, 132303):
+
+| Estimator | pyFIA SE | EVALIDator SE | Difference |
+|-----------|----------|---------------|------------|
+| Forest Area | 138,928 | 136,048 | 2.1% |
+| Volume (GS) | 545,617,192 | 549,272,904 | 0.67% |
+| Biomass (AG) | 14,204,093 | 14,256,973 | 0.37% |
+| TPA (Live) | 204,196,873 | 199,352,867 | 2.4% |
+| Growth | 35,406,501 | 35,445,004 | 0.11% |
+| Mortality | 18,549,971 | 18,517,419 | 0.18% |
+| Removals | 58,202,325 | 58,906,897 | 1.2% |
 
 ### Temporal Methods (FIA Methodology)
 

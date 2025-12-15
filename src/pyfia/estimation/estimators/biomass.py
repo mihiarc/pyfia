@@ -12,7 +12,7 @@ import polars as pl
 from ...core import FIA
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..variance import calculate_ratio_variance
+from ..variance import calculate_domain_total_variance
 
 
 class BiomassEstimator(BaseEstimator):
@@ -194,12 +194,12 @@ class BiomassEstimator(BaseEstimator):
         return results
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for biomass estimates using proper ratio estimation formula.
+        """Calculate variance for biomass estimates using domain total variance formula.
 
-        Biomass estimation uses ratio-of-means: R = Y/X where Y is biomass and X is area.
-        The variance formula accounts for covariance between numerator and denominator.
+        Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+        V(Ŷ) = Σ_h w_h² × s²_yh × n_h
 
-        Following Bechtold & Patterson (2005) methodology for stratified sampling.
+        This matches EVALIDator's variance calculation for tree-based estimates.
 
         Raises
         ------
@@ -219,6 +219,8 @@ class BiomassEstimator(BaseEstimator):
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
         if "STRATUM_CN" in self.plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
+        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+            plot_group_cols.append("CONDPROP_UNADJ")
 
         # Add grouping columns
         if self.group_cols:
@@ -248,18 +250,18 @@ class BiomassEstimator(BaseEstimator):
             [
                 pl.sum("y_bio_ic").alias("y_bio_i"),  # Total biomass per plot
                 pl.sum("y_carb_ic").alias("y_carb_i"),  # Total carbon per plot
-                pl.lit(1.0).alias("x_i"),  # Area proportion per plot (full plot = 1)
+                pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),  # Area proportion
             ]
         )
 
-        # Step 3: Calculate variance for each group or overall
-        if self.group_cols:
-            # Get ALL plots in the evaluation for proper variance calculation
-            strat_data = self._get_stratification_data()
-            all_plots = (
-                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-            )
+        # Step 3: Get ALL plots in the evaluation for proper variance calculation
+        strat_data = self._get_stratification_data()
+        all_plots = (
+            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+        )
 
+        # Step 4: Calculate variance for each group or overall
+        if self.group_cols:
             # Calculate variance for each group separately
             variance_results = []
 
@@ -292,16 +294,31 @@ class BiomassEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    # Calculate variance using ALL plots (including zeros)
-                    bio_stats = calculate_ratio_variance(all_plots_group, "y_bio_i")
-                    carb_stats = calculate_ratio_variance(all_plots_group, "y_carb_i")
+                    # Calculate variance using domain total formula (matches EVALIDator)
+                    bio_stats = calculate_domain_total_variance(
+                        all_plots_group, "y_bio_i"
+                    )
+                    carb_stats = calculate_domain_total_variance(
+                        all_plots_group, "y_carb_i"
+                    )
+
+                    # Calculate per-acre SE by dividing total SE by total area
+                    total_area = (
+                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                    ).sum()
+                    bio_se_acre = (
+                        bio_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
+                    carb_se_acre = (
+                        carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
 
                     variance_results.append(
                         {
                             **group_dict,
-                            "BIO_ACRE_SE": bio_stats["se_acre"],
+                            "BIO_ACRE_SE": bio_se_acre,
                             "BIO_TOTAL_SE": bio_stats["se_total"],
-                            "CARB_ACRE_SE": carb_stats["se_acre"],
+                            "CARB_ACRE_SE": carb_se_acre,
                             "CARB_TOTAL_SE": carb_stats["se_total"],
                         }
                     )
@@ -321,15 +338,38 @@ class BiomassEstimator(BaseEstimator):
                 var_df = pl.DataFrame(variance_results)
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
-            # No grouping, calculate overall variance
-            bio_stats = calculate_ratio_variance(plot_data, "y_bio_i")
-            carb_stats = calculate_ratio_variance(plot_data, "y_carb_i")
+            # No grouping, calculate overall variance with ALL plots
+            all_plots_with_values = all_plots.join(
+                plot_data.select(["PLT_CN", "y_bio_i", "y_carb_i", "x_i"]),
+                on="PLT_CN",
+                how="left",
+            ).with_columns(
+                [
+                    pl.col("y_bio_i").fill_null(0.0),
+                    pl.col("y_carb_i").fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
+
+            bio_stats = calculate_domain_total_variance(all_plots_with_values, "y_bio_i")
+            carb_stats = calculate_domain_total_variance(
+                all_plots_with_values, "y_carb_i"
+            )
+
+            # Calculate per-acre SE by dividing total SE by total area
+            total_area = (
+                all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
+            ).sum()
+            bio_se_acre = bio_stats["se_total"] / total_area if total_area > 0 else 0.0
+            carb_se_acre = (
+                carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+            )
 
             results = results.with_columns(
                 [
-                    pl.lit(bio_stats["se_acre"]).alias("BIO_ACRE_SE"),
+                    pl.lit(bio_se_acre).alias("BIO_ACRE_SE"),
                     pl.lit(bio_stats["se_total"]).alias("BIO_TOTAL_SE"),
-                    pl.lit(carb_stats["se_acre"]).alias("CARB_ACRE_SE"),
+                    pl.lit(carb_se_acre).alias("CARB_ACRE_SE"),
                     pl.lit(carb_stats["se_total"]).alias("CARB_TOTAL_SE"),
                 ]
             )

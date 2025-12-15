@@ -776,9 +776,10 @@ class BaseEstimator(ABC):
         group_cols: List[str],
         metric_mappings: Dict[str, tuple[str, str]],
         y_col_alias: str = "y_i",
+        use_domain_total_variance: bool = False,
     ) -> pl.DataFrame:
         """
-        Calculate variance for grouped estimates using ratio-of-means formula.
+        Calculate variance for grouped estimates.
 
         This shared method implements the common variance calculation pattern
         used across multiple estimators (volume, biomass, tpa, carbon, etc.).
@@ -796,13 +797,17 @@ class BaseEstimator(ABC):
             e.g., {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
         y_col_alias : str, default "y_i"
             Alias for the y column in plot-level aggregation
+        use_domain_total_variance : bool, default False
+            If True, use domain total variance formula V(Ŷ) = Σ_h w_h² × s²_yh × n_h.
+            If False, use ratio-of-means variance formula which includes covariance terms.
+            EVALIDator uses domain total variance for tree-based estimates.
 
         Returns
         -------
         pl.DataFrame
             Results with variance columns added
         """
-        from .variance import calculate_ratio_variance
+        from .variance import calculate_domain_total_variance, calculate_ratio_variance
 
         # Get the first metric column for aggregation
         metric_col = list(metric_mappings.keys())[0]
@@ -869,17 +874,39 @@ class BaseEstimator(ABC):
 
             if len(all_plots_group) > 0:
                 # Calculate variance using ALL plots (including zeros)
-                var_stats = calculate_ratio_variance(all_plots_group, y_col=y_col_alias)
+                if use_domain_total_variance:
+                    # Domain total variance: V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+                    # Used by EVALIDator for tree-based estimates
+                    var_stats = calculate_domain_total_variance(
+                        all_plots_group, y_col=y_col_alias
+                    )
+                    se_total = var_stats["se_total"]
+                    variance_total = var_stats["variance_total"]
+                    # For per-acre, divide by total area
+                    total_x = (
+                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                    ).sum()
+                    se_acre = se_total / total_x if total_x > 0 else 0.0
+                    variance_acre = (se_acre**2) if se_acre > 0 else 0.0
+                else:
+                    # Ratio-of-means variance (includes covariance terms)
+                    var_stats = calculate_ratio_variance(
+                        all_plots_group, y_col=y_col_alias
+                    )
+                    se_acre = var_stats["se_acre"]
+                    variance_acre = var_stats["variance_acre"]
+                    se_total = var_stats["se_total"]
+                    variance_total = var_stats["variance_total"]
 
                 result_dict = {**group_dict}
                 for adj_col, (se_col, var_col) in metric_mappings.items():
-                    result_dict[se_col] = var_stats["se_acre"]
-                    result_dict[var_col] = var_stats["variance_acre"]
+                    result_dict[se_col] = se_acre
+                    result_dict[var_col] = variance_acre
                     # Also add total SE/variance
                     total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
                     total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
-                    result_dict[total_se_col] = var_stats["se_total"]
-                    result_dict[total_var_col] = var_stats["variance_total"]
+                    result_dict[total_se_col] = se_total
+                    result_dict[total_var_col] = variance_total
 
                 variance_results.append(result_dict)
             else:
@@ -1188,10 +1215,12 @@ class GRMBaseEstimator(BaseEstimator):
         total_se_col: str,
     ) -> pl.DataFrame:
         """
-        Calculate variance for GRM estimates using ratio-of-means formula.
+        Calculate variance for GRM estimates using domain total variance formula.
 
-        Implements Bechtold & Patterson (2005) stratified ratio-of-means
-        variance calculation for Growth-Removal-Mortality estimates.
+        Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+        V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+
+        This matches EVALIDator's variance calculation for GRM estimates.
 
         Parameters
         ----------
@@ -1214,7 +1243,7 @@ class GRMBaseEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        from .grm import calculate_ratio_variance
+        from .variance import calculate_domain_total_variance
 
         if self.plot_tree_data is None:
             raise ValueError(
@@ -1228,6 +1257,8 @@ class GRMBaseEstimator(BaseEstimator):
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
         if "STRATUM_CN" in self.plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
+        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+            plot_group_cols.append("CONDPROP_UNADJ")
 
         if self.group_cols:
             for col in self.group_cols:
@@ -1247,20 +1278,26 @@ class GRMBaseEstimator(BaseEstimator):
                 [c for c in self.group_cols if c in plot_cond_data.columns]
             )
 
-        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
-            [
-                pl.sum("y_ic").alias("y_i"),
-                pl.lit(1.0).alias("x_i"),
-            ]
+        # Include CONDPROP_UNADJ for area calculation
+        condprop_col = (
+            "CONDPROP_UNADJ" if "CONDPROP_UNADJ" in plot_cond_data.columns else None
+        )
+        agg_cols = [pl.sum("y_ic").alias("y_i")]
+        if condprop_col:
+            agg_cols.append(pl.sum(condprop_col).cast(pl.Float64).alias("x_i"))
+        else:
+            agg_cols.append(pl.lit(1.0).alias("x_i"))
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(agg_cols)
+
+        # Get ALL plots in the evaluation for proper variance calculation
+        strat_data = self._get_stratification_data()
+        all_plots = (
+            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
         )
 
         # Calculate variance
         if self.group_cols:
-            strat_data = self._get_stratification_data()
-            all_plots = (
-                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-            )
-
             variance_results = []
 
             for group_vals in results.iter_rows():
@@ -1290,11 +1327,21 @@ class GRMBaseEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    var_stats = calculate_ratio_variance(all_plots_group, "y_i")
+                    # Calculate variance using domain total formula (matches EVALIDator)
+                    var_stats = calculate_domain_total_variance(all_plots_group, "y_i")
+
+                    # Calculate per-acre SE by dividing total SE by total area
+                    total_area = (
+                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                    ).sum()
+                    se_acre = (
+                        var_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
+
                     variance_results.append(
                         {
                             **group_dict,
-                            acre_se_col: var_stats["se_acre"],
+                            acre_se_col: se_acre,
                             total_se_col: var_stats["se_total"],
                         }
                     )
@@ -1311,10 +1358,29 @@ class GRMBaseEstimator(BaseEstimator):
                 var_df = pl.DataFrame(variance_results)
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
-            var_stats = calculate_ratio_variance(plot_data, "y_i")
+            # No grouping, calculate overall variance with ALL plots
+            all_plots_with_values = all_plots.join(
+                plot_data.select(["PLT_CN", "y_i", "x_i"]),
+                on="PLT_CN",
+                how="left",
+            ).with_columns(
+                [
+                    pl.col("y_i").fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
+
+            var_stats = calculate_domain_total_variance(all_plots_with_values, "y_i")
+
+            # Calculate per-acre SE by dividing total SE by total area
+            total_area = (
+                all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
+            ).sum()
+            se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
+
             results = results.with_columns(
                 [
-                    pl.lit(var_stats["se_acre"]).alias(acre_se_col),
+                    pl.lit(se_acre).alias(acre_se_col),
                     pl.lit(var_stats["se_total"]).alias(total_se_col),
                 ]
             )

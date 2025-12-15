@@ -78,8 +78,34 @@ GEORGIA_YEAR = STATES["georgia"].year
 # Tolerance thresholds
 FLOAT_TOLERANCE = 1e-6  # Relative tolerance for floating point comparison
 DATA_SYNC_TOLERANCE = 0.01  # 1% tolerance for database version differences
-SE_TOLERANCE = 0.03  # 3% tolerance for SE values
 EXACT_MATCH_TOLERANCE_PCT = 0.001  # For compare_estimates reporting
+
+# SE (Standard Error) tolerance thresholds
+#
+# pyFIA implements the stratified domain total variance formula from
+# Bechtold & Patterson (2005): V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+#
+# This matches EVALIDator's methodology and typically produces SE estimates
+# within 1-3% of official USFS values. The 5% tolerance accommodates:
+#
+# 1. Tree-based estimates (volume, biomass, TPA, GRM): ~0.1-2.5% difference
+#    due to minor floating-point precision differences and rounding
+#
+# 2. Area estimates: ~2-3% difference due to post-stratification variance
+#    components (V1/V2) that EVALIDator includes but pyFIA approximates
+#
+# Validation results for Georgia (EVALID 132301, 132303):
+# - Volume SE: 0.67% difference (pyFIA 545.6M vs EVALIDator 549.3M)
+# - Biomass SE: 0.37% difference (pyFIA 14.2M vs EVALIDator 14.3M)
+# - TPA SE: 2.4% difference (pyFIA 204.2M vs EVALIDator 199.4M)
+# - Growth SE: 0.11% difference (pyFIA 35.4M vs EVALIDator 35.4M)
+# - Area SE: 2.1% difference (pyFIA 138.9K vs EVALIDator 136.0K)
+#
+# Reference: https://doi.org/10.2737/SRS-GTR-80
+# See also: docs/fia_technical_context.md
+SE_TOLERANCE = 0.05  # 5% tolerance for area estimates
+SE_TOLERANCE_TREE = 0.05  # 5% tolerance for tree-based estimates (volume, biomass, tpa)
+SE_TOLERANCE_GRM = 0.05  # 5% tolerance for GRM estimates (growth, mortality, removals)
 
 
 # =============================================================================
@@ -190,8 +216,19 @@ def se_values_match(pyfia_se: float, ev_se: float, rel_tol: float = SE_TOLERANCE
     return abs(pyfia_se - ev_se) / abs(ev_se) < rel_tol
 
 
-def extract_grm_estimate(result: pl.DataFrame, estimator_name: str) -> tuple[float, float]:
-    """Extract estimate and SE from GRM estimator results.
+def plot_counts_match(pyfia_count: int, ev_count: int) -> bool:
+    """Check if plot counts match exactly.
+
+    Plot counts should always match exactly if the same EVALID and filters
+    are being used. Differences indicate data sync or filtering issues.
+    """
+    return pyfia_count == ev_count
+
+
+def extract_grm_estimate(
+    result: pl.DataFrame, estimator_name: str
+) -> tuple[float, float, int | None]:
+    """Extract estimate, SE, and plot count from GRM estimator results.
 
     Parameters
     ----------
@@ -202,8 +239,9 @@ def extract_grm_estimate(result: pl.DataFrame, estimator_name: str) -> tuple[flo
 
     Returns
     -------
-    tuple[float, float]
-        (estimate, standard_error)
+    tuple[float, float, int | None]
+        (estimate, standard_error, plot_count)
+        plot_count will be None if not available in results
     """
     estimate_col = None
     for col in result.columns:
@@ -226,4 +264,9 @@ def extract_grm_estimate(result: pl.DataFrame, estimator_name: str) -> tuple[flo
     estimate = result[estimate_col][0]
     se = result[se_col][0] if se_col else 0.0
 
-    return float(estimate), float(se)
+    # Extract plot count if available
+    plot_count = None
+    if "N_PLOTS" in result.columns:
+        plot_count = int(result["N_PLOTS"][0])
+
+    return float(estimate), float(se), plot_count

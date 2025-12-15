@@ -22,7 +22,7 @@ pyFIA provides a programmatic API for working with Forest Inventory and Analysis
 ### Statistical Methods
 - **Design-based estimation** following Bechtold & Patterson (2005)
 - **Post-stratified estimation** with proper variance calculation
-- **Temporal estimation methods**: TI (temporally indifferent), annual, SMA, LMA, EMA
+- **Temporally indifferent (TI) estimation** matching EVALIDator default
 - **EVALID-based filtering** for statistically valid estimates
 - **Ratio-of-means estimators** for per-acre values
 

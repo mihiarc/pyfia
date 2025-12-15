@@ -157,19 +157,24 @@ class MortalityEstimator(GRMBaseEstimator):
         return results
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for mortality estimates."""
+        """Calculate variance for mortality estimates using ratio-of-means formula.
+
+        Implements Bechtold & Patterson (2005) stratified variance calculation.
+        MORT_RATE uses the same variance as MORT_ACRE since they represent the
+        same per-acre estimate (MORT_RATE = mortality per acre, not mortality/growing_stock).
+        """
         results = self._calculate_grm_variance(
             results,
             adjusted_col="MORT_ADJ",
             acre_se_col="MORT_ACRE_SE",
             total_se_col="MORT_TOTAL_SE",
-            placeholder_cv=0.15,
         )
 
-        # Add rate SE if rate was calculated
+        # MORT_RATE is an alias for MORT_ACRE (per-acre mortality)
+        # so its SE is the same as MORT_ACRE_SE
         if "MORT_RATE" in results.columns:
             results = results.with_columns(
-                [(pl.col("MORT_RATE") * 0.20).alias("MORT_RATE_SE")]
+                [pl.col("MORT_ACRE_SE").alias("MORT_RATE_SE")]
             )
 
         # Add CV if requested

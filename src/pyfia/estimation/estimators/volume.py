@@ -227,39 +227,21 @@ class VolumeEstimator(BaseEstimator):
 
         Volume estimation uses ratio-of-means: R = Y/X where Y is volume and X is area.
         The variance formula accounts for covariance between numerator and denominator.
+
+        Following Bechtold & Patterson (2005) methodology for stratified sampling.
+
+        Raises
+        ------
+        ValueError
+            If plot_tree_data is not available for variance calculation.
         """
-
         if self.plot_tree_data is None:
-            # Fallback to conservative estimate
-            import warnings
-
-            warnings.warn(
-                "Plot-tree data not available for proper variance calculation. "
-                "Using placeholder 12% CV. To enable proper variance, ensure data "
-                "preservation is working correctly."
+            raise ValueError(
+                "Plot-tree data is required for volume variance calculation. "
+                "Cannot compute statistically valid standard errors without tree-level "
+                "measurements. Ensure data preservation is working correctly in the "
+                "estimation pipeline."
             )
-            results = results.with_columns(
-                [
-                    (pl.col("VOLUME_ACRE") * 0.12).alias("VOLUME_ACRE_SE"),
-                    (pl.col("VOLUME_TOTAL") * 0.12).alias("VOLUME_TOTAL_SE"),
-                ]
-            )
-
-            # Add CV if requested
-            if self.config.get("include_cv", False):
-                results = results.with_columns(
-                    [
-                        pl.when(pl.col("VOLUME_ACRE") > 0)
-                        .then(pl.col("VOLUME_ACRE_SE") / pl.col("VOLUME_ACRE") * 100)
-                        .otherwise(None)
-                        .alias("VOLUME_ACRE_CV"),
-                        pl.when(pl.col("VOLUME_TOTAL") > 0)
-                        .then(pl.col("VOLUME_TOTAL_SE") / pl.col("VOLUME_TOTAL") * 100)
-                        .otherwise(None)
-                        .alias("VOLUME_TOTAL_CV"),
-                    ]
-                )
-            return results
 
         # Calculate variance for each group or overall
         if self.group_cols:
@@ -653,19 +635,18 @@ def volume(
     ...     tree_domain="DIA >= 10.0 AND DECAYCD IN (1, 2)"  # Sound dead trees
     ... )
 
-    Warnings
-    --------
-    The current implementation uses a simplified variance calculation
-    (10% CV as placeholder). Full stratified variance calculation following
-    Bechtold & Patterson (2005) will be implemented in a future release.
-    For applications requiring precise variance estimates, consider using
-    the FIA EVALIDator tool or other specialized FIA analysis software.
+    Notes
+    -----
+    Variance calculations follow Bechtold & Patterson (2005) stratified
+    ratio-of-means methodology. A ValueError is raised if required tree-level
+    data is unavailable for variance calculation.
 
     Raises
     ------
     ValueError
-        If invalid parameter values are provided or if required tables
-        (TREE, COND, PLOT) are not found in the database.
+        If invalid parameter values are provided, if required tables
+        (TREE, COND, PLOT) are not found in the database, or if variance
+        is requested but tree-level data is unavailable.
     KeyError
         If specified columns in grp_by don't exist in the joined tables.
     """

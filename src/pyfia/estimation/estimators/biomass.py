@@ -200,25 +200,19 @@ class BiomassEstimator(BaseEstimator):
         The variance formula accounts for covariance between numerator and denominator.
 
         Following Bechtold & Patterson (2005) methodology for stratified sampling.
+
+        Raises
+        ------
+        ValueError
+            If plot_tree_data is not available for variance calculation.
         """
         if self.plot_tree_data is None:
-            # Fallback to conservative estimate
-            import warnings
-
-            warnings.warn(
-                "Plot-tree data not available for proper variance calculation. "
-                "Using placeholder 12% CV. To enable proper variance, ensure data "
-                "preservation is working correctly."
+            raise ValueError(
+                "Plot-tree data is required for biomass/carbon variance calculation. "
+                "Cannot compute statistically valid standard errors without tree-level "
+                "data. Ensure data preservation is working correctly in the estimation "
+                "pipeline."
             )
-            results = results.with_columns(
-                [
-                    (pl.col("BIO_ACRE") * 0.12).alias("BIO_ACRE_SE"),
-                    (pl.col("CARB_ACRE") * 0.12).alias("CARB_ACRE_SE"),
-                    (pl.col("BIO_TOTAL") * 0.12).alias("BIO_TOTAL_SE"),
-                    (pl.col("CARB_TOTAL") * 0.12).alias("CARB_TOTAL_SE"),
-                ]
-            )
-            return results
 
         # Step 1: Aggregate to plot-condition level
         # Sum biomass within each condition (trees are already adjusted)

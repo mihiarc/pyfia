@@ -13,9 +13,6 @@ from ..base import BaseEstimator
 from ..tree_expansion import apply_area_adjustment_factors
 from ..utils import format_output_columns
 
-# Constants for variance calculation
-DEFAULT_CV = 0.05  # Fallback coefficient of variation when detailed variance calculation unavailable
-
 
 class AreaEstimator(BaseEstimator):
     """
@@ -300,18 +297,21 @@ class AreaEstimator(BaseEstimator):
         return results_df
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for area estimates using proper total estimation formula."""
+        """Calculate variance for area estimates using domain total estimation formula.
 
+        Implements Bechtold & Patterson (2005) stratified variance calculation
+        for domain totals.
+
+        Raises
+        ------
+        ValueError
+            If plot_condition_data is not available for variance calculation.
+        """
         if self.plot_condition_data is None:
-            # Fallback to placeholder if no detailed data available
-            import warnings
-
-            warnings.warn(
-                "Plot-condition data not available for proper variance calculation. "
-                f"Using placeholder {DEFAULT_CV * 100:.0f}% CV."
-            )
-            return results.with_columns(
-                [(pl.col("AREA_TOTAL") * DEFAULT_CV).alias("AREA_SE")]
+            raise ValueError(
+                "Plot-condition data is required for area variance calculation. "
+                "Cannot compute statistically valid standard errors without "
+                "condition-level data. Ensure both COND and PLOT tables are available."
             )
 
         # Step 1: Calculate condition-level areas

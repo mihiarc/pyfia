@@ -198,49 +198,19 @@ class TPAEstimator(BaseEstimator):
         The variance formula accounts for covariance between numerator and denominator.
 
         Following Bechtold & Patterson (2005) methodology for stratified sampling.
+
+        Raises
+        ------
+        ValueError
+            If plot_tree_data is not available for variance calculation.
         """
-
         if self.plot_tree_data is None:
-            # Fallback to sample-size-adjusted CV estimate
-            import warnings
-
-            warnings.warn(
-                "Plot-tree data not available for proper variance calculation. "
-                "Using sample-size-adjusted CV approximation."
+            raise ValueError(
+                "Plot-tree data is required for TPA/BAA variance calculation. "
+                "Cannot compute statistically valid standard errors without tree-level "
+                "data. Ensure data preservation is working correctly in the estimation "
+                "pipeline."
             )
-            base_cv = 0.10
-            reference_n = 100
-
-            results = results.with_columns(
-                [
-                    pl.when(pl.col("N_PLOTS") > 0)
-                    .then(
-                        (base_cv * (reference_n / pl.col("N_PLOTS")).sqrt()).clip(
-                            base_cv, 0.50
-                        )
-                    )
-                    .otherwise(0.50)
-                    .alias("CV_ADJ")
-                ]
-            )
-
-            results = results.with_columns(
-                [
-                    (pl.col("TPA") * pl.col("CV_ADJ")).alias("TPA_SE"),
-                    (pl.col("BAA") * pl.col("CV_ADJ")).alias("BAA_SE"),
-                ]
-            )
-
-            if "TPA_TOTAL" in results.columns:
-                results = results.with_columns(
-                    [
-                        (pl.col("TPA_TOTAL") * pl.col("CV_ADJ")).alias("TPA_TOTAL_SE"),
-                        (pl.col("BAA_TOTAL") * pl.col("CV_ADJ")).alias("BAA_TOTAL_SE"),
-                    ]
-                )
-
-            results = results.drop(["CV_ADJ"])
-            return results
 
         # Step 1: Aggregate to plot-condition level
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]

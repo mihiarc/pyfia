@@ -340,21 +340,19 @@ class BaseEstimator(ABC):
         """
         Calculate variance for estimates.
 
-        Simple variance calculation without complex abstractions.
+        Subclasses must override this method to implement proper variance
+        calculation following Bechtold & Patterson (2005) methodology.
+
+        Raises
+        ------
+        NotImplementedError
+            If called on the base class without override.
         """
-        # This would implement the actual FIA variance formulas
-        # For now, add placeholder SE column
-        results = results.with_columns(
-            [
-                (pl.col("ESTIMATE") * 0.1).alias("SE")  # Placeholder
-            ]
+        raise NotImplementedError(
+            f"{self.__class__.__name__} must implement calculate_variance() "
+            "with proper stratified ratio-of-means variance calculation. "
+            "See Bechtold & Patterson (2005) for methodology."
         )
-
-        if not self.config.get("variance", False):
-            # Convert variance to standard error
-            results = results.with_columns([pl.col("SE").sqrt().alias("SE")])
-
-        return results
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """
@@ -1188,32 +1186,43 @@ class GRMBaseEstimator(BaseEstimator):
         adjusted_col: str,
         acre_se_col: str,
         total_se_col: str,
-        placeholder_cv: float = 0.15,
     ) -> pl.DataFrame:
         """
-        Calculate variance for GRM estimates.
+        Calculate variance for GRM estimates using ratio-of-means formula.
 
-        Common variance calculation pattern using ratio-of-means formula.
+        Implements Bechtold & Patterson (2005) stratified ratio-of-means
+        variance calculation for Growth-Removal-Mortality estimates.
+
+        Parameters
+        ----------
+        results : pl.DataFrame
+            Results dataframe to add variance columns to.
+        adjusted_col : str
+            Name of the adjusted metric column in plot_tree_data.
+        acre_se_col : str
+            Name for the per-acre standard error column.
+        total_se_col : str
+            Name for the total standard error column.
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added.
+
+        Raises
+        ------
+        ValueError
+            If plot_tree_data is not available for variance calculation.
         """
         from .grm import calculate_ratio_variance
 
-        acre_col = f"{self.metric_prefix}_ACRE"
-        total_col = f"{self.metric_prefix}_TOTAL"
-
         if self.plot_tree_data is None:
-            import warnings
-
-            warnings.warn(
-                f"Plot-tree data not available for proper variance calculation. "
-                f"Using placeholder {placeholder_cv * 100:.0f}% CV."
+            raise ValueError(
+                f"Plot-tree data is required for {self.__class__.__name__} variance "
+                "calculation. Cannot compute statistically valid standard errors "
+                "without tree-level data. Ensure data preservation is working "
+                "correctly in the estimation pipeline."
             )
-            results = results.with_columns(
-                [
-                    (pl.col(acre_col) * placeholder_cv).alias(acre_se_col),
-                    (pl.col(total_col) * placeholder_cv).alias(total_se_col),
-                ]
-            )
-            return results
 
         # Aggregate to plot-condition level
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]

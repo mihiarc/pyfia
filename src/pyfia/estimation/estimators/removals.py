@@ -104,13 +104,15 @@ class RemovalsEstimator(GRMBaseEstimator):
         return results
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for removals estimates."""
+        """Calculate variance for removals estimates using ratio-of-means formula.
+
+        Implements Bechtold & Patterson (2005) stratified variance calculation.
+        """
         results = self._calculate_grm_variance(
             results,
             adjusted_col="REMV_ADJ",
             acre_se_col="REMV_ACRE_SE",
             total_se_col="REMV_TOTAL_SE",
-            placeholder_cv=0.20,
         )
 
         # Add coefficient of variation

@@ -380,13 +380,15 @@ class GrowthEstimator(GRMBaseEstimator):
         return results
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Calculate variance for growth estimates."""
+        """Calculate variance for growth estimates using ratio-of-means formula.
+
+        Implements Bechtold & Patterson (2005) stratified variance calculation.
+        """
         results = self._calculate_grm_variance(
             results,
             adjusted_col="GROWTH_ADJ",
             acre_se_col="GROWTH_ACRE_SE",
             total_se_col="GROWTH_TOTAL_SE",
-            placeholder_cv=0.12,
         )
 
         # Add CV if requested

@@ -12,6 +12,7 @@ from .conftest import (
     EXACT_MATCH_TOLERANCE_PCT,
     values_match,
     se_values_match,
+    plot_counts_match,
 )
 
 
@@ -25,6 +26,7 @@ class TestAreaValidation:
             result = area(db, land_type="forest", totals=True)
             pyfia_area = result["AREA"][0]
             pyfia_se = result["AREA_SE"][0]
+            pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_forest_area(
             state_code=GEORGIA_STATE_CODE,
@@ -35,13 +37,15 @@ class TestAreaValidation:
             pyfia_value=pyfia_area,
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
-            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT
+            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
+            pyfia_plot_count=pyfia_plot_count
         )
 
         print(f"\nForest Area Validation:")
         print(f"  pyFIA:      {pyfia_area:,.0f} acres (SE: {pyfia_se:,.0f})")
         print(f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})")
         print(f"  Difference: {validation.pct_diff:.6f}%")
+        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
 
         assert values_match(pyfia_area, ev_result.estimate), (
             f"Forest area MUST match EVALIDator exactly.\n"
@@ -53,6 +57,11 @@ class TestAreaValidation:
             f"pyFIA SE: {pyfia_se:,.0f} vs EVALIDator SE: {ev_result.sampling_error:,.0f}"
         )
 
+        assert plot_counts_match(pyfia_plot_count, ev_result.plot_count), (
+            f"Plot counts should match exactly.\n"
+            f"pyFIA: {pyfia_plot_count} vs EVALIDator: {ev_result.plot_count}"
+        )
+
     def test_timberland_area(self, fia_db, evalidator_client):
         """Validate timberland area matches EVALIDator (snum=3)."""
         with FIA(fia_db) as db:
@@ -60,6 +69,7 @@ class TestAreaValidation:
             result = area(db, land_type="timber", totals=True)
             pyfia_area = result["AREA"][0]
             pyfia_se = result["AREA_SE"][0]
+            pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_forest_area(
             state_code=GEORGIA_STATE_CODE,
@@ -71,15 +81,27 @@ class TestAreaValidation:
             pyfia_value=pyfia_area,
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
-            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT
+            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
+            pyfia_plot_count=pyfia_plot_count
         )
 
         print(f"\nTimberland Area Validation:")
         print(f"  pyFIA:      {pyfia_area:,.0f} acres (SE: {pyfia_se:,.0f})")
         print(f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})")
         print(f"  Difference: {validation.pct_diff:.6f}%")
+        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
 
         assert values_match(pyfia_area, ev_result.estimate), (
             f"Timberland area MUST match EVALIDator exactly.\n"
             f"pyFIA: {pyfia_area} vs EVALIDator: {ev_result.estimate}"
+        )
+
+        assert se_values_match(pyfia_se, ev_result.sampling_error), (
+            f"Timberland area SE should match EVALIDator.\n"
+            f"pyFIA SE: {pyfia_se:,.0f} vs EVALIDator SE: {ev_result.sampling_error:,.0f}"
+        )
+
+        assert plot_counts_match(pyfia_plot_count, ev_result.plot_count), (
+            f"Plot counts should match exactly.\n"
+            f"pyFIA: {pyfia_plot_count} vs EVALIDator: {ev_result.plot_count}"
         )

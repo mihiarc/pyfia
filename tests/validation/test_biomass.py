@@ -10,7 +10,10 @@ from .conftest import (
     GEORGIA_EVALID,
     GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
+    SE_TOLERANCE_TREE,
     values_match,
+    se_values_match,
+    plot_counts_match,
 )
 
 
@@ -24,6 +27,7 @@ class TestBiomassValidation:
             result = biomass(db, land_type="forest", tree_type="live", totals=True)
             pyfia_bio = result["BIO_TOTAL"][0]
             pyfia_se = result["BIO_TOTAL_SE"][0]
+            pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_biomass(
             state_code=GEORGIA_STATE_CODE,
@@ -34,17 +38,29 @@ class TestBiomassValidation:
             pyfia_value=pyfia_bio,
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
-            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT
+            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
+            pyfia_plot_count=pyfia_plot_count
         )
 
         print(f"\nAboveground Biomass Validation:")
         print(f"  pyFIA:      {pyfia_bio:,.0f} dry tons (SE: {pyfia_se:,.0f})")
         print(f"  EVALIDator: {ev_result.estimate:,.0f} dry tons (SE: {ev_result.sampling_error:,.0f})")
         print(f"  Difference: {validation.pct_diff:.6f}%")
+        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
 
         assert values_match(pyfia_bio, ev_result.estimate), (
             f"Biomass MUST match EVALIDator exactly.\n"
             f"pyFIA: {pyfia_bio} vs EVALIDator: {ev_result.estimate}"
+        )
+
+        assert se_values_match(pyfia_se, ev_result.sampling_error, rel_tol=SE_TOLERANCE_TREE), (
+            f"Aboveground biomass SE should match EVALIDator within {SE_TOLERANCE_TREE*100:.0f}% tolerance.\n"
+            f"pyFIA SE: {pyfia_se:,.0f} vs EVALIDator SE: {ev_result.sampling_error:,.0f}"
+        )
+
+        assert plot_counts_match(pyfia_plot_count, ev_result.plot_count), (
+            f"Plot counts should match exactly.\n"
+            f"pyFIA: {pyfia_plot_count} vs EVALIDator: {ev_result.plot_count}"
         )
 
     def test_belowground_biomass(self, fia_db, evalidator_client):
@@ -54,6 +70,7 @@ class TestBiomassValidation:
             result = biomass(db, land_type="forest", tree_type="live", component="bg", totals=True)
             pyfia_bio = result["BIO_TOTAL"][0]
             pyfia_se = result["BIO_TOTAL_SE"][0]
+            pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_biomass(
             state_code=GEORGIA_STATE_CODE,
@@ -65,17 +82,29 @@ class TestBiomassValidation:
             pyfia_value=pyfia_bio,
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
-            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT
+            tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
+            pyfia_plot_count=pyfia_plot_count
         )
 
         print(f"\nBelowground Biomass Validation:")
         print(f"  pyFIA:      {pyfia_bio:,.0f} dry tons (SE: {pyfia_se:,.0f})")
         print(f"  EVALIDator: {ev_result.estimate:,.0f} dry tons (SE: {ev_result.sampling_error:,.0f})")
         print(f"  Difference: {validation.pct_diff:.6f}%")
+        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
 
         assert values_match(pyfia_bio, ev_result.estimate), (
             f"Belowground biomass MUST match EVALIDator exactly.\n"
             f"pyFIA: {pyfia_bio} vs EVALIDator: {ev_result.estimate}"
+        )
+
+        assert se_values_match(pyfia_se, ev_result.sampling_error, rel_tol=SE_TOLERANCE_TREE), (
+            f"Belowground biomass SE should match EVALIDator within {SE_TOLERANCE_TREE*100:.0f}% tolerance.\n"
+            f"pyFIA SE: {pyfia_se:,.0f} vs EVALIDator SE: {ev_result.sampling_error:,.0f}"
+        )
+
+        assert plot_counts_match(pyfia_plot_count, ev_result.plot_count), (
+            f"Plot counts should match exactly.\n"
+            f"pyFIA: {pyfia_plot_count} vs EVALIDator: {ev_result.plot_count}"
         )
 
     @pytest.mark.skip(reason="snum=13 returns trees >=1\" not >=5\" - need correct snum")

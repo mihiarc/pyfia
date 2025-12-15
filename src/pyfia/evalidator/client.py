@@ -26,6 +26,8 @@ class EVALIDatorEstimate:
     estimate: float
     sampling_error: float
     sampling_error_pct: float
+    variance: float
+    plot_count: int
     units: str
     estimate_type: str
     state_code: int
@@ -154,6 +156,8 @@ class EVALIDatorClient:
             estimate=float(est.get("ESTIMATE", 0)),
             sampling_error=float(est.get("SE", 0)),
             sampling_error_pct=float(est.get("SE_PERCENT", 0)),
+            variance=float(est.get("VARIANCE", 0)),
+            plot_count=int(est.get("PLOT_COUNT", 0)),
             units=units,
             estimate_type=estimate_type,
             state_code=state_code,

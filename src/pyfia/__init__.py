@@ -5,7 +5,7 @@ A high-performance Python library for analyzing USDA Forest Inventory and Analys
 using modern data science tools like Polars and DuckDB.
 """
 
-__version__ = "0.2.0"
+__version__ = "1.0.0b1"
 __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality

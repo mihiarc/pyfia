@@ -19,6 +19,9 @@ class ValidationResult:
     pyfia_se: float
     evalidator_estimate: float
     evalidator_se: float
+    evalidator_variance: float
+    evalidator_plot_count: int
+    pyfia_plot_count: Optional[int]
     absolute_diff: float
     pct_diff: float
     within_1se: bool
@@ -35,6 +38,7 @@ def compare_estimates(
     pyfia_se: float,
     evalidator_result: EVALIDatorEstimate,
     tolerance_pct: float = 5.0,
+    pyfia_plot_count: Optional[int] = None,
 ) -> ValidationResult:
     """
     Compare a pyFIA estimate with an EVALIDator official estimate.
@@ -49,6 +53,8 @@ def compare_estimates(
         The EVALIDator official estimate
     tolerance_pct : float
         Acceptable percentage difference (default 5%)
+    pyfia_plot_count : int, optional
+        Number of plots used by pyFIA (for plot count validation)
 
     Returns
     -------
@@ -60,7 +66,8 @@ def compare_estimates(
     >>> result = compare_estimates(
     ...     pyfia_value=18500000,
     ...     pyfia_se=450000,
-    ...     evalidator_result=official_estimate
+    ...     evalidator_result=official_estimate,
+    ...     pyfia_plot_count=1500
     ... )
     >>> print(f"Validation {'PASSED' if result.passed else 'FAILED'}: {result.message}")
     """
@@ -93,6 +100,9 @@ def compare_estimates(
         pyfia_se=pyfia_se,
         evalidator_estimate=ev.estimate,
         evalidator_se=ev.sampling_error,
+        evalidator_variance=ev.variance,
+        evalidator_plot_count=ev.plot_count,
+        pyfia_plot_count=pyfia_plot_count,
         absolute_diff=abs_diff,
         pct_diff=pct_diff,
         within_1se=within_1se,

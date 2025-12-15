@@ -12,7 +12,7 @@ import polars as pl
 
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..variance import calculate_ratio_variance
+from ..variance import calculate_domain_total_variance
 
 if TYPE_CHECKING:
     from ...core import FIA
@@ -192,12 +192,12 @@ class TPAEstimator(BaseEstimator):
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """
-        Calculate variance for TPA and BAA estimates using proper ratio estimation formula.
+        Calculate variance for TPA and BAA estimates using domain total variance formula.
 
-        TPA and BAA estimation uses ratio-of-means: R = Y/X where Y is tree value and X is area.
-        The variance formula accounts for covariance between numerator and denominator.
+        Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+        V(Ŷ) = Σ_h w_h² × s²_yh × n_h
 
-        Following Bechtold & Patterson (2005) methodology for stratified sampling.
+        This matches EVALIDator's variance calculation for tree-based estimates.
 
         Raises
         ------
@@ -216,6 +216,8 @@ class TPAEstimator(BaseEstimator):
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
         if "STRATUM_CN" in self.plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
+        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+            plot_group_cols.append("CONDPROP_UNADJ")
 
         # Add grouping columns
         if self.group_cols:
@@ -245,17 +247,18 @@ class TPAEstimator(BaseEstimator):
             [
                 pl.sum("y_tpa_ic").alias("y_tpa_i"),
                 pl.sum("y_baa_ic").alias("y_baa_i"),
-                pl.lit(1.0).alias("x_i"),
+                pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),
             ]
         )
 
-        # Step 3: Calculate variance for each group or overall
-        if self.group_cols:
-            strat_data = self._get_stratification_data()
-            all_plots = (
-                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-            )
+        # Step 3: Get ALL plots in the evaluation for proper variance calculation
+        strat_data = self._get_stratification_data()
+        all_plots = (
+            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+        )
 
+        # Step 4: Calculate variance for each group or overall
+        if self.group_cols:
             variance_results = []
 
             for group_vals in results.iter_rows():
@@ -284,15 +287,31 @@ class TPAEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    tpa_stats = calculate_ratio_variance(all_plots_group, "y_tpa_i")
-                    baa_stats = calculate_ratio_variance(all_plots_group, "y_baa_i")
+                    # Calculate variance using domain total formula (matches EVALIDator)
+                    tpa_stats = calculate_domain_total_variance(
+                        all_plots_group, "y_tpa_i"
+                    )
+                    baa_stats = calculate_domain_total_variance(
+                        all_plots_group, "y_baa_i"
+                    )
+
+                    # Calculate per-acre SE by dividing total SE by total area
+                    total_area = (
+                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                    ).sum()
+                    tpa_se_acre = (
+                        tpa_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
+                    baa_se_acre = (
+                        baa_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
 
                     variance_results.append(
                         {
                             **group_dict,
-                            "TPA_SE": tpa_stats["se_acre"],
+                            "TPA_SE": tpa_se_acre,
                             "TPA_TOTAL_SE": tpa_stats["se_total"],
-                            "BAA_SE": baa_stats["se_acre"],
+                            "BAA_SE": baa_se_acre,
                             "BAA_TOTAL_SE": baa_stats["se_total"],
                         }
                     )
@@ -311,13 +330,37 @@ class TPAEstimator(BaseEstimator):
                 var_df = pl.DataFrame(variance_results)
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
-            tpa_stats = calculate_ratio_variance(plot_data, "y_tpa_i")
-            baa_stats = calculate_ratio_variance(plot_data, "y_baa_i")
+            # No grouping, calculate overall variance with ALL plots
+            all_plots_with_values = all_plots.join(
+                plot_data.select(["PLT_CN", "y_tpa_i", "y_baa_i", "x_i"]),
+                on="PLT_CN",
+                how="left",
+            ).with_columns(
+                [
+                    pl.col("y_tpa_i").fill_null(0.0),
+                    pl.col("y_baa_i").fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
+
+            tpa_stats = calculate_domain_total_variance(
+                all_plots_with_values, "y_tpa_i"
+            )
+            baa_stats = calculate_domain_total_variance(
+                all_plots_with_values, "y_baa_i"
+            )
+
+            # Calculate per-acre SE by dividing total SE by total area
+            total_area = (
+                all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
+            ).sum()
+            tpa_se_acre = tpa_stats["se_total"] / total_area if total_area > 0 else 0.0
+            baa_se_acre = baa_stats["se_total"] / total_area if total_area > 0 else 0.0
 
             results = results.with_columns(
                 [
-                    pl.lit(tpa_stats["se_acre"]).alias("TPA_SE"),
-                    pl.lit(baa_stats["se_acre"]).alias("BAA_SE"),
+                    pl.lit(tpa_se_acre).alias("TPA_SE"),
+                    pl.lit(baa_se_acre).alias("BAA_SE"),
                 ]
             )
 

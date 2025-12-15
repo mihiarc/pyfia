@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyfia"
-version = "0.3.0"
+version = "1.0.0b1"
 description = "High-performance Python library for Forest Inventory Analysis (FIA) data analysis"
 readme = "README.md"
 authors = [
@@ -12,7 +12,7 @@ authors = [
 ]
 license = {text = "MIT"}
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Science/Research",
     "Topic :: Scientific/Engineering :: GIS",
     "License :: OSI Approved :: MIT License",

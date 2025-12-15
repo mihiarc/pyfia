@@ -3,6 +3,13 @@ Statistical calculations for FIA estimation.
 
 Combines variance calculation and statistical expressions into a single module
 without unnecessary abstraction layers.
+
+Statistical methodology follows Bechtold & Patterson (2005), Gen. Tech. Rep. SRS-80:
+- Ratio-of-means estimator: Chapter 4, Section 4.2 (pp. 55-60)
+- Domain estimation: Eq. 4.1, p. 47 (domain indicator function)
+- Post-stratified variance: Section 4.2
+
+Reference: https://doi.org/10.2737/SRS-GTR-80
 """
 
 from typing import List, Optional, Tuple
@@ -22,7 +29,11 @@ def calculate_ratio_of_means_variance(
     Calculate variance using ratio-of-means estimator.
 
     This is the standard FIA variance calculation following
-    Bechtold & Patterson (2005).
+    Bechtold & Patterson (2005), Chapter 4, Section 4.2 (pp. 55-60).
+
+    Implements post-stratified ratio estimation where EXPNS (expansion factor)
+    already incorporates the inverse of sample size (1/n_h). See Eq. 4.8 (p. 53)
+    for tree attribute estimation and Section 4.2 for variance formulas.
 
     Parameters
     ----------

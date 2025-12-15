@@ -143,5 +143,11 @@ MIT License - see LICENSE file for details.
 ## Acknowledgments
 
 - Uses USDA Forest Service FIA data
-- Statistical methods from Bechtold & Patterson (2005) "The Enhanced Forest Inventory and Analysis Program"
+- Statistical methods from Bechtold & Patterson (2005):
+  - Bechtold, W.A.; Patterson, P.L., eds. 2005. *The Enhanced Forest Inventory and
+    Analysis Program - National Sampling Design and Estimation Procedures*.
+    Gen. Tech. Rep. SRS-80. Asheville, NC: U.S. Department of Agriculture,
+    Forest Service, Southern Research Station. 85 p. https://doi.org/10.2737/SRS-GTR-80
+  - Key equations: Chapter 4 (pp. 53-77) - see Eq. 4.1 (domain indicator), Eq. 4.2
+    (adjustment factor), Eq. 4.8 (tree attributes), Section 4.2 (variance estimation)
 - Inspired by various FIA analysis tools and methodologies in the forestry community

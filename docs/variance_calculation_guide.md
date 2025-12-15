@@ -342,11 +342,33 @@ def test_variance_against_evalidator():
 
 ## References
 
-1. Bechtold, W.A., and Patterson, P.L. (2005). The Enhanced Forest Inventory and Analysis Program - National Sampling Design and Estimation Procedures. USDA Forest Service, Southern Research Station.
+1. **Bechtold, W.A., and Patterson, P.L. (Editors). 2005.** The Enhanced Forest Inventory
+   and Analysis Program - National Sampling Design and Estimation Procedures.
+   Gen. Tech. Rep. SRS-80. Asheville, NC: U.S. Department of Agriculture, Forest Service,
+   Southern Research Station. 85 p. https://doi.org/10.2737/SRS-GTR-80
 
-2. Scott, C.T., Bechtold, W.A., Reams, G.A., et al. (2005). Sample-based estimators used by the Forest Inventory and Analysis national information management system.
+   **Key Sections for Variance Calculations:**
+   | Section/Equation | Page | Description |
+   |------------------|------|-------------|
+   | Eq. 4.1 | 47 | Domain indicator function (Φ_hid) for condition attributes |
+   | Eq. 4.2 | 49 | Adjustment factor (1/p_mh) for non-sampled plots |
+   | Eq. 4.8 | 53 | Tree attribute estimation (y_hid) |
+   | Section 3.4.3 | 40-42 | Nonsampled Plots and Plot Replacement |
+   | Section 4.2 | 55-60 | Post-stratified estimation and EXPNS expansion factor |
 
-3. FIA Database User Guide, Version 9.1 - Section on Statistical Estimation
+2. **Scott, C.T.; Bechtold, W.A.; Reams, G.A.; Smith, W.D.; Westfall, J.A.;
+   Hansen, M.H.; Moisen, G.G. 2005.** Sample-based estimators used by the
+   Forest Inventory and Analysis national information management system.
+   Gen. Tech. Rep. SRS-80, Chapter 4, pp. 53-77.
+
+3. **Westfall, J.A.; Patterson, P.L.; Coulston, J.W. 2011.** Post-stratified
+   estimation: Within-strata and total sample size recommendations.
+   Canadian Journal of Forest Research, 41(5): 1130-1139.
+
+4. **USDA Forest Service. 2018.** Population Estimation User Guide (Edition: November 2018).
+   https://research.fs.usda.gov/sites/default/files/2024-05/wo-nov2018_ug_population_estimation.pdf
+
+5. FIA Database User Guide, Version 9.1 - Section on Statistical Estimation
 
 ## Summary
 

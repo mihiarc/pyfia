@@ -10,7 +10,16 @@ The FIA uses a nested plot design with different sampling intensities:
 - Subplot (24.0 ft radius): All trees 5.0"+ DBH
 - Macroplot (58.9 ft radius): Large trees above a regional breakpoint diameter
 
-Reference: Bechtold & Patterson (2005) - The Enhanced Forest Inventory and Analysis Program
+Reference:
+    Bechtold, W.A.; Patterson, P.L., eds. 2005. The Enhanced Forest Inventory
+    and Analysis Program - National Sampling Design and Estimation Procedures.
+    Gen. Tech. Rep. SRS-80. https://doi.org/10.2737/SRS-GTR-80
+
+    Key sections:
+    - Chapter 3, pp. 27-52: Plot design and nested sampling structure
+    - Section 3.4.3, pp. 40-42: Nonsampled plots and plot replacement
+    - Eq. 4.2, p. 49: Adjustment factor (1/p_mh) for non-sampled plots
+    - Eq. 4.8, p. 53: Tree attribute estimation (y_hid)
 
 CRITICAL: This module must be used for ALL tree-based calculations to ensure
 accurate expansion from sample plots to population estimates.

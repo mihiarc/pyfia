@@ -12,7 +12,26 @@ This document compiles authoritative FIA technical information gathered from off
 - Describes transition to annual inventory system
 - Details three-phase sampling design
 - Presents core estimators for National Information Management System (NIMS)
-- Available at: https://www.srs.fs.usda.gov/pubs/gtr/gtr_srs080.pdf
+- Available at: https://www.srs.fs.usda.gov/pubs/gtr/gtr_srs080/gtr_srs080.pdf
+- DOI: 10.2737/SRS-GTR-80
+
+#### Key Chapters (with page references)
+| Chapter | Title | Authors | Pages |
+|---------|-------|---------|-------|
+| 3 | The Forest Inventory and Analysis Plot Design | Bechtold, W.A.; Scott, C.T. | 27-52 |
+| 4 | Sample-based estimators used by FIA NIMS | Scott, C.T.; Bechtold, W.A.; Reams, G.A.; Smith, W.D.; Westfall, J.A.; Hansen, M.H.; Moisen, G.G. | 53-77 |
+
+#### Critical Equations (Chapter 4)
+| Equation | Page | Description |
+|----------|------|-------------|
+| Eq. 4.1 | 47 | Domain indicator function (Φ_hid) for condition attributes |
+| Eq. 4.2 | 49 | Adjustment factor (1/p_mh) for non-sampled plots |
+| Eq. 4.8 | 53 | Tree attribute estimation (y_hid) |
+| Section 4.2 | 55-60 | Stratification and EXPNS expansion factor |
+
+#### Key Sections
+- **Section 3.4.3** (pg. 40-42): Nonsampled Plots and Plot Replacement - handling inaccessible plots
+- **Section 4.2** (pg. 55-60): Post-stratified estimation procedures and variance formulas
 
 ### Additional Key References
 - **Woudenberg, S.W. et al. 2010.** The Forest Inventory and Analysis Database: Database description and users manual version 4.0 for Phase 2. Gen. Tech. Rep. RMRS-GTR-245. Fort Collins, CO: U.S. Department of Agriculture, Forest Service, Rocky Mountain Research Station.
@@ -235,9 +254,17 @@ Example: SUBP_TPAMORT_UNADJ_GS_FOREST
 - Ratio-of-means estimators for per-acre values
 
 ### Variance Calculation
-- Follows Bechtold & Patterson (2005) methodology
-- Accounts for stratification
-- Includes finite population corrections
+Following Bechtold & Patterson (2005), Chapter 4, Section 4.2 (pp. 55-60):
+
+- **Post-stratified variance estimation** using ratio-of-means estimators
+- **Domain total variance formula** (derived from Eq. 4.1 and 4.8):
+  ```
+  V(Ŷ_D) = Σ_h [w_h² × s²_yh × n_h]
+  ```
+  Where w_h = EXPNS (expansion factor), s²_yh = sample variance, n_h = plots in stratum h
+- **Per-acre variance**: V(per_acre) = V(total) / (total_area)²
+- Accounts for stratification weights (EXPNS already incorporates 1/n_h)
+- Single-plot strata excluded from variance calculation (variance undefined)
 
 ### Temporal Methods
 - **TI**: Temporally Indifferent (all available data)

@@ -3,7 +3,13 @@ Variance calculation functions for FIA estimation.
 
 This module provides shared variance calculation functions used across
 all estimation modules, implementing the stratified ratio-of-means
-variance formula from Bechtold & Patterson (2005).
+variance formula from Bechtold & Patterson (2005), Chapter 4 (pp. 53-77).
+
+Statistical methodology follows:
+- Domain indicator function: Eq. 4.1, p. 47 (Φ_hid for condition attributes)
+- Adjustment factors: Eq. 4.2, p. 49 (1/p_mh for non-sampled plots)
+- Tree attribute estimation: Eq. 4.8, p. 53 (y_hid)
+- Post-stratified variance: Section 4.2, pp. 55-60
 """
 
 from typing import Dict
@@ -80,7 +86,20 @@ def calculate_ratio_variance(
     ----------
     Bechtold, W.A.; Patterson, P.L., eds. 2005. The Enhanced Forest
     Inventory and Analysis Program - National Sampling Design and
-    Estimation Procedures. Gen. Tech. Rep. SRS-80.
+    Estimation Procedures. Gen. Tech. Rep. SRS-80. Asheville, NC:
+    U.S. Department of Agriculture, Forest Service, Southern Research
+    Station. 85 p. https://doi.org/10.2737/SRS-GTR-80
+
+    Specific equations implemented:
+    - Domain indicator (Φ_hid): Eq. 4.1, p. 47
+    - Adjustment factor (1/p_mh): Eq. 4.2, p. 49
+    - Tree attributes (y_hid): Eq. 4.8, p. 53
+    - Stratified variance: Section 4.2, pp. 55-60
+
+    See also:
+    - Scott, C.T. et al. 2005. Sample-based estimators used by the
+      Forest Inventory and Analysis national information management
+      system. Gen. Tech. Rep. SRS-80, Chapter 4, pp. 53-77.
     """
     # Determine stratification columns
     if stratum_col not in plot_data.columns:

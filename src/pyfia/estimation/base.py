@@ -778,10 +778,11 @@ class BaseEstimator(ABC):
         use_domain_total_variance: bool = False,
     ) -> pl.DataFrame:
         """
-        Calculate variance for grouped estimates.
+        Calculate variance for grouped estimates using vectorized operations.
 
-        This shared method implements the common variance calculation pattern
-        used across multiple estimators (volume, biomass, tpa, carbon, etc.).
+        This method computes variance for all groups in a single pass using
+        Polars group_by operations, avoiding the N+1 query pattern of iterating
+        through groups individually.
 
         Parameters
         ----------
@@ -806,7 +807,10 @@ class BaseEstimator(ABC):
         pl.DataFrame
             Results with variance columns added
         """
-        from .variance import calculate_domain_total_variance, calculate_ratio_variance
+        from .variance import (
+            calculate_grouped_domain_total_variance,
+            calculate_grouped_ratio_variance,
+        )
 
         # Get the first metric column for aggregation
         metric_col = list(metric_mappings.keys())[0]
@@ -842,89 +846,87 @@ class BaseEstimator(ABC):
             strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
         )
 
-        # Step 4: Calculate variance for each group
-        variance_results = []
+        # Step 4: Expand plot_data to include all plots with zeros for missing groups
+        # Get unique group combinations from results
+        valid_group_cols = [c for c in group_cols if c in plot_data.columns]
 
-        for group_vals in results.iter_rows():
-            # Build filter for this group
-            group_filter = pl.lit(True)
-            group_dict = {}
+        if valid_group_cols:
+            # Get unique group values from results
+            unique_groups = results.select(valid_group_cols).unique()
 
-            for col in group_cols:
-                if col in plot_data.columns:
-                    col_idx = results.columns.index(col)
-                    group_dict[col] = group_vals[col_idx]
-                    group_filter = group_filter & (pl.col(col) == group_vals[col_idx])
+            # Cross join all plots with all groups to ensure complete coverage
+            all_plots_expanded = all_plots.join(unique_groups, how="cross")
 
-            # Filter plot data for this specific group
-            group_plot_data = plot_data.filter(group_filter)
-
-            # Join with ALL plots, filling missing with zeros
-            all_plots_group = all_plots.join(
-                group_plot_data.select(["PLT_CN", y_col_alias, "x_i"]),
+            # Left join with actual plot data to get values (missing = 0)
+            join_cols = ["PLT_CN"] + valid_group_cols
+            all_plots_with_data = all_plots_expanded.join(
+                plot_data.select(join_cols + [y_col_alias, "x_i"]),
+                on=join_cols,
+                how="left",
+            ).with_columns([
+                pl.col(y_col_alias).fill_null(0.0),
+                pl.col("x_i").fill_null(0.0),
+            ])
+        else:
+            # No grouping - just use all plots with plot_data
+            all_plots_with_data = all_plots.join(
+                plot_data.select(["PLT_CN", y_col_alias, "x_i"]),
                 on="PLT_CN",
                 how="left",
-            ).with_columns(
-                [
-                    pl.col(y_col_alias).fill_null(0.0),
-                    pl.col("x_i").fill_null(0.0),
-                ]
+            ).with_columns([
+                pl.col(y_col_alias).fill_null(0.0),
+                pl.col("x_i").fill_null(0.0),
+            ])
+
+        # Step 5: Calculate variance for all groups in one vectorized operation
+        if use_domain_total_variance:
+            variance_df = calculate_grouped_domain_total_variance(
+                all_plots_with_data,
+                group_cols=valid_group_cols,
+                y_col=y_col_alias,
+                x_col="x_i",
+                stratum_col="STRATUM_CN",
+                weight_col="EXPNS",
+            )
+        else:
+            variance_df = calculate_grouped_ratio_variance(
+                all_plots_with_data,
+                group_cols=valid_group_cols,
+                y_col=y_col_alias,
+                x_col="x_i",
+                stratum_col="STRATUM_CN",
+                weight_col="EXPNS",
             )
 
-            if len(all_plots_group) > 0:
-                # Calculate variance using ALL plots (including zeros)
-                if use_domain_total_variance:
-                    # Domain total variance: V(Ŷ) = Σ_h w_h² × s²_yh × n_h
-                    # Used by EVALIDator for tree-based estimates
-                    var_stats = calculate_domain_total_variance(
-                        all_plots_group, y_col=y_col_alias
+        # Step 6: Rename variance columns to match expected output
+        # Map generic variance columns to metric-specific names
+        for adj_col, (se_col, var_col) in metric_mappings.items():
+            total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
+            total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
+
+            variance_df = variance_df.with_columns([
+                pl.col("se_acre").alias(se_col),
+                pl.col("variance_acre").alias(var_col),
+                pl.col("se_total").alias(total_se_col),
+                pl.col("variance_total").alias(total_var_col),
+            ])
+
+        # Drop the generic columns
+        cols_to_drop = ["se_acre", "se_total", "variance_acre", "variance_total"]
+        cols_to_drop = [c for c in cols_to_drop if c in variance_df.columns]
+        if cols_to_drop:
+            variance_df = variance_df.drop(cols_to_drop)
+
+        # Step 7: Join variance results back to main results
+        if valid_group_cols:
+            results = results.join(variance_df, on=valid_group_cols, how="left")
+        else:
+            # No grouping - just add the single variance row's columns
+            for col in variance_df.columns:
+                if col not in results.columns:
+                    results = results.with_columns(
+                        pl.lit(variance_df[col][0]).alias(col)
                     )
-                    se_total = var_stats["se_total"]
-                    variance_total = var_stats["variance_total"]
-                    # For per-acre, divide by total area
-                    total_x = (
-                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
-                    ).sum()
-                    se_acre = se_total / total_x if total_x > 0 else 0.0
-                    variance_acre = (se_acre**2) if se_acre > 0 else 0.0
-                else:
-                    # Ratio-of-means variance (includes covariance terms)
-                    var_stats = calculate_ratio_variance(
-                        all_plots_group, y_col=y_col_alias
-                    )
-                    se_acre = var_stats["se_acre"]
-                    variance_acre = var_stats["variance_acre"]
-                    se_total = var_stats["se_total"]
-                    variance_total = var_stats["variance_total"]
-
-                result_dict = {**group_dict}
-                for adj_col, (se_col, var_col) in metric_mappings.items():
-                    result_dict[se_col] = se_acre
-                    result_dict[var_col] = variance_acre
-                    # Also add total SE/variance
-                    total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
-                    total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
-                    result_dict[total_se_col] = se_total
-                    result_dict[total_var_col] = variance_total
-
-                variance_results.append(result_dict)
-            else:
-                # No data for this group - set SE to 0
-                result_dict = {**group_dict}
-                for adj_col, (se_col, var_col) in metric_mappings.items():
-                    result_dict[se_col] = 0.0
-                    result_dict[var_col] = 0.0
-                    total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
-                    total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
-                    result_dict[total_se_col] = 0.0
-                    result_dict[total_var_col] = 0.0
-
-                variance_results.append(result_dict)
-
-        # Join variance results back to main results
-        if variance_results:
-            var_df = pl.DataFrame(variance_results)
-            results = results.join(var_df, on=group_cols, how="left")
 
         return results
 

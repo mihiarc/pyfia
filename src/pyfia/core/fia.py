@@ -12,6 +12,7 @@ from typing import Dict, List, Optional, Union
 
 import polars as pl
 
+from ..constants.defaults import EVALIDYearParsing
 from .data_reader import FIADataReader
 from .exceptions import DatabaseError, NoEVALIDError
 
@@ -25,15 +26,16 @@ def _add_parsed_evalid_columns(
     Add parsed EVALID columns to a DataFrame for sorting.
 
     EVALID format: SSYYTT (State, Year 2-digit, Type)
-    Year uses Y2K windowing: 00-30 -> 2000-2030, 31-99 -> 1931-1999
+    Year uses Y2K windowing based on EVALIDYearParsing constants.
+
+    See EVALIDYearParsing for details on year interpretation.
     """
+    year_expr = pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
     return df.with_columns(
         [
-            pl.when(pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32) <= 30)
-            .then(2000 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32))
-            .otherwise(
-                1900 + pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
-            )
+            pl.when(year_expr <= EVALIDYearParsing.Y2K_WINDOW_THRESHOLD)
+            .then(EVALIDYearParsing.CENTURY_2000 + year_expr)
+            .otherwise(EVALIDYearParsing.CENTURY_1900 + year_expr)
             .alias("EVALID_YEAR"),
             pl.col("EVALID")
             .cast(pl.Utf8)

@@ -231,6 +231,10 @@ class BaseEstimator(ABC):
         """
         Apply domain filtering.
 
+        This method applies all configured filters (tree domain, area domain,
+        tree type, land type) directly on the LazyFrame without materializing
+        the data, enabling efficient memory usage for large datasets.
+
         Parameters
         ----------
         data : pl.LazyFrame
@@ -241,51 +245,46 @@ class BaseEstimator(ABC):
         pl.LazyFrame
             Filtered data
         """
-        # Collect to DataFrame for filtering functions
-        data_df = data.collect()
+        # Get column names for conditional filtering (single schema collection)
+        columns = data.collect_schema().names()
 
-        # Apply tree domain filter
+        # Apply tree domain filter (works with LazyFrames)
         if self.config.get("tree_domain"):
-            data_df = apply_tree_filters(
-                data_df, tree_domain=self.config["tree_domain"]
-            )
+            data = apply_tree_filters(data, tree_domain=self.config["tree_domain"])
 
-        # Apply area domain filter
+        # Apply area domain filter (works with LazyFrames)
         if self.config.get("area_domain"):
-            data_df = apply_area_filters(
-                data_df, area_domain=self.config["area_domain"]
-            )
+            data = apply_area_filters(data, area_domain=self.config["area_domain"])
 
         # Apply tree type filter (live, dead, etc.)
         tree_type = self.config.get("tree_type", "live")
-        if tree_type and "STATUSCD" in data_df.columns:
+        if tree_type and "STATUSCD" in columns:
             if tree_type == "live":
-                data_df = data_df.filter(pl.col("STATUSCD") == 1)
+                data = data.filter(pl.col("STATUSCD") == 1)
             elif tree_type == "dead":
-                data_df = data_df.filter(pl.col("STATUSCD") == 2)
+                data = data.filter(pl.col("STATUSCD") == 2)
             elif tree_type == "gs":
                 # Growing stock = live trees (STATUSCD=1) with TREECLCD=2
                 # TREECLCD: 2=Growing stock, 3=Rough cull, 4=Rotten cull
                 gs_filter = pl.col("STATUSCD") == 1
-                if "TREECLCD" in data_df.columns:
+                if "TREECLCD" in columns:
                     gs_filter = gs_filter & (pl.col("TREECLCD") == 2)
-                data_df = data_df.filter(gs_filter)
+                data = data.filter(gs_filter)
             # "all" means no filter
 
         # Apply land type filter
         land_type = self.config.get("land_type", "forest")
-        if land_type and "COND_STATUS_CD" in data_df.columns:
+        if land_type and "COND_STATUS_CD" in columns:
             if land_type == "forest":
-                data_df = data_df.filter(pl.col("COND_STATUS_CD") == 1)
+                data = data.filter(pl.col("COND_STATUS_CD") == 1)
             elif land_type == "timber":
-                data_df = data_df.filter(
+                data = data.filter(
                     (pl.col("COND_STATUS_CD") == 1)
                     & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
                     & (pl.col("RESERVCD") == 0)
                 )
 
-        # Convert back to lazy for further processing
-        return data_df.lazy()
+        return data
 
     def aggregate_results(self, data: Optional[pl.LazyFrame]) -> pl.DataFrame:
         """
@@ -1096,32 +1095,32 @@ class GRMBaseEstimator(BaseEstimator):
         """
         Apply common GRM filters.
 
+        This method applies all GRM-specific filters directly on the LazyFrame
+        without materializing the data, enabling efficient memory usage.
+
         Applies:
         1. Area domain filter
         2. Tree domain filter
         3. Positive TPA_UNADJ filter
         4. Component-specific filters (via get_component_filter)
+        5. Tree type filter (growing stock >= 5 inches)
         """
-        # Collect to DataFrame for filtering
-        data_df = data.collect()
+        # Get column names once for conditional filtering
+        columns = data.collect_schema().names()
 
-        # Apply area domain filter
+        # Apply area domain filter (works with LazyFrames)
         if self.config.get("area_domain"):
             from ..filtering.area.filters import apply_area_filters
 
-            data_df = apply_area_filters(
-                data_df, area_domain=self.config["area_domain"]
-            )
+            data = apply_area_filters(data, area_domain=self.config["area_domain"])
 
-        # Apply tree domain filter
+        # Apply tree domain filter (works with LazyFrames)
         if self.config.get("tree_domain"):
             from ..filtering.core.parser import DomainExpressionParser
 
-            data_df = DomainExpressionParser.apply_to_dataframe(
-                data_df, self.config["tree_domain"], "tree"
+            data = DomainExpressionParser.apply_to_dataframe(
+                data, self.config["tree_domain"], "tree"
             )
-
-        data = data_df.lazy()
 
         # Filter to records with positive TPA
         data = data.filter(
@@ -1135,7 +1134,7 @@ class GRMBaseEstimator(BaseEstimator):
 
         # Apply tree type filter (growing stock >= 5 inches)
         tree_type = self.config.get("tree_type", "gs")
-        if tree_type == "gs" and "DIA_MIDPT" in data.collect_schema().names():
+        if tree_type == "gs" and "DIA_MIDPT" in columns:
             data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
 
         return data

@@ -3,22 +3,27 @@ Area and condition filtering functions for FIA estimation.
 
 This module provides area/condition-level filtering logic used across all estimation
 modules, including land type filtering (forest/timber) and custom area domains.
+
+All functions support both eager DataFrames and lazy LazyFrames for memory efficiency.
 """
 
-from typing import Optional
+from typing import Optional, TypeVar
 
 import polars as pl
 
 from ...constants.status_codes import LandStatus, ReserveStatus, SiteClass
 from ..core.parser import DomainExpressionParser
 
+# Type variable for DataFrame/LazyFrame operations
+FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
+
 
 def apply_area_filters(
-    cond_df: pl.DataFrame,
+    cond_df: FrameType,
     land_type: str = "all",
     area_domain: Optional[str] = None,
     area_estimation_mode: bool = False,
-) -> pl.DataFrame:
+) -> FrameType:
     """
     Apply land type and area domain filters for condition data.
 
@@ -26,10 +31,13 @@ def apply_area_filters(
     estimation modules. It handles land type filtering (forest/timber/all)
     and applies optional user-defined area domains.
 
+    Supports both eager DataFrames and lazy LazyFrames for memory-efficient
+    processing of large datasets.
+
     Parameters
     ----------
-    cond_df : pl.DataFrame
-        Condition dataframe to filter
+    cond_df : pl.DataFrame or pl.LazyFrame
+        Condition dataframe or lazyframe to filter
     land_type : str, default "all"
         Type of land to include:
         - "forest": Forest land only (COND_STATUS_CD == 1)
@@ -43,8 +51,8 @@ def apply_area_filters(
 
     Returns
     -------
-    pl.DataFrame
-        Filtered condition dataframe
+    pl.DataFrame or pl.LazyFrame
+        Filtered condition dataframe/lazyframe (same type as input)
 
     Examples
     --------
@@ -57,6 +65,9 @@ def apply_area_filters(
     ...     land_type="timber",
     ...     area_domain="OWNGRPCD == 40"  # Private land
     ... )
+
+    >>> # Works with LazyFrames too (memory efficient)
+    >>> filtered_lazy = apply_area_filters(cond_lazy, land_type="forest")
     """
     # In area estimation mode, we don't filter by land type here
     # (it's handled through domain indicators instead)

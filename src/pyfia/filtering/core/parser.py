@@ -6,9 +6,12 @@ all domain expression parsing throughout the pyFIA library, eliminating
 code duplication between filters and estimation modules.
 """
 
-from typing import Optional
+from typing import Optional, TypeVar
 
 import polars as pl
+
+# Type variable for DataFrame/LazyFrame operations
+FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 
 
 class DomainExpressionParser:
@@ -66,18 +69,19 @@ class DomainExpressionParser:
 
     @staticmethod
     def apply_to_dataframe(
-        df: pl.DataFrame, domain_expr: str, domain_type: str = "domain"
-    ) -> pl.DataFrame:
+        df: FrameType, domain_expr: str, domain_type: str = "domain"
+    ) -> FrameType:
         """
-        Apply a domain expression filter to a DataFrame.
+        Apply a domain expression filter to a DataFrame or LazyFrame.
 
         This is a convenience method that combines parsing and filtering
-        in a single operation.
+        in a single operation. Works with both eager DataFrames and lazy
+        LazyFrames, preserving the input type.
 
         Parameters
         ----------
-        df : pl.DataFrame
-            DataFrame to filter
+        df : pl.DataFrame or pl.LazyFrame
+            DataFrame or LazyFrame to filter
         domain_expr : str
             SQL-like expression string
         domain_type : str, default "domain"
@@ -85,8 +89,8 @@ class DomainExpressionParser:
 
         Returns
         -------
-        pl.DataFrame
-            Filtered DataFrame
+        pl.DataFrame or pl.LazyFrame
+            Filtered DataFrame/LazyFrame (same type as input)
 
         Raises
         ------
@@ -98,9 +102,16 @@ class DomainExpressionParser:
         >>> filtered_df = DomainExpressionParser.apply_to_dataframe(
         ...     tree_df, "DIA >= 10.0", "tree"
         ... )
+        >>> # Also works with LazyFrames
+        >>> filtered_lf = DomainExpressionParser.apply_to_dataframe(
+        ...     tree_lf, "DIA >= 10.0", "tree"
+        ... )
         """
         expr = DomainExpressionParser.parse(domain_expr, domain_type)
         return df.filter(expr)
+
+    # Alias for semantic clarity when working with LazyFrames
+    apply_to_frame = apply_to_dataframe
 
     @staticmethod
     def create_indicator(

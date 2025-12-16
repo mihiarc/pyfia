@@ -3,9 +3,11 @@ Tree filtering functions for FIA estimation.
 
 This module provides tree-level filtering logic used across all estimation modules,
 including tree type filtering (live/dead/growing stock) and custom domain filters.
+
+All functions support both eager DataFrames and lazy LazyFrames for memory efficiency.
 """
 
-from typing import Optional
+from typing import Optional, TypeVar
 
 import polars as pl
 
@@ -13,14 +15,17 @@ from ...constants.plot_design import DiameterBreakpoints
 from ...constants.status_codes import TreeClass, TreeStatus
 from ..core.parser import DomainExpressionParser
 
+# Type variable for DataFrame/LazyFrame operations
+FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
+
 
 def apply_tree_filters(
-    tree_df: pl.DataFrame,
+    tree_df: FrameType,
     tree_type: str = "all",
     tree_domain: Optional[str] = None,
     require_volume: bool = False,
     require_diameter_thresholds: bool = False,
-) -> pl.DataFrame:
+) -> FrameType:
     """
     Apply tree type and domain filters following FIA methodology.
 
@@ -28,10 +33,13 @@ def apply_tree_filters(
     It handles tree status filtering (live/dead/growing stock/all), applies optional
     user-defined domains, and ensures data validity for estimation.
 
+    Supports both eager DataFrames and lazy LazyFrames for memory-efficient
+    processing of large datasets.
+
     Parameters
     ----------
-    tree_df : pl.DataFrame
-        Tree dataframe to filter
+    tree_df : pl.DataFrame or pl.LazyFrame
+        Tree dataframe or lazyframe to filter
     tree_type : str, default "all"
         Type of trees to include:
         - "live": Live trees only (STATUSCD == 1)
@@ -49,8 +57,8 @@ def apply_tree_filters(
 
     Returns
     -------
-    pl.DataFrame
-        Filtered tree dataframe
+    pl.DataFrame or pl.LazyFrame
+        Filtered tree dataframe/lazyframe (same type as input)
 
     Examples
     --------
@@ -64,7 +72,16 @@ def apply_tree_filters(
     ...     tree_domain="DIA >= 20.0",
     ...     require_volume=True
     ... )
+
+    >>> # Works with LazyFrames too (memory efficient)
+    >>> filtered_lazy = apply_tree_filters(tree_lazy, tree_type="gs")
     """
+    # Get column names (works for both DataFrame and LazyFrame)
+    if isinstance(tree_df, pl.LazyFrame):
+        columns = tree_df.collect_schema().names()
+    else:
+        columns = tree_df.columns
+
     # Tree type filters
     if tree_type == "live":
         if require_diameter_thresholds:
@@ -105,7 +122,7 @@ def apply_tree_filters(
 
     # Filter for valid data required by all modules
     # If DIA not present (e.g., minimal projections for performance), skip DIA validation
-    if "DIA" in tree_df.columns:
+    if "DIA" in columns:
         tree_df = tree_df.filter(
             (pl.col("DIA").is_not_null()) & (pl.col("TPA_UNADJ") > 0)
         )

@@ -205,14 +205,14 @@ class TestDownloadAnalysisPipeline:
         with tempfile.TemporaryDirectory() as temp_dir:
             yield Path(temp_dir)
 
-    @pytest.mark.filterwarnings("ignore:No evaluations found:UserWarning")
-    @pytest.mark.filterwarnings("ignore:No EVALID specified:UserWarning")
     def test_download_and_estimate_area(self, temp_data_dir):
         """Test downloading RI data and running area estimation.
 
         Note: RI is a small state and may not have all evaluation types.
-        The warnings about missing evaluations are expected and suppressed.
+        We find available evaluations first before running estimation.
         """
+        from pyfia.core.exceptions import NoEVALIDError
+
         # Download Rhode Island data
         db_path = download(
             states="RI",
@@ -224,10 +224,22 @@ class TestDownloadAnalysisPipeline:
 
         # Run area estimation
         with FIA(db_path) as db:
-            # Find most recent evaluation (may warn if EXPALL not available)
-            db.clip_most_recent(eval_type="EXPALL")
+            # Find available evaluations first
+            available = db.find_evalid()
 
-            # Estimate forest area (may auto-select evaluations if none set)
+            # Try EXPALL first, fall back to any available eval type
+            try:
+                db.clip_most_recent(eval_type="EXPALL")
+            except NoEVALIDError:
+                # EXPALL may not be available in RI, use most recent of any type
+                if len(available) > 0:
+                    # Get the most recent evaluation from what's available
+                    most_recent_evalid = available.sort("EVALID", descending=True)["EVALID"][0]
+                    db.clip_by_evalid(most_recent_evalid)
+                else:
+                    pytest.skip("No evaluations available in downloaded RI data")
+
+            # Estimate forest area
             result = area(db, land_type="forest")
 
             # Verify we got results

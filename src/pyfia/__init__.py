@@ -10,6 +10,20 @@ __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
 from pyfia.core.data_reader import FIADataReader
+from pyfia.core.exceptions import (
+    ConfigurationError,
+    DatabaseError,
+    EstimationError,
+    FilterError,
+    InsufficientDataError,
+    InvalidDomainError,
+    InvalidEVALIDError,
+    MissingColumnError,
+    NoEVALIDError,
+    PyFIAError,
+    StratificationError,
+    TableNotFoundError,
+)
 from pyfia.core.fia import FIA
 from pyfia.core.settings import (
     PyFIASettings,
@@ -69,6 +83,19 @@ __all__ = [
     "get_default_engine",
     "settings",
     "PyFIASettings",
+    # Exceptions
+    "PyFIAError",
+    "DatabaseError",
+    "TableNotFoundError",
+    "EstimationError",
+    "InsufficientDataError",
+    "StratificationError",
+    "MissingColumnError",
+    "FilterError",
+    "InvalidDomainError",
+    "InvalidEVALIDError",
+    "NoEVALIDError",
+    "ConfigurationError",
     # Estimation functions
     "area",
     "biomass",

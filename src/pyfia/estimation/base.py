@@ -12,6 +12,7 @@ from typing import Dict, List, Literal, Optional, Union
 
 import polars as pl
 
+from ..constants.defaults import EVALIDYearParsing
 from ..core import FIA
 from ..filtering import apply_area_filters, apply_tree_filters
 
@@ -735,14 +736,18 @@ class BaseEstimator(ABC):
                 evalid = self.db.evalids[0]  # Use first EVALID
                 year_part = int(str(evalid)[2:4])  # Extract YY portion
 
-                # Handle century correctly - FIA data starts in 1990s
-                if year_part >= 90:  # Years 90-99 are 1990-1999
-                    year = 1900 + year_part
-                else:  # Years 00-89 are 2000-2089
-                    year = 2000 + year_part
+                # Handle century using Y2K windowing
+                # Years >= 90 are 1990s, years < 90 are 2000s
+                if year_part >= EVALIDYearParsing.LEGACY_THRESHOLD:
+                    year = EVALIDYearParsing.CENTURY_1900 + year_part
+                else:
+                    year = EVALIDYearParsing.CENTURY_2000 + year_part
 
-                # Validate year is reasonable (1990-2050)
-                if year < 1990 or year > 2050:
+                # Validate year is within reasonable range
+                if (
+                    year < EVALIDYearParsing.MIN_VALID_YEAR
+                    or year > EVALIDYearParsing.MAX_VALID_YEAR
+                ):
                     year = None  # Fall back to other methods
             except (IndexError, ValueError, TypeError) as e:
                 logger.debug(f"Could not parse year from EVALID: {e}")
@@ -763,11 +768,11 @@ class BaseEstimator(ABC):
             except Exception as e:
                 logger.debug(f"Could not infer year from PLOT.INVYR: {e}")
 
-        # Default to current year minus 2 (typical FIA processing lag)
+        # Default to current year minus processing lag (typically 2 years)
         if year is None:
             from datetime import datetime
 
-            year = datetime.now().year - 2
+            year = datetime.now().year - EVALIDYearParsing.DEFAULT_YEAR_OFFSET
 
         return year
 

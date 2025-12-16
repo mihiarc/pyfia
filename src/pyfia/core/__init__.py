@@ -5,17 +5,49 @@ This module contains the fundamental classes and functions for working with FIA 
 - Main FIA class for database interaction
 - Data reader for loading FIA tables
 - Configuration and settings management
+- Custom exception classes
 """
 
 from .data_reader import FIADataReader
+from .exceptions import (
+    ConfigurationError,
+    ConnectionError,
+    DatabaseError,
+    EstimationError,
+    FilterError,
+    InsufficientDataError,
+    InvalidDomainError,
+    InvalidEVALIDError,
+    MissingColumnError,
+    NoEVALIDError,
+    PyFIAError,
+    StratificationError,
+    TableNotFoundError,
+)
 from .fia import FIA
 from .settings import PyFIASettings, get_default_db_path, get_default_engine, settings
 
 __all__ = [
+    # Main classes
     "FIA",
     "FIADataReader",
+    "PyFIASettings",
+    # Settings helpers
     "get_default_db_path",
     "get_default_engine",
-    "PyFIASettings",
     "settings",
+    # Exceptions
+    "PyFIAError",
+    "DatabaseError",
+    "TableNotFoundError",
+    "ConnectionError",
+    "EstimationError",
+    "InsufficientDataError",
+    "StratificationError",
+    "MissingColumnError",
+    "FilterError",
+    "InvalidDomainError",
+    "InvalidEVALIDError",
+    "NoEVALIDError",
+    "ConfigurationError",
 ]

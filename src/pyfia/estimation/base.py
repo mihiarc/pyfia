@@ -5,6 +5,7 @@ This module provides the base class for all FIA estimators using a simple,
 straightforward approach without unnecessary abstractions.
 """
 
+import logging
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import Dict, List, Literal, Optional, Union
@@ -13,6 +14,8 @@ import polars as pl
 
 from ..core import FIA
 from ..filtering import apply_area_filters, apply_tree_filters
+
+logger = logging.getLogger(__name__)
 
 
 class BaseEstimator(ABC):
@@ -741,8 +744,8 @@ class BaseEstimator(ABC):
                 # Validate year is reasonable (1990-2050)
                 if year < 1990 or year > 2050:
                     year = None  # Fall back to other methods
-            except (IndexError, ValueError, TypeError):
-                pass
+            except (IndexError, ValueError, TypeError) as e:
+                logger.debug(f"Could not parse year from EVALID: {e}")
 
         # Fallback: If no EVALID, use most recent INVYR as approximation
         if year is None and "PLOT" in self.db.tables:
@@ -757,8 +760,8 @@ class BaseEstimator(ABC):
                     max_year = plot_years["INVYR"].max()
                     if max_year is not None:
                         year = int(max_year)  # type: ignore[arg-type]
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"Could not infer year from PLOT.INVYR: {e}")
 
         # Default to current year minus 2 (typical FIA processing lag)
         if year is None:

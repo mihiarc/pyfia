@@ -5,14 +5,17 @@ This module provides the main FIA class that handles database connections,
 EVALID-based filtering, and common FIA data operations.
 """
 
+import logging
 import warnings
 from pathlib import Path
 from typing import Dict, List, Optional, Union
 
-# import duckdb  # No longer needed - handled by backends
 import polars as pl
 
 from .data_reader import FIADataReader
+from .exceptions import DatabaseError, NoEVALIDError
+
+logger = logging.getLogger(__name__)
 
 
 def _add_parsed_evalid_columns(
@@ -314,9 +317,12 @@ class FIA:
                 pop_eval_typ, left_on="CN", right_on="EVAL_CN", how="left"
             )
         except Exception as e:
-            # If tables don't exist or join fails, return empty list with warning
-            warnings.warn(f"Could not load evaluation tables: {e}")
-            return []
+            # Log the error and raise a more specific exception
+            logger.debug(f"Failed to load evaluation tables: {e}")
+            raise DatabaseError(
+                f"Could not load evaluation tables (POP_EVAL, POP_EVAL_TYP): {e}. "
+                "Ensure the database contains FIA population tables."
+            )
 
         # Apply filters
         if state is not None:
@@ -517,8 +523,12 @@ class FIA:
         )
 
         if not evalids:
-            warnings.warn(f"No evaluations found for type {eval_type}")
-            return self
+            raise NoEVALIDError(
+                operation=f"clip_most_recent(eval_type='{eval_type}')",
+                suggestion=f"No evaluations found for type '{eval_type}'. "
+                "Check that the database contains evaluation data for this type, "
+                "or use find_evalid() to see available evaluations.",
+            )
 
         # When most_recent is True, we get one EVALID per state
         # This is correct - we want the most recent evaluation for EACH state
@@ -705,7 +715,10 @@ class FIA:
         # Get stratum assignments for filtered plots
         plot_cns = plots["CN"].to_list()
         if self.evalid is None:
-            raise ValueError("No EVALID specified or found")
+            raise NoEVALIDError(
+                operation="get_estimation_data",
+                suggestion="Use clip_by_evalid() or clip_most_recent() before calling estimation functions.",
+            )
         ppsa = (
             self.tables["POP_PLOT_STRATUM_ASSGN"]
             .filter(pl.col("PLT_CN").is_in(plot_cns))

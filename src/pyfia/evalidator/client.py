@@ -202,6 +202,113 @@ class EVALIDatorClient:
             estimate_type=f"{land_type}_area",
         )
 
+    def get_area_change(
+        self,
+        state_code: int,
+        year: int,
+        land_type: str = "forest",
+        annual: bool = True,
+        measurement: str = "both",
+    ) -> EVALIDatorEstimate:
+        """
+        Get area change estimate from EVALIDator.
+
+        Area change estimates require remeasured plots (plots measured at two
+        points in time) and represent the net change in land classification.
+
+        Parameters
+        ----------
+        state_code : int
+            State FIPS code (e.g., 37 for North Carolina)
+        year : int
+            Inventory year (e.g., 2023)
+        land_type : str, default "forest"
+            Land classification:
+            - "forest": Forest land area change
+            - "timber": Timberland area change
+            - "sampled": All sampled land area change
+        annual : bool, default True
+            If True, return annualized rate of change (acres/year).
+            If False, return total change over remeasurement period.
+        measurement : str, default "both"
+            Which measurement to use for defining land class:
+            - "both": Land must meet criteria at both measurements
+            - "either": Land meets criteria at either measurement
+            - "remeasured": Only remeasured conditions (for non-annual)
+
+        Returns
+        -------
+        EVALIDatorEstimate
+            Official area change estimate with sampling error
+
+        Notes
+        -----
+        Area change estimates track transitions between land use categories.
+        Positive values indicate net gain, negative values indicate net loss.
+
+        The "both" measurement option is more conservative, requiring land
+        to be classified consistently at both time points. The "either"
+        option captures land that was in the category at any point.
+
+        Examples
+        --------
+        >>> client = EVALIDatorClient()
+        >>> # Annual forest area change
+        >>> result = client.get_area_change(37, 2023, land_type="forest")
+        >>> print(f"Annual change: {result.estimate:+,.0f} acres/year")
+
+        >>> # Total timberland change over remeasurement period
+        >>> result = client.get_area_change(37, 2023, land_type="timber", annual=False)
+        """
+        # Select appropriate snum based on parameters
+        if annual:
+            if land_type == "sampled":
+                snum = EstimateType.AREA_CHANGE_ANNUAL_SAMPLED
+            elif land_type == "timber":
+                snum = (
+                    EstimateType.AREA_CHANGE_ANNUAL_TIMBERLAND_BOTH
+                    if measurement == "both"
+                    else EstimateType.AREA_CHANGE_ANNUAL_TIMBERLAND_EITHER
+                )
+            else:  # forest
+                snum = (
+                    EstimateType.AREA_CHANGE_ANNUAL_FOREST_BOTH
+                    if measurement == "both"
+                    else EstimateType.AREA_CHANGE_ANNUAL_FOREST_EITHER
+                )
+            units = "acres_per_year"
+        else:
+            if land_type == "sampled":
+                snum = EstimateType.AREA_CHANGE_SAMPLED
+            elif land_type == "timber":
+                snum = (
+                    EstimateType.AREA_CHANGE_TIMBERLAND_REMEASURED
+                    if measurement == "remeasured"
+                    else EstimateType.AREA_CHANGE_TIMBERLAND_EITHER
+                )
+            else:  # forest
+                snum = (
+                    EstimateType.AREA_CHANGE_FOREST_REMEASURED
+                    if measurement == "remeasured"
+                    else EstimateType.AREA_CHANGE_FOREST_EITHER
+                )
+            units = "acres"
+
+        data = self._make_request(snum=snum, state_code=state_code, year=year)
+
+        estimate_type = f"{land_type}_area_change"
+        if annual:
+            estimate_type += "_annual"
+
+        return self._parse_njson_response(
+            data=data,
+            snum=snum,
+            state_code=state_code,
+            year=year,
+            units=units,
+            estimate_type=estimate_type,
+        )
+
     def get_volume(
         self, state_code: int, year: int, vol_type: str = "net"
     ) -> EVALIDatorEstimate:

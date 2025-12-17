@@ -16,6 +16,21 @@ class EstimateType:
     AREA_TIMBERLAND = 3  # Area of timberland, in acres
     AREA_SAMPLED = 79  # Area of sampled land and water, in acres
 
+    # Area change estimates (remeasured plots only)
+    # These require plots measured at two points in time
+    AREA_CHANGE_SAMPLED = 126  # Area change of sampled land and water
+    AREA_CHANGE_FOREST_REMEASURED = 127  # Forest land area change (remeasured conditions)
+    AREA_CHANGE_FOREST_EITHER = 128  # Forest land area change (either measurement)
+    AREA_CHANGE_TIMBERLAND_REMEASURED = 129  # Timberland area change (remeasured)
+    AREA_CHANGE_TIMBERLAND_EITHER = 130  # Timberland area change (either measurement)
+
+    # Annual area change estimates (annualized rates)
+    AREA_CHANGE_ANNUAL_SAMPLED = 135  # Average annual area change of sampled land
+    AREA_CHANGE_ANNUAL_FOREST_BOTH = 136  # Annual forest land area change (both measurements)
+    AREA_CHANGE_ANNUAL_FOREST_EITHER = 137  # Annual forest land area change (either)
+    AREA_CHANGE_ANNUAL_TIMBERLAND_BOTH = 138  # Annual timberland area change (both)
+    AREA_CHANGE_ANNUAL_TIMBERLAND_EITHER = 139  # Annual timberland area change (either)
+
     # Tree counts - Live trees (all species, all tree classes)
     TREE_COUNT_1INCH_FOREST = 4  # Live trees >=1" d.b.h. on forest land
     TREE_COUNT_5INCH_FOREST = (

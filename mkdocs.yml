@@ -82,6 +82,7 @@ nav:
       - Settings: api/settings.md
     - Estimation Functions:
       - Area: api/area.md
+      - Area Change: api/area_change.md
       - Volume: api/volume.md
       - Trees Per Acre: api/tpa.md
       - Biomass: api/biomass.md

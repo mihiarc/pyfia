@@ -21,6 +21,7 @@ result = estimator(db, **options)  # Returns pl.DataFrame
 | Function | Description |
 |----------|-------------|
 | [`area()`](area.md) | Estimate forest area |
+| [`area_change()`](area_change.md) | Annual forest area change |
 | [`volume()`](volume.md) | Estimate tree volume |
 | [`tpa()`](tpa.md) | Trees per acre and basal area |
 | [`biomass()`](biomass.md) | Tree biomass and carbon |

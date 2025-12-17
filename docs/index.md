@@ -97,6 +97,7 @@ with FIA(db_path) as db:
 | Function | Description |
 |----------|-------------|
 | [`area()`](api/area.md) | Estimate forest area by land type and categories |
+| [`area_change()`](api/area_change.md) | Estimate annual changes in forest area |
 | [`volume()`](api/volume.md) | Estimate standing tree volume |
 | [`tpa()`](api/tpa.md) | Calculate trees per acre and basal area |
 | [`biomass()`](api/biomass.md) | Estimate tree biomass and carbon |

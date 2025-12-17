@@ -16,6 +16,7 @@ pyFIA provides a programmatic API for working with Forest Inventory and Analysis
 - ✅ **Biomass** (`biomass()`) - Above/belowground biomass and carbon
 - ✅ **Volume** (`volume()`) - Merchantable volume (cubic feet)
 - ✅ **Forest area** (`area()`) - Forest land area by category
+- ✅ **Area change** (`area_change()`) - Annual forest land transitions
 - ✅ **Mortality** (`mortality()`) - Annual mortality rates
 - ✅ **Growth** (`growth()`) - Net growth estimation
 
@@ -48,7 +49,7 @@ pip install -e .[dev]
 ## Quick Start
 
 ```python
-from pyfia import FIA, biomass, tpa, volume, area
+from pyfia import FIA, biomass, tpa, volume, area, area_change
 
 # Load FIA data and filter to a state
 with FIA("path/to/FIA_database.duckdb") as db:
@@ -67,6 +68,9 @@ with FIA("path/to/FIA_database.duckdb") as db:
 
     # Get volume estimates
     volume_results = volume(db, land_type="forest")
+
+    # Get annual forest area change (net gain/loss)
+    change_results = area_change(db, land_type="forest")
 ```
 
 ## Domain Filtering and Grouping
@@ -85,6 +89,11 @@ area_timberland = area(db, land_type="timber")
 
 # Group by custom column
 volume_by_owner = volume(db, grp_by="OWNGRPCD")
+
+# Area change: net, gross gain, or gross loss
+net_change = area_change(db, change_type="net")        # Gains - Losses
+forest_gain = area_change(db, change_type="gross_gain")  # Non-forest → Forest
+forest_loss = area_change(db, change_type="gross_loss")  # Forest → Non-forest
 ```
 
 ## Data Organization

@@ -5,6 +5,7 @@ Simple, focused estimator implementations without unnecessary abstractions.
 """
 
 from .area import AreaEstimator, area
+from .area_change import AreaChangeEstimator, area_change
 from .biomass import BiomassEstimator, biomass
 from .carbon import carbon
 from .carbon_flux import carbon_flux
@@ -18,6 +19,7 @@ from .volume import VolumeEstimator, volume
 __all__ = [
     # Functions (primary API)
     "area",
+    "area_change",
     "biomass",
     "carbon",
     "carbon_flux",
@@ -29,6 +31,7 @@ __all__ = [
     "volume",
     # Classes (for advanced usage)
     "AreaEstimator",
+    "AreaChangeEstimator",
     "BiomassEstimator",
     "CarbonPoolEstimator",
     "GrowthEstimator",

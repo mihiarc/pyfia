@@ -233,8 +233,8 @@ class TestDownloadAnalysisPipeline:
             except NoEVALIDError:
                 # EXPALL may not be available in RI, use most recent of any type
                 if len(available) > 0:
-                    # Get the most recent evaluation from what's available
-                    most_recent_evalid = available.sort("EVALID", descending=True)["EVALID"][0]
+                    # find_evalid() returns a list of EVALIDs, get the max
+                    most_recent_evalid = max(available)
                     db.clip_by_evalid(most_recent_evalid)
                 else:
                     pytest.skip("No evaluations available in downloaded RI data")

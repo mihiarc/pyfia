@@ -45,6 +45,7 @@ from pyfia.downloader import (
 
 # Estimation functions - High-level API
 from pyfia.estimation.estimators.area import area
+from pyfia.estimation.estimators.area_change import area_change
 from pyfia.estimation.estimators.biomass import biomass
 from pyfia.estimation.estimators.growth import growth
 from pyfia.estimation.estimators.mortality import mortality
@@ -98,6 +99,7 @@ __all__ = [
     "ConfigurationError",
     # Estimation functions
     "area",
+    "area_change",
     "biomass",
     "volume",
     "tpa",

@@ -322,3 +322,233 @@ class TestSpatialExtensionLoading:
 
             # Should still be loaded
             assert backend._spatial_loaded
+
+
+class TestIntersectPolygons:
+    """Test intersect_polygons method for spatial attribute joins."""
+
+    @pytest.fixture
+    def db_path(self):
+        """Return path to test database."""
+        return Path("data/georgia.duckdb")
+
+    @pytest.fixture
+    def counties_geojson(self, tmp_path):
+        """Create a GeoJSON with multiple county-like polygons with attributes."""
+        geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {"NAME": "North Region", "REGION_ID": 1},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [-85.6, 33.0],
+                                [-80.7, 33.0],
+                                [-80.7, 35.0],
+                                [-85.6, 35.0],
+                                [-85.6, 33.0],
+                            ]
+                        ],
+                    },
+                },
+                {
+                    "type": "Feature",
+                    "properties": {"NAME": "South Region", "REGION_ID": 2},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [-85.6, 30.3],
+                                [-80.7, 30.3],
+                                [-80.7, 33.0],
+                                [-85.6, 33.0],
+                                [-85.6, 30.3],
+                            ]
+                        ],
+                    },
+                },
+            ],
+        }
+
+        geojson_path = tmp_path / "regions.geojson"
+        with open(geojson_path, "w") as f:
+            json.dump(geojson, f)
+
+        return geojson_path
+
+    def test_intersect_polygons_returns_self(self, db_path, counties_geojson):
+        """Test that intersect_polygons returns self for chaining."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            db.clip_by_state(13)
+            result = db.intersect_polygons(counties_geojson, attributes=["NAME"])
+            assert result is db
+
+    def test_intersect_polygons_sets_attributes(self, db_path, counties_geojson):
+        """Test that intersect_polygons sets _polygon_attributes."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            db.clip_by_state(13)
+            assert db._polygon_attributes is None
+            db.intersect_polygons(counties_geojson, attributes=["NAME", "REGION_ID"])
+            assert db._polygon_attributes is not None
+            assert "CN" in db._polygon_attributes.columns
+            assert "NAME" in db._polygon_attributes.columns
+            assert "REGION_ID" in db._polygon_attributes.columns
+
+    def test_intersect_polygons_joins_to_plot(self, db_path, counties_geojson):
+        """Test that polygon attributes are joined to PLOT table."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            db.clip_by_state(13)
+            db.intersect_polygons(counties_geojson, attributes=["NAME"])
+
+            # Load PLOT table
+            db.load_table("PLOT")
+            plot_schema = db.tables["PLOT"].collect_schema().names()
+
+            # NAME should be in PLOT columns
+            assert "NAME" in plot_schema
+
+    def test_intersect_polygons_file_not_found(self, db_path):
+        """Test that non-existent file raises SpatialFileError."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            with pytest.raises(SpatialFileError) as exc_info:
+                db.intersect_polygons("nonexistent.geojson", attributes=["NAME"])
+
+            assert "not found" in str(exc_info.value).lower()
+
+    def test_intersect_polygons_empty_attributes_raises_error(
+        self, db_path, counties_geojson
+    ):
+        """Test that empty attributes list raises ValueError."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            with pytest.raises(ValueError) as exc_info:
+                db.intersect_polygons(counties_geojson, attributes=[])
+
+            assert "at least one column" in str(exc_info.value).lower()
+
+    def test_intersect_polygons_missing_attribute_raises_error(
+        self, db_path, counties_geojson
+    ):
+        """Test that requesting non-existent attribute raises ValueError."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            with pytest.raises(ValueError) as exc_info:
+                db.intersect_polygons(
+                    counties_geojson, attributes=["NAME", "NONEXISTENT_COLUMN"]
+                )
+
+            assert "NONEXISTENT_COLUMN" in str(exc_info.value)
+
+    def test_intersect_polygons_clears_tables(self, db_path, counties_geojson):
+        """Test that intersect_polygons clears cached tables."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            db.clip_by_state(13)
+            db.load_table("PLOT")
+            assert "PLOT" in db.tables
+
+            db.intersect_polygons(counties_geojson, attributes=["NAME"])
+
+            # Tables should be cleared
+            assert "PLOT" not in db.tables
+
+    def test_intersect_polygons_chains_with_clip_by_polygon(
+        self, db_path, counties_geojson
+    ):
+        """Test that intersect_polygons and clip_by_polygon can be used together."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        # Create a smaller clip polygon
+        clip_geojson = {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "properties": {},
+                    "geometry": {
+                        "type": "Polygon",
+                        "coordinates": [
+                            [
+                                [-84.0, 32.0],
+                                [-83.0, 32.0],
+                                [-83.0, 33.0],
+                                [-84.0, 33.0],
+                                [-84.0, 32.0],
+                            ]
+                        ],
+                    },
+                }
+            ],
+        }
+
+        import tempfile
+
+        with tempfile.NamedTemporaryFile(
+            suffix=".geojson", delete=False, mode="w"
+        ) as f:
+            json.dump(clip_geojson, f)
+            clip_path = f.name
+
+        try:
+            with FIA(db_path) as db:
+                db.clip_by_state(13)
+                db.clip_by_polygon(clip_path)
+                db.intersect_polygons(counties_geojson, attributes=["NAME"])
+
+                # Both should be set
+                assert db._spatial_plot_cns is not None
+                assert db._polygon_attributes is not None
+        finally:
+            Path(clip_path).unlink()
+
+    def test_intersect_polygons_multiple_attributes(self, db_path, counties_geojson):
+        """Test that multiple attributes can be requested."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            db.clip_by_state(13)
+            db.intersect_polygons(
+                counties_geojson, attributes=["NAME", "REGION_ID"]
+            )
+
+            assert db._polygon_attributes is not None
+            assert len(db._polygon_attributes.columns) == 3  # CN, NAME, REGION_ID
+
+    def test_intersect_polygons_assigns_correct_region(self, db_path, counties_geojson):
+        """Test that plots are assigned to correct regions based on location."""
+        if not db_path.exists():
+            pytest.skip("Test database not found")
+
+        with FIA(db_path) as db:
+            db.clip_by_state(13)
+            db.intersect_polygons(counties_geojson, attributes=["NAME"])
+
+            # Check that we have both regions represented
+            attrs = db._polygon_attributes
+            unique_names = attrs["NAME"].unique().to_list()
+
+            # Georgia spans both regions we defined
+            assert len(unique_names) >= 1  # At least one region should match

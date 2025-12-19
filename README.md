@@ -35,6 +35,7 @@ pyFIA provides a programmatic API for working with Forest Inventory and Analysis
 
 ### Spatial Capabilities
 - **Polygon clipping** - Filter plots by custom boundaries
+- **Polygon attribute joins** - Group estimates by polygon attributes (e.g., by county)
 - **Multiple formats** - Shapefile, GeoJSON, GeoPackage, GeoParquet
 - **DuckDB spatial** - Powered by DuckDB's spatial extension
 
@@ -118,6 +119,21 @@ with FIA("southeast.duckdb") as db:
 
     # Run estimation on filtered plots
     result = tpa(db, tree_domain="STATUSCD == 1")
+```
+
+### Grouping by Polygon Attributes
+
+Join polygon attributes to plots and use them for grouping:
+
+```python
+with FIA("southeast.duckdb") as db:
+    db.clip_by_state(37)
+
+    # Join county attributes to plots
+    db.intersect_polygons("counties.shp", attributes=["NAME", "FIPS"])
+
+    # Group estimates by county
+    result = tpa(db, grp_by=["NAME"])
 ```
 
 Supported formats: Shapefile, GeoJSON, GeoPackage, GeoParquet, and any GDAL-supported format.

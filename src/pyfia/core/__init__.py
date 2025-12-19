@@ -20,7 +20,11 @@ from .exceptions import (
     InvalidEVALIDError,
     MissingColumnError,
     NoEVALIDError,
+    NoSpatialFilterError,
     PyFIAError,
+    SpatialError,
+    SpatialExtensionError,
+    SpatialFileError,
     StratificationError,
     TableNotFoundError,
 )
@@ -50,4 +54,9 @@ __all__ = [
     "InvalidEVALIDError",
     "NoEVALIDError",
     "ConfigurationError",
+    # Spatial exceptions
+    "SpatialError",
+    "SpatialFileError",
+    "SpatialExtensionError",
+    "NoSpatialFilterError",
 ]

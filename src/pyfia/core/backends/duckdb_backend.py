@@ -27,6 +27,7 @@ class DuckDBBackend(DatabaseBackend):
     - Configurable memory limits and thread counts
     - FIA-specific type handling (CN fields as TEXT)
     - Optimized for analytical queries on columnar data
+    - Spatial extension support for polygon clipping
     """
 
     def __init__(
@@ -57,6 +58,7 @@ class DuckDBBackend(DatabaseBackend):
         self.read_only = read_only
         self.memory_limit = memory_limit
         self.threads = threads
+        self._spatial_loaded = False
 
     def connect(self) -> None:
         """Establish DuckDB connection with optimized settings."""
@@ -370,3 +372,60 @@ class DuckDBBackend(DatabaseBackend):
             Polars DataFrame with results
         """
         return self.execute_query(query)
+
+    def load_spatial_extension(self) -> None:
+        """
+        Load the DuckDB spatial extension.
+
+        This method installs (if needed) and loads the spatial extension,
+        enabling spatial functions like ST_Read, ST_Intersects, ST_Point, etc.
+
+        Raises
+        ------
+        SpatialExtensionError
+            If the spatial extension cannot be loaded.
+        """
+        if self._spatial_loaded:
+            return
+
+        if not self._connection:
+            self.connect()
+
+        try:
+            # Install spatial extension (no-op if already installed)
+            self._connection.execute("INSTALL spatial")  # type: ignore[union-attr]
+            # Load the extension
+            self._connection.execute("LOAD spatial")  # type: ignore[union-attr]
+            self._spatial_loaded = True
+            logger.info("DuckDB spatial extension loaded successfully")
+        except Exception as e:
+            from ..exceptions import SpatialExtensionError
+
+            logger.error(f"Failed to load spatial extension: {e}")
+            raise SpatialExtensionError(str(e))
+
+    def execute_spatial_query(
+        self,
+        query: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> pl.DataFrame:
+        """
+        Execute a spatial SQL query.
+
+        This method ensures the spatial extension is loaded before executing
+        the query, enabling use of spatial functions like ST_Read, ST_Intersects, etc.
+
+        Parameters
+        ----------
+        query : str
+            SQL query string with spatial functions
+        params : Optional[Dict[str, Any]]
+            Optional query parameters
+
+        Returns
+        -------
+        pl.DataFrame
+            Polars DataFrame with query results
+        """
+        self.load_spatial_extension()
+        return self.execute_query(query, params)

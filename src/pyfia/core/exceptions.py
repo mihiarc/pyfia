@@ -294,3 +294,89 @@ class ConfigurationError(PyFIAError):
         if parameter:
             message = f"Invalid configuration for '{parameter}': {message}"
         super().__init__(message)
+
+
+# === Spatial Errors ===
+
+
+class SpatialError(PyFIAError):
+    """
+    Base exception for spatial operation errors.
+
+    Raised when spatial operations (polygon clipping, spatial joins) fail
+    due to invalid geometry, missing files, or extension issues.
+    """
+
+    pass
+
+
+class SpatialFileError(SpatialError):
+    """
+    Raised when a spatial file cannot be read or is invalid.
+
+    Parameters
+    ----------
+    path : str
+        Path to the spatial file.
+    reason : str, optional
+        Reason why the file could not be read.
+    supported_formats : list of str, optional
+        List of supported file formats.
+    """
+
+    def __init__(
+        self,
+        path: str,
+        reason: str | None = None,
+        supported_formats: list[str] | None = None,
+    ):
+        self.path = path
+        self.reason = reason
+        self.supported_formats = supported_formats
+        message = f"Cannot read spatial file: '{path}'"
+        if reason:
+            message += f" - {reason}"
+        if supported_formats:
+            message += f". Supported formats: {', '.join(supported_formats)}"
+        super().__init__(message)
+
+
+class SpatialExtensionError(SpatialError):
+    """
+    Raised when the DuckDB spatial extension cannot be loaded.
+
+    Parameters
+    ----------
+    reason : str, optional
+        Reason why the extension could not be loaded.
+    """
+
+    def __init__(self, reason: str | None = None):
+        self.reason = reason
+        message = "Failed to load DuckDB spatial extension"
+        if reason:
+            message += f": {reason}"
+        message += ". Try running: duckdb -c 'INSTALL spatial;'"
+        super().__init__(message)
+
+
+class NoSpatialFilterError(SpatialError):
+    """
+    Raised when no plots match the spatial filter.
+
+    Parameters
+    ----------
+    polygon_path : str
+        Path to the polygon file used for filtering.
+    n_polygons : int, optional
+        Number of polygons in the file.
+    """
+
+    def __init__(self, polygon_path: str, n_polygons: int | None = None):
+        self.polygon_path = polygon_path
+        self.n_polygons = n_polygons
+        message = f"No plots found within polygon(s) from '{polygon_path}'"
+        if n_polygons is not None:
+            message += f" ({n_polygons} polygon(s) checked)"
+        message += ". Check that the polygon CRS matches plot coordinates (EPSG:4326)"
+        super().__init__(message)

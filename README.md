@@ -33,6 +33,11 @@ pyFIA provides a programmatic API for working with Forest Inventory and Analysis
 - **Lazy evaluation** for memory-efficient workflows
 - **Parallel processing** support
 
+### Spatial Capabilities
+- **Polygon clipping** - Filter plots by custom boundaries
+- **Multiple formats** - Shapefile, GeoJSON, GeoPackage, GeoParquet
+- **DuckDB spatial** - Powered by DuckDB's spatial extension
+
 ## Installation
 
 ```bash
@@ -95,6 +100,29 @@ net_change = area_change(db, change_type="net")        # Gains - Losses
 forest_gain = area_change(db, change_type="gross_gain")  # Non-forest → Forest
 forest_loss = area_change(db, change_type="gross_loss")  # Forest → Non-forest
 ```
+
+## Spatial Filtering
+
+Filter plots by polygon boundaries using DuckDB's spatial extension:
+
+```python
+from pyfia import FIA, tpa
+
+with FIA("southeast.duckdb") as db:
+    db.clip_by_state(37)  # North Carolina
+
+    # Filter to custom region using any spatial file format
+    db.clip_by_polygon("my_region.geojson")  # GeoJSON
+    # db.clip_by_polygon("counties.shp")     # Shapefile
+    # db.clip_by_polygon("boundary.gpkg")    # GeoPackage
+
+    # Run estimation on filtered plots
+    result = tpa(db, tree_domain="STATUSCD == 1")
+```
+
+Supported formats: Shapefile, GeoJSON, GeoPackage, GeoParquet, and any GDAL-supported format.
+
+**Note**: FIA public coordinates are fuzzed up to 1 mile for privacy protection, so spatial precision below ~1 mile is not meaningful.
 
 ## Data Organization
 

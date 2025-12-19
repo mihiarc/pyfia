@@ -626,9 +626,28 @@ class BaseEstimator(ABC):
 
         # Select MACRO_BREAKPOINT_DIA from PLOT table
         # This is CRITICAL for correct adjustment factor selection in states with macroplots
-        plot_selected = plot.select(
-            [pl.col("CN").alias("PLT_CN"), "MACRO_BREAKPOINT_DIA"]
-        )
+        plot_cols = [pl.col("CN").alias("PLT_CN"), "MACRO_BREAKPOINT_DIA"]
+
+        # Include polygon attributes if they exist (from intersect_polygons)
+        # This allows grp_by to use polygon attribute columns
+        if (
+            hasattr(self.db, "_polygon_attributes")
+            and self.db._polygon_attributes is not None
+            and isinstance(self.db._polygon_attributes, pl.DataFrame)
+        ):
+            # Get column names from polygon attributes (excluding CN which is the join key)
+            polygon_attr_cols = [
+                col
+                for col in self.db._polygon_attributes.columns
+                if col != "CN"
+            ]
+            # Add these columns to the selection if they exist in the plot schema
+            plot_schema = plot.collect_schema().names()
+            for col in polygon_attr_cols:
+                if col in plot_schema:
+                    plot_cols.append(col)
+
+        plot_selected = plot.select(plot_cols)
 
         # Join PPSA with POP_STRATUM
         strat_data = ppsa_selected.join(

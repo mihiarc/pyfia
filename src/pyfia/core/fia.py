@@ -278,6 +278,17 @@ class FIA:
                         how="left",
                     )
 
+                # Apply spatial filter if set (clip_by_polygon)
+                if self._spatial_plot_cns is not None:
+                    if table_name == "PLOT":
+                        result = result.filter(
+                            pl.col("CN").is_in(self._spatial_plot_cns)
+                        )
+                    elif table_name in ["TREE", "COND"]:
+                        result = result.filter(
+                            pl.col("PLT_CN").is_in(self._spatial_plot_cns)
+                        )
+
                 self.tables[table_name] = result
                 return self.tables[table_name]
 
@@ -296,6 +307,13 @@ class FIA:
                 on="CN",
                 how="left",
             )
+
+        # Apply spatial filter if set (clip_by_polygon)
+        if self._spatial_plot_cns is not None:
+            if table_name == "PLOT":
+                df = df.filter(pl.col("CN").is_in(self._spatial_plot_cns))
+            elif table_name in ["TREE", "COND"]:
+                df = df.filter(pl.col("PLT_CN").is_in(self._spatial_plot_cns))
 
         self.tables[table_name] = df
         return self.tables[table_name]

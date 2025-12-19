@@ -37,5 +37,6 @@ FIA uses a stratified sampling design. Each plot/tree has an expansion factor in
 - **[Downloading Data](downloading.md)**: Download FIA data directly from the DataMart
 - **[Domain Filtering](filtering.md)**: Control which plots, conditions, and trees are included
 - **[Grouping Results](grouping.md)**: Group by forest type, ownership, species with auto-enhanced names
+- **[Spatial Filtering](spatial.md)**: Filter by polygon boundaries and group by polygon attributes
 - **[Variance Estimation](../variance_calculation_guide.md)**: Understanding uncertainty in estimates
 - **[Lazy Evaluation](../lazy_evaluation_guide.md)**: Memory-efficient workflows for large datasets

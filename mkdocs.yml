@@ -72,6 +72,8 @@ nav:
     - Overview: guides/index.md
     - Downloading Data: guides/downloading.md
     - Domain Filtering: guides/filtering.md
+    - Grouping Results: guides/grouping.md
+    - Spatial Filtering: guides/spatial.md
     - Variance Estimation: variance_calculation_guide.md
     - Lazy Evaluation: lazy_evaluation_guide.md
   - API Reference:

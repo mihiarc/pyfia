@@ -14,7 +14,13 @@ import polars as pl
 
 from ..constants.defaults import EVALIDYearParsing
 from .data_reader import FIADataReader
-from .exceptions import DatabaseError, NoEVALIDError
+from .exceptions import (
+    DatabaseError,
+    NoEVALIDError,
+    NoSpatialFilterError,
+    SpatialExtensionError,
+    SpatialFileError,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +99,11 @@ class FIA:
         self._valid_plot_cns: Optional[List[str]] = (
             None  # Cache for EVALID plot filtering
         )
+        # Spatial filter attributes
+        self._spatial_plot_cns: Optional[List[str]] = (
+            None  # Cache for spatial filtering
+        )
+        self._polygon_path: Optional[str] = None  # Path to polygon file
         # Connection managed by FIADataReader
         self._reader = FIADataReader(db_path, engine=engine)
 
@@ -536,9 +547,176 @@ class FIA:
         # This is correct - we want the most recent evaluation for EACH state
         return self.clip_by_evalid(evalids)
 
+    def clip_by_polygon(
+        self,
+        polygon: Union[str, Path],
+        predicate: str = "intersects",
+    ) -> "FIA":
+        """
+        Filter FIA plots to those within or intersecting a polygon boundary.
+
+        Uses DuckDB spatial extension for efficient point-in-polygon filtering.
+        Supports Shapefiles, GeoJSON, GeoPackage, and GeoParquet formats.
+
+        Parameters
+        ----------
+        polygon : str or Path
+            Path to spatial file containing polygon(s). Supported formats:
+            - Shapefile (.shp)
+            - GeoJSON (.geojson, .json)
+            - GeoPackage (.gpkg)
+            - GeoParquet (.parquet with geometry)
+            - Any format supported by GDAL/OGR
+        predicate : str, default 'intersects'
+            Spatial predicate for filtering:
+            - 'intersects': Plots that intersect the polygon (recommended)
+            - 'within': Plots completely within the polygon
+
+        Returns
+        -------
+        FIA
+            Self for method chaining.
+
+        Raises
+        ------
+        SpatialFileError
+            If the polygon file cannot be read or does not exist.
+        SpatialExtensionError
+            If the DuckDB spatial extension cannot be loaded.
+        NoSpatialFilterError
+            If no plots fall within the polygon boundary.
+
+        Notes
+        -----
+        - FIA plot coordinates (LAT/LON) are in EPSG:4326 (WGS84)
+        - The polygon file should use EPSG:4326 or will be transformed automatically
+        - Public FIA coordinates are fuzzed up to 1 mile for privacy, so precision
+          below ~1 mile is not meaningful
+        - This filter combines with state and EVALID filters
+
+        Examples
+        --------
+        >>> with FIA("southeast.duckdb") as db:
+        ...     db.clip_by_state(37)  # North Carolina
+        ...     db.clip_by_polygon("my_region.geojson")
+        ...     result = db.tpa()
+
+        >>> # Using a shapefile
+        >>> with FIA("data.duckdb") as db:
+        ...     db.clip_by_polygon("counties.shp")
+        ...     result = db.area()
+        """
+        from .backends.duckdb_backend import DuckDBBackend
+
+        # Validate inputs
+        polygon_path = Path(polygon)
+        if not polygon_path.exists():
+            raise SpatialFileError(
+                str(polygon),
+                reason="File not found",
+                supported_formats=[".shp", ".geojson", ".json", ".gpkg", ".parquet"],
+            )
+
+        # Ensure we're using DuckDB backend (spatial requires DuckDB)
+        if not isinstance(self._reader._backend, DuckDBBackend):
+            raise SpatialExtensionError(
+                "Spatial operations require DuckDB backend. "
+                "SQLite does not support spatial queries."
+            )
+
+        # Store polygon path for reference
+        self._polygon_path = str(polygon_path)
+
+        # Build the spatial query
+        # Note: FIA stores coordinates as LAT, LON but we need to create POINT(LON, LAT)
+        # because ST_Point expects (x, y) = (longitude, latitude)
+        predicate_fn = "ST_Intersects" if predicate == "intersects" else "ST_Within"
+
+        # Query to find plot CNs within the polygon
+        # Using ST_Read to load the polygon file and ST_Point to create points from LAT/LON
+        query = f"""
+            WITH boundary AS (
+                SELECT ST_Union_Agg(geom) as geom
+                FROM ST_Read('{polygon_path}')
+            )
+            SELECT CAST(p.CN AS VARCHAR) as CN
+            FROM PLOT p, boundary b
+            WHERE {predicate_fn}(
+                ST_Point(p.LON, p.LAT),
+                b.geom
+            )
+        """
+
+        # Add state filter if present
+        if self.state_filter:
+            state_list = ", ".join(str(s) for s in self.state_filter)
+            query = f"""
+                WITH boundary AS (
+                    SELECT ST_Union_Agg(geom) as geom
+                    FROM ST_Read('{polygon_path}')
+                )
+                SELECT CAST(p.CN AS VARCHAR) as CN
+                FROM PLOT p, boundary b
+                WHERE p.STATECD IN ({state_list})
+                AND {predicate_fn}(
+                    ST_Point(p.LON, p.LAT),
+                    b.geom
+                )
+            """
+
+        try:
+            # Execute spatial query
+            result = self._reader._backend.execute_spatial_query(query)  # type: ignore[attr-defined]
+
+            if result.is_empty():
+                raise NoSpatialFilterError(str(polygon_path))
+
+            # Store filtered plot CNs
+            self._spatial_plot_cns = result["CN"].to_list()
+            logger.info(
+                f"Spatial filter applied: {len(self._spatial_plot_cns)} plots "
+                f"within polygon from '{polygon_path}'"
+            )
+
+        except NoSpatialFilterError:
+            raise
+        except SpatialExtensionError:
+            raise
+        except Exception as e:
+            error_msg = str(e)
+            if "ST_Read" in error_msg or "GDAL" in error_msg:
+                raise SpatialFileError(
+                    str(polygon_path),
+                    reason=f"Could not read spatial data: {error_msg}",
+                    supported_formats=[
+                        ".shp",
+                        ".geojson",
+                        ".json",
+                        ".gpkg",
+                        ".parquet",
+                    ],
+                )
+            raise
+
+        # Clear loaded tables to ensure they use the new filter
+        self.tables.clear()
+        return self
+
+    def _get_spatial_plot_cns(self) -> Optional[List[str]]:
+        """
+        Get plot CNs that match the spatial filter.
+
+        Returns
+        -------
+        list of str or None
+            List of plot CNs within the spatial boundary, or None if no
+            spatial filter is set.
+        """
+        return self._spatial_plot_cns
+
     def get_plots(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
         """
-        Get PLOT table filtered by current EVALID and state settings.
+        Get PLOT table filtered by current EVALID, state, and spatial settings.
 
         Parameters
         ----------
@@ -574,6 +752,10 @@ class FIA:
             )
         else:
             plots = self.tables["PLOT"]
+
+        # Apply spatial filter if set
+        if self._spatial_plot_cns is not None:
+            plots = plots.filter(pl.col("CN").is_in(self._spatial_plot_cns))
 
         # Select columns if specified
         if columns:

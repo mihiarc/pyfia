@@ -104,6 +104,10 @@ class FIA:
             None  # Cache for spatial filtering
         )
         self._polygon_path: Optional[str] = None  # Path to polygon file
+        # Polygon attribute join (for grp_by support)
+        self._polygon_attributes: Optional[pl.DataFrame] = (
+            None  # CN → polygon attributes mapping
+        )
         # Connection managed by FIADataReader
         self._reader = FIADataReader(db_path, engine=engine)
 
@@ -266,6 +270,14 @@ class FIA:
                 else:
                     result = pl.concat(dfs)
 
+                # Join polygon attributes for PLOT table if available
+                if table_name == "PLOT" and self._polygon_attributes is not None:
+                    result = result.join(
+                        self._polygon_attributes.lazy(),
+                        on="CN",
+                        how="left",
+                    )
+
                 self.tables[table_name] = result
                 return self.tables[table_name]
 
@@ -276,6 +288,14 @@ class FIA:
             where=base_where_clause,
             lazy=True,
         )
+
+        # Join polygon attributes for PLOT table if available
+        if table_name == "PLOT" and self._polygon_attributes is not None:
+            df = df.join(
+                self._polygon_attributes.lazy(),
+                on="CN",
+                how="left",
+            )
 
         self.tables[table_name] = df
         return self.tables[table_name]
@@ -713,6 +733,183 @@ class FIA:
             spatial filter is set.
         """
         return self._spatial_plot_cns
+
+    def intersect_polygons(
+        self,
+        polygon: Union[str, Path],
+        attributes: List[str],
+    ) -> "FIA":
+        """
+        Perform spatial join between plots and polygons, adding polygon
+        attributes to plots for use in grp_by.
+
+        This method joins polygon attributes to FIA plots based on spatial
+        intersection. The resulting attributes can be used as grouping
+        variables in estimator functions.
+
+        Parameters
+        ----------
+        polygon : str or Path
+            Path to spatial file containing polygon(s). Supported formats:
+            - Shapefile (.shp)
+            - GeoJSON (.geojson, .json)
+            - GeoPackage (.gpkg)
+            - GeoParquet (.parquet with geometry)
+            - Any format supported by GDAL/OGR
+        attributes : list of str
+            Polygon attribute columns to add to plots. These columns must
+            exist in the polygon file and will be available for grp_by.
+
+        Returns
+        -------
+        FIA
+            Self for method chaining.
+
+        Raises
+        ------
+        SpatialFileError
+            If the polygon file cannot be read or does not exist.
+        SpatialExtensionError
+            If the DuckDB spatial extension cannot be loaded.
+        ValueError
+            If requested attributes don't exist in the polygon file.
+
+        Notes
+        -----
+        - Plots that don't intersect any polygon will have NULL values
+        - If a plot intersects multiple polygons, the first match is used
+        - Attributes are available immediately for grp_by in estimators
+        - This method is independent of clip_by_polygon (can use both)
+
+        Examples
+        --------
+        >>> with FIA("southeast.duckdb") as db:
+        ...     db.clip_by_state(37)  # North Carolina
+        ...     db.intersect_polygons("counties.shp", attributes=["NAME", "FIPS"])
+        ...     # Group TPA estimates by county
+        ...     result = tpa(db, grp_by=["NAME"])
+
+        >>> # Use multiple attributes for grouping
+        >>> with FIA("data.duckdb") as db:
+        ...     db.intersect_polygons("regions.geojson", ["REGION", "DISTRICT"])
+        ...     result = area(db, grp_by=["REGION", "DISTRICT"])
+        """
+        from .backends.duckdb_backend import DuckDBBackend
+
+        # Validate inputs
+        polygon_path = Path(polygon)
+        if not polygon_path.exists():
+            raise SpatialFileError(
+                str(polygon),
+                reason="File not found",
+                supported_formats=[".shp", ".geojson", ".json", ".gpkg", ".parquet"],
+            )
+
+        if not attributes:
+            raise ValueError(
+                "attributes parameter must contain at least one column name"
+            )
+
+        # Ensure we're using DuckDB backend (spatial requires DuckDB)
+        if not isinstance(self._reader._backend, DuckDBBackend):
+            raise SpatialExtensionError(
+                "Spatial operations require DuckDB backend. "
+                "SQLite does not support spatial queries."
+            )
+
+        # First, check what columns exist in the polygon file
+        try:
+            check_query = f"SELECT * FROM ST_Read('{polygon_path}') LIMIT 0"
+            schema_result = self._reader._backend.execute_spatial_query(check_query)
+            available_cols = schema_result.columns
+        except Exception as e:
+            raise SpatialFileError(
+                str(polygon_path),
+                reason=f"Could not read spatial data: {e}",
+                supported_formats=[".shp", ".geojson", ".json", ".gpkg", ".parquet"],
+            )
+
+        # Validate requested attributes exist
+        missing_attrs = [attr for attr in attributes if attr not in available_cols]
+        if missing_attrs:
+            raise ValueError(
+                f"Attributes not found in polygon file: {missing_attrs}. "
+                f"Available columns: {[c for c in available_cols if c != 'geom']}"
+            )
+
+        # Build attribute selection for SQL
+        attr_select = ", ".join(f"poly.{attr}" for attr in attributes)
+
+        # Build the spatial join query
+        # Use DISTINCT ON equivalent to get first match for each plot
+        query = f"""
+            WITH ranked AS (
+                SELECT
+                    CAST(p.CN AS VARCHAR) as CN,
+                    {attr_select},
+                    ROW_NUMBER() OVER (PARTITION BY p.CN ORDER BY p.CN) as rn
+                FROM PLOT p
+                JOIN ST_Read('{polygon_path}') poly
+                ON ST_Intersects(ST_Point(p.LON, p.LAT), poly.geom)
+        """
+
+        # Add state filter if present
+        if self.state_filter:
+            state_list = ", ".join(str(s) for s in self.state_filter)
+            query += f"        WHERE p.STATECD IN ({state_list})\n"
+
+        query += (
+            """
+            )
+            SELECT CN, """
+            + ", ".join(attributes)
+            + """
+            FROM ranked
+            WHERE rn = 1
+        """
+        )
+
+        try:
+            # Execute spatial join query
+            result = self._reader._backend.execute_spatial_query(query)
+
+            # Store polygon attributes
+            self._polygon_attributes = result
+            n_matched = len(result)
+
+            logger.info(
+                f"Intersect polygons: {n_matched} plots matched with attributes "
+                f"{attributes} from '{polygon_path}'"
+            )
+
+            if n_matched == 0:
+                warnings.warn(
+                    f"No plots intersected with polygons from '{polygon_path}'. "
+                    "All polygon attribute values will be NULL.",
+                    UserWarning,
+                )
+
+        except SpatialExtensionError:
+            raise
+        except Exception as e:
+            error_msg = str(e)
+            if "ST_Read" in error_msg or "GDAL" in error_msg:
+                raise SpatialFileError(
+                    str(polygon_path),
+                    reason=f"Could not read spatial data: {error_msg}",
+                    supported_formats=[
+                        ".shp",
+                        ".geojson",
+                        ".json",
+                        ".gpkg",
+                        ".parquet",
+                    ],
+                )
+            raise
+
+        # Clear loaded tables to ensure they include polygon attributes
+        self.tables.clear()
+        return self
 
     def get_plots(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
         """

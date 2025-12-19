@@ -15,6 +15,27 @@ db.clip_by_state("GA")
 result = pyfia.volume(db, grp_by="SPCD")
 ```
 
+## Spatial Filtering
+
+PyFIA supports spatial filtering using polygon boundaries:
+
+```python
+with pyfia.FIA("southeast.duckdb") as db:
+    db.clip_by_state(37)  # North Carolina
+    db.clip_most_recent(eval_type="VOL")
+
+    # Filter to custom region
+    db.clip_by_polygon("my_region.geojson")
+
+    # Join polygon attributes for grouping
+    db.intersect_polygons("counties.shp", attributes=["NAME"])
+
+    # Group estimates by polygon attribute
+    result = pyfia.tpa(db, grp_by=["NAME"])
+```
+
+See the [Spatial Filtering Guide](../guides/spatial.md) for detailed usage.
+
 ## Class Reference
 
 ::: pyfia.FIA
@@ -26,6 +47,8 @@ result = pyfia.volume(db, grp_by="SPCD")
         - clip_by_evalid
         - clip_by_state
         - clip_most_recent
+        - clip_by_polygon
+        - intersect_polygons
         - get_plots
         - get_trees
         - get_conditions

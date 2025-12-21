@@ -1166,7 +1166,7 @@ class FIA:
 
         See tpa() function for full parameter documentation.
         """
-        from pyfia.estimation.tpa import tpa
+        from pyfia.estimation import tpa
 
         result: pl.DataFrame = tpa(self, **kwargs)
         return result
@@ -1177,7 +1177,7 @@ class FIA:
 
         See biomass() function for full parameter documentation.
         """
-        from pyfia.estimation.biomass import biomass
+        from pyfia.estimation import biomass
 
         result: pl.DataFrame = biomass(self, **kwargs)
         return result
@@ -1188,7 +1188,7 @@ class FIA:
 
         See volume() function for full parameter documentation.
         """
-        from pyfia.estimation.volume import volume
+        from pyfia.estimation import volume
 
         result: pl.DataFrame = volume(self, **kwargs)
         return result
@@ -1199,7 +1199,7 @@ class FIA:
 
         See mortality() function for full parameter documentation.
         """
-        from pyfia.estimation.estimators.mortality import mortality
+        from pyfia.estimation import mortality
 
         return mortality(self, **kwargs)
 
@@ -1209,7 +1209,7 @@ class FIA:
 
         See area() function for full parameter documentation.
         """
-        from pyfia.estimation.estimators.area import area
+        from pyfia.estimation import area
 
         return area(self, **kwargs)
 
@@ -1219,7 +1219,7 @@ class FIA:
 
         See growth() function for full parameter documentation.
         """
-        from pyfia.estimation.estimators.growth import growth
+        from pyfia.estimation import growth
 
         return growth(self, **kwargs)
 
@@ -1229,7 +1229,7 @@ class FIA:
 
         See removals() function for full parameter documentation.
         """
-        from pyfia.estimation.estimators.removals import removals
+        from pyfia.estimation import removals
 
         return removals(self, **kwargs)
 
@@ -1245,7 +1245,7 @@ class FIA:
 
         See carbon_flux() function for full parameter documentation.
         """
-        from pyfia.estimation.estimators.carbon_flux import carbon_flux
+        from pyfia.estimation import carbon_flux
 
         return carbon_flux(self, **kwargs)
 

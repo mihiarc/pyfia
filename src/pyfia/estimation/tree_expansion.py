@@ -71,12 +71,17 @@ def get_adjustment_factor_expr(
 
     NULL or missing MACRO_BREAKPOINT_DIA is treated as 9999 (no macroplot).
     """
+    # Cast macro_breakpoint to Float64 to handle cases where it's stored as String
+    macro_breakpoint_expr = (
+        pl.col(macro_breakpoint_col).cast(pl.Float64, strict=False).fill_null(9999.0)
+    )
+
     return (
         pl.when(pl.col(size_col).is_null())
         .then(pl.col(adj_factor_subp_col))  # NULL diameter uses subplot
         .when(pl.col(size_col) < 5.0)
         .then(pl.col(adj_factor_micr_col))  # Microplot for small trees
-        .when(pl.col(size_col) < pl.col(macro_breakpoint_col).fill_null(9999))
+        .when(pl.col(size_col) < macro_breakpoint_expr)
         .then(pl.col(adj_factor_subp_col))  # Subplot for medium trees
         .otherwise(pl.col(adj_factor_macr_col))  # Macroplot for large trees
     )

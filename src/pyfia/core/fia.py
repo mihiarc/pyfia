@@ -1079,12 +1079,21 @@ class FIA:
 
         return conds.collect()
 
-    def prepare_estimation_data(self) -> Dict[str, pl.DataFrame]:
+    def prepare_estimation_data(
+        self, include_trees: bool = True
+    ) -> Dict[str, pl.DataFrame]:
         """
         Prepare standard set of tables for estimation functions.
 
         This method loads and filters the core tables needed for most
         FIA estimation procedures, properly filtered by EVALID.
+
+        Parameters
+        ----------
+        include_trees : bool, default True
+            Whether to include the TREE table. Set to False for area
+            estimation which doesn't need tree data (saves significant
+            memory on constrained environments).
 
         Returns
         -------
@@ -1092,6 +1101,7 @@ class FIA:
             Dictionary with filtered dataframes for estimation containing:
             'plot', 'tree', 'cond', 'pop_plot_stratum_assgn',
             'pop_stratum', 'pop_estn_unit'.
+            If include_trees=False, 'tree' will be an empty DataFrame.
         """
         # Ensure we have an EVALID filter
         if not self.evalid and not self.most_recent:
@@ -1108,7 +1118,9 @@ class FIA:
 
         # Get filtered core tables
         plots = self.get_plots()
-        trees = self.get_trees()
+        # Only load TREE table if needed (volume, biomass, TPA, mortality, etc.)
+        # Area estimation doesn't need tree data - skip to save memory
+        trees = self.get_trees() if include_trees else pl.DataFrame()
         conds = self.get_conditions()
 
         # Get stratum assignments for filtered plots

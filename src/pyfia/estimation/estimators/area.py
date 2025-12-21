@@ -120,15 +120,16 @@ class AreaEstimator(BaseEstimator):
 
         For proper variance calculation in domain estimation, we must keep ALL plots
         but create a domain indicator rather than filtering them out.
-        """
-        # Collect for processing
-        data_df = data.collect()
 
+        This method operates entirely on LazyFrames to enable server-side
+        execution on cloud backends like MotherDuck.
+        """
         # Create domain indicator based on land type
+        # All operations work on LazyFrame - no .collect() needed
         land_type = self.config.get("land_type", "forest")
         if land_type == "forest":
             # Create domain indicator for forest conditions
-            data_df = data_df.with_columns(
+            data = data.with_columns(
                 [
                     pl.when(pl.col("COND_STATUS_CD") == 1)
                     .then(1.0)
@@ -138,7 +139,7 @@ class AreaEstimator(BaseEstimator):
             )
         elif land_type == "timber":
             # Create domain indicator for timber conditions
-            data_df = data_df.with_columns(
+            data = data.with_columns(
                 [
                     pl.when(
                         (pl.col("COND_STATUS_CD") == 1)
@@ -152,7 +153,7 @@ class AreaEstimator(BaseEstimator):
             )
         else:
             # "all" means everything is in the domain
-            data_df = data_df.with_columns([pl.lit(1.0).alias("DOMAIN_IND")])
+            data = data.with_columns([pl.lit(1.0).alias("DOMAIN_IND")])
 
         # Apply area domain filter
         if self.config.get("area_domain"):
@@ -161,9 +162,9 @@ class AreaEstimator(BaseEstimator):
             domain_str = self.config["area_domain"]
             if "STDAGE > " in domain_str:
                 age_threshold = int(domain_str.split(">")[1].strip())
-                data_df = data_df.filter(pl.col("STDAGE") > age_threshold)
+                data = data.filter(pl.col("STDAGE") > age_threshold)
 
-        return data_df.lazy()
+        return data
 
     def _select_variance_columns(
         self, available_cols: List[str]

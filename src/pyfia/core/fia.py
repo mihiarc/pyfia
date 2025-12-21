@@ -1248,3 +1248,114 @@ class FIA:
         from pyfia.estimation.estimators.carbon_flux import carbon_flux
 
         return carbon_flux(self, **kwargs)
+
+
+class MotherDuckFIA(FIA):
+    """
+    FIA database class for MotherDuck cloud-based access.
+
+    This class provides the same interface as FIA but connects to MotherDuck
+    instead of a local DuckDB file. MotherDuck is a serverless cloud data
+    warehouse built on DuckDB.
+
+    Attributes
+    ----------
+    database : str
+        Name of the MotherDuck database (e.g., 'fia_ga')
+    motherduck_token : str
+        MotherDuck authentication token
+
+    Examples
+    --------
+    >>> from pyfia import MotherDuckFIA
+    >>> db = MotherDuckFIA("fia_ga", motherduck_token="your_token")
+    >>> db.clip_most_recent()
+    >>> result = db.area()
+
+    >>> # Use with context manager
+    >>> with MotherDuckFIA("fia_nc", motherduck_token="token") as db:
+    ...     db.clip_most_recent()
+    ...     print(db.area())
+    """
+
+    def __init__(self, database: str, motherduck_token: Optional[str] = None):
+        """
+        Initialize MotherDuck FIA connection.
+
+        Parameters
+        ----------
+        database : str
+            Name of the MotherDuck database (e.g., 'fia_ga', 'fia_nc')
+        motherduck_token : Optional[str]
+            MotherDuck authentication token. If not provided, uses
+            MOTHERDUCK_TOKEN environment variable.
+        """
+        from .backends import MotherDuckBackend
+
+        self.database = database
+        self.motherduck_token = motherduck_token
+
+        # Initialize attributes that FIA.__init__ would set
+        self.tables: Dict[str, pl.LazyFrame] = {}
+        self.evalid: Optional[List[int]] = None
+        self.most_recent: bool = False
+        self.state_filter: Optional[List[int]] = None
+        self._valid_plot_cns: Optional[List[str]] = None
+        self._spatial_plot_cns: Optional[List[str]] = None
+        self._polygon_path: Optional[str] = None
+        self._polygon_attributes: Optional[pl.DataFrame] = None
+
+        # Create MotherDuck backend directly
+        self._backend = MotherDuckBackend(database, motherduck_token=motherduck_token)
+        self._backend.connect()
+
+        # Create a minimal reader-like wrapper for compatibility
+        self._reader = _MotherDuckReaderWrapper(self._backend)
+
+    def __enter__(self):
+        """Context manager entry."""
+        return self
+
+    def __exit__(self, _exc_type, _exc_val, _exc_tb):
+        """Context manager exit."""
+        self._backend.disconnect()
+
+    def __del__(self):
+        """Clean up MotherDuck connection."""
+        try:
+            if hasattr(self, "_backend") and self._backend:
+                self._backend.disconnect()
+        except Exception:
+            pass
+
+
+class _MotherDuckReaderWrapper:
+    """
+    Minimal wrapper to provide FIADataReader-like interface for MotherDuck.
+
+    This wrapper allows MotherDuckFIA to use the same internal methods as FIA
+    without requiring a full FIADataReader instance.
+    """
+
+    def __init__(self, backend):
+        self._backend = backend
+
+    def read_table(
+        self,
+        table_name: str,
+        columns: Optional[List[str]] = None,
+        where: Optional[str] = None,
+        lazy: bool = True,
+    ):
+        """Read a table from the MotherDuck database."""
+        select_clause = self._backend.build_select_clause(table_name, columns)
+        query = f"SELECT {select_clause} FROM {table_name}"
+
+        if where:
+            query += f" WHERE {where}"
+
+        df = self._backend.execute_query(query)
+
+        if lazy:
+            return df.lazy()
+        return df

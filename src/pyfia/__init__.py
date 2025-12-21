@@ -24,7 +24,7 @@ from pyfia.core.exceptions import (
     StratificationError,
     TableNotFoundError,
 )
-from pyfia.core.fia import FIA
+from pyfia.core.fia import FIA, MotherDuckFIA
 from pyfia.core.settings import (
     PyFIASettings,
     get_default_db_path,
@@ -78,6 +78,7 @@ from pyfia.utils.reference_tables import (
 __all__ = [
     # Core classes
     "FIA",
+    "MotherDuckFIA",
     "FIADataReader",
     # Configuration
     "get_default_db_path",

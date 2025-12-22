@@ -213,7 +213,10 @@ class FIA:
         return self._valid_plot_cns
 
     def load_table(
-        self, table_name: str, columns: Optional[List[str]] = None
+        self,
+        table_name: str,
+        columns: Optional[List[str]] = None,
+        where: Optional[str] = None,
     ) -> pl.LazyFrame:
         """
         Load a table from the FIA database as a lazy frame.
@@ -224,6 +227,9 @@ class FIA:
             Name of the FIA table to load (e.g., 'PLOT', 'TREE', 'COND').
         columns : list of str, optional
             Columns to load. Loads all columns if None.
+        where : str, optional
+            Additional SQL WHERE clause to apply (without 'WHERE' keyword).
+            Used for database-side filtering to reduce memory usage.
 
         Returns
         -------
@@ -235,6 +241,13 @@ class FIA:
         if self.state_filter and table_name in ["PLOT", "COND", "TREE"]:
             state_list = ", ".join(str(s) for s in self.state_filter)
             base_where_clause = f"STATECD IN ({state_list})"
+
+        # Add user-provided WHERE clause
+        if where:
+            if base_where_clause:
+                base_where_clause = f"{base_where_clause} AND ({where})"
+            else:
+                base_where_clause = where
 
         # EVALID filter via PLT_CN for TREE, COND tables
         # This is a critical optimization - it reduces data load by 90%+ for GRM estimates

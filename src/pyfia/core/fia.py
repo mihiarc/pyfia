@@ -1353,6 +1353,10 @@ class _MotherDuckReaderWrapper:
     def __init__(self, backend):
         self._backend = backend
 
+    def get_table_schema(self, table_name: str) -> Dict[str, str]:
+        """Get schema for a table from the MotherDuck database."""
+        return self._backend.get_table_schema(table_name)
+
     def read_table(
         self,
         table_name: str,

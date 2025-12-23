@@ -1,0 +1,2869 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for Forest Inventory and Analysis (FIA) data">
+      
+      
+        <meta name="author" content="PyFIA Contributors">
+      
+      
+        <link rel="canonical" href="https://mihiarc.github.io/pyfia/fia_handbook/fia_chapter1_complete/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Fia chapter1 complete - PyFIA Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#chapter-1-overview" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="PyFIA Documentation" class="md-header__button md-logo" aria-label="PyFIA Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PyFIA Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Fia chapter1 complete
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/mihiarc/pyfia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mihiarc/pyfia
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../DEVELOPMENT/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../fia_technical_context/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  FIA Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="PyFIA Documentation" class="md-nav__button md-logo" aria-label="PyFIA Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    PyFIA Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/mihiarc/pyfia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mihiarc/pyfia
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../guides/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/downloading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloading Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/grouping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grouping Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/spatial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spatial Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../variance_calculation_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Variance Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lazy_evaluation_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lazy Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/fia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FIA Database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Estimation Functions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Estimation Functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/area/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Area
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/area_change/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Area Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/volume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tpa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trees Per Acre
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/biomass/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biomass
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mortality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mortality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/growth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Growth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/removals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Removals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reference_tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/evalidator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EVALIDator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/downloader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Download
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/conversion.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Conversion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DEVELOPMENT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE_DIAGRAMS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../queries/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FIA Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    FIA Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fia_technical_context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#chapter-1-overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chapter 1: Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chapter-contents" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chapter Contents:
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#11-introduction" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1 Introduction
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#111-purpose-of-this-guide" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.1 Purpose of This Guide
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#112-the-fia-program" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.2 The FIA Program
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#113-the-fia-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.1.3 The FIA Database
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#12-fia-sampling-and-estimation-procedures" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2 FIA Sampling and Estimation Procedures
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#121-sampling-and-stratification-methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.1 Sampling and Stratification Methodology
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#remote-sensing-p1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Remote Sensing (P1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ground-sampling-p2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ground Sampling (P2)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#122-plot-location" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.2 Plot Location
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#123-plot-design-condition-delineation-and-types-of-data-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.3 Plot Design, Condition Delineation, and Types of Data Attributes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot-designs" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot Designs
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#conditions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Conditions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#124-types-of-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.4 Types of Attributes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#measured-assigned-and-computed-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Measured, Assigned, and Computed Attributes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#regional-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Regional Attributes
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#125-expansion-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.5 Expansion Factors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tree-expansion-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree Expansion Factors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#plot-area-expansion-factors" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot Area Expansion Factors
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#126-accuracy-standards" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.2.6 Accuracy Standards
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#13-database-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3 Database Structure
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#131-table-descriptions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.1 Table Descriptions
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#132-keys-presented-with-the-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.2 Keys Presented with the Tables
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#primary-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Primary key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#unique-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unique key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#natural-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Natural key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#foreign-key" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Foreign key
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#133-oracle-data-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        1.3.3 Oracle Data Types
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chapter-2-database-tables-location-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chapter 2: Database Tables - Location Level
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#chapter-contents_1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Chapter Contents:
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+  <h1>Fia chapter1 complete</h1>
+
+<p>Updates</p>
+<p>User Guide Updates (revision: 12.2024)</p>
+<h2 id="chapter-1-overview">Chapter 1: Overview<a class="headerlink" href="#chapter-1-overview" title="Permanent link">&para;</a></h2>
+<h2 id="chapter-contents">Chapter Contents:<a class="headerlink" href="#chapter-contents" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Heading</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1.1</td>
+<td>Introduction: • Purpose of This Guide • The FIA Program • The FIA Database</td>
+</tr>
+<tr>
+<td>1.2</td>
+<td>FIA Sampling and Estimation Procedures: • Sampling and Stratification Methodology • Plot Location • Plot Design, Condition Delineation, and Types of Data Attributes • Types of Attributes • Expansion Factors • Accuracy Standards</td>
+</tr>
+<tr>
+<td>1.3</td>
+<td>Database Structure: • Table Descriptions • Keys Presented with the Tables • Oracle Data Types</td>
+</tr>
+</tbody>
+</table>
+<h2 id="11-introduction">1.1 Introduction<a class="headerlink" href="#11-introduction" title="Permanent link">&para;</a></h2>
+<h2 id="111-purpose-of-this-guide">1.1.1 Purpose of This Guide<a class="headerlink" href="#111-purpose-of-this-guide" title="Permanent link">&para;</a></h2>
+<p>This guide describes the database tables and attributes (columns) contained within the Forest Inventory and Analysis database (FIADB). The data within the FIADB are for the "Nationwide Forest Inventory (NFI)" conducted by the Forest Inventory and Analysis (FIA) Program. The term "NFI" refers to what was historically called "Phase 2" (P2) under FIA's three-phase sampling scheme (see "FIA Sampling and Estimation Procedures" for details). NFI is a national network of permanent plots that are remeasured every 5-10 years depending on location. Land use information is collected on all plots, with additional site and tree (live and standing dead) data collected on plot areas having forest land use present. Additionally, information about down woody material, soils, and understory vegetation is collected on a subset of plots. Note: The title for this user guide was revised to remove the "Phase 2" term. However, within this document, the use and meanings for FIA's three-phase sampling scheme terms "Phase 1" (P1), "Phase 2" (P2), and "Phase 3" (P3) remain the same.</p>
+<p>Although this user guide is used widely within the FIA program, a substantial part, if not the majority, of the intended audience includes those outside FIA who are interested in using FIA data for their own analyses. Awareness of the potential uses of FIA data by users outside the FIA community is growing, and the data become increasingly useful as additional attributes are collected. However, as is the case with any data source, it is incumbent upon the user to understand not only the data definitions and acquisition methods, but also the context in which the data were collected. This guide is intended to help current and potential users understand the necessary details of the FIADB.</p>
+<p>This guide has eleven chapters. The remainder of chapter 1 includes general introductions to the FIA program and the FIA database, including brief histories of both. It provides a convenient overview for those who have an interest in using FIA data, but have not yet become familiar with the FIA program. Chapter 1 also provides descriptions of FIA sampling methods, including plot location and design, data measurement and computation, and general estimation procedures. Chapters 2 through 11 describe the tables that comprise the database, the attributes stored in each table, and the linkages between tables. Descriptions of the attributes, their data format, valid values, and other important details are given, but the appropriate field guides should be consulted for exact specifications regarding data collection methods. Users with a good understanding of the database tables (chapters 2 through 11) and fundamental database management skills should be able to conduct a wide range of analyses. The supplemental document Forest Inventory and Analysis Database: Population Estimation User Guide explains the standard methods used to compile population-level estimates from FIADB, and applies the estimation procedures documented by Bechtold and Patterson (2005). These procedures are based on adoption of the annual inventory system and the mapped plot design, and constitute a major change when compared to previous compilation procedures. However, the compilation procedures should allow more flexible analyses, especially as additional panels are completed under the annual inventory system.</p>
+<p>There are several conventions used in this guide. The names of attributes (i.e., columns within tables) and table names appear in capital letters (e.g., PLOT table). Some attribute names appear in two or more tables. In most cases, such as the State code (STATECD), the attribute has the same definition in all tables. However, there are situations where attributes with the same name are defined differently in each table. One such example is</p>
+<p>the VALUE attribute in the REF_FOREST_TYPE table, which is used to identify the forest type and refers to appendix D. However, the VALUE attribute in the REF_UNIT table is used to indicate the FIA survey unit identification number from appendix B. In most cases, such as in the table descriptions in chapters 2 through 11, the attribute name will be used alone and the affiliation with a particular table is implied by the context. In cases where an attribute name has a different meaning in two or more tables, a compound naming convention, using the table name followed by the attribute name, will be used. In the VALUE attribute example, the name REF_FOREST_TYPE.VALUE refers to the VALUE attribute in the REF_FOREST_TYPE table, while REF_UNIT.VALUE refers to the VALUE attribute in the REF_UNIT table.</p>
+<h2 id="112-the-fia-program">1.1.2 The FIA Program<a class="headerlink" href="#112-the-fia-program" title="Permanent link">&para;</a></h2>
+<p>The mission of FIA is to determine the extent, condition, volume, growth, and use of trees on the Nation's forest land. FIA is the only program that collects, publishes, and analyzes data from all ownerships of forest land in the United States (Smith 2002). Throughout the long history of the program, inventories have been conducted by a number of geographically dispersed FIA work units. Currently, the national FIA program is implemented by four regionally distributed work units that are coordinated by a National Office in Washington, DC (see figure 1-1). The four FIA work units are named by the research station in which they reside. Station abbreviations are used within this document and they are defined as Pacific Northwest Research Station (PNWRS), Northern Research Station (NRS), Rocky Mountain Research Station (RMRS), and Southern Research Station (SRS). NRS was formed from the merger of North Central Research Station (NCRS) and Northeastern Research Station (NERS). Some data items still retain these designations.</p>
+<p>Figure 1-1: Boundaries of the four regionally distributed FIA work units and locations of program offices.</p>
+<!-- image -->
+
+<p>Starting in 1929, FIA accomplished its mission by conducting periodic forest inventories on a State-by-State basis. With the completion of Arizona, New Mexico, and Nevada in 1962, all 48 coterminous States had at least one periodic inventory (Van Hooser and others 1993). Repeat intervals for inventorying individual States have varied widely. By the late 1990s, most States had been inventoried more than once under the periodic inventory system; however, not all periodic data are available in electronic form (appendix J lists all periodic data available in the FIADB and the year in which annual inventory began).</p>
+<p>With the passage of the 1998 Farm Bill, the FIA program was required to move from a periodic inventory to an annualized system, with a portion of all plots within a State measured each year (Gillespie 1999). Starting in 1999, States were phased into the annual inventory system (appendix J). As an exception, Hawaii uses a 10-year remeasurement cycle, but the entire State is inventoried over a shorter time frame (e.g., 3-5 years) before it is inventoried again.Although the 1998 Farm Bill specified that 20 percent of the plots within each State would be visited annually, funding limitations have resulted in the actual portion of plots measured annually ranging between 10 and 20 percent, depending on the State.</p>
+<p>Periodic and annual data are analyzed to produce reports at State, regional, and national levels. In addition to published reports, data are made available to the public for those who are interested in conducting their own analyses. Downloadable data, available online at FIA Data and Tools (https://research.fs.usda.gov/programs/fia#data-and-tools), follow the format described in this document. Also available at this site are tools to make</p>
+<p>population estimates. The web-based EVALIDator tool and the DATIM tool (Design and Analysis Toolkit for Inventory and Monitoring) provide interactive access to the FIADB.</p>
+<h2 id="113-the-fia-database">1.1.3 The FIA Database<a class="headerlink" href="#113-the-fia-database" title="Permanent link">&para;</a></h2>
+<p>The Forest Inventory and Analysis Database (FIADB) was developed to provide users with data in a consistent format, spanning all States and inventories. The first version of FIADB replaced two FIA regional databases; the Eastern States (Eastwide database) documented by Hansen and others (1992), and Western States (Westwide database) documented by Woudenberg and Farrenkopf (1995). A new national plot design (see section 1.2) provided the impetus for replacing these two databases, and FIA work units adopted the new design in all State inventories initiated after 1998. The FIADB table structure is currently derived from the National Information Management System (NIMS), which was designed to process and store annual inventory data. A number of changes in the FIADB structure have been made to accommodate the data processing and storage requirements of NIMS. As a result, data from periodic inventories are stored in a format consistent with annual inventory data.</p>
+<p>FIADB files are available for periodic inventory data collected as early as 1968 (see appendix J). A wide variety of plot designs and regionally defined attributes were used in periodic inventories, often differing by State. Because of this, some data attributes may not be populated or certain data may have been collected or computed differently. During some periodic inventories, ground plot data were collected on timberland only. FIA defines timberland as nonreserved forest land capable of producing at least 20 cubic feet of wood volume per acre per year (the definition of forest land is in the COND_STATUS_CD description in the COND table.) Thus, low productivity forest land, reserved (areas reserved from timber harvesting), and nonforested areas usually were not ground sampled. To account for the total area of a State, "place holder" plots were created to represent these nonsampled areas, which are identified by plot design code 999 in FIADB (PLOT.DESIGNCD = 999). For these plots, many attributes that are normally populated for forested plots will be blank (null). Users should be aware that while place holder plots account for the area of nonsampled forest land, they do not account for the corresponding forest attributes (such as volume, growth, or mortality) that may exist in those areas.</p>
+<p>Annual inventories, initiated sometime after 1999 depending on the State, use a nationally standardized plot design and common data collection procedures resulting in greater consistency among FIA work units than earlier inventories. However, as part of a continuing effort to improve the inventory, some changes in methodology and attribute definitions have been implemented after the new design was put into practice. Beginning in 1998, FIA started using a National Field Guide referenced as Field Guide 1.0. The database contains an attribute labeled MANUAL that stores the version number of the field guide under which the data were collected. When both the plot design is coded as being the national design (PLOT.DESIGNCD = 1) and the field guide is coded with a number greater than or equal to 1, certain attributes are defined as being core while others are allowed to be core optional. Core attributes must be collected by every FIA work unit, using the same definition and set of codes. In contrast, collection of core optional attributes are decided upon by individual FIA work units, using the same national protocol, predefined definition, and set of codes. Many attributes, regardless of whether or not they are core or core optional, are only populated for forested conditions, and are blank (null) for other conditions (such as nonforest or water). Attributes described in chapters 2 through 9 are noted if they are core optional.</p>
+<p>Users who wish to analyze data using aggregations of multiple State inventories or multiple inventories within States should become familiar with changes in methodology and attribute definitions (see sections 1.2 and 1.3). For each attribute in the current version of FIADB, an effort has been made to provide the current definition of the attribute, as well as any variations in definition that may have been used among various FIA work units. In other words, although inventory data have been made available in a common data format, users should be aware of differences that might affect their analyses.</p>
+<h2 id="12-fia-sampling-and-estimation-procedures">1.2 FIA Sampling and Estimation Procedures<a class="headerlink" href="#12-fia-sampling-and-estimation-procedures" title="Permanent link">&para;</a></h2>
+<p>To use the FIADB effectively, users should acquire a basic understanding of FIA sampling and estimation procedures. Generally described, FIA uses what may be characterized as a three-phase sampling scheme. Phase 1 (P1) is used for stratification, while Phase 2 (P2) consists of plots that are visited or photo-interpreted. A subset of Phase 2 plots were designated as Phase 3 (P3) plots (formerly known as Forest Health Monitoring [FHM] plots) where additional health indicator attributes were collected. Phase 3 was no longer being completed as a separate inventory as of 2012. The FIA program collects some forest health indicators (e.g., DWM, vegetation profile, invasives, soils, lichens) on a portion of the P2 plots. Damages and crown attributes are now collected on all P2 plots. Ozone damage is no longer collected.</p>
+<h2 id="121-sampling-and-stratification-methodology">1.2.1 Sampling and Stratification Methodology<a class="headerlink" href="#121-sampling-and-stratification-methodology" title="Permanent link">&para;</a></h2>
+<h2 id="remote-sensing-p1">Remote Sensing (P1)<a class="headerlink" href="#remote-sensing-p1" title="Permanent link">&para;</a></h2>
+<p>The basic level of inventory in the FIA program is the State, which begins with the interpretation of a remotely sensed sample, referred to as Phase 1 (P1). The intent of P1 is to classify the land into various classes for the purpose of developing meaningful strata. A stratum is a group of plots that have the same or similar classifications based on remote-sensing imagery. Stratification is a statistical technique used by FIA to aggregate Phase 2 ground samples into groups to reduce variance when stratified estimation methods are used. The total area of the estimation unit is assumed to be known.</p>
+<p>Each Phase 2 ground plot is assigned to a stratum and the weight of the stratum is based on the proportion of the stratum within the estimation unit. Estimates of population totals are then based on the sum of the product of the known total area, the stratum weight, and the mean of the plot-level attribute of interest for each stratum. The expansion factor for each stratum within the estimation unit is the product of the known total area and the stratum weight divided by the number of Phase 2 plots in the stratum.</p>
+<p>Selection criteria for remote sensing classes and computation of area expansion factors differ from State to State. Users interested in the details of how these expansion factors are assigned to ground plots for a particular State should contact the appropriate FIA work unit (table 1-1).</p>
+<h2 id="ground-sampling-p2">Ground Sampling (P2)<a class="headerlink" href="#ground-sampling-p2" title="Permanent link">&para;</a></h2>
+<p>FIA ground plots, or Phase 2 plots, are designed to cover a 1-acre sample area; however, not all trees on the acre are measured. Ground plots may be new plots that have never been measured, or re-measurement plots that were measured during one or more previous inventories. Recent inventories use a nationally standard, fixed-radius plot layout</p>
+<p>for sample tree selection (see figure 1-2). Various arrangements of fixed-radius and variable-radius (prism) subplots were used to select sample trees in older inventories.</p>
+<p>Figure 1-2: The FIA mapped plot design. Subplot 1 is the center of the cluster with subplots 2, 3, and 4 located 120 feet away at azimuths of 360°, 120°, and 240°, respectively.</p>
+<!-- image -->
+
+<h2 id="122-plot-location">1.2.2 Plot Location<a class="headerlink" href="#122-plot-location" title="Permanent link">&para;</a></h2>
+<p>The FIADB includes coordinates for every plot location in the database, whether it is forested or not, but these are not the precise locations of the plot centers. In an amendment to the Food Security Act of 1985 (reference 7 USC 2276 § 1770), Congress directed FIA to ensure the privacy of private landowners. Exact plot coordinates could be used in conjunction with other publicly available data to link plot data to specific landowners, in violation of requirements set by Congress. In addition to the issue of private landowner privacy, the FIA program had concerns about plot integrity and vandalism of plot locations on public lands. A revised policy has been implemented and methods for making approximate coordinates available for all plots have been developed. These methods are collectively known as "fuzzing and swapping" (Lister and others 2005).</p>
+<p>In the past, FIA provided approximate coordinates for its periodic data in the FIADB. These coordinates were within 1.0 mile of the exact plot location (this is called fuzzing). However, because some private individuals own extensive amounts of land in certain counties, the data could still be linked to these owners. In order to maintain the privacy requirements specified in the amendments to the Food Security Act of 1985, up to 20 percent of the private plot coordinates are swapped with another similar private plot within the same county (this is called swapping). This method creates sufficient uncertainty at the scale of the individual landowner such that privacy requirements are met. It also ensures that county summaries and any breakdowns by categories, such as ownership class, will be the same as when using the true plot locations. This is because only the coordinates of the plot are swapped - all the other plot characteristics remain the</p>
+<p>same. The only difference will occur when users want to subdivide a county using a polygon. Even then, results will be similar because swapped plots are chosen to be similar based on attributes such as forest type, stand-size class, latitude, and longitude (each FIA work unit has chosen its own attributes for defining similarity).</p>
+<p>For plot data collected under the current plot design, plot numbers are reassigned to sever the link to other coordinates stored in the FIADB prior to the change in the law. Private plots are also swapped using the method described above; remeasured plots are swapped independent of the periodic data. All plot coordinates are fuzzed, but less than before within 0.5 mile for most plots and up to 1.0 mile on a small subset of them. This was done to make it difficult to locate the plot on the ground, while maintaining a good correlation between the plot data and map-based characteristics.</p>
+<p>For most user applications, such as woodbasket analyses and estimates of other large areas, fuzzed and swapped coordinates provide a sufficient level of accuracy. However, some FIA customers require more accurate of plot locations in order to perform analyses by user-defined polygons and for relating FIA plot data to other map-based information, such as soils maps and satellite imagery. In order to accommodate this need, FIA provides Spatial Data Services that allow most of the desired analyses while meeting privacy requirements. The possibilities and limitations for these types of analyses are case-specific, so interested users should contact their local FIA work unit for more information.</p>
+<h2 id="123-plot-design-condition-delineation-and-types-of-data-attributes">1.2.3 Plot Design, Condition Delineation, and Types of Data Attributes<a class="headerlink" href="#123-plot-design-condition-delineation-and-types-of-data-attributes" title="Permanent link">&para;</a></h2>
+<h2 id="plot-designs">Plot Designs<a class="headerlink" href="#plot-designs" title="Permanent link">&para;</a></h2>
+<p>The current national standard FIA plot design was originally developed for the Forest Health Monitoring program (Scott and others 1993). It was adopted by FIA in the mid-1990s and used for the last few periodic inventories and all annual inventories. The standard plot consists of four 24.0-foot radius subplots (approximately 0.0415 or 1/24 acre) (see figure 1-2), on which trees 5.0 inches d.b.h./d.r.c. are measured. Within each of these subplots is nested a 6.8-foot radius microplot (approximately 1/300th acre) on which trees &lt;5.0 inches d.b.h./d.r.c. are measured. A core optional variant of the standard design includes four "macroplots," each with a radius of 58.9 feet (approximately 1/4 acre) that originate at the centers of the 24.0-foot radius subplots. Breakpoint diameters between the 24-foot radius subplots and the macroplots vary and are specified in the macroplot breakpoint diameter attribute (PLOT.MACRO_BREAKPOINT_DIA).</p>
+<p>Prior to adoption of the current plot design, a wide variety of plot designs were used. Periodic inventories might include a mixture of designs, based on forest type, ownership, or time of plot measurement. In addition, similar plot designs (e.g., 20 BAF variable-radius plots) might have been used with different minimum diameter specifications (e.g., 1-inch versus 5-inch). Details on these designs are included in appendix G (plot design codes).</p>
+<h2 id="conditions">Conditions<a class="headerlink" href="#conditions" title="Permanent link">&para;</a></h2>
+<p>An important distinguishing feature between the current plot design and previous designs is that different conditions are "mapped" on the current design (see figure 1-3). In older plot designs, adjustments were made to the location of the plot center or the subplots were rearranged such that the entire plot sampled a single condition. In the new design, the plot location and orientation remains fixed, but boundaries between conditions are mapped and recorded. Conditions are defined by changes in land use or changes in</p>
+<p>vegetation that occur along more-or-less distinct boundaries. Reserved status, owner group, forest type, stand-size class, regeneration status, and stand density are used to define forest conditions. For example, the subplots may cover forest and nonforest areas, or it may cover a single forested area that can be partitioned into two or more distinct stands. Although mapping is used to separate forest and nonforest conditions, different nonforest conditions occurring on a plot are not mapped during initial plot establishment. Each condition occurring on the plot is assigned a condition proportion, and all conditions on a plot add up to 1.0. For plot designs other than the mapped design, condition proportion is always equal to 1.0 in FIADB.</p>
+<p>Figure 1-3: The FIA mapped plot design. Subplot 1 is the center of the cluster with subplots 2, 3, and 4 located 120 feet away at azimuths of 360°, 120°, and 240°, respectively. When a plot straddles two or more conditions, the plot area is divided by condition.</p>
+<!-- image -->
+
+<h2 id="124-types-of-attributes">1.2.4 Types of Attributes<a class="headerlink" href="#124-types-of-attributes" title="Permanent link">&para;</a></h2>
+<h2 id="measured-assigned-and-computed-attributes">Measured, Assigned, and Computed Attributes<a class="headerlink" href="#measured-assigned-and-computed-attributes" title="Permanent link">&para;</a></h2>
+<p>In addition to attributes that are collected in the field, FIADB includes attributes that are populated in the office. Examples of field attributes include tree diameter and height, and slope and aspect of the plot and subplot. Attributes that are populated in the office include assigned attributes, such as county and owner group codes, or computed attributes, such as tree and area expansion factors, and tree volumes.</p>
+<p>For measured attributes, this document provides only basic information on the methodology used in the field. The authoritative source for methodology is the Forest Inventory and Analysis National Core Field Guide used during the inventory in which the data were collected. The MANUAL attribute in the PLOT table documents the version number where data collection protocols can be found.</p>
+<p>Values of attributes that are assigned in the office are determined in several ways, depending on the attribute. For example, ownership may be determined using geographic</p>
+<p>data or local government records. Other attributes, such as Congressional District and Ecological Subsection are assigned values based on data management needs.</p>
+<p>Some computed attributes in the database are derived using other attributes in the database. Ordinarily, such attributes would not be included in a database table because they could be computed using the supplied attributes. However, some data compilation routines are complex or vary within or among FIA work units, so these computed attributes are populated for the convenience of database users.</p>
+<p>One example of a computed attribute is site index, which is computed at the condition level. Site index is generally a function of height and age, although other attributes may be used in conjunction. In addition, several different site index equations may be available for a species within its range. Height and age data are included in the TREE table, but only certain trees (see SITETREE table) are included in the site index attribute that is reported for the condition. As a result, it would be time-consuming for users to replicate the process required to calculate site index at the condition level. For convenience, the condition (COND) table includes site index (SICOND), the species for which it is calculated (SISP), and the site index base age (SIBASE).</p>
+<p>In most cases computed attributes should be sufficient for users' needs, because the equations and algorithms used to compute them have been determined by the FIA program to be the best available for the plot location. However, for most computed attributes the relevant tree- and plot-level attributes used to compute them are included in the database, so users may do their own calculations if desired.</p>
+<h2 id="regional-attributes">Regional Attributes<a class="headerlink" href="#regional-attributes" title="Permanent link">&para;</a></h2>
+<p>A number of regionally specific attributes are available in FIADB. These regional attributes are identified by FIA work unit, both in the table structure description (e.g., the attribute is named with an extension such as NERS) and in the attribute description (e.g., the attribute description text contains the phrase "Only populated by …" . For specific questions about the data from a particular FIA work unit, please contact the individuals listed in table 1-1. More information on attribute types is included in chapters 2 through 9.</p>
+<p>Table 1-1: Contacts at individual FIA work units.</p>
+<table>
+<thead>
+<tr>
+<th>FIA Work Unit</th>
+<th>RSCD</th>
+<th>States</th>
+<th>Database Contact</th>
+<th>Phone</th>
+<th>Analyst Contact</th>
+<th>Phone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Rocky Mountain (RMRS)</td>
+<td>22</td>
+<td>AZ, CO, ID, MT, NV, NM, UT, WY</td>
+<td>Andrea DiTommaso</td>
+<td>801-625-5397</td>
+<td>Kristen Pelz</td>
+<td>505-216-8710</td>
+</tr>
+<tr>
+<td>North Central (NCRS)*</td>
+<td>23</td>
+<td>IL, IN, IA, KS, MI, MN, MO, NE, ND, SD,WI</td>
+<td>Elizabeth Burrill</td>
+<td>603-868-7675</td>
+<td>Scott Pugh</td>
+<td>906-482-6303 x1317</td>
+</tr>
+<tr>
+<td>Northeastern (NERS)*</td>
+<td>24</td>
+<td>CT, DE, ME, MD, MA, NH, NJ, NY, OH, PA, RI, VT, WV</td>
+<td>Elizabeth Burrill</td>
+<td>603-868-7675</td>
+<td>Randy Morin</td>
+<td>215-233-6562</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>FIA Work Unit</th>
+<th>RSCD</th>
+<th>States</th>
+<th>Database Contact</th>
+<th>Phone</th>
+<th>Analyst Contact</th>
+<th>Phone</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pacific Northwest (PNWRS)</td>
+<td>26,27</td>
+<td>AK, CA, HI, OR, WA, AS, FM, GU, MH, MP, PW</td>
+<td>Vicki Johnson</td>
+<td>907-743-9410</td>
+<td>Glenn Christensen</td>
+<td>503-808-2064</td>
+</tr>
+<tr>
+<td>Southern (SRS)</td>
+<td>33</td>
+<td>AL, AR, FL, GA, KY, LA, MS, NC, OK, SC, TN, TX, VA, PR, VI</td>
+<td>Chad Keyser</td>
+<td>865-862-2095</td>
+<td>Kerry Dooley</td>
+<td>865-862-2098</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li>
+<ul>
+<li>The North Central Research Station (NCRS) and the Northeastern Research Station (NERS) have merged to become one research station, the Northern Research Station. The former regional designations are kept to accommodate the data.</li>
+</ul>
+</li>
+</ul>
+<h2 id="125-expansion-factors">1.2.5 Expansion Factors<a class="headerlink" href="#125-expansion-factors" title="Permanent link">&para;</a></h2>
+<h2 id="tree-expansion-factors">Tree Expansion Factors<a class="headerlink" href="#tree-expansion-factors" title="Permanent link">&para;</a></h2>
+<p>The expansion factor(s) used to scale each tree on a plot to a per-acre basis is dependent on the plot design. The examples here are for fixed-radius plots (see appendix G for all plot designs.) For fixed-plot designs, scaling is straightforward, with the number of trees per acre (TPA) represented by one tree equal to the inverse of the plot area in acres. The general formula is shown by equation [1]:</p>
+<ul>
+<li>[1] TPA = 1/(N*A)</li>
+</ul>
+<p>Where N is the number of subplots, and A is the area of each subplot.</p>
+<p>For example, the TPA expansion factor of each tree  5.0 inches d.b.h./d.r.c. occurring on the current plot design would be calculated using equation [2]:</p>
+<p>TPA expansion factors for standard subplot, microplot and macroplot designs</p>
+<ul>
+<li>[2] TPA per 24-foot fixed-radius subplot</li>
+</ul>
+<p>Radius of a subplot = 24 feet</p>
+<p>Area of subplot = pi*radius 2</p>
+<p>Area of subplot = 3.141592654*24 2</p>
+<p>Area of subplot = 1809.557368 square feet</p>
+<p>Acres in a subplot = area of subplot in square feet / (43560 square feet /acre)</p>
+<p>Acres in a subplot = 1809.557368 square feet / (43560 square feet /acre)</p>
+<p>Acres in a subplot = 0.04154172 acres per subplot</p>
+<p>Acres in a plot = 4 subplots per plot</p>
+<p>Acres per plot = 4* 0.04154172</p>
+<p>= 0.166166884 acres per plot</p>
+<p>TPA = 1 / (0.166166884) = 6.018046</p>
+<p>The TPA expansion factor of each sapling 1.0-4.9 inches d.b.h./d.r.c. occurring on the current microplot design would be calculated using equation [3]:</p>
+<ul>
+<li>[3] TPA per 6.8-foot fixed-radius microplot</li>
+</ul>
+<p>Radius of a microplot = 6.8 feet</p>
+<p>Area of microplot = pi*radius 2</p>
+<p>Area of microplot = 3.141592654*6.8 2</p>
+<p>Area of microplot = 145.2672443 square feet</p>
+<p>Acres in a microplot = area of microplot in square feet /</p>
+<p>(43560 square feet /acre)</p>
+<p>Acres in a microplot = 145.2672443 square feet / (43560 square feet /acre)</p>
+<p>Acres in a microplot = 0.003334877 acres per subplot</p>
+<p>Acres in a plot = 4 microplots per plot</p>
+<p>Acres per plot = 4* 0.003334877</p>
+<p>= 0.013339508 acres per plot</p>
+<p>TPA = 1 / (0.013339508) = 74.965282</p>
+<p>The TPA expansion factor of each tree  5.0 inches d.b.h./d.r.c. occurring on the current macroplot design would be calculated using equation [4]:</p>
+<p>[4] TPA per 58.9-foot fixed-radius macroplot</p>
+<p>Radius of a macroplot = 58.9 feet</p>
+<p>Area of macroplot = pi*radius 2</p>
+<p>Area of macroplot = 3.141592654*58.9 2</p>
+<p>Area of macroplot = 10898.84465 square feet</p>
+<p>Acres in a macroplot = area of macroplot in square feet /</p>
+<p>(43560 square feet /acre)</p>
+<p>Acres in a macroplot = 10898.84465 square feet / (43560 square feet /acre)</p>
+<p>Acres in a macroplot = 0.250203045 acres per subplot</p>
+<p>Acres in a plot = 4 macroplots per plot</p>
+<p>Acres per plot = 4* 0.250203045</p>
+<p>= 1.000812181 acres per plot</p>
+<p>TPA = 1 / (1.000812181) = 0.999188</p>
+<p>This expansion factor can be found in the TPA_UNADJ attribute in the TREE table (see chapter 3) for plots measured with the annual plot design.</p>
+<p>In variable-radius plot designs, the per-acre expansion factor is determined by the diameter of the tree, the basal area factor (BAF), and the number of points used in the plot design. The general formula is shown by equation [5]:</p>
+<p>[5] TPA = (BAF / 0.005454*DIA 2 )/N Where BAF is the variable-radius basal area factor in square feet, DIA is diameter of the tally tree in inches, and N is the number of points in the plot design.</p>
+<p>For example, if an 11.5-inch tree is tallied using a 10 BAF prism on a variable-radius design plot that uses five points, the calculation is:</p>
+<p>[6] TPA = (10 / 0.005454*11.5 2 )/5 = 2.773</p>
+<p>A 5.2-inch tree will have a greater expansion factor:</p>
+<p>[7] TPA = (10 / 0.005454*5.2 2 )/5 = 13.562</p>
+<p>Although it is not necessary to calculate expansion factors for different plot designs because they are stored in TPA_UNADJ, information on plot design can be found by using the code from the DESIGNCD attribute in the PLOT table to look up the plot design specifications in appendix G.</p>
+<h2 id="plot-area-expansion-factors">Plot Area Expansion Factors<a class="headerlink" href="#plot-area-expansion-factors" title="Permanent link">&para;</a></h2>
+<p>Some previous versions of FIADB have included area expansion factors in the PLOT table that were used to scale plot-level data to population-level estimates (see EXPCURR and related attributes in Miles and others 2001). In this version of FIADB, area expansion factors have been removed from the PLOT table. Instead, there is one area expansion factor (EXPNS) stored in the POP_STRATUM table. This change is needed because of the way annual inventory data are compiled. Under the annual inventory system, new plots are added each year. Adjustment factors that are used to compensate for denied access, inaccessible, and other reasons for not sampling may differ each time new data replaces older data. Both the number of acres each plot represents and the adjustments for the proportion of plots not sampled may change each year. In order to allow users to obtain population estimates for any grouping of data, an adjustment factor has been calculated and stored for each set of data being compiled. There is a separate adjustment factor for each fixed plot size: microplot, subplot, and macroplot. These attributes are also stored in the POP_STRATUM table. Each time the data are stratified differently, the adjustments and expansion factor may change. Therefore, FIA provides a different expansion factor every time the data are restratified.</p>
+<p>FIA has chosen the term 'evaluation' to describe this process of storing different stratifications of data either for an individual set of data or for the changing sets of data through time. Each aggregation of data is given an evaluation identifier (EVALID). The user can select population estimates for the most current set of data or for previous sets of data. In addition to being able to calculate population estimates, users can now calculate sampling error information because FIA is storing all of the Phase 1 information used for the stratification. That information is stored for each estimation unit, which is usually a geographic subset of the State (see the POP_ESTN_UNIT table). For more information about evaluations and calculation of area expansion factors, see The Forest Inventory and Analysis Database: Population Estimation User Guide.</p>
+<h2 id="126-accuracy-standards">1.2.6 Accuracy Standards<a class="headerlink" href="#126-accuracy-standards" title="Permanent link">&para;</a></h2>
+<p>Forest inventory plans are designed to meet sampling error standards for area, volume, growth, and removals provided in the Forest Service directive (FSH 4809.11) known as the Forest Survey Handbook (U.S. Department of Agriculture 2008). These standards, along with other guidelines, are aimed at obtaining comprehensive and comparable information on timber resources for all parts of the country. FIA inventories are commonly designed to meet the specified sampling errors at the State level at the 67 percent confidence limit (one standard error). The Forest Survey Handbook mandates that the sampling error for area cannot exceed 3 percent error per 1 million acres of timberland. A 5 percent (Eastern United States) or 10 percent (Western United States) error per 1 billion cubic feet of growing-stock trees on timberland is applied to volume, removals, and net annual growth. Unlike the mandated sampling error for area, sampling errors for volume, removals, and growth are only targets.</p>
+<p>FIA inventories are extensive inventories that provide reliable estimates for large areas. As data are subdivided into smaller and smaller areas, such as a geographic unit or a county, the sampling errors increase and the reliability of the estimates goes down.</p>
+<ul>
+<li>· A State with 5 million acres of timberland would have a maximum allowable sampling error of 1.3 percent (3% x (1,000,000) 0.5  / (5,000,000) 0.5 ).</li>
+<li>· A geographic unit within that State with 1 million acres of timberland would have a 3.0 percent maximum allowable sampling error (3% x (1,000,000) 0.5  / (1,000,000) 0.5 ).</li>
+<li>· A county within that State with 100 thousand acres would have a 9.5 percent maximum allowable sampling error (3% x (1,000,000) 0.5  / (100,000) 0.5 ) at the 67 percent confidence level.</li>
+</ul>
+<p>The greater allowance for sampling error in smaller areas reflects the decrease in sample size as estimation area decreases.</p>
+<p>Estimation procedures and the calculation of confidence intervals for typical FIA tables are discussed in The Forest Inventory and Analysis Database: Population Estimation User Guide. Additional information on estimation and confidence intervals can be found in Bechtold and Patterson (2005).</p>
+<h2 id="13-database-structure">1.3 Database Structure<a class="headerlink" href="#13-database-structure" title="Permanent link">&para;</a></h2>
+<p>This section provides information about the database tables, including detailed descriptions of all attributes within the tables. Each column or attribute in a table is listed with its unabbreviated name, followed by a description of the attribute. Attributes that are coded include a list of the codes and their meanings. The "Index of Column Names" contains an alphabetized list of all of the column names (attributes) in the database tables included within this user guide. Some overview information is presented below, followed by a section with complete information about all tables and attributes.</p>
+<h2 id="131-table-descriptions">1.3.1 Table Descriptions<a class="headerlink" href="#131-table-descriptions" title="Permanent link">&para;</a></h2>
+<p>Refer to the "Index of Tables" for a list of FIADB database and reference tables. This index also includes a brief description for each table.</p>
+<p>Figure 1-4 shows an Entity Relationship Diagram (ERD) for several tables in the FIADB. This diagram displays examples of how some columns in a table can be used to link to a matching column in another table (see "Foreign key" for more information). The REF_POP_ATTRIBUTE table can be linked to the POP_EVAL_ATTRIBUTE table using the ATTRIBUTE_NBR (attribute number) column.</p>
+<p>Figure 1-4: Entity Relationship Diagram (ERD) for several tables in the FIADB. Note: This ERD does not display the full set of columns that are available for each table.</p>
+<!-- image -->
+
+<h2 id="132-keys-presented-with-the-tables">1.3.2 Keys Presented with the Tables<a class="headerlink" href="#132-keys-presented-with-the-tables" title="Permanent link">&para;</a></h2>
+<p>Each summarized table in chapters 2 through 11 has a list of keys just below the bottom of the table. These keys are used to join data from different tables. The following provides a general definition of each kind of key.</p>
+<h2 id="primary-key">Primary key<a class="headerlink" href="#primary-key" title="Permanent link">&para;</a></h2>
+<p>A single column in a table whose values uniquely identify each row in an Oracle table. The primary key in each FIADB table is the CN column.</p>
+<p>The name of the primary key for each table is listed in the table description. It follows the nomenclature of 'TABLEABBREVIATION'_PK. The table abbreviations are as follows:</p>
+<p>Note: The following list of entities includes a combination of Oracle tables, views, and synonyms. However, for this user guide, all of these entities are simply referred to as database "tables."</p>
+<table>
+<thead>
+<tr>
+<th>Table name</th>
+<th>Table abbreviation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SURVEY</td>
+<td>SRV</td>
+</tr>
+<tr>
+<td>PROJECT</td>
+<td>PRJ</td>
+</tr>
+<tr>
+<td>COUNTY</td>
+<td>CTY</td>
+</tr>
+<tr>
+<td>PLOT</td>
+<td>PLT</td>
+</tr>
+<tr>
+<td>COND</td>
+<td>CND</td>
+</tr>
+<tr>
+<td>SUBPLOT</td>
+<td>SBP</td>
+</tr>
+<tr>
+<td>SUBP_COND</td>
+<td>SCD</td>
+</tr>
+<tr>
+<td>SUBP_COND_CHNG_MTRX</td>
+<td>CMX</td>
+</tr>
+<tr>
+<td>TREE</td>
+<td>TRE</td>
+</tr>
+<tr>
+<td>TREE_WOODLAND_STEMS</td>
+<td>WOODS</td>
+</tr>
+<tr>
+<td>TREE_GRM_COMPONENT</td>
+<td>TRE_GRM_CMP</td>
+</tr>
+<tr>
+<td>TREE_GRM_THRESHOLD</td>
+<td>TRE_GRM_THRSHLD</td>
+</tr>
+<tr>
+<td>TREE_GRM_MIDPT</td>
+<td>TRE_GRM_MIDPT</td>
+</tr>
+<tr>
+<td>TREE_GRM_BEGIN</td>
+<td>TRE_GRM_BGN</td>
+</tr>
+<tr>
+<td>TREE_GRM_ESTN</td>
+<td>TGE</td>
+</tr>
+<tr>
+<td>BEGINEND</td>
+<td>BE</td>
+</tr>
+<tr>
+<td>SEEDLING</td>
+<td>SDL</td>
+</tr>
+<tr>
+<td>SITETREE</td>
+<td>SIT</td>
+</tr>
+<tr>
+<td>INVASIVE_SUBPLOT_SPP</td>
+<td>ISS</td>
+</tr>
+<tr>
+<td>P2VEG_SUBPLOT_SPP</td>
+<td>P2VSSP</td>
+</tr>
+<tr>
+<td>P2VEG_SUBP_STRUCTURE</td>
+<td>P2VSS</td>
+</tr>
+<tr>
+<td>DWM_VISIT</td>
+<td>DVT</td>
+</tr>
+<tr>
+<td>DWM_COARSE_WOODY_DEBRIS</td>
+<td>DCW</td>
+</tr>
+<tr>
+<td>DWM_DUFF_LITTER_FUEL</td>
+<td>DDL</td>
+</tr>
+<tr>
+<td>DWM_FINE_WOODY_DEBRIS</td>
+<td>DFW</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Table name</th>
+<th>Table abbreviation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DWM_MICROPLOT_FUEL</td>
+<td>DMF</td>
+</tr>
+<tr>
+<td>DWM_RESIDUAL_PILE</td>
+<td>DRP</td>
+</tr>
+<tr>
+<td>DWM_TRANSECT_SEGMENT</td>
+<td>DTS</td>
+</tr>
+<tr>
+<td>COND_DWM_CALC</td>
+<td>CDC</td>
+</tr>
+<tr>
+<td>PLOT_REGEN</td>
+<td>PLTREGEN</td>
+</tr>
+<tr>
+<td>SUBPLOT_REGEN</td>
+<td>SBPREGEN</td>
+</tr>
+<tr>
+<td>SEEDLING_REGEN</td>
+<td>SDLREGEN</td>
+</tr>
+<tr>
+<td>GRND_CVR</td>
+<td>GRND_CVR</td>
+</tr>
+<tr>
+<td>GRND_LYR_FNCTL_GRP</td>
+<td>FGLFGP</td>
+</tr>
+<tr>
+<td>GRND_LYR_MICROQUAD</td>
+<td>FGLMP</td>
+</tr>
+<tr>
+<td>SUBP_SOIL_SAMPLE_LOC</td>
+<td>SSSL</td>
+</tr>
+<tr>
+<td>SUBP_SOIL_SAMPLE_LAYER</td>
+<td>SSSLYR</td>
+</tr>
+<tr>
+<td>POP_ESTN_UNIT</td>
+<td>PEU</td>
+</tr>
+<tr>
+<td>POP_EVAL</td>
+<td>PEV</td>
+</tr>
+<tr>
+<td>POP_EVAL_ATTRIBUTE</td>
+<td>PEA</td>
+</tr>
+<tr>
+<td>POP_EVAL_GRP</td>
+<td>PEG</td>
+</tr>
+<tr>
+<td>POP_EVAL_TYP</td>
+<td>PET</td>
+</tr>
+<tr>
+<td>POP_PLOT_STRATUM_ASSGN</td>
+<td>PPSA</td>
+</tr>
+<tr>
+<td>POP_STRATUM</td>
+<td>PSM</td>
+</tr>
+<tr>
+<td>PLOTGEOM</td>
+<td>PLOTGEOM</td>
+</tr>
+<tr>
+<td>PLOTSNAP</td>
+<td>PLOTSNP</td>
+</tr>
+<tr>
+<td>REF_POP_ATTRIBUTE</td>
+<td>PAE</td>
+</tr>
+<tr>
+<td>REF_POP_EVAL_TYP_DESCR</td>
+<td>PED</td>
+</tr>
+<tr>
+<td>REF_FOREST_TYPE</td>
+<td>RFT</td>
+</tr>
+<tr>
+<td>REF_FOREST_TYPE_GROUP</td>
+<td>FTGP</td>
+</tr>
+<tr>
+<td>REF_SPECIES</td>
+<td>RS</td>
+</tr>
+<tr>
+<td>REF_PLANT_DICTIONARY</td>
+<td>RPD</td>
+</tr>
+<tr>
+<td>REF_SPECIES_GROUP</td>
+<td>RSG</td>
+</tr>
+<tr>
+<td>REF_INVASIVE_SPECIES</td>
+<td>RIS</td>
+</tr>
+<tr>
+<td>REF_HABTYP_DESCRIPTION</td>
+<td>RHN</td>
+</tr>
+<tr>
+<td>REF_HABTYP_PUBLICATION</td>
+<td>RPN</td>
+</tr>
+<tr>
+<td>REF_CITATION</td>
+<td>CIT</td>
+</tr>
+<tr>
+<td>REF_FIADB_VERSION</td>
+<td>RFN</td>
+</tr>
+<tr>
+<td>REF_STATE_ELEV</td>
+<td>RSE</td>
+</tr>
+<tr>
+<td>REF_UNIT</td>
+<td>UNT</td>
+</tr>
+<tr>
+<td>REF_RESEARCH_STATION</td>
+<td>RES</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_1_CODES</td>
+<td>RNVCSHS1</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Table name</th>
+<th>Table abbreviation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>REF_NVCS_LEVEL_2_CODES</td>
+<td>RNVCSHS2</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_3_CODES</td>
+<td>RNVCSHS3</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_4_CODES</td>
+<td>RNVCSHS4</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_5_CODES</td>
+<td>RNVCSHS5</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_6_CODES</td>
+<td>RNVCSHS6</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_7_CODES</td>
+<td>RNVCSHS7</td>
+</tr>
+<tr>
+<td>REF_NVCS_LEVEL_8_CODES</td>
+<td>RNVCSHS8</td>
+</tr>
+<tr>
+<td>REF_DAMAGE_AGENT</td>
+<td>DA</td>
+</tr>
+<tr>
+<td>REF_DAMAGE_AGENT_GROUP</td>
+<td>DAG</td>
+</tr>
+<tr>
+<td>REF_FVS_VAR_NAME</td>
+<td>RFVN</td>
+</tr>
+<tr>
+<td>REF_FVS_LOC_NAME</td>
+<td>RFLN</td>
+</tr>
+<tr>
+<td>REF_OWNGRPCD</td>
+<td>REF_OWNGRPCD</td>
+</tr>
+<tr>
+<td>REF_DIFFERENCE_TEST_PER_ACRE</td>
+<td>RDTPA</td>
+</tr>
+<tr>
+<td>REF_DIFFERENCE_TEST_TOTALS</td>
+<td>RDTT</td>
+</tr>
+<tr>
+<td>REF_SIEQN</td>
+<td>REF_SIEQN</td>
+</tr>
+<tr>
+<td>REF_GRM_TYPE</td>
+<td>RGT</td>
+</tr>
+<tr>
+<td>REF_INTL_TO_DOYLE_FACTOR</td>
+<td>RIDF</td>
+</tr>
+<tr>
+<td>REF_TREE_CARBON_RATIO_DEAD</td>
+<td>REFTCRD</td>
+</tr>
+<tr>
+<td>REF_TREE_DECAY_PROP</td>
+<td>REFTDP</td>
+</tr>
+<tr>
+<td>REF_TREE_STND_DEAD_CR_PROP</td>
+<td>REFTSDCP</td>
+</tr>
+<tr>
+<td>REF_GRND_LYR</td>
+<td>REFGLYR</td>
+</tr>
+<tr>
+<td>REF_STD_NORM_DIST</td>
+<td>REF_SND</td>
+</tr>
+</tbody>
+</table>
+<h2 id="unique-key">Unique key<a class="headerlink" href="#unique-key" title="Permanent link">&para;</a></h2>
+<p>Multiple columns in a table whose values uniquely identify each row in an Oracle table. There can be one and only one row for each unique key value.</p>
+<p>The unique key varies for each FIADB table. The unique key for the PLOT table is STATECD, INVYR, UNITCD, COUNTYCD, and PLOT. The unique key for the COND table is PLT_CN and CONDID.</p>
+<p>The name of the unique key for each table is listed in the table description. It follows the nomenclature of 'TABLEABBREVIATION'_UK.</p>
+<h2 id="natural-key">Natural key<a class="headerlink" href="#natural-key" title="Permanent link">&para;</a></h2>
+<p>A type of unique key made from existing attributes in the table. It is stored as an index in this database.</p>
+<p>Not all FIADB tables have a natural key. For example, there is no natural key in the PLOT table, rather the natural key and the unique key are the same. The natural key for the COND table is STATECD, INVYR, UNITCD, COUNTYCD, PLOT, and CONDID.</p>
+<p>The name of the natural key for each table is listed in the table description. It follows the nomenclature of 'TABLEABBREVIATION'_NAT_I.</p>
+<h2 id="foreign-key">Foreign key<a class="headerlink" href="#foreign-key" title="Permanent link">&para;</a></h2>
+<p>A column in a table that is used as a link to a matching column in another Oracle table.</p>
+<p>A foreign key connects a record in one table to one and only one record in another table. Foreign keys are used both to link records between data tables and as a check (or constraint) to prevent "unrepresented data." For example, if there are rows of data in the TREE table for a specific plot, there needs to be a corresponding data row for that same plot in the PLOT table. The foreign key in the TREE table is the attribute PLT_CN, which links specific rows in the TREE table to one record in the PLOT table using the plot attribute CN.</p>
+<p>The foreign key for the COND table is PLT_CN. There is always a match of the PLT_CN value to the CN value in the PLOT table.</p>
+<p>The name of the foreign key for each table is listed in the table description. It follows the nomenclature of 'SOURCETABLEABBREVIATION'_'MATCHINGTABLEABBREVIATION'_FK, where the source table is the table containing the foreign key and the matching table is the table the foreign key matches. The foreign key usually matches the CN column of the matching table. Most tables in FIADB have only one foreign key, but tables can have multiple foreign keys.</p>
+<h2 id="133-oracle-data-types">1.3.3 Oracle Data Types<a class="headerlink" href="#133-oracle-data-types" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Oracle data type</th>
+<th>Definition</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>DATE</td>
+<td>A data type that stores the date.</td>
+</tr>
+<tr>
+<td>NUMBER</td>
+<td>A data type that contains only numbers, positive or negative, with a floating-decimal point.</td>
+</tr>
+<tr>
+<td>NUMBER(SIZE, D)</td>
+<td>A data type that contains only numbers up to a specified maximum size. The maximum size ( and optional fixed-decimal point ) is specified by the value(s) listed in the parentheses. For example, an attribute with a data type specified as "NUMBER(2)" indicates that the attribute may contain a maximum of 2 digits ( for example , "11" or "5"), however, none of the digits are decimals. An attribute with a data type specified as "NUMBER(3,1)" may contain a maximum of 3 digits, however, the last digit is a fixed decimal ( for example , "4.0" or "12.7"). Likewise, "NUMBER(6,4)" would indicate that an attribute may contain a maximum of 6 digits, however, the last 4 digits are part of a fixed decimal ( for example , "18.7200"). Note: When needed, digits to the right of a fixed-decimal point are filled in with zero(s).</td>
+</tr>
+<tr>
+<td>VARCHAR2(SIZE)</td>
+<td>A data type that contains alphanumeric data (numbers and/or characters) up to a specified maximum size. For example, an attribute with a data type specified as "VARCHAR2(8)" indicates that the attribute may contain a maximum of eight alphanumeric characters.</td>
+</tr>
+</tbody>
+</table>
+<p>Database Structure</p>
+<p>Chapter 1 (revision: 12.2024)</p>
+<h2 id="chapter-2-database-tables-location-level">Chapter 2: Database Tables - Location Level<a class="headerlink" href="#chapter-2-database-tables-location-level" title="Permanent link">&para;</a></h2>
+<h2 id="chapter-contents_1">Chapter Contents:<a class="headerlink" href="#chapter-contents_1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Section</th>
+<th>Database table</th>
+<th>Oracle table name</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2.1</td>
+<td>Survey Table</td>
+<td>SURVEY</td>
+</tr>
+<tr>
+<td>2.2</td>
+<td>Project Table</td>
+<td>PROJECT</td>
+</tr>
+<tr>
+<td>2.3</td>
+<td>County Table</td>
+<td>COUNTY</td>
+</tr>
+<tr>
+<td>2.4</td>
+<td>Plot Table</td>
+<td>PLOT</td>
+</tr>
+<tr>
+<td>2.5</td>
+<td>Condition Table</td>
+<td>COND</td>
+</tr>
+<tr>
+<td>2.6</td>
+<td>Subplot Table</td>
+<td>SUBPLOT</td>
+</tr>
+<tr>
+<td>2.7</td>
+<td>Subplot Condition Table</td>
+<td>SUBP_COND</td>
+</tr>
+<tr>
+<td>2.8</td>
+<td>Boundary Table</td>
+<td>BOUNDARY</td>
+</tr>
+<tr>
+<td>2.9</td>
+<td>Subplot Condition Change Matrix</td>
+<td>SUBP_COND_CHNG_MTRX</td>
+</tr>
+</tbody>
+</table>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>

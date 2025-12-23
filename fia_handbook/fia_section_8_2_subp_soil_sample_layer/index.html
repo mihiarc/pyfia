@@ -1,0 +1,3220 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for Forest Inventory and Analysis (FIA) data">
+      
+      
+        <meta name="author" content="PyFIA Contributors">
+      
+      
+        <link rel="canonical" href="https://mihiarc.github.io/pyfia/fia_handbook/fia_section_8_2_subp_soil_sample_layer/">
+      
+      
+      
+      
+        
+      
+      
+      <link rel="icon" href="../../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Section 8.2: Subplot Soil Sample Layer Table - PyFIA Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("../..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#section-82-subplot-soil-sample-layer-table" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href="../.." title="PyFIA Documentation" class="md-header__button md-logo" aria-label="PyFIA Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PyFIA Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Section 8.2: Subplot Soil Sample Layer Table
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/mihiarc/pyfia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mihiarc/pyfia
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../.." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../guides/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../DEVELOPMENT/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../../fia_technical_context/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  FIA Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href="../.." title="PyFIA Documentation" class="md-nav__button md-logo" aria-label="PyFIA Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    PyFIA Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/mihiarc/pyfia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mihiarc/pyfia
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../.." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../guides/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/downloading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloading Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/grouping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grouping Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../guides/spatial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spatial Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../variance_calculation_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Variance Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../lazy_evaluation_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lazy Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/fia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FIA Database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/data_reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Estimation Functions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Estimation Functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/area/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Area
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/area_change/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Area Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/volume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/tpa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trees Per Acre
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/biomass/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biomass
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/mortality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mortality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/growth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Growth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/removals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Removals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/reference_tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/evalidator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EVALIDator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/downloader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Download
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../api/conversion.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Conversion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../DEVELOPMENT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../ARCHITECTURE_DIAGRAMS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_7" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../../queries/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FIA Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    FIA Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../../fia_technical_context/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#82-subplot-soil-sample-layer-table-oracle-table-name-subp_soil_sample_layer" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2 Subplot Soil Sample Layer Table (Oracle table name: SUBP_SOIL_SAMPLE_LAYER)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#821-cn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.1 CN
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#822-sssl_cn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.2 SSSL_CN
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#823-plt_cn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.3 PLT_CN
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#824-statecd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.4 STATECD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#825-countycd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.5 COUNTYCD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#826-plot" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.6 PLOT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#827-invyr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.7 INVYR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#828-inv_vst_nbr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.8 INV_VST_NBR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#829-cycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.9 CYCLE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8210-subcycle" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.10 SUBCYCLE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8211-subp" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.11 SUBP
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8212-vstnbr" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.12 VSTNBR
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8213-sampler_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.13 SAMPLER_TYPE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8214-sample_dia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.14 SAMPLE_DIA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8215-layer_type" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.15 LAYER_TYPE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8216-soil_samp_per_ac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.16 SOIL_SAMP_PER_AC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8217-layer_thickness" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.17 LAYER_THICKNESS
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8218-layer_collected_cd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.18 LAYER_COLLECTED_CD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codes-texture_cd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codes: TEXTURE_CD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8219-wt_field_moist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.19 WT_FIELD_MOIST
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8220-wt_air_dry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.20 WT_AIR_DRY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8221-wt_oven_dry" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.21 WT_OVEN_DRY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8222-wt_rock" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.22 WT_ROCK
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8223-water_content_pct_field_moist" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.23 WATER_CONTENT_PCT_FIELD_MOIST
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8224-water_content_pct_residual" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.24 WATER_CONTENT_PCT_RESIDUAL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8225-water_content_pct_total" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.25 WATER_CONTENT_PCT_TOTAL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8226-bulk_density" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.26 BULK_DENSITY
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8227-coarse_fraction_pct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.27 COARSE_FRACTION_PCT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8228-bulk_density_fines" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.28 BULK_DENSITY_FINES
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8229-texture_cd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.29 TEXTURE_CD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codes-texture_cd-for-p3-soils_sample_method-_cd-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codes: TEXTURE_CD for P3 (SOILS_SAMPLE_METHOD _CD = 1)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#codes-texture_cd-for-interior-alaska-soils_sample_method_cd-2-3" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Codes: TEXTURE_CD for Interior Alaska (SOILS_SAMPLE_METHOD_CD = 2, 3)
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8230-ph_h2o" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.30 PH_H2O
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8231-ph_cacl2" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.31 PH_CACL2
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8232-ecec" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.32 ECEC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8233-exchng_al" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.33 EXCHNG_AL
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8234-exchng_ca" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.34 EXCHNG_CA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8235-exchng_cd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.35 EXCHNG_CD
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8236-exchng_cu" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.36 EXCHNG_CU
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8237-exchng_fe" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.37 EXCHNG_FE
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8238-exchng_k" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.38 EXCHNG_K
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8239-exchng_mg" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.39 EXCHNG_MG
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8240-exchng_mn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.40 EXCHNG_MN
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8241-exchng_na" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.41 EXCHNG_NA
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8242-exchng_ni" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.42 EXCHNG_NI
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8243-exchng_pb" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.43 EXCHNG_PB
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8244-exchng_s" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.44 EXCHNG_S
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8245-exchng_zn" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.45 EXCHNG_ZN
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8246-bray1_p" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.46 BRAY1_P
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8247-olsen_p" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.47 OLSEN_P
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8248-c_org_pct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.48 C_ORG_PCT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8249-c_inorg_pct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.49 C_INORG_PCT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8250-c_total_pct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.50 C_TOTAL_PCT
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8251-c_mg_ac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.51 C_MG_AC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8252-c_min3_mg_ac" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.52 C_MIN3_MG_AC
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#8253-n_total_pct" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        8.2.53 N_TOTAL_PCT
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="section-82-subplot-soil-sample-layer-table">Section 8.2: Subplot Soil Sample Layer Table<a class="headerlink" href="#section-82-subplot-soil-sample-layer-table" title="Permanent link">&para;</a></h1>
+<p><strong>Oracle Table Name:</strong> SUBP_SOIL_SAMPLE_LAYER
+<strong>Extracted Pages:</strong> 457-464 (Chapter pages 8-9 to 8-16)
+<strong>Source:</strong> FIA Database Handbook v9.3
+<strong>Chapter:</strong> 8 - Database Tables - Soils, Pacific Northwest Research Station (PNWRS)</p>
+<hr />
+<h2 id="82-subplot-soil-sample-layer-table-oracle-table-name-subp_soil_sample_layer">8.2 Subplot Soil Sample Layer Table (Oracle table name: SUBP_SOIL_SAMPLE_LAYER)<a class="headerlink" href="#82-subplot-soil-sample-layer-table-oracle-table-name-subp_soil_sample_layer" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Subsection</th>
+<th>Column name (attribute)</th>
+<th>Descriptive name</th>
+<th>Oracle data type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8.2.1</td>
+<td>CN</td>
+<td>Sequence number</td>
+<td>VARCHAR2(34)</td>
+</tr>
+<tr>
+<td>8.2.2</td>
+<td>SSSL_CN</td>
+<td>Subplot soil sample location sequence number</td>
+<td>VARCHAR2(34)</td>
+</tr>
+<tr>
+<td>8.2.3</td>
+<td>PLT_CN</td>
+<td>Plot sequence number</td>
+<td>VARCHAR2(34)</td>
+</tr>
+<tr>
+<td>8.2.4</td>
+<td>STATECD</td>
+<td>State code</td>
+<td>NUMBER(4)</td>
+</tr>
+<tr>
+<td>8.2.5</td>
+<td>COUNTYCD</td>
+<td>County code</td>
+<td>NUMBER(3)</td>
+</tr>
+<tr>
+<td>8.2.6</td>
+<td>PLOT</td>
+<td>Plot number</td>
+<td>NUMBER(6)</td>
+</tr>
+<tr>
+<td>8.2.7</td>
+<td>INVYR</td>
+<td>Inventory year</td>
+<td>NUMBER(4)</td>
+</tr>
+<tr>
+<td>8.2.8</td>
+<td>INV_VST_NBR</td>
+<td>Inventory visit number</td>
+<td>NUMBER(2)</td>
+</tr>
+<tr>
+<td>8.2.9</td>
+<td>CYCLE</td>
+<td>Inventory cycle number</td>
+<td>NUMBER(2)</td>
+</tr>
+<tr>
+<td>8.2.10</td>
+<td>SUBCYCLE</td>
+<td>Inventory subcycle number</td>
+<td>NUMBER(2)</td>
+</tr>
+<tr>
+<td>8.2.11</td>
+<td>SUBP</td>
+<td>Subplot number</td>
+<td>NUMBER(1)</td>
+</tr>
+<tr>
+<td>8.2.12</td>
+<td>VSTNBR</td>
+<td>Visit number</td>
+<td>NUMBER(1)</td>
+</tr>
+<tr>
+<td>8.2.13</td>
+<td>SAMPLER_TYPE</td>
+<td>Sampler type</td>
+<td>VARCHAR2(2)</td>
+</tr>
+<tr>
+<td>8.2.14</td>
+<td>SAMPLE_DIA</td>
+<td>Sample diameter</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.15</td>
+<td>LAYER_TYPE</td>
+<td>Layer type</td>
+<td>VARCHAR2(30)</td>
+</tr>
+<tr>
+<td>8.2.16</td>
+<td>SOIL_SAMP_PER_AC</td>
+<td>Soil sample area expansion factor</td>
+<td>NUMBER(14,6)</td>
+</tr>
+<tr>
+<td>8.2.17</td>
+<td>LAYER_THICKNESS</td>
+<td>Layer thickness</td>
+<td>NUMBER(5,3)</td>
+</tr>
+<tr>
+<td>8.2.18</td>
+<td>LAYER_COLLECTED_CD</td>
+<td>Layer collected code</td>
+<td>NUMBER(1)</td>
+</tr>
+<tr>
+<td>8.2.19</td>
+<td>WT_FIELD_MOIST</td>
+<td>Field-moist soil weight</td>
+<td>NUMBER(7,2)</td>
+</tr>
+<tr>
+<td>8.2.20</td>
+<td>WT_AIR_DRY</td>
+<td>Air-dry soil weight</td>
+<td>NUMBER(7,2)</td>
+</tr>
+<tr>
+<td>8.2.21</td>
+<td>WT_OVEN_DRY</td>
+<td>Oven-dry soil weight</td>
+<td>NUMBER(7,2)</td>
+</tr>
+<tr>
+<td>8.2.22</td>
+<td>WT_ROCK</td>
+<td>Rock particle weight</td>
+<td>NUMBER(7,2)</td>
+</tr>
+<tr>
+<td>8.2.23</td>
+<td>WATER_CONTENT_PCT_FIELD_MO IST</td>
+<td>Field-moist water content percent</td>
+<td>NUMBER(6,2)</td>
+</tr>
+<tr>
+<td>8.2.24</td>
+<td>WATER_CONTENT_PCT_RESIDUAL</td>
+<td>Residual water content percent</td>
+<td>NUMBER(6,2)</td>
+</tr>
+<tr>
+<td>8.2.25</td>
+<td>WATER_CONTENT_PCT_TOTAL</td>
+<td>Total water content percent</td>
+<td>NUMBER(6,2)</td>
+</tr>
+<tr>
+<td>8.2.26</td>
+<td>BULK_DENSITY</td>
+<td>Bulk density</td>
+<td>NUMBER(10,6)</td>
+</tr>
+<tr>
+<td>8.2.27</td>
+<td>COARSE_FRACTION_PCT</td>
+<td>Coarse fraction percent</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.28</td>
+<td>BULK_DENSITY_FINES</td>
+<td>Bulk density of fine soil fraction</td>
+<td>NUMBER(10,6)</td>
+</tr>
+<tr>
+<td>8.2.29</td>
+<td>TEXTURE_CD</td>
+<td>Texture code</td>
+<td>NUMBER(1)</td>
+</tr>
+<tr>
+<td>8.2.30</td>
+<td>PH_H2O</td>
+<td>pH in water</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.31</td>
+<td>PH_CACL2</td>
+<td>pH in calcium chloride solution</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.32</td>
+<td>ECEC</td>
+<td>Effective cation exchange capacity</td>
+<td>NUMBER(7,3)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Subsection</th>
+<th>Column name (attribute)</th>
+<th>Descriptive name</th>
+<th>Oracle data type</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>8.2.33</td>
+<td>EXCHNG_AL</td>
+<td>Exchangeable aluminum</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.34</td>
+<td>EXCHNG_CA</td>
+<td>Exchangeable calcium</td>
+<td>NUMBER(8,3)</td>
+</tr>
+<tr>
+<td>8.2.35</td>
+<td>EXCHNG_CD</td>
+<td>Exchangeable cadmium</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.36</td>
+<td>EXCHNG_CU</td>
+<td>Exchangeable copper</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.37</td>
+<td>EXCHNG_FE</td>
+<td>Exchangeable iron</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.38</td>
+<td>EXCHNG_K</td>
+<td>Exchangeable potassium</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.39</td>
+<td>EXCHNG_MG</td>
+<td>Exchangeable magnesium</td>
+<td>NUMBER(8,3)</td>
+</tr>
+<tr>
+<td>8.2.40</td>
+<td>EXCHNG_MN</td>
+<td>Exchangeable manganese</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.41</td>
+<td>EXCHNG_NA</td>
+<td>Exchangeable sodium</td>
+<td>NUMBER(8,3)</td>
+</tr>
+<tr>
+<td>8.2.42</td>
+<td>EXCHNG_NI</td>
+<td>Exchangeable nickel</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.43</td>
+<td>EXCHNG_PB</td>
+<td>Exchangeable lead</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.44</td>
+<td>EXCHNG_S</td>
+<td>Exchangeable sulfur</td>
+<td>NUMBER(8,3)</td>
+</tr>
+<tr>
+<td>8.2.45</td>
+<td>EXCHNG_ZN</td>
+<td>Exchangeable zinc</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.46</td>
+<td>BRAY1_P</td>
+<td>Bray 1 phosphorus</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.47</td>
+<td>OLSEN_P</td>
+<td>Olsen phosphorus</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.48</td>
+<td>C_ORG_PCT</td>
+<td>Organic carbon percent</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.49</td>
+<td>C_INORG_PCT</td>
+<td>inorganic carbon percent</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.50</td>
+<td>C_TOTAL_PCT</td>
+<td>Total carbon percent</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.51</td>
+<td>C_MG_AC</td>
+<td>Carbon content per acre</td>
+<td>NUMBER(10,6)</td>
+</tr>
+<tr>
+<td>8.2.52</td>
+<td>C_MIN3_MG_AC</td>
+<td>Carbon content 3-inch depth per acre</td>
+<td>NUMBER(10,6)</td>
+</tr>
+<tr>
+<td>8.2.53</td>
+<td>N_TOTAL_PCT</td>
+<td>Total nitrogen percent</td>
+<td>NUMBER(7,3)</td>
+</tr>
+<tr>
+<td>8.2.54</td>
+<td>N_MG_AC</td>
+<td>Nitrogen content per acre</td>
+<td>NUMBER(10,6)</td>
+</tr>
+<tr>
+<td>8.2.55</td>
+<td>N_MIN3_MG_AC</td>
+<td>Nitrogen content 3-inch depth per acre</td>
+<td>NUMBER(10,6)</td>
+</tr>
+<tr>
+<td>8.2.56</td>
+<td>CREATED_BY</td>
+<td>Created by</td>
+<td>VARCHAR2(30)</td>
+</tr>
+<tr>
+<td>8.2.57</td>
+<td>CREATED_DATE</td>
+<td>Created date</td>
+<td>DATE</td>
+</tr>
+<tr>
+<td>8.2.58</td>
+<td>CREATED_IN_INSTANCE</td>
+<td>Created in instance</td>
+<td>VARCHAR2(6)</td>
+</tr>
+<tr>
+<td>8.2.59</td>
+<td>MODIFIED_BY</td>
+<td>Modified by</td>
+<td>VARCHAR2(30)</td>
+</tr>
+<tr>
+<td>8.2.60</td>
+<td>MODIFIED_DATE</td>
+<td>Modified date</td>
+<td>DATE</td>
+</tr>
+<tr>
+<td>8.2.61</td>
+<td>MODIFIED_IN_INSTANCE</td>
+<td>Modified in instance</td>
+<td>VARCHAR2(6)</td>
+</tr>
+</tbody>
+</table>
+<table>
+<thead>
+<tr>
+<th>Key Type</th>
+<th>Column(s) order</th>
+<th>Tables to link</th>
+<th>Abbreviated notation</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Primary</td>
+<td>CN</td>
+<td>N/A</td>
+<td>SSSLYR_PK</td>
+</tr>
+<tr>
+<td>Foreign</td>
+<td>PLT_CN</td>
+<td>SUBP_SOIL_SAMPLE_LAYER to PLOT</td>
+<td>SSSLYR_FK</td>
+</tr>
+<tr>
+<td>Foreign</td>
+<td>SSSL_CN</td>
+<td>SUBP_SOIL_SAMPLE_LAYER to SUBP_SOIL_SAMPLE_LOC</td>
+<td>SSSLYR_FK2</td>
+</tr>
+</tbody>
+</table>
+<h2 id="821-cn">8.2.1 CN<a class="headerlink" href="#821-cn" title="Permanent link">&para;</a></h2>
+<p>Sequence number. A unique sequence number used to identify a subplot soil sample layer record.</p>
+<h2 id="822-sssl_cn">8.2.2 SSSL_CN<a class="headerlink" href="#822-sssl_cn" title="Permanent link">&para;</a></h2>
+<p>Subplot soil sample location sequence number. Foreign key linking the subplot soil sample layer record to the subplot soil sample location record.</p>
+<h2 id="823-plt_cn">8.2.3 PLT_CN<a class="headerlink" href="#823-plt_cn" title="Permanent link">&para;</a></h2>
+<p>Plot sequence number. Foreign key linking the subplot soil sample layer record to the plot record.</p>
+<h2 id="824-statecd">8.2.4 STATECD<a class="headerlink" href="#824-statecd" title="Permanent link">&para;</a></h2>
+<p>State code. Bureau of the Census Federal Information Processing Standards (FIPS) 2-digit code for each State. Refer to appendix B.</p>
+<h2 id="825-countycd">8.2.5 COUNTYCD<a class="headerlink" href="#825-countycd" title="Permanent link">&para;</a></h2>
+<p>County code. The identification number for a county, parish, watershed, borough, or similar governmental unit in a State. FIPS codes from the Bureau of the Census are used. Refer to appendix B for codes.</p>
+<p>Note: Summarizing data by county is not recommended for Alaska datasets. For assistance with analyses for Alaska, please consult the PNWRS analyst contact listed in table 1-1.</p>
+<h2 id="826-plot">8.2.6 PLOT<a class="headerlink" href="#826-plot" title="Permanent link">&para;</a></h2>
+<p>Plot number. An identifier for a plot. Along with STATECD, INVYR, UNITCD, COUNTYCD and/or some other combinations of variables, PLOT may be used to uniquely identify a plot.</p>
+<h2 id="827-invyr">8.2.7 INVYR<a class="headerlink" href="#827-invyr" title="Permanent link">&para;</a></h2>
+<p>Inventory year. See SURVEY.INVYR description for definition.</p>
+<h2 id="828-inv_vst_nbr">8.2.8 INV_VST_NBR<a class="headerlink" href="#828-inv_vst_nbr" title="Permanent link">&para;</a></h2>
+<p>Inventory visit number. Visit number within a cycle. A plot is usually visited once per cycle, but may be visited again for quality assurance visits or other measurements.</p>
+<h2 id="829-cycle">8.2.9 CYCLE<a class="headerlink" href="#829-cycle" title="Permanent link">&para;</a></h2>
+<p>Inventory cycle number. See SURVEY.CYCLE description for definition.</p>
+<h2 id="8210-subcycle">8.2.10 SUBCYCLE<a class="headerlink" href="#8210-subcycle" title="Permanent link">&para;</a></h2>
+<p>Inventory subcycle number. See SURVEY.SUBCYCLE description for definition..</p>
+<h2 id="8211-subp">8.2.11 SUBP<a class="headerlink" href="#8211-subp" title="Permanent link">&para;</a></h2>
+<p>Subplot number. The number assigned to the subplot adjacent to the soil sampling site. The national plot design (PLOT.DESIGNCD = 1) has subplot number values of 1 through 4. Soils protocols use only subplots 2-4.</p>
+<p>Codes: SUBP</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td>North subplot.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Southeast subplot.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Southwest subplot.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8212-vstnbr">8.2.12 VSTNBR<a class="headerlink" href="#8212-vstnbr" title="Permanent link">&para;</a></h2>
+<p>Visit number. The number of the soil sampling location at which the soil sample was collected. Values are 1-9.</p>
+<p>Figure 8-2: Location of soil sampling site.</p>
+<!-- image -->
+
+<h2 id="8213-sampler_type">8.2.13 SAMPLER_TYPE<a class="headerlink" href="#8213-sampler_type" title="Permanent link">&para;</a></h2>
+<p>Sampler type. A code indicating the type of soil sampler used.</p>
+<p>Codes: SAMPLER_TYPE</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>BD</td>
+<td>Bulk density.</td>
+</tr>
+<tr>
+<td>SF</td>
+<td>Sample frame.</td>
+</tr>
+<tr>
+<td>O</td>
+<td>Other.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8214-sample_dia">8.2.14 SAMPLE_DIA<a class="headerlink" href="#8214-sample_dia" title="Permanent link">&para;</a></h2>
+<p>Sample diameter. The diameter (inches) of the sample area.</p>
+<h2 id="8215-layer_type">8.2.15 LAYER_TYPE<a class="headerlink" href="#8215-layer_type" title="Permanent link">&para;</a></h2>
+<p>Layer type. A code indicating the soil layer type of the sample. Code values differ depending on the value of SUBP_SOIL_SAMPLE_LOC.SOILS_SAMPLE_METHOD_CD.</p>
+<p>Codes: LAYER_TYPE (when SOILS_SAMPLE_METHOD_CD = 1) (P3 Soils)</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LITTER</td>
+<td>Litter layer.</td>
+</tr>
+<tr>
+<td>FOREST FLOOR</td>
+<td>Forest floor.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL_0-4_IN</td>
+<td>Mineral soil layer collected at 0-4 inches in depth.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL_4-8_IN</td>
+<td>Mineral soil layer collected at 4-8 inches in depth.</td>
+</tr>
+</tbody>
+</table>
+<p>Codes: LAYER_TYPE (when SOILS_SAMPLE_METHOD_CD = 2) (Interior Alaska pilot)</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>IDENT_PARTS</td>
+<td>Identifiable parts.</td>
+</tr>
+<tr>
+<td>UNIDENT_PARTS</td>
+<td>Unidentifiable parts.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL</td>
+<td>Mineral soil.</td>
+</tr>
+<tr>
+<td>UNK_SOIL</td>
+<td>Unknown soil.</td>
+</tr>
+</tbody>
+</table>
+<p>Codes: LAYER_TYPE (when SOILS_SAMPLE_METHOD_CD = 3) (Interior Alaska)</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>LITTER</td>
+<td>Litter layer.</td>
+</tr>
+<tr>
+<td>GREEN_MOSS_LICHEN</td>
+<td>Green moss / lichen layer.</td>
+</tr>
+<tr>
+<td>IDENT_PARTS</td>
+<td>Identifiable parts.</td>
+</tr>
+<tr>
+<td>UNIDENT_PARTS</td>
+<td>Unidentifiable parts.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL</td>
+<td>Mineral soil.</td>
+</tr>
+<tr>
+<td>UNK_SOIL</td>
+<td>Unknown soil.</td>
+</tr>
+</tbody>
+</table>
+<p>Codes: LAYER_TYPE (when SOILS_SAMPLE_METHOD_CD = 4) (Hawaii)</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>MINERAL_SOIL_0-20_CM</td>
+<td>0-20 cm mineral soil layer.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL_20-40_CM</td>
+<td>20-40 cm mineral soil layer.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL_40-60_CM</td>
+<td>40-60 cm mineral soil layer.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL_60-80_CM</td>
+<td>60-80 cm mineral soil layer.</td>
+</tr>
+<tr>
+<td>MINERAL_SOIL_80-100_CM</td>
+<td>80-100 cm mineral soil layer.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8216-soil_samp_per_ac">8.2.16 SOIL_SAMP_PER_AC<a class="headerlink" href="#8216-soil_samp_per_ac" title="Permanent link">&para;</a></h2>
+<p>Soil sample area expansion factor. The expansion factor from the layer sampling area to an acre.</p>
+<h2 id="8217-layer_thickness">8.2.17 LAYER_THICKNESS<a class="headerlink" href="#8217-layer_thickness" title="Permanent link">&para;</a></h2>
+<p>Layer thickness. The layer thickness to the nearest 0.1 inch.</p>
+<h2 id="8218-layer_collected_cd">8.2.18 LAYER_COLLECTED_CD<a class="headerlink" href="#8218-layer_collected_cd" title="Permanent link">&para;</a></h2>
+<p>Layer collected code. A code indicating whether or not a soil layer was sampled.</p>
+<h2 id="codes-texture_cd">Codes: TEXTURE_CD<a class="headerlink" href="#codes-texture_cd" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Sample collected for analysis.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Sample not collected for analysis; other reason.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8219-wt_field_moist">8.2.19 WT_FIELD_MOIST<a class="headerlink" href="#8219-wt_field_moist" title="Permanent link">&para;</a></h2>
+<p>Field-moist soil weight. The weight (g) of the soil sample as received from the field.</p>
+<h2 id="8220-wt_air_dry">8.2.20 WT_AIR_DRY<a class="headerlink" href="#8220-wt_air_dry" title="Permanent link">&para;</a></h2>
+<p>Air-dry soil weight. The weight (g) of the soil sample after air-drying at ambient temperature.</p>
+<h2 id="8221-wt_oven_dry">8.2.21 WT_OVEN_DRY<a class="headerlink" href="#8221-wt_oven_dry" title="Permanent link">&para;</a></h2>
+<p>Oven-dry soil weight. The calculated weight (g) of the soil sample based on an oven-dried subsample</p>
+<h2 id="8222-wt_rock">8.2.22 WT_ROCK<a class="headerlink" href="#8222-wt_rock" title="Permanent link">&para;</a></h2>
+<p>Rock particle weight. The weight (g) of mineral soil &gt;2 mm in size.</p>
+<h2 id="8223-water_content_pct_field_moist">8.2.23 WATER_CONTENT_PCT_FIELD_MOIST<a class="headerlink" href="#8223-water_content_pct_field_moist" title="Permanent link">&para;</a></h2>
+<p>Field-moist water content percent. The field-moist to air-dry water content in percent.</p>
+<h2 id="8224-water_content_pct_residual">8.2.24 WATER_CONTENT_PCT_RESIDUAL<a class="headerlink" href="#8224-water_content_pct_residual" title="Permanent link">&para;</a></h2>
+<p>Residual water content percent. The air-dry to oven-dry water content in percent.</p>
+<h2 id="8225-water_content_pct_total">8.2.25 WATER_CONTENT_PCT_TOTAL<a class="headerlink" href="#8225-water_content_pct_total" title="Permanent link">&para;</a></h2>
+<p>Total water content percent. The field-moist to air-dry (WATER_CONTENT_PPCT_FIELD_MOIST) plus air-dry to oven-dry water (WATER_CONTENT_PCT_RESIDUAL) contents in percent.</p>
+<h2 id="8226-bulk_density">8.2.26 BULK_DENSITY<a class="headerlink" href="#8226-bulk_density" title="Permanent link">&para;</a></h2>
+<p>Bulk density. The soil bulk density calculated as weight per unit volume of soil, g/cm 3 .</p>
+<h2 id="8227-coarse_fraction_pct">8.2.27 COARSE_FRACTION_PCT<a class="headerlink" href="#8227-coarse_fraction_pct" title="Permanent link">&para;</a></h2>
+<p>Coarse fraction percent. The percentage of mineral soil &gt;2 mm in size.</p>
+<h2 id="8228-bulk_density_fines">8.2.28 BULK_DENSITY_FINES<a class="headerlink" href="#8228-bulk_density_fines" title="Permanent link">&para;</a></h2>
+<p>Bulk density of fine soil fraction. The bulk density of mineral soil particles &lt;2 mm calculated as weight per unit volume of soil, g/cm 3 .</p>
+<h2 id="8229-texture_cd">8.2.29 TEXTURE_CD<a class="headerlink" href="#8229-texture_cd" title="Permanent link">&para;</a></h2>
+<p>Texture code. A code indicating the texture of the soil layer.</p>
+<h2 id="codes-texture_cd-for-p3-soils_sample_method-_cd-1">Codes: TEXTURE_CD for P3 (SOILS_SAMPLE_METHOD _CD = 1)<a class="headerlink" href="#codes-texture_cd-for-p3-soils_sample_method-_cd-1" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>0</td>
+<td>Organic.</td>
+</tr>
+<tr>
+<td>1</td>
+<td>Loamy.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Clayey.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Sandy.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Coarse sand.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Not measured.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="codes-texture_cd-for-interior-alaska-soils_sample_method_cd-2-3">Codes: TEXTURE_CD for Interior Alaska (SOILS_SAMPLE_METHOD_CD = 2, 3)<a class="headerlink" href="#codes-texture_cd-for-interior-alaska-soils_sample_method_cd-2-3" title="Permanent link">&para;</a></h2>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Loamy.</td>
+</tr>
+<tr>
+<td>2</td>
+<td>Clayey.</td>
+</tr>
+<tr>
+<td>3</td>
+<td>Sandy.</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Coarse sand.</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Not measured.</td>
+</tr>
+</tbody>
+</table>
+<h2 id="8230-ph_h2o">8.2.30 PH_H2O<a class="headerlink" href="#8230-ph_h2o" title="Permanent link">&para;</a></h2>
+<p>pH in water. Soil pH measured in a 1:1 soil/water suspension.</p>
+<h2 id="8231-ph_cacl2">8.2.31 PH_CACL2<a class="headerlink" href="#8231-ph_cacl2" title="Permanent link">&para;</a></h2>
+<p>pH in calcium chloride solution. Soil pH measured in 0.01 M CaCl2 solution.</p>
+<h2 id="8232-ecec">8.2.32 ECEC<a class="headerlink" href="#8232-ecec" title="Permanent link">&para;</a></h2>
+<p>Effective cation exchange capacity. Exchangeable sodium (Na) + potassium (K) + magnesium (Mg) + calcium (Ca) + aluminum (Al) in cmolc/kg.</p>
+<h2 id="8233-exchng_al">8.2.33 EXCHNG_AL<a class="headerlink" href="#8233-exchng_al" title="Permanent link">&para;</a></h2>
+<p>Exchangeable aluminum. Exchangeable aluminum (Al) in mg/kg.</p>
+<h2 id="8234-exchng_ca">8.2.34 EXCHNG_CA<a class="headerlink" href="#8234-exchng_ca" title="Permanent link">&para;</a></h2>
+<p>Exchangeable calcium. Exchangeable calcium (Ca) in mg/kg.</p>
+<h2 id="8235-exchng_cd">8.2.35 EXCHNG_CD<a class="headerlink" href="#8235-exchng_cd" title="Permanent link">&para;</a></h2>
+<p>Exchangeable cadmium. Exchangeable cadmium (Cd) in mg/kg.</p>
+<h2 id="8236-exchng_cu">8.2.36 EXCHNG_CU<a class="headerlink" href="#8236-exchng_cu" title="Permanent link">&para;</a></h2>
+<p>Exchangeable copper. Exchangeable copper (Cu) in mg/kg.</p>
+<h2 id="8237-exchng_fe">8.2.37 EXCHNG_FE<a class="headerlink" href="#8237-exchng_fe" title="Permanent link">&para;</a></h2>
+<p>Exchangeable iron. Exchangeable iron (Fe) in mg/kg.</p>
+<h2 id="8238-exchng_k">8.2.38 EXCHNG_K<a class="headerlink" href="#8238-exchng_k" title="Permanent link">&para;</a></h2>
+<p>Exchangeable potassium. Exchangeable potassium (K) in mg/kg.</p>
+<h2 id="8239-exchng_mg">8.2.39 EXCHNG_MG<a class="headerlink" href="#8239-exchng_mg" title="Permanent link">&para;</a></h2>
+<p>Exchangeable magnesium. Exchangeable magnesium (Mg) in mg/kg.</p>
+<h2 id="8240-exchng_mn">8.2.40 EXCHNG_MN<a class="headerlink" href="#8240-exchng_mn" title="Permanent link">&para;</a></h2>
+<p>Exchangeable manganese. Exchangeable manganese (Mn) in mg/kg.</p>
+<h2 id="8241-exchng_na">8.2.41 EXCHNG_NA<a class="headerlink" href="#8241-exchng_na" title="Permanent link">&para;</a></h2>
+<p>Exchangeable sodium. Exchangeable sodium (Na) in mg/kg.</p>
+<h2 id="8242-exchng_ni">8.2.42 EXCHNG_NI<a class="headerlink" href="#8242-exchng_ni" title="Permanent link">&para;</a></h2>
+<p>Exchangeable nickel. Exchangeable nickel (Ni) in mg/kg.</p>
+<h2 id="8243-exchng_pb">8.2.43 EXCHNG_PB<a class="headerlink" href="#8243-exchng_pb" title="Permanent link">&para;</a></h2>
+<p>Exchangeable lead. Exchangeable lead (Pb) in mg/kg.</p>
+<h2 id="8244-exchng_s">8.2.44 EXCHNG_S<a class="headerlink" href="#8244-exchng_s" title="Permanent link">&para;</a></h2>
+<p>Exchangeable sulfur. Exchangeable sulfur (S) in mg/kg.</p>
+<h2 id="8245-exchng_zn">8.2.45 EXCHNG_ZN<a class="headerlink" href="#8245-exchng_zn" title="Permanent link">&para;</a></h2>
+<p>Exchangeable zinc. Exchangeable zinc (Zn) in mg/kg.</p>
+<h2 id="8246-bray1_p">8.2.46 BRAY1_P<a class="headerlink" href="#8246-bray1_p" title="Permanent link">&para;</a></h2>
+<p>Bray 1 phosphorus.</p>
+<p>Bray 1 extractable phosphorus in mg/kg.</p>
+<h2 id="8247-olsen_p">8.2.47 OLSEN_P<a class="headerlink" href="#8247-olsen_p" title="Permanent link">&para;</a></h2>
+<p>Olsen phosphorus. Olsen extractable phosphorus in mg/kg.</p>
+<h2 id="8248-c_org_pct">8.2.48 C_ORG_PCT<a class="headerlink" href="#8248-c_org_pct" title="Permanent link">&para;</a></h2>
+<p>Organic carbon percent. Organic carbon in percent.</p>
+<h2 id="8249-c_inorg_pct">8.2.49 C_INORG_PCT<a class="headerlink" href="#8249-c_inorg_pct" title="Permanent link">&para;</a></h2>
+<p>Inorganic carbon percent. Inorganic carbon (carbonates) in percent.</p>
+<h2 id="8250-c_total_pct">8.2.50 C_TOTAL_PCT<a class="headerlink" href="#8250-c_total_pct" title="Permanent link">&para;</a></h2>
+<p>Total carbon percent. Total carbon (organic + inorganic) in percent.</p>
+<h2 id="8251-c_mg_ac">8.2.51 C_MG_AC<a class="headerlink" href="#8251-c_mg_ac" title="Permanent link">&para;</a></h2>
+<p>Carbon content per acre. Carbon content (Mg) per acre.</p>
+<h2 id="8252-c_min3_mg_ac">8.2.52 C_MIN3_MG_AC<a class="headerlink" href="#8252-c_min3_mg_ac" title="Permanent link">&para;</a></h2>
+<p>Carbon content 3-inch depth per acre. Carbon content (Mg) per acre to a standard depth of three inches.</p>
+<h2 id="8253-n_total_pct">8.2.53 N_TOTAL_PCT<a class="headerlink" href="#8253-n_total_pct" title="Permanent link">&para;</a></h2>
+<p>Total nitrogen percent. Total nitrogen (N) in percent.</p>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "../..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "content.code.copy", "content.code.annotate"], "search": "../../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -1,0 +1,3882 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="High-performance Python library for Forest Inventory and Analysis (FIA) data">
+      
+      
+        <meta name="author" content="PyFIA Contributors">
+      
+      
+        <link rel="canonical" href="https://mihiarc.github.io/pyfia/fia_technical_context/">
+      
+      
+        <link rel="prev" href="../ARCHITECTURE_DIAGRAMS/">
+      
+      
+        <link rel="next" href="../queries/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.0">
+    
+    
+      
+        <title>Technical Context - PyFIA Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.618322db.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/_mkdocstrings.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+
+    
+    
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#fia-technical-context-for-api-documentation-enhancement" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+<header class="md-header" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="PyFIA Documentation" class="md-header__button md-logo" aria-label="PyFIA Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            PyFIA Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Technical Context
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="green" data-md-color-accent="indigo"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="m17.75 4.09-2.53 1.94.91 3.06-2.63-1.81-2.63 1.81.91-3.06-2.53-1.94L12.44 4l1.06-3 1.06 3zm3.5 6.91-1.64 1.25.59 1.98-1.7-1.17-1.7 1.17.59-1.98L15.75 11l2.06-.05L18.5 9l.69 1.95zm-2.28 4.95c.83-.08 1.72 1.1 1.19 1.85-.32.45-.66.87-1.08 1.27C15.17 23 8.84 23 4.94 19.07c-3.91-3.9-3.91-10.24 0-14.14.4-.4.82-.76 1.27-1.08.75-.53 1.93.36 1.85 1.19-.27 2.86.69 5.83 2.89 8.02a9.96 9.96 0 0 0 8.02 2.89m-1.64 2.02a12.08 12.08 0 0 1-7.8-3.47c-2.17-2.19-3.33-5-3.49-7.82-2.81 3.14-2.7 7.96.31 10.98 3.02 3.01 7.84 3.12 10.98.31"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="green" data-md-color-accent="indigo"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 7a5 5 0 0 1 5 5 5 5 0 0 1-5 5 5 5 0 0 1-5-5 5 5 0 0 1 5-5m0 2a3 3 0 0 0-3 3 3 3 0 0 0 3 3 3 3 0 0 0 3-3 3 3 0 0 0-3-3m0-7 2.39 3.42C13.65 5.15 12.84 5 12 5s-1.65.15-2.39.42zM3.34 7l4.16-.35A7.2 7.2 0 0 0 5.94 8.5c-.44.74-.69 1.5-.83 2.29zm.02 10 1.76-3.77a7.131 7.131 0 0 0 2.38 4.14zM20.65 7l-1.77 3.79a7.02 7.02 0 0 0-2.38-4.15zm-.01 10-4.14.36c.59-.51 1.12-1.14 1.54-1.86.42-.73.69-1.5.83-2.29zM12 22l-2.41-3.44c.74.27 1.55.44 2.41.44.82 0 1.63-.17 2.37-.44z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+        <div class="md-search__suggest" data-md-component="search-suggest"></div>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/mihiarc/pyfia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mihiarc/pyfia
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+            
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href=".." class="md-tabs__link">
+        
+  
+  
+    
+  
+  Home
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../getting-started/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Getting Started
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../guides/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../api/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  API Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../examples/" class="md-tabs__link">
+        
+  
+  
+    
+  
+  Examples
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../DEVELOPMENT/" class="md-tabs__link">
+          
+  
+  
+    
+  
+  Development
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  
+    
+  
+  FIA Reference
+
+        </a>
+      </li>
+    
+  
+
+      
+    </ul>
+  </div>
+</nav>
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="PyFIA Documentation" class="md-nav__button md-logo" aria-label="PyFIA Documentation" data-md-component="logo">
+      
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a3 3 0 0 0 3-3 3 3 0 0 0-3-3 3 3 0 0 0-3 3 3 3 0 0 0 3 3m0 3.54C9.64 9.35 6.5 8 3 8v11c3.5 0 6.64 1.35 9 3.54 2.36-2.19 5.5-3.54 9-3.54V8c-3.5 0-6.64 1.35-9 3.54"/></svg>
+
+    </a>
+    PyFIA Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/mihiarc/pyfia" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mihiarc/pyfia
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_3" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../guides/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    User Guide
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_3" id="__nav_3_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    User Guide
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/downloading/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Downloading Data
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/filtering/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Domain Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/grouping/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Grouping Results
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../guides/spatial/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Spatial Filtering
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../variance_calculation_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Variance Estimation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../lazy_evaluation_guide/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Lazy Evaluation
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+          
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4" >
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../api/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    API Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_4" id="__nav_4_label" tabindex="0">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    API Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_2" id="__nav_4_2_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Core
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Core
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/fia/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FIA Database
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/data_reader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Reader
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/settings/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Settings
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_3" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_3" id="__nav_4_3_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Estimation Functions
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_3_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_3">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Estimation Functions
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/area/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Area
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/area_change/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Area Change
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/volume/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Volume
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/tpa/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Trees Per Acre
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/biomass/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Biomass
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/mortality/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Mortality
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/growth/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Growth
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/removals/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Removals
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_4_4" >
+        
+          
+          <label class="md-nav__link" for="__nav_4_4" id="__nav_4_4_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Utilities
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_4_4_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_4_4">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Utilities
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/reference_tables/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Reference Tables
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/evalidator/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    EVALIDator
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/downloader/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Download
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../api/conversion.md" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Data Conversion
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../examples/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Examples
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+      
+        
+      
+        
+      
+    
+    
+    
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Development
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Development
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../DEVELOPMENT/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Contributing
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../ARCHITECTURE_DIAGRAMS/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Architecture
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+      
+        
+      
+        
+          
+        
+      
+    
+    
+    
+      
+        
+        
+      
+      
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_7" checked>
+        
+          
+          <div class="md-nav__link md-nav__container">
+            <a href="../queries/" class="md-nav__link ">
+              
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    FIA Reference
+  
+
+    
+  </span>
+  
+  
+
+            </a>
+            
+              
+              <label class="md-nav__link " for="__nav_7" id="__nav_7_label" tabindex="">
+                <span class="md-nav__icon md-icon"></span>
+              </label>
+            
+          </div>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_7_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_7">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    FIA Reference
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical Context
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Technical Context
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key References
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#primary-methodological-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Primary Methodological Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Primary Methodological Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-chapters-with-page-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Chapters (with page references)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-equations-chapter-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical Equations (Chapter 4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Sections
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#additional-key-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additional Key References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fia-sampling-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FIA Sampling Design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FIA Sampling Design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-phase-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three-Phase Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plot-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Plot Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plot-components-and-sizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot Components and Sizes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#total-sample-area" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total Sample Area
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluation-system-evalid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation System (EVALID)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Evaluation System (EVALID)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evalid-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EVALID Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-types-eval_typ" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation Types (EVAL_TYP)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#volume-calculations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Volume Calculations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Volume Calculations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#volume-variables-in-fia-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Volume Variables in FIA Database
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Volume Variables in FIA Database">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#volcfnet-net-cubic-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLCFNET (Net Cubic-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volcfgrs-gross-cubic-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLCFGRS (Gross Cubic-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volcfsnd-sound-cubic-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLCFSND (Sound Cubic-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volbfnet-net-board-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLBFNET (Net Board-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#growing-stock-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Growing Stock Definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expansion-factors-and-adjustments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expansion Factors and Adjustments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Expansion Factors and Adjustments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tree-level-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree-Level Expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plot-level-adjustments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot-Level Adjustments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stratum-level-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stratum-Level Expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-expansion-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Expansion Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#biomass-and-carbon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Biomass and Carbon
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Biomass and Carbon">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#biomass-variables-drybio_" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Biomass Variables (DRYBIO_*)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#carbon-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Carbon Calculation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unit-conversions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unit Conversions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#land-classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Land Classification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Land Classification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forest-land-cond_status_cd-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forest Land (COND_STATUS_CD = 1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timberland" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timberland
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#growth-removal-mortality-grm-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Growth-Removal-Mortality (GRM) Tables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Growth-Removal-Mortality (GRM) Tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-grm-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key GRM Tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grm-column-naming-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GRM Column Naming Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#annual-vs-periodic-inventory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Annual vs. Periodic Inventory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Annual vs. Periodic Inventory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rotating-panel-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotating Panel Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-vs-inventory-years" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation vs. Inventory Years
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-grouping-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Grouping Variables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Grouping Variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ownership-owngrpcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ownership (OWNGRPCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stand-size-class-stdszcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stand Size Class (STDSZCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#site-productivity-class-siteclcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Site Productivity Class (SITECLCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tree-status-statuscd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree Status (STATUSCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#statistical-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statistical Considerations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Statistical Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#design-based-estimation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design-Based Estimation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variance-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variance Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Variance Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#domain-total-variance-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domain Total Variance Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Implementation Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#area-variance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Area Variance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation Results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#temporal-methods-fia-methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temporal Methods (FIA Methodology)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-quality-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Quality Notes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Quality Notes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pre-1999-periodic-inventories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-1999 Periodic Inventories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#null-value-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NULL Value Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-recommendations-for-pyfia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Recommendations for pyFIA
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Recommendations for pyFIA">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Enhancements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Guidance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Overview
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#key-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key References
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Key References">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#primary-methodological-reference" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Primary Methodological Reference
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Primary Methodological Reference">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-chapters-with-page-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Chapters (with page references)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-equations-chapter-4" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical Equations (Chapter 4)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-sections" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Sections
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#additional-key-references" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Additional Key References
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#fia-sampling-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        FIA Sampling Design
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="FIA Sampling Design">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#three-phase-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Three-Phase Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plot-configuration" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot Configuration
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Plot Configuration">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#plot-components-and-sizes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot Components and Sizes
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#total-sample-area" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Total Sample Area
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#evaluation-system-evalid" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation System (EVALID)
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Evaluation System (EVALID)">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#evalid-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        EVALID Structure
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-types-eval_typ" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation Types (EVAL_TYP)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#critical-rules" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Critical Rules
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#volume-calculations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Volume Calculations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Volume Calculations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#volume-variables-in-fia-database" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Volume Variables in FIA Database
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Volume Variables in FIA Database">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#volcfnet-net-cubic-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLCFNET (Net Cubic-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volcfgrs-gross-cubic-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLCFGRS (Gross Cubic-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volcfsnd-sound-cubic-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLCFSND (Sound Cubic-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#volbfnet-net-board-foot-volume" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        VOLBFNET (Net Board-Foot Volume)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#growing-stock-definition" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Growing Stock Definition
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#expansion-factors-and-adjustments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Expansion Factors and Adjustments
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Expansion Factors and Adjustments">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#tree-level-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree-Level Expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#plot-level-adjustments" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Plot-Level Adjustments
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stratum-level-expansion" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stratum-Level Expansion
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#complete-expansion-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Complete Expansion Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#biomass-and-carbon" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Biomass and Carbon
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Biomass and Carbon">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#biomass-variables-drybio_" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Biomass Variables (DRYBIO_*)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#carbon-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Carbon Calculation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unit-conversions" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Unit Conversions
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#land-classification" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Land Classification
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Land Classification">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#forest-land-cond_status_cd-1" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Forest Land (COND_STATUS_CD = 1)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#timberland" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Timberland
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#growth-removal-mortality-grm-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Growth-Removal-Mortality (GRM) Tables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Growth-Removal-Mortality (GRM) Tables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#key-grm-tables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key GRM Tables
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#component-types" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Component Types
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#grm-column-naming-pattern" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        GRM Column Naming Pattern
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#annual-vs-periodic-inventory" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Annual vs. Periodic Inventory
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Annual vs. Periodic Inventory">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#rotating-panel-design" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Rotating Panel Design
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#evaluation-vs-inventory-years" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Evaluation vs. Inventory Years
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#common-grouping-variables" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Grouping Variables
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Common Grouping Variables">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#ownership-owngrpcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Ownership (OWNGRPCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#stand-size-class-stdszcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Stand Size Class (STDSZCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#site-productivity-class-siteclcd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Site Productivity Class (SITECLCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#tree-status-statuscd" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tree Status (STATUSCD)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#statistical-considerations" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Statistical Considerations
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Statistical Considerations">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#design-based-estimation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Design-Based Estimation
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#variance-calculation" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Variance Calculation
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Variance Calculation">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#domain-total-variance-formula" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Domain Total Variance Formula
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-implementation-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Key Implementation Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#area-variance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Area Variance
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#validation-results" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Validation Results
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#temporal-methods-fia-methodology" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Temporal Methods (FIA Methodology)
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#data-quality-notes" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Data Quality Notes
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Data Quality Notes">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#pre-1999-periodic-inventories" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Pre-1999 Periodic Inventories
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#null-value-handling" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        NULL Value Handling
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#implementation-recommendations-for-pyfia" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Implementation Recommendations for pyFIA
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Implementation Recommendations for pyFIA">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#documentation-enhancements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Documentation Enhancements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#code-improvements" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Code Improvements
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#user-guidance" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        User Guidance
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="fia-technical-context-for-api-documentation-enhancement">FIA Technical Context for API Documentation Enhancement<a class="headerlink" href="#fia-technical-context-for-api-documentation-enhancement" title="Permanent link">&para;</a></h1>
+<h2 id="overview">Overview<a class="headerlink" href="#overview" title="Permanent link">&para;</a></h2>
+<p>This document compiles authoritative FIA technical information gathered from official USDA Forest Service sources to enhance pyFIA's API documentation.</p>
+<h2 id="key-references">Key References<a class="headerlink" href="#key-references" title="Permanent link">&para;</a></h2>
+<h3 id="primary-methodological-reference">Primary Methodological Reference<a class="headerlink" href="#primary-methodological-reference" title="Permanent link">&para;</a></h3>
+<p><strong>Bechtold, W.A. and Patterson, P.L. (Editors). 2005.</strong> The enhanced forest inventory and analysis program - national sampling design and estimation procedures. General Technical Report SRS-80. U.S. Department of Agriculture, Forest Service, Southern Research Station, Asheville, NC. 85 p.</p>
+<ul>
+<li>Foundational document for FIA's enhanced program methodology</li>
+<li>Describes transition to annual inventory system</li>
+<li>Details three-phase sampling design</li>
+<li>Presents core estimators for National Information Management System (NIMS)</li>
+<li>Available at: https://www.srs.fs.usda.gov/pubs/gtr/gtr_srs080/gtr_srs080.pdf</li>
+<li>DOI: 10.2737/SRS-GTR-80</li>
+</ul>
+<h4 id="key-chapters-with-page-references">Key Chapters (with page references)<a class="headerlink" href="#key-chapters-with-page-references" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Chapter</th>
+<th>Title</th>
+<th>Authors</th>
+<th>Pages</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>3</td>
+<td>The Forest Inventory and Analysis Plot Design</td>
+<td>Bechtold, W.A.; Scott, C.T.</td>
+<td>27-52</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Sample-based estimators used by FIA NIMS</td>
+<td>Scott, C.T.; Bechtold, W.A.; Reams, G.A.; Smith, W.D.; Westfall, J.A.; Hansen, M.H.; Moisen, G.G.</td>
+<td>53-77</td>
+</tr>
+</tbody>
+</table>
+<h4 id="critical-equations-chapter-4">Critical Equations (Chapter 4)<a class="headerlink" href="#critical-equations-chapter-4" title="Permanent link">&para;</a></h4>
+<table>
+<thead>
+<tr>
+<th>Equation</th>
+<th>Page</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Eq. 4.1</td>
+<td>47</td>
+<td>Domain indicator function (Φ_hid) for condition attributes</td>
+</tr>
+<tr>
+<td>Eq. 4.2</td>
+<td>49</td>
+<td>Adjustment factor (1/p_mh) for non-sampled plots</td>
+</tr>
+<tr>
+<td>Eq. 4.8</td>
+<td>53</td>
+<td>Tree attribute estimation (y_hid)</td>
+</tr>
+<tr>
+<td>Section 4.2</td>
+<td>55-60</td>
+<td>Stratification and EXPNS expansion factor</td>
+</tr>
+</tbody>
+</table>
+<h4 id="key-sections">Key Sections<a class="headerlink" href="#key-sections" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Section 3.4.3</strong> (pg. 40-42): Nonsampled Plots and Plot Replacement - handling inaccessible plots</li>
+<li><strong>Section 4.2</strong> (pg. 55-60): Post-stratified estimation procedures and variance formulas</li>
+</ul>
+<h3 id="additional-key-references">Additional Key References<a class="headerlink" href="#additional-key-references" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>Woudenberg, S.W. et al. 2010.</strong> The Forest Inventory and Analysis Database: Database description and users manual version 4.0 for Phase 2. Gen. Tech. Rep. RMRS-GTR-245. Fort Collins, CO: U.S. Department of Agriculture, Forest Service, Rocky Mountain Research Station.</li>
+<li><strong>Westfall, J.A. et al. 2023.</strong> National scale volume and biomass (NSVB) estimators. Adopted by FIA program September 2023.</li>
+</ul>
+<h2 id="fia-sampling-design">FIA Sampling Design<a class="headerlink" href="#fia-sampling-design" title="Permanent link">&para;</a></h2>
+<h3 id="three-phase-design">Three-Phase Design<a class="headerlink" href="#three-phase-design" title="Permanent link">&para;</a></h3>
+<ol>
+<li><strong>Phase 1</strong>: Remote sensing for stratification and identification of forested land</li>
+<li><strong>Phase 2</strong>: Field plots - one per 6,000 acres of forest land</li>
+<li>Forest type, site attributes, tree species, tree size, tree condition</li>
+<li>Spatially explicit tree compositional data</li>
+<li><strong>Phase 3</strong>: Subset of Phase 2 plots with expanded measurements</li>
+<li>Tree crown conditions, lichen composition, understory vegetation</li>
+<li>Down woody debris, soil attributes</li>
+</ol>
+<h3 id="plot-configuration">Plot Configuration<a class="headerlink" href="#plot-configuration" title="Permanent link">&para;</a></h3>
+<p>FIA uses a nested plot design with specific radii:</p>
+<h4 id="plot-components-and-sizes">Plot Components and Sizes<a class="headerlink" href="#plot-components-and-sizes" title="Permanent link">&para;</a></h4>
+<ul>
+<li><strong>Microplot</strong>:</li>
+<li>Radius: 2.073 m (6.8 ft)</li>
+<li>Trees measured: DBH &lt; 12.446 cm (4.9 in)</li>
+<li>
+<p>Area: 13.5 m² (145 ft²)</p>
+</li>
+<li>
+<p><strong>Subplot</strong>:</p>
+</li>
+<li>Radius: 7.315 m (24.0 ft)</li>
+<li>Trees measured: DBH ≥ 12.446 cm (4.9 in)</li>
+<li>
+<p>Area: 168.3 m² (1,809 ft²)</p>
+</li>
+<li>
+<p><strong>Macroplot</strong>:</p>
+</li>
+<li>Radius: 17.953 m (58.9 ft)</li>
+<li>Trees measured: Large trees based on regional breakpoint diameter</li>
+<li>Area: 1,012 m² (10,890 ft²)</li>
+</ul>
+<h4 id="total-sample-area">Total Sample Area<a class="headerlink" href="#total-sample-area" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Each plot represents approximately 2.47 acres</li>
+<li>Data extrapolated to represent ~6,000 acres</li>
+</ul>
+<h2 id="evaluation-system-evalid">Evaluation System (EVALID)<a class="headerlink" href="#evaluation-system-evalid" title="Permanent link">&para;</a></h2>
+<h3 id="evalid-structure">EVALID Structure<a class="headerlink" href="#evalid-structure" title="Permanent link">&para;</a></h3>
+<p>Format: <strong>SSYYTT</strong> (6-digit code)
+- <strong>SS</strong>: State FIPS code (e.g., 48 for Texas)
+- <strong>YY</strong>: Evaluation year (last 2 digits, e.g., 23 for 2023)
+- <strong>TT</strong>: Evaluation type code</p>
+<h3 id="evaluation-types-eval_typ">Evaluation Types (EVAL_TYP)<a class="headerlink" href="#evaluation-types-eval_typ" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>EXPALL</strong> (typically TT=00): All area estimation plots - most comprehensive</li>
+<li><strong>EXPVOL</strong> (typically TT=01): Volume/biomass plots with tree measurements</li>
+<li><strong>EXPGROW</strong>: Growth estimation plots</li>
+<li><strong>EXPMORT</strong>: Mortality estimation plots</li>
+<li><strong>EXPREMV</strong>: Removal estimation plots</li>
+<li><strong>EXPCHNG</strong> (typically TT=03): Change estimation plots</li>
+<li><strong>EXPDWM</strong> (typically TT=07): Down woody materials plots</li>
+<li><strong>EXPINV</strong> (typically TT=09): Inventory plots</li>
+</ul>
+<h3 id="critical-rules">Critical Rules<a class="headerlink" href="#critical-rules" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Never mix EVALIDs - use only ONE per estimation</li>
+<li>EXPALL required for unbiased area estimates</li>
+<li>Evaluation year represents complete statistical estimate, not individual plot measurements</li>
+</ol>
+<h2 id="volume-calculations">Volume Calculations<a class="headerlink" href="#volume-calculations" title="Permanent link">&para;</a></h2>
+<h3 id="volume-variables-in-fia-database">Volume Variables in FIA Database<a class="headerlink" href="#volume-variables-in-fia-database" title="Permanent link">&para;</a></h3>
+<h4 id="volcfnet-net-cubic-foot-volume">VOLCFNET (Net Cubic-Foot Volume)<a class="headerlink" href="#volcfnet-net-cubic-foot-volume" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Net volume after deducting defects and cull</li>
+<li>Used for growing stock calculations</li>
+<li>Formula: TPACURR × VOLCFNET × EXPVOL</li>
+</ul>
+<h4 id="volcfgrs-gross-cubic-foot-volume">VOLCFGRS (Gross Cubic-Foot Volume)<a class="headerlink" href="#volcfgrs-gross-cubic-foot-volume" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Total stem volume (1-ft stump to 4-in top)</li>
+<li>Trees ≥ 5.0 inches DBH</li>
+<li>No deductions for defects</li>
+</ul>
+<h4 id="volcfsnd-sound-cubic-foot-volume">VOLCFSND (Sound Cubic-Foot Volume)<a class="headerlink" href="#volcfsnd-sound-cubic-foot-volume" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Volume excluding rotten or missing cull</li>
+<li>Used for merchantable bole biomass when available</li>
+</ul>
+<h4 id="volbfnet-net-board-foot-volume">VOLBFNET (Net Board-Foot Volume)<a class="headerlink" href="#volbfnet-net-board-foot-volume" title="Permanent link">&para;</a></h4>
+<ul>
+<li>Sawlog volume in board feet</li>
+<li>Different size thresholds:</li>
+<li>Softwoods: ≥9" DBH, 1-ft stump to 6" top</li>
+<li>Hardwoods: ≥11" DBH, 1-ft stump to 8" top</li>
+</ul>
+<h3 id="growing-stock-definition">Growing Stock Definition<a class="headerlink" href="#growing-stock-definition" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Live trees ≥5" DBH</li>
+<li>Tree class code (TREECLCD) = 2</li>
+<li>No serious defects affecting merchantability</li>
+<li>Volume: 1-ft stump to 4-inch top diameter</li>
+</ul>
+<h2 id="expansion-factors-and-adjustments">Expansion Factors and Adjustments<a class="headerlink" href="#expansion-factors-and-adjustments" title="Permanent link">&para;</a></h2>
+<h3 id="tree-level-expansion">Tree-Level Expansion<a class="headerlink" href="#tree-level-expansion" title="Permanent link">&para;</a></h3>
+<p><strong>TPA_UNADJ (Trees Per Acre Unadjusted)</strong>
+- Base expansion factor before plot-level adjustments
+- Varies by plot component:
+  - Microplot: 74.965282 trees/acre
+  - Subplot: 6.018046 trees/acre
+  - Macroplot: Varies by region</p>
+<h3 id="plot-level-adjustments">Plot-Level Adjustments<a class="headerlink" href="#plot-level-adjustments" title="Permanent link">&para;</a></h3>
+<p><strong>ADJ_FACTOR_MICR, ADJ_FACTOR_SUBP, ADJ_FACTOR_MACR</strong>
+- Adjustment factors from POP_STRATUM table
+- Applied based on tree diameter:
+  - DIA &lt; 5.0": ADJ_FACTOR_MICR
+  - 5.0" ≤ DIA &lt; MACRO_BREAKPOINT_DIA: ADJ_FACTOR_SUBP
+  - DIA ≥ MACRO_BREAKPOINT_DIA: ADJ_FACTOR_MACR</p>
+<h3 id="stratum-level-expansion">Stratum-Level Expansion<a class="headerlink" href="#stratum-level-expansion" title="Permanent link">&para;</a></h3>
+<p><strong>EXPNS (Expansion Factor)</strong>
+- From POP_STRATUM table
+- Expands plot to population level
+- Accounts for stratification design</p>
+<h3 id="complete-expansion-formula">Complete Expansion Formula<a class="headerlink" href="#complete-expansion-formula" title="Permanent link">&para;</a></h3>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-0-1"><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a>Per-acre value = Σ(Tree measurement × TPA_UNADJ × ADJ_FACTOR × EXPNS × CONDPROP_UNADJ)
+</span></code></pre></div>
+<h2 id="biomass-and-carbon">Biomass and Carbon<a class="headerlink" href="#biomass-and-carbon" title="Permanent link">&para;</a></h2>
+<h3 id="biomass-variables-drybio_">Biomass Variables (DRYBIO_*)<a class="headerlink" href="#biomass-variables-drybio_" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>DRYBIO_AG</strong>: Aboveground biomass (pounds)</li>
+<li><strong>DRYBIO_BG</strong>: Belowground biomass (coarse roots)</li>
+<li><strong>DRYBIO_BOLE</strong>: Main stem wood and bark</li>
+<li><strong>DRYBIO_STUMP</strong>: Stump biomass</li>
+<li><strong>DRYBIO_SAPLING</strong>: Sapling biomass</li>
+<li><strong>DRYBIO_TOP</strong>: Top and branches above merchantable height</li>
+</ul>
+<h3 id="carbon-calculation">Carbon Calculation<a class="headerlink" href="#carbon-calculation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Standard factor: 47% of dry biomass (IPCC guidelines)</li>
+<li>Formula: Carbon = Biomass × 0.47</li>
+</ul>
+<h3 id="unit-conversions">Unit Conversions<a class="headerlink" href="#unit-conversions" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Pounds to tons: Divide by 2,000</li>
+<li>Cubic feet to cords: Divide by 79</li>
+</ul>
+<h2 id="land-classification">Land Classification<a class="headerlink" href="#land-classification" title="Permanent link">&para;</a></h2>
+<h3 id="forest-land-cond_status_cd-1">Forest Land (COND_STATUS_CD = 1)<a class="headerlink" href="#forest-land-cond_status_cd-1" title="Permanent link">&para;</a></h3>
+<ul>
+<li>At least 10% stocked with forest trees</li>
+<li>At least 1 acre in size</li>
+<li>At least 120 feet wide</li>
+</ul>
+<h3 id="timberland">Timberland<a class="headerlink" href="#timberland" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Forest land that is:</li>
+<li>Not reserved (RESERVCD = 0)</li>
+<li>Capable of producing ≥20 ft³/acre/year (SITECLCD &lt; 7)</li>
+<li>Available for timber harvest</li>
+</ul>
+<h2 id="growth-removal-mortality-grm-tables">Growth-Removal-Mortality (GRM) Tables<a class="headerlink" href="#growth-removal-mortality-grm-tables" title="Permanent link">&para;</a></h2>
+<h3 id="key-grm-tables">Key GRM Tables<a class="headerlink" href="#key-grm-tables" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>TREE_GRM_COMPONENT</strong>: Component-level data for each tree</li>
+<li><strong>TREE_GRM_MIDPT</strong>: Tree measurements at remeasurement midpoint</li>
+</ul>
+<h3 id="component-types">Component Types<a class="headerlink" href="#component-types" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>SURVIVOR</strong>: Trees alive at both measurements</li>
+<li><strong>MORTALITY1, MORTALITY2</strong>: Trees that died between measurements</li>
+<li><strong>CUT</strong>: Trees removed through harvest</li>
+<li><strong>INGROWTH</strong>: New trees growing into measurable size</li>
+</ul>
+<h3 id="grm-column-naming-pattern">GRM Column Naming Pattern<a class="headerlink" href="#grm-column-naming-pattern" title="Permanent link">&para;</a></h3>
+<p><div class="language-text highlight"><pre><span></span><code><span id="__span-1-1"><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a>SUBP_{METRIC}_{TREE_TYPE}_{LAND_TYPE}
+</span><span id="__span-1-2"><a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>Example: SUBP_TPAMORT_UNADJ_GS_FOREST
+</span></code></pre></div>
+- Metrics: TPAMORT_UNADJ, TPAREMV_UNADJ, TPAGROW_UNADJ
+- Tree types: GS (growing stock), AL (all live)
+- Land types: FOREST, TIMBER</p>
+<h2 id="annual-vs-periodic-inventory">Annual vs. Periodic Inventory<a class="headerlink" href="#annual-vs-periodic-inventory" title="Permanent link">&para;</a></h2>
+<h3 id="rotating-panel-design">Rotating Panel Design<a class="headerlink" href="#rotating-panel-design" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Each state divided into panels (typically 5-7)</li>
+<li>One panel measured annually</li>
+<li>Complete cycle every 5-7 years (10 years in western states)</li>
+</ul>
+<h3 id="evaluation-vs-inventory-years">Evaluation vs. Inventory Years<a class="headerlink" href="#evaluation-vs-inventory-years" title="Permanent link">&para;</a></h3>
+<ul>
+<li><strong>INVYR</strong>: Year individual plot was measured</li>
+<li><strong>EVALID Year</strong>: Reference year for complete statistical estimate</li>
+<li>Example: EVALID 482300 represents Texas 2023 conditions, though includes plots from 2019-2023</li>
+</ul>
+<h2 id="common-grouping-variables">Common Grouping Variables<a class="headerlink" href="#common-grouping-variables" title="Permanent link">&para;</a></h2>
+<h3 id="ownership-owngrpcd">Ownership (OWNGRPCD)<a class="headerlink" href="#ownership-owngrpcd" title="Permanent link">&para;</a></h3>
+<ul>
+<li>10: National Forest</li>
+<li>20: Other Federal</li>
+<li>30: State and Local Government</li>
+<li>40: Private</li>
+</ul>
+<h3 id="stand-size-class-stdszcd">Stand Size Class (STDSZCD)<a class="headerlink" href="#stand-size-class-stdszcd" title="Permanent link">&para;</a></h3>
+<ul>
+<li>1: Large diameter</li>
+<li>2: Medium diameter</li>
+<li>3: Small diameter</li>
+<li>4: Seedling/sapling</li>
+<li>5: Nonstocked</li>
+</ul>
+<h3 id="site-productivity-class-siteclcd">Site Productivity Class (SITECLCD)<a class="headerlink" href="#site-productivity-class-siteclcd" title="Permanent link">&para;</a></h3>
+<ul>
+<li>1: 225+ cu ft/ac/yr</li>
+<li>2: 165-224 cu ft/ac/yr</li>
+<li>3: 120-164 cu ft/ac/yr</li>
+<li>4: 85-119 cu ft/ac/yr</li>
+<li>5: 50-84 cu ft/ac/yr</li>
+<li>6: 20-49 cu ft/ac/yr</li>
+<li>7: 0-19 cu ft/ac/yr</li>
+</ul>
+<h3 id="tree-status-statuscd">Tree Status (STATUSCD)<a class="headerlink" href="#tree-status-statuscd" title="Permanent link">&para;</a></h3>
+<ul>
+<li>1: Live tree</li>
+<li>2: Dead tree</li>
+<li>3: Removed (cut or dead)</li>
+</ul>
+<h2 id="statistical-considerations">Statistical Considerations<a class="headerlink" href="#statistical-considerations" title="Permanent link">&para;</a></h2>
+<h3 id="design-based-estimation">Design-Based Estimation<a class="headerlink" href="#design-based-estimation" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Post-stratified estimation for improved precision</li>
+<li>Finite population correction factors</li>
+<li>Ratio-of-means estimators for per-acre values</li>
+</ul>
+<h3 id="variance-calculation">Variance Calculation<a class="headerlink" href="#variance-calculation" title="Permanent link">&para;</a></h3>
+<p>Following Bechtold &amp; Patterson (2005), Chapter 4, Section 4.2 (pp. 55-60):</p>
+<h4 id="domain-total-variance-formula">Domain Total Variance Formula<a class="headerlink" href="#domain-total-variance-formula" title="Permanent link">&para;</a></h4>
+<p>For tree-based estimates (volume, biomass, tree count, growth, mortality, removals),
+pyFIA uses the <strong>stratified domain total variance formula</strong>:</p>
+<div class="language-text highlight"><pre><span></span><code><span id="__span-2-1"><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a>V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+</span></code></pre></div>
+<p>Where:
+- Ŷ = estimated population total for the domain
+- w_h = EXPNS (expansion factor = acres/plot in stratum h)
+- s²_yh = sample variance of Y in stratum h (with ddof=1)
+- n_h = number of plots in stratum h</p>
+<p>This formula matches EVALIDator's variance calculation methodology and produces
+SE estimates within 1-3% of official USFS estimates.</p>
+<h4 id="key-implementation-details">Key Implementation Details<a class="headerlink" href="#key-implementation-details" title="Permanent link">&para;</a></h4>
+<ol>
+<li>
+<p><strong>All plots included</strong>: Variance calculations must include ALL plots in the
+   evaluation, not just those with non-zero values. Plots without trees in the
+   domain contribute zeros, which affects the variance calculation.</p>
+</li>
+<li>
+<p><strong>Per-acre SE derivation</strong>: SE per acre is calculated by dividing total SE
+   by total area:
+   <div class="language-text highlight"><pre><span></span><code><span id="__span-3-1"><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a>SE_per_acre = SE_total / total_area
+</span></code></pre></div></p>
+</li>
+<li>
+<p><strong>Single-plot strata</strong>: Strata with only one plot are excluded from variance
+   calculation (variance is undefined with n=1).</p>
+</li>
+<li>
+<p><strong>Ratio vs. Domain Total</strong>: EVALIDator uses domain total variance (shown above)
+   rather than ratio-of-means variance with covariance terms. The simpler formula
+   is appropriate because tree attribute values (y_i) already incorporate the
+   expansion to plot-level totals.</p>
+</li>
+</ol>
+<h4 id="area-variance">Area Variance<a class="headerlink" href="#area-variance" title="Permanent link">&para;</a></h4>
+<p>For area estimates, a slightly different approach is used that accounts for
+post-stratification variance components (V1/V2). pyFIA SE estimates for area
+are typically within 2-3% of EVALIDator.</p>
+<h4 id="validation-results">Validation Results<a class="headerlink" href="#validation-results" title="Permanent link">&para;</a></h4>
+<p>pyFIA variance calculations have been validated against EVALIDator for Georgia
+(EVALID 132301, 132303):</p>
+<table>
+<thead>
+<tr>
+<th>Estimator</th>
+<th>pyFIA SE</th>
+<th>EVALIDator SE</th>
+<th>Difference</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Forest Area</td>
+<td>138,928</td>
+<td>136,048</td>
+<td>2.1%</td>
+</tr>
+<tr>
+<td>Volume (GS)</td>
+<td>545,617,192</td>
+<td>549,272,904</td>
+<td>0.67%</td>
+</tr>
+<tr>
+<td>Biomass (AG)</td>
+<td>14,204,093</td>
+<td>14,256,973</td>
+<td>0.37%</td>
+</tr>
+<tr>
+<td>TPA (Live)</td>
+<td>204,196,873</td>
+<td>199,352,867</td>
+<td>2.4%</td>
+</tr>
+<tr>
+<td>Growth</td>
+<td>35,406,501</td>
+<td>35,445,004</td>
+<td>0.11%</td>
+</tr>
+<tr>
+<td>Mortality</td>
+<td>18,549,971</td>
+<td>18,517,419</td>
+<td>0.18%</td>
+</tr>
+<tr>
+<td>Removals</td>
+<td>58,202,325</td>
+<td>58,906,897</td>
+<td>1.2%</td>
+</tr>
+</tbody>
+</table>
+<h3 id="temporal-methods-fia-methodology">Temporal Methods (FIA Methodology)<a class="headerlink" href="#temporal-methods-fia-methodology" title="Permanent link">&para;</a></h3>
+<p>FIA supports multiple temporal estimation methods, though <strong>pyFIA currently implements only TI</strong>:</p>
+<ul>
+<li><strong>TI</strong>: Temporally Indifferent (all available data) - <strong>implemented in pyFIA, matches EVALIDator default</strong></li>
+<li>Annual: Single year estimates - <em>not implemented</em></li>
+<li>SMA: Simple Moving Average - <em>not implemented</em></li>
+<li>LMA: Linear Moving Average - <em>not implemented</em></li>
+<li>EMA: Exponential Moving Average - <em>not implemented</em></li>
+</ul>
+<h2 id="data-quality-notes">Data Quality Notes<a class="headerlink" href="#data-quality-notes" title="Permanent link">&para;</a></h2>
+<h3 id="pre-1999-periodic-inventories">Pre-1999 Periodic Inventories<a class="headerlink" href="#pre-1999-periodic-inventories" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Variable plot designs by region/state</li>
+<li>Some attributes may not be populated</li>
+<li>Different calculation methods possible</li>
+</ul>
+<h3 id="null-value-handling">NULL Value Handling<a class="headerlink" href="#null-value-handling" title="Permanent link">&para;</a></h3>
+<ul>
+<li>Common in certain fields (e.g., PHYSCLCD ~18% NULL)</li>
+<li>Handle safely in grouping operations</li>
+<li>May appear as separate group in results</li>
+</ul>
+<h2 id="implementation-recommendations-for-pyfia">Implementation Recommendations for pyFIA<a class="headerlink" href="#implementation-recommendations-for-pyfia" title="Permanent link">&para;</a></h2>
+<h3 id="documentation-enhancements">Documentation Enhancements<a class="headerlink" href="#documentation-enhancements" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Add Bechtold &amp; Patterson (2005) as primary reference</li>
+<li>Include plot configuration details in Notes sections</li>
+<li>Document expansion factor hierarchy</li>
+<li>Explain EVALID vs INVYR distinction</li>
+<li>Add volume type definitions</li>
+<li>Include standard grouping variable descriptions</li>
+</ol>
+<h3 id="code-improvements">Code Improvements<a class="headerlink" href="#code-improvements" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Validate EVALID selection to prevent overcounting</li>
+<li>Implement proper diameter-based adjustment factor selection</li>
+<li>Add warnings for pre-1999 data limitations</li>
+<li>Include unit conversion helpers</li>
+<li>Document GRM table requirements</li>
+</ol>
+<h3 id="user-guidance">User Guidance<a class="headerlink" href="#user-guidance" title="Permanent link">&para;</a></h3>
+<ol>
+<li>Emphasize single EVALID rule</li>
+<li>Explain land type classifications</li>
+<li>Provide grouping variable recommendations</li>
+<li>Include expansion factor examples</li>
+<li>Document regional variations</li>
+</ol>
+
+
+
+
+
+
+
+
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.tabs", "navigation.sections", "navigation.expand", "navigation.indexes", "toc.follow", "search.suggest", "content.code.copy", "content.code.annotate"], "search": "../assets/javascripts/workers/search.7a47a382.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.e71a0d61.min.js"></script>
+      
+    
+  </body>
+</html>

@@ -2,162 +2,454 @@
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
     <url>
          <loc>https://mihiarc.github.io/pyfia/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/ARCHITECTURE_DIAGRAMS/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/COMPREHENSIVE_PERFORMANCE_REPORT/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/DEVELOPMENT/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/ENHANCEMENT_PLAN_DOWNLOAD/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/PRE_COMMIT_GUIDE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/PROPERTY_TESTING_GUIDE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/PYDANTIC_V2_GUIDE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/QUERY_OPTIMIZATION_INTEGRATION/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/examples/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_technical_context/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/getting-started/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/lazy_evaluation_guide/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/tags/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/variance_calculation_guide/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/ARCHITECTURE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/analysis/eager_evaluation_optimization_report/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/DEVELOPER_GUIDE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/DOMAIN_FILTERING/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/area/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/EXAMPLES/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/area_change/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/FORMATTING/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/biomass/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/MODERN_AGENT_MIGRATION/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/data_reader/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/TOOLS_REFERENCE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/downloader/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/TROUBLESHOOTING/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/evalidator/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
-         <loc>https://mihiarc.github.io/pyfia/ai_agent/USER_GUIDE/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <loc>https://mihiarc.github.io/pyfia/api/fia/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/growth/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/mortality/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/reference_tables/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/removals/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/settings/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/tpa/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/api/volume/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/architecture/PHASE2_MIGRATION_STATUS/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/architecture/PHASE3_ARCHITECTURAL_DESIGN/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/development/ESTIMATOR_REFACTORING_GUIDE/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/examples/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/FIA_DATABASE_TABLES/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_chapter1_complete/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_expansion_factors/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_1_survey/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_2_project/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_3_county/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_4_plot/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_5_cond/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_6_subplot/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_7_subp_cond/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_8_boundary/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_2_9_subp_cond_chng_mtrx/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_10_sitetree/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_1_tree/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_2_tree_woodland_stems/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_3_tree_grm_component/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_4_tree_grm_threshold/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_5_tree_grm_midpt/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_6_tree_grm_begin/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_7_tree_grm_estn/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_8_beginend/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_3_9_seedling/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_4_1_invasive_subplot_spp/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_4_2_p2veg_subplot_spp/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_4_3_p2veg_subp_structure/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_1_dwm_visit/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_2_dwm_coarse_woody_debris/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_3_dwm_duff_litter_fuel/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_4_dwm_fine_woody_debris/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_5_dwm_microplot_fuel/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_6_dwm_residual_pile/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_7_dwm_transect_segment/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_5_8_cond_dwm_calc/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_6_1_plot_regen/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_6_2_subplot_regen/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_6_3_seedling_regen/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_7_1_grnd_cvr/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_7_2_grnd_lyr_fnctl_grp/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_7_3_grnd_lyr_microquad/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_8_1_subp_soil_sample_loc/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_8_2_subp_soil_sample_layer/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_1_pop_estn_unit/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_2_pop_eval/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_3_pop_eval_attribute/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_4_pop_eval_grp/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_5_pop_eval_typ/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_6_pop_plot_stratum_assgn/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/fia_handbook/fia_section_9_7_pop_stratum/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/guides/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/guides/downloading/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/guides/filtering/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/guides/grouping/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/guides/spatial/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/includes/abbreviations/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/FIA_WORKING_QUERY_BANK/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/evaluator_methodology/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/evaluator_quick_reference/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/basic_tree/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/basic_tree/north_carolina_trees_by_species/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/basic_tree/oregon_total_live_trees/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/biomass_carbon/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/biomass_carbon/colorado_biomass_by_species_group/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/biomass_carbon/north_carolina_merchantable_biomass/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/forest_area/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/forest_area/minnesota_forest_type_groups/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/forest_change/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/forest_change/missouri_forest_type_change/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/mortality/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/mortality/colorado_mortality_merchantable_volume/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/mortality/georgia_growing_stock_mortality_by_agent/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/mortality/georgia_growing_stock_mortality_by_disturbance/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/queries/mortality/mortality_with_variance/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/mortality/north_carolina_mortality_trees_per_acre/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/ratio_estimation/</loc>
-         <lastmod>2025-07-14</lastmod>
-    </url>
-    <url>
-         <loc>https://mihiarc.github.io/pyfia/queries/tree_density/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/volume/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
     </url>
     <url>
          <loc>https://mihiarc.github.io/pyfia/queries/volume/california_volume_by_diameter/</loc>
-         <lastmod>2025-07-14</lastmod>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/specs/CARBON_GROWTH_METHODOLOGY_INVESTIGATION/</loc>
+         <lastmod>2025-12-23</lastmod>
+    </url>
+    <url>
+         <loc>https://mihiarc.github.io/pyfia/specs/pyfia-differentiation-docs/</loc>
+         <lastmod>2025-12-23</lastmod>
     </url>
 </urlset>

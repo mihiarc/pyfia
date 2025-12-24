@@ -1,7 +1,8 @@
 # pyFIA
 
+[![PyPI version](https://img.shields.io/pypi/v/pyfia)](https://pypi.org/project/pyfia/)
+[![PyPI downloads](https://img.shields.io/pypi/dm/pyfia)](https://pypi.org/project/pyfia/)
 [![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://mihiarc.github.io/pyfia/)
-[![Deploy Documentation](https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml/badge.svg)](https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml)
 
 A high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data using modern data science tools.
 

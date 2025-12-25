@@ -32,6 +32,7 @@ from .config import (
 # Import estimator classes for advanced usage
 from .estimators import (
     AreaEstimator,
+    AreaChangeEstimator,
     BiomassEstimator,
     CarbonPoolEstimator,
     GrowthEstimator,
@@ -40,6 +41,7 @@ from .estimators import (
     TPAEstimator,
     VolumeEstimator,
     area,
+    area_change,
     biomass,
     carbon,
     carbon_flux,
@@ -64,6 +66,7 @@ __version__ = "2.0.0"  # Major version bump for simplified architecture
 __all__ = [
     # Main API functions
     "area",
+    "area_change",
     "biomass",
     "carbon",
     "carbon_flux",
@@ -75,6 +78,7 @@ __all__ = [
     "volume",
     # Estimator classes
     "AreaEstimator",
+    "AreaChangeEstimator",
     "BiomassEstimator",
     "CarbonPoolEstimator",
     "GrowthEstimator",

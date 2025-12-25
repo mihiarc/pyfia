@@ -30,6 +30,7 @@ class EstimatorConfig:
     # Domain filters (SQL-like conditions)
     tree_domain: Optional[str] = None
     area_domain: Optional[str] = None
+    plot_domain: Optional[str] = None
 
     # Estimation method
     method: str = "TI"  # Temporally Indifferent
@@ -58,6 +59,7 @@ class EstimatorConfig:
             "tree_type": self.tree_type,
             "tree_domain": self.tree_domain,
             "area_domain": self.area_domain,
+            "plot_domain": self.plot_domain,
             "method": self.method,
             "lambda_": self.lambda_,
             "totals": self.totals,

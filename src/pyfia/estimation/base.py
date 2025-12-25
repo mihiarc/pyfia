@@ -14,7 +14,7 @@ import polars as pl
 
 from ..constants.defaults import EVALIDYearParsing
 from ..core import FIA
-from ..filtering import apply_area_filters, apply_tree_filters
+from ..filtering import apply_area_filters, apply_plot_filters, apply_tree_filters
 
 logger = logging.getLogger(__name__)
 
@@ -157,6 +157,9 @@ class BaseEstimator(ABC):
             cond_df = cond_df.lazy()
 
         # Apply EVALID filtering if set (via POP_PLOT_STRATUM_ASSGN)
+        # Also handle plot_domain filtering by getting valid PLT_CNs from PLOT table
+        valid_plots = None
+
         if self.db.evalid:
             # Load POP_PLOT_STRATUM_ASSGN to get plots for the EVALID
             if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
@@ -173,11 +176,34 @@ class BaseEstimator(ABC):
                 .unique()
             )
 
+        # Apply plot domain filter if specified
+        if self.config.get("plot_domain"):
+            # Load PLOT table to filter by plot-level attributes
+            if "PLOT" not in self.db.tables:
+                self.db.load_table("PLOT")
+            plot_df = self.db.tables["PLOT"]
+            if not isinstance(plot_df, pl.LazyFrame):
+                plot_df = plot_df.lazy()
+
+            # Apply plot domain filter
+            plot_df = apply_plot_filters(plot_df, plot_domain=self.config["plot_domain"])
+
+            # Get PLT_CNs from filtered plots
+            plot_filtered_plots = plot_df.select(pl.col("CN").alias("PLT_CN")).unique()
+
+            # Combine with EVALID filter if both exist
+            if valid_plots is not None:
+                valid_plots = valid_plots.join(plot_filtered_plots, on="PLT_CN", how="inner")
+            else:
+                valid_plots = plot_filtered_plots
+
+        # Apply the combined filter to tree and cond if any filters were set
+        if valid_plots is not None:
             # Filter tree and cond to only include these plots
             tree_df = tree_df.join(
                 valid_plots,
                 on="PLT_CN",
-                how="inner",  # This filters to only plots in the EVALID
+                how="inner",  # This filters to only plots in the EVALID and/or plot_domain
             )
             cond_df = cond_df.join(valid_plots, on="PLT_CN", how="inner")
 
@@ -236,6 +262,11 @@ class BaseEstimator(ABC):
             # For plot table, join on CN not PLT_CN
             valid_plot_cns = valid_plots.rename({"PLT_CN": "CN"})
             plot_df = plot_df.join(valid_plot_cns, on="CN", how="inner")
+
+        # Apply plot domain filter BEFORE joining with COND
+        # This allows filtering by PLOT-level attributes like COUNTYCD
+        if self.config.get("plot_domain"):
+            plot_df = apply_plot_filters(plot_df, plot_domain=self.config["plot_domain"])
 
         # Join condition and plot (all PLOT columns for grouping flexibility)
         data = cond_df.join(plot_df, left_on="PLT_CN", right_on="CN", how="inner")

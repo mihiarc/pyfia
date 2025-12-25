@@ -13,6 +13,9 @@ This module provides all filtering functionality including:
 from .area.filters import apply_area_filters
 from .core.parser import DomainExpressionParser
 
+# Plot filtering
+from .plot.filters import apply_plot_filters
+
 # Domain indicators
 from .indicators.land_types import (
     LandTypeCategory,
@@ -52,6 +55,7 @@ __all__ = [
     # Filtering functions
     "apply_tree_filters",
     "apply_area_filters",
+    "apply_plot_filters",
     # Domain indicators
     "classify_land_types",
     "get_land_domain_indicator",

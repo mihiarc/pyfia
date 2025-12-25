@@ -524,6 +524,7 @@ def area(
     grp_by: Optional[Union[str, List[str]]] = None,
     land_type: str = "forest",
     area_domain: Optional[str] = None,
+    plot_domain: Optional[str] = None,
     most_recent: bool = False,
     eval_type: Optional[str] = None,
     variance: bool = False,
@@ -588,6 +589,28 @@ def area(
         - "FORTYPCD IN (161, 162)": Specific forest types
         - "OWNGRPCD == 10": National Forest lands only
         - "PHYSCLCD == 31 AND STDSZCD == 1": Xeric sites with large trees
+    plot_domain : str, optional
+        SQL-like filter expression for PLOT-level attributes. This parameter
+        enables filtering by plot location and attributes that are not available
+        in the COND table. Examples:
+
+        **Location filtering:**
+        - "COUNTYCD == 183": Wake County, NC (single county)
+        - "COUNTYCD IN (183, 185, 187)": Multiple counties
+        - "UNITCD == 1": Survey unit 1
+
+        **Geographic filtering:**
+        - "LAT >= 35.0 AND LAT <= 36.0": Latitude range
+        - "LON >= -80.0 AND LON <= -79.0": Longitude range
+        - "ELEV > 2000": Elevation above 2000 feet
+
+        **Temporal filtering:**
+        - "INVYR == 2019": Inventory year
+        - "MEASYEAR >= 2015": Measured since 2015
+
+        Note: plot_domain filters apply to PLOT table columns only. For
+        condition-level attributes (ownership, forest type, etc.), use
+        area_domain instead.
     most_recent : bool, default False
         If True, automatically select the most recent evaluation for each
         state/region. Equivalent to calling db.clip_most_recent() first.
@@ -697,6 +720,31 @@ def area(
     ...     grp_by="DSTRBCD1",
     ...     area_domain="DSTRBCD1 > 0"  # Only disturbed areas
     ... )
+
+    Filter by county using plot_domain:
+
+    >>> results = area(
+    ...     db,
+    ...     plot_domain="COUNTYCD == 183",  # Wake County, NC
+    ...     land_type="forest"
+    ... )
+
+    Combine plot and area domain filters:
+
+    >>> results = area(
+    ...     db,
+    ...     plot_domain="COUNTYCD IN (183, 185, 187)",  # Multiple counties
+    ...     area_domain="OWNGRPCD == 40",  # Private land only
+    ...     grp_by="FORTYPCD"
+    ... )
+
+    Geographic filtering with plot_domain:
+
+    >>> results = area(
+    ...     db,
+    ...     plot_domain="LAT >= 35.0 AND LAT <= 36.0 AND ELEV > 1000",
+    ...     land_type="forest"
+    ... )
     """
     # Import validation functions
     from ...validation import (
@@ -710,6 +758,7 @@ def area(
     land_type = validate_land_type(land_type)
     grp_by = validate_grp_by(grp_by)
     area_domain = validate_domain_expression(area_domain, "area_domain")
+    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
     variance = validate_boolean(variance, "variance")
     totals = validate_boolean(totals, "totals")
     most_recent = validate_boolean(most_recent, "most_recent")
@@ -747,6 +796,7 @@ def area(
         "grp_by": grp_by,
         "land_type": land_type,
         "area_domain": area_domain,
+        "plot_domain": plot_domain,
         "most_recent": most_recent,
         "eval_type": eval_type,
         "variance": variance,

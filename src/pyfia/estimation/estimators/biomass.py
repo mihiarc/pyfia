@@ -418,6 +418,7 @@ def biomass(
     component: str = "AG",
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
+    plot_domain: Optional[str] = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
@@ -726,6 +727,7 @@ def biomass(
     grp_by = validate_grp_by(grp_by)
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")
     area_domain = validate_domain_expression(area_domain, "area_domain")
+    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
     by_species = validate_boolean(by_species, "by_species")
     by_size_class = validate_boolean(by_size_class, "by_size_class")
     totals = validate_boolean(totals, "totals")
@@ -742,6 +744,7 @@ def biomass(
         "component": component,
         "tree_domain": tree_domain,
         "area_domain": area_domain,
+        "plot_domain": plot_domain,
         "totals": totals,
         "variance": variance,
         "most_recent": most_recent,

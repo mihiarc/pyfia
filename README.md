@@ -1,4 +1,4 @@
-# pyFIA
+# PyFIA
 
 [![PyPI version](https://img.shields.io/pypi/v/pyfia)](https://pypi.org/project/pyfia/)
 [![PyPI downloads](https://img.shields.io/pypi/dm/pyfia)](https://pypi.org/project/pyfia/)
@@ -6,9 +6,20 @@
 
 A high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data using modern data science tools.
 
+## FIA Python Ecosystem
+
+PyFIA is part of a suite of tools for forest inventory analysis:
+
+| Package | Description | Install |
+|---------|-------------|---------|
+| **[PyFIA](https://github.com/mihiarc/pyfia)** | Survey/plot data analysis | `pip install pyfia` |
+| **[GridFIA](https://github.com/mihiarc/gridfia)** | Spatial raster analysis (BIGMAP) | `pip install gridfia` |
+| **[PyFVS](https://github.com/mihiarc/pyfvs)** | Growth/yield simulation | `pip install pyfvs-fia` |
+| **[AskFIA](https://github.com/mihiarc/askfia)** | AI conversational interface | `pip install askfia-api` |
+
 ## Overview
 
-pyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets with statistically valid estimation methods.
+PyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets with statistically valid estimation methods.
 
 ## Features
 

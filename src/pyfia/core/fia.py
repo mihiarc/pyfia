@@ -1262,6 +1262,16 @@ class FIA:
 
         return carbon_flux(self, **kwargs)
 
+    def area_change(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate area change.
+
+        See area_change() function for full parameter documentation.
+        """
+        from pyfia.estimation import area_change
+
+        return area_change(self, **kwargs)
+
 
 class MotherDuckFIA(FIA):
     """

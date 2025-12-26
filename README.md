@@ -1,201 +1,120 @@
-# PyFIA
+<div align="center">
+  <img src="https://fiatools.org/logos/pyfia-logo.svg" alt="pyFIA" width="140">
 
-[![PyPI version](https://img.shields.io/pypi/v/pyfia)](https://pypi.org/project/pyfia/)
-[![PyPI downloads](https://img.shields.io/pypi/dm/pyfia)](https://pypi.org/project/pyfia/)
-[![Documentation](https://img.shields.io/badge/docs-GitHub%20Pages-blue)](https://mihiarc.github.io/pyfia/)
+  <h1>pyFIA</h1>
 
-A high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data using modern data science tools.
+  <p><strong>The Python API for forest inventory data</strong></p>
 
-## FIA Python Ecosystem
+  <p>
+    <a href="https://mihiarc.github.io/pyfia/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-2D5016" alt="Documentation"></a>
+    <a href="https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml"><img src="https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml/badge.svg" alt="Deploy Documentation"></a>
+    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-2D5016" alt="License: MIT"></a>
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-2D5016" alt="Python 3.9+"></a>
+  </p>
 
-PyFIA is part of a suite of tools for forest inventory analysis:
+  <p>
+    <sub>Part of the <a href="https://fiatools.org"><strong>FIAtools</strong></a> ecosystem:
+    <a href="https://github.com/mihiarc/pyfia">pyFIA</a> ·
+    <a href="https://github.com/mihiarc/gridfia">gridFIA</a> ·
+    <a href="https://github.com/mihiarc/pyfvs">pyFVS</a> ·
+    <a href="https://github.com/mihiarc/askfia">askFIA</a></sub>
+  </p>
+</div>
 
-| Package | Description | Install |
-|---------|-------------|---------|
-| **[PyFIA](https://github.com/mihiarc/pyfia)** | Survey/plot data analysis | `pip install pyfia` |
-| **[GridFIA](https://github.com/mihiarc/gridfia)** | Spatial raster analysis (BIGMAP) | `pip install gridfia` |
-| **[PyFVS](https://github.com/mihiarc/pyfvs)** | Growth/yield simulation | `pip install pyfvs-fia` |
-| **[AskFIA](https://github.com/mihiarc/askfia)** | AI conversational interface | `pip install askfia-api` |
+---
 
-## Overview
+A high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. Built on DuckDB and Polars for speed, with statistical methods that match EVALIDator exactly.
 
-PyFIA provides a programmatic API for working with Forest Inventory and Analysis (FIA) data. It leverages modern Python data science tools like Polars and DuckDB for efficient processing of large-scale national forest inventory datasets with statistically valid estimation methods.
+## Why pyFIA?
 
-## Features
-
-### Core Estimation Functions
-- ✅ **Trees per acre** (`tpa()`) - Live and dead tree abundance
-- ✅ **Biomass** (`biomass()`) - Above/belowground biomass and carbon
-- ✅ **Volume** (`volume()`) - Merchantable volume (cubic feet)
-- ✅ **Forest area** (`area()`) - Forest land area by category
-- ✅ **Area change** (`area_change()`) - Annual forest land transitions
-- ✅ **Mortality** (`mortality()`) - Annual mortality rates
-- ✅ **Growth** (`growth()`) - Net growth estimation
-
-### Statistical Methods
-- **Design-based estimation** following Bechtold & Patterson (2005)
-- **Post-stratified estimation** with proper variance calculation
-- **Temporally indifferent (TI) estimation** matching EVALIDator default
-- **EVALID-based filtering** for statistically valid estimates
-- **Ratio-of-means estimators** for per-acre values
-
-### Performance Features
-- **DuckDB backend** for efficient large-scale data processing
-- **Polars DataFrames** for fast in-memory operations
-- **Lazy evaluation** for memory-efficient workflows
-- **Parallel processing** support
-
-### Spatial Capabilities
-- **Polygon clipping** - Filter plots by custom boundaries
-- **Polygon attribute joins** - Group estimates by polygon attributes (e.g., by county)
-- **Multiple formats** - Shapefile, GeoJSON, GeoPackage, GeoParquet
-- **DuckDB spatial** - Powered by DuckDB's spatial extension
-
-## Installation
-
-```bash
-# Basic installation
-pip install pyfia
-
-# With spatial analysis support  
-pip install pyfia[spatial]
-
-# For development
-pip install -e .[dev]
-```
+| Feature | pyFIA | EVALIDator |
+|---------|-------|------------|
+| Speed | **10-100x faster** | Baseline |
+| Interface | Python API | Web UI |
+| Reproducibility | Code-based | Manual |
+| Custom analysis | Unlimited | Limited options |
+| Statistical validity | ✓ Exact match | ✓ Reference |
 
 ## Quick Start
 
-```python
-from pyfia import FIA, biomass, tpa, volume, area, area_change
+```bash
+pip install pyfia
+```
 
-# Load FIA data and filter to a state
+```python
+from pyfia import FIA, biomass, tpa, volume, area
+
 with FIA("path/to/FIA_database.duckdb") as db:
-    # Filter to state (required before estimation)
     db.clip_by_state(37)  # North Carolina
     db.clip_most_recent(eval_type="EXPVOL")
 
-    # Get trees per acre (live trees on forestland)
-    tpa_results = tpa(db, tree_domain="STATUSCD == 1")
-
-    # Get biomass estimates
-    biomass_results = biomass(db, land_type="forest")
-
-    # Get forest area
-    area_results = area(db, land_type="forest")
-
-    # Get volume estimates
-    volume_results = volume(db, land_type="forest")
-
-    # Get annual forest area change (net gain/loss)
-    change_results = area_change(db, land_type="forest")
+    # Core estimates
+    trees = tpa(db, tree_domain="STATUSCD == 1")
+    carbon = biomass(db, by_species=True)
+    timber = volume(db, land_type="timber")
+    forest = area(db, land_type="forest")
 ```
 
-## Domain Filtering and Grouping
+## Core Functions
 
-pyFIA supports flexible domain filtering and grouping:
+| Function | Description | Example |
+|----------|-------------|---------|
+| `tpa()` | Trees per acre | `tpa(db, tree_domain="DIA >= 5.0")` |
+| `biomass()` | Above/belowground biomass | `biomass(db, by_species=True)` |
+| `volume()` | Merchantable volume (ft³) | `volume(db, land_type="timber")` |
+| `area()` | Forest land area | `area(db, grp_by="FORTYPCD")` |
+| `mortality()` | Annual mortality rates | `mortality(db)` |
+| `growth()` | Net growth estimation | `growth(db)` |
 
-```python
-# Tree-level filtering (snake_case parameters)
-tpa_live = tpa(db, tree_domain="STATUSCD == 1")
+## Statistical Methods
 
-# Group by species
-biomass_by_species = biomass(db, by_species=True)
+pyFIA implements design-based estimation following [Bechtold & Patterson (2005)](https://www.srs.fs.usda.gov/pubs/gtr/gtr_srs080/gtr_srs080.pdf):
 
-# Area domain filtering
-area_timberland = area(db, land_type="timber")
+- **Post-stratified estimation** with proper variance calculation
+- **Ratio-of-means estimators** for per-acre values
+- **EVALID-based filtering** for statistically valid estimates
+- **Temporal methods**: TI, annual, SMA, LMA, EMA
 
-# Group by custom column
-volume_by_owner = volume(db, grp_by="OWNGRPCD")
+## Installation Options
 
-# Area change: net, gross gain, or gross loss
-net_change = area_change(db, change_type="net")        # Gains - Losses
-forest_gain = area_change(db, change_type="gross_gain")  # Non-forest → Forest
-forest_loss = area_change(db, change_type="gross_loss")  # Forest → Non-forest
-```
+```bash
+# Basic
+pip install pyfia
 
-## Spatial Filtering
+# With spatial support
+pip install pyfia[spatial]
 
-Filter plots by polygon boundaries using DuckDB's spatial extension:
-
-```python
-from pyfia import FIA, tpa
-
-with FIA("southeast.duckdb") as db:
-    db.clip_by_state(37)  # North Carolina
-
-    # Filter to custom region using any spatial file format
-    db.clip_by_polygon("my_region.geojson")  # GeoJSON
-    # db.clip_by_polygon("counties.shp")     # Shapefile
-    # db.clip_by_polygon("boundary.gpkg")    # GeoPackage
-
-    # Run estimation on filtered plots
-    result = tpa(db, tree_domain="STATUSCD == 1")
-```
-
-### Grouping by Polygon Attributes
-
-Join polygon attributes to plots and use them for grouping:
-
-```python
-with FIA("southeast.duckdb") as db:
-    db.clip_by_state(37)
-
-    # Join county attributes to plots
-    db.intersect_polygons("counties.shp", attributes=["NAME", "FIPS"])
-
-    # Group estimates by county
-    result = tpa(db, grp_by=["NAME"])
-```
-
-Supported formats: Shapefile, GeoJSON, GeoPackage, GeoParquet, and any GDAL-supported format.
-
-**Note**: FIA public coordinates are fuzzed up to 1 mile for privacy protection, so spatial precision below ~1 mile is not meaningful.
-
-## Data Organization
-
-pyFIA follows FIA's evaluation-based data structure:
-- **EVALID**: 6-digit codes identifying statistically valid plot groupings
-- **Evaluation types**: EXPALL (area), EXPVOL (volume), EXPMORT (mortality), EXPGROW (growth)
-- **EVALID management**: Use `db.clip_most_recent(eval_type="EXPVOL")` for latest evaluations
-
-## Advanced Usage
-
-```python
-# Context manager for automatic connection handling
-with FIA("path/to/FIA_database.duckdb") as db:
-    # Filter to state and most recent evaluation
-    db.clip_by_state(37)  # North Carolina
-    db.clip_most_recent(eval_type="EXPVOL")
-
-    # Biomass by species
-    results = biomass(db, by_species=True)
-
-    # Multiple estimations with same connection
-    tpa_results = tpa(db, tree_domain="STATUSCD == 1")
-    volume_results = volume(db, tree_domain="DIA >= 10.0")
-    area_results = area(db, land_type="timber")
+# Development
+git clone https://github.com/mihiarc/pyfia.git
+cd pyfia && pip install -e .[dev]
 ```
 
 ## Documentation
 
-Full documentation available at [https://mihiarc.github.io/pyfia/](https://mihiarc.github.io/pyfia/)
+📖 **Full docs:** [mihiarc.github.io/pyfia](https://mihiarc.github.io/pyfia/)
 
-## Performance
+## Integration with FIAtools
 
-pyFIA achieves excellent performance through modern database technologies:
-- **10-100x faster** for large-scale queries using DuckDB columnar storage
-- **2-5x faster** for in-memory operations using Polars DataFrames
-- **Statistically valid** estimates following FIA methodology
+pyFIA works seamlessly with other tools in the ecosystem:
+
+```python
+# Use pyFIA data with gridFIA for spatial analysis
+from pyfia import FIA
+from gridfia import GridFIA
+
+with FIA("database.duckdb") as db:
+    species_list = db.get_species_codes()
+
+api = GridFIA()
+api.download_species(state="NC", species_codes=species_list)
+```
 
 ## Citation
-
-If you use pyFIA in your research, please cite:
 
 ```bibtex
 @software{pyfia2024,
   title = {pyFIA: A Python Library for Forest Inventory Analysis},
-  author = {Mihiar, Chris},
+  author = {Mihiar, Christopher},
   year = {2024},
   url = {https://github.com/mihiarc/pyfia}
 }
@@ -203,16 +122,10 @@ If you use pyFIA in your research, please cite:
 
 ## License
 
-MIT License - see LICENSE file for details.
+MIT License — see [LICENSE](LICENSE) for details.
 
-## Acknowledgments
+---
 
-- Uses USDA Forest Service FIA data
-- Statistical methods from Bechtold & Patterson (2005):
-  - Bechtold, W.A.; Patterson, P.L., eds. 2005. *The Enhanced Forest Inventory and
-    Analysis Program - National Sampling Design and Estimation Procedures*.
-    Gen. Tech. Rep. SRS-80. Asheville, NC: U.S. Department of Agriculture,
-    Forest Service, Southern Research Station. 85 p. https://doi.org/10.2737/SRS-GTR-80
-  - Key equations: Chapter 4 (pp. 53-77) - see Eq. 4.1 (domain indicator), Eq. 4.2
-    (adjustment factor), Eq. 4.8 (tree attributes), Section 4.2 (variance estimation)
-- Inspired by various FIA analysis tools and methodologies in the forestry community
+<div align="center">
+  <sub>Built with 🌲 by <a href="https://github.com/mihiarc">Chris Mihiar</a> · USDA Forest Service Southern Research Station</sub>
+</div>

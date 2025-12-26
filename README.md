@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="https://fiatools.org/logos/pyfia-logo.svg" alt="pyFIA" width="140">
+  <img src="https://fiatools.org/logos/pyfia_logo.png" alt="pyFIA" width="140">
 
   <h1>pyFIA</h1>
 

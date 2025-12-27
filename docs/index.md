@@ -1,9 +1,17 @@
+---
+title: PyFIA - Python API for Forest Inventory Analysis
+description: High-performance Python library for USDA FIA data analysis. Built on DuckDB and Polars for 10-100x faster analysis than EVALIDator with statistically valid estimates.
+---
+
 # PyFIA
 
 **High-performance Python library for USDA Forest Inventory and Analysis (FIA) data.**
 
+!!! tip "Part of the FIAtools Ecosystem"
+    PyFIA is one of four integrated Python tools for forest inventory analysis. Visit **[fiatools.org](https://fiatools.org)** to explore the complete ecosystem and see how the tools work together.
+
 [![PyPI version](https://badge.fury.io/py/pyfia.svg)](https://badge.fury.io/py/pyfia)
-[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 PyFIA provides statistically valid estimation methods following [Bechtold & Patterson (2005)](https://www.fs.usda.gov/research/treesearch/20121) methodology, enabling researchers and analysts to work with FIA data efficiently.
@@ -126,6 +134,23 @@ PyFIA brings the ease of rFIA's `getFIA()` to Python:
 | Estimate area | `area(fiaData)` | `area(db)` |
 | Estimate volume | `biomass(fiaData)` | `volume(db)` |
 
+## The FIAtools Ecosystem
+
+| Tool | Purpose | Key Features |
+|------|---------|--------------|
+| [**pyFIA**](https://fiatools.org) | Survey & plot data | DuckDB backend, 10-100x faster than EVALIDator |
+| [**gridFIA**](https://fiatools.org) | Spatial raster analysis | 327 species at 30m resolution, Zarr storage |
+| [**pyFVS**](https://fiatools.org) | Growth simulation | Chapman-Richards curves, yield projections |
+| [**askFIA**](https://fiatools.org) | AI interface | Natural language queries for forest data |
+
+[:material-arrow-right: Explore the full ecosystem at fiatools.org](https://fiatools.org){ .md-button .md-button--primary }
+
 ## License
 
 PyFIA is released under the MIT License.
+
+---
+
+<div align="center">
+<strong><a href="https://fiatools.org">fiatools.org</a></strong> · Python Ecosystem for Forest Inventory Analysis
+</div>

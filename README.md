@@ -1,15 +1,13 @@
 <div align="center">
-  <img src="https://fiatools.org/logos/pyfia_logo.png" alt="pyFIA" width="140">
-
-  <h1>pyFIA</h1>
+  <a href="https://mihiarc.github.io/pyfia/"><img src="https://fiatools.org/logos/pyfia_logo.png" alt="pyFIA" width="400"></a>
 
   <p><strong>The Python API for forest inventory data</strong></p>
 
   <p>
-    <a href="https://mihiarc.github.io/pyfia/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-2D5016" alt="Documentation"></a>
+    <a href="https://mihiarc.github.io/pyfia/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-006D6D" alt="Documentation"></a>
     <a href="https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml"><img src="https://github.com/mihiarc/pyfia/actions/workflows/deploy-docs.yml/badge.svg" alt="Deploy Documentation"></a>
-    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-2D5016" alt="License: MIT"></a>
-    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-2D5016" alt="Python 3.9+"></a>
+    <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-006D6D" alt="License: MIT"></a>
+    <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.9+-006D6D" alt="Python 3.9+"></a>
   </p>
 
   <p>
@@ -112,20 +110,16 @@ api.download_species(state="NC", species_codes=species_list)
 ## Citation
 
 ```bibtex
-@software{pyfia2024,
+@software{pyfia2025,
   title = {pyFIA: A Python Library for Forest Inventory Analysis},
   author = {Mihiar, Christopher},
-  year = {2024},
+  year = {2025},
   url = {https://github.com/mihiarc/pyfia}
 }
 ```
 
-## License
-
-MIT License — see [LICENSE](LICENSE) for details.
-
 ---
 
 <div align="center">
-  <sub>Built with 🌲 by <a href="https://github.com/mihiarc">Chris Mihiar</a> · USDA Forest Service Southern Research Station</sub>
+  <sub>Built by <a href="https://github.com/mihiarc">Chris Mihiar</a> · USDA Forest Service Southern Research Station</sub>
 </div>

@@ -505,6 +505,22 @@ class AreaEstimator(BaseEstimator):
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format area estimation output."""
+        # Filter out rows where grouping column is null AND area is 0
+        # These come from non-forest conditions in domain indicator approach
+        grp_by = self.config.get("grp_by")
+        if grp_by and "AREA_TOTAL" in results.columns:
+            if isinstance(grp_by, str):
+                grp_cols = [grp_by]
+            else:
+                grp_cols = list(grp_by)
+
+            # Filter out rows where any grouping column is null AND area is 0
+            for col in grp_cols:
+                if col in results.columns:
+                    results = results.filter(
+                        ~(pl.col(col).is_null() & (pl.col("AREA_TOTAL") == 0))
+                    )
+
         # Add year
         results = results.with_columns([pl.lit(2023).alias("YEAR")])
 

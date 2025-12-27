@@ -54,6 +54,19 @@ class BiomassEstimator(BaseEstimator):
             if biomass_col not in cols:
                 cols.append(biomass_col)
 
+        # Add grouping columns if needed
+        if self.config.get("grp_by"):
+            grp_cols = self.config["grp_by"]
+            if isinstance(grp_cols, str):
+                grp_cols = [grp_cols]
+            for col in grp_cols:
+                # Common TREE columns for grouping
+                if col not in cols and col in [
+                    "HT", "ACTUALHT", "CR", "CCLCD", "SPGRPCD", "SPCD",
+                    "TREECLCD", "DECAYCD"
+                ]:
+                    cols.append(col)
+
         return cols
 
     def get_cond_columns(self) -> List[str]:

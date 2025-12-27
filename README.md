@@ -14,10 +14,10 @@
 
   <p>
     <strong>Part of the <a href="https://fiatools.org">FIAtools Python Ecosystem</a></strong><br>
-    <a href="https://fiatools.org">pyFIA</a> ·
-    <a href="https://fiatools.org">gridFIA</a> ·
-    <a href="https://fiatools.org">pyFVS</a> ·
-    <a href="https://fiatools.org">askFIA</a>
+    <a href="https://fiatools.org/tools/pyfia/">pyFIA</a> ·
+    <a href="https://fiatools.org/tools/gridfia/">gridFIA</a> ·
+    <a href="https://fiatools.org/tools/pyfvs/">pyFVS</a> ·
+    <a href="https://fiatools.org/tools/askfia/">askFIA</a>
   </p>
 </div>
 

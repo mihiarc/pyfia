@@ -141,11 +141,25 @@ class BaseEstimator(ABC):
 
         # Load TREE table with column projection and SQL filtering
         # This is the key optimization - filter at SQL level before loading
+        # Check if we need to reload (new columns required that aren't in cached table)
+        if "TREE" in self.db.tables:
+            cached_cols = set(self.db.tables["TREE"].columns if hasattr(self.db.tables["TREE"], 'columns') else self.db.tables["TREE"].collect_schema().names())
+            required_cols = set(tree_cols) if tree_cols else set()
+            if not required_cols.issubset(cached_cols):
+                # Reload with all required columns
+                del self.db.tables["TREE"]
         if "TREE" not in self.db.tables:
             self.db.load_table("TREE", columns=tree_cols, where=tree_where)
         tree_df = self.db.tables["TREE"]
 
         # Load COND table with column projection and SQL filtering
+        # Check if we need to reload (new columns required that aren't in cached table)
+        if "COND" in self.db.tables:
+            cached_cols = set(self.db.tables["COND"].columns if hasattr(self.db.tables["COND"], 'columns') else self.db.tables["COND"].collect_schema().names())
+            required_cols = set(cond_cols) if cond_cols else set()
+            if not required_cols.issubset(cached_cols):
+                # Reload with all required columns
+                del self.db.tables["COND"]
         if "COND" not in self.db.tables:
             self.db.load_table("COND", columns=cond_cols, where=cond_where)
         cond_df = self.db.tables["COND"]

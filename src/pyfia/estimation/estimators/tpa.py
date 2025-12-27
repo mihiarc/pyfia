@@ -54,7 +54,11 @@ class TPAEstimator(BaseEstimator):
             if isinstance(grp_cols, str):
                 grp_cols = [grp_cols]
             for col in grp_cols:
-                if col not in cols and col in ["HT", "ACTUALHT", "CR", "CCLCD"]:
+                # Common TREE columns for grouping
+                if col not in cols and col in [
+                    "HT", "ACTUALHT", "CR", "CCLCD", "SPGRPCD", "SPCD",
+                    "TREECLCD", "DECAYCD"
+                ]:
                     cols.append(col)
 
         return cols

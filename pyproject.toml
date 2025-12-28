@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyfia"
-version = "1.1.0b6"
+version = "1.1.0b7"
 description = "High-performance Python library for Forest Inventory Analysis (FIA) data analysis"
 readme = "README.md"
 authors = [
@@ -59,22 +59,22 @@ keywords = [
 ]
 requires-python = ">=3.11"
 dependencies = [
-    "polars>=1.31.0",
-    "numpy>=2.3.0",
+    "polars>=1.0.0",
+    "numpy>=1.26.0",
     "connectorx>=0.3.1",
     "duckdb>=0.9.0",
     "pyarrow>=14.0.0",
-    "pydantic>=2.11.0",
-    "pydantic-settings>=2.7.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
     "rich",
     "pyyaml>=6.0.0",
-    "pandas>=2.3.1",
+    "pandas>=2.0.0",
     "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
-spatial = ["geopandas>=1.1.0", "shapely>=2.1.1"]
-pandas = ["pandas>=2.3.0"]
+spatial = ["geopandas>=0.14.0", "shapely>=2.0.0"]
+pandas = ["pandas>=2.0.0"]
 dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",

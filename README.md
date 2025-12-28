@@ -7,7 +7,7 @@
     <a href="https://fiatools.org"><img src="https://img.shields.io/badge/FIAtools-Ecosystem-2E7D32" alt="FIAtools Ecosystem"></a>
     <a href="https://pypi.org/project/pyfia/"><img src="https://img.shields.io/pypi/v/pyfia?color=006D6D&label=PyPI" alt="PyPI"></a>
     <a href="https://pypi.org/project/pyfia/"><img src="https://img.shields.io/pypi/dm/pyfia?color=006D6D&label=Downloads" alt="PyPI Downloads"></a>
-    <a href="https://mihiarc.github.io/pyfia/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-006D6D" alt="Documentation"></a>
+    <a href="https://pyfia.fiatools.org/"><img src="https://img.shields.io/badge/docs-pyfia.fiatools.org-006D6D" alt="Documentation"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-006D6D" alt="License: MIT"></a>
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-006D6D" alt="Python 3.11+"></a>
   </p>
@@ -91,7 +91,7 @@ cd pyfia && pip install -e .[dev]
 
 ## Documentation
 
-📖 **Full docs:** [mihiarc.github.io/pyfia](https://mihiarc.github.io/pyfia/)
+📖 **Full docs:** [pyfia.fiatools.org](https://pyfia.fiatools.org/)
 
 ## Integration with FIAtools
 

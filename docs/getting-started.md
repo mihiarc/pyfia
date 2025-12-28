@@ -170,6 +170,6 @@ settings.max_threads = 8
 
 ## Getting Help
 
-- **Documentation**: [https://mihiarc.github.io/pyfia/](https://mihiarc.github.io/pyfia/)
+- **Documentation**: [https://pyfia.fiatools.org/](https://pyfia.fiatools.org/)
 - **Issues**: [GitHub Issues](https://github.com/mihiarc/pyfia/issues)
 - **Discussions**: [GitHub Discussions](https://github.com/mihiarc/pyfia/discussions)

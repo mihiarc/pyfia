@@ -143,7 +143,12 @@ class BaseEstimator(ABC):
         # This is the key optimization - filter at SQL level before loading
         # Check if we need to reload (new columns required that aren't in cached table)
         if "TREE" in self.db.tables:
-            cached_cols = set(self.db.tables["TREE"].columns if hasattr(self.db.tables["TREE"], 'columns') else self.db.tables["TREE"].collect_schema().names())
+            cached = self.db.tables["TREE"]
+            cached_cols = set(
+                cached.collect_schema().names()
+                if isinstance(cached, pl.LazyFrame)
+                else cached.columns
+            )
             required_cols = set(tree_cols) if tree_cols else set()
             if not required_cols.issubset(cached_cols):
                 # Reload with all required columns
@@ -155,7 +160,12 @@ class BaseEstimator(ABC):
         # Load COND table with column projection and SQL filtering
         # Check if we need to reload (new columns required that aren't in cached table)
         if "COND" in self.db.tables:
-            cached_cols = set(self.db.tables["COND"].columns if hasattr(self.db.tables["COND"], 'columns') else self.db.tables["COND"].collect_schema().names())
+            cached = self.db.tables["COND"]
+            cached_cols = set(
+                cached.collect_schema().names()
+                if isinstance(cached, pl.LazyFrame)
+                else cached.columns
+            )
             required_cols = set(cond_cols) if cond_cols else set()
             if not required_cols.issubset(cached_cols):
                 # Reload with all required columns
@@ -238,9 +248,24 @@ class BaseEstimator(ABC):
 
     def _load_area_data(self) -> pl.LazyFrame:
         """Load condition and plot data for area estimation."""
-        # Load COND table
+        # Get required columns for area estimation
+        cond_cols = self.get_cond_columns()
+
+        # Load COND table with cache invalidation
+        # Check if cached table has all required columns
+        if "COND" in self.db.tables:
+            cached = self.db.tables["COND"]
+            cached_cols = set(
+                cached.collect_schema().names()
+                if isinstance(cached, pl.LazyFrame)
+                else cached.columns
+            )
+            required_cols = set(cond_cols) if cond_cols else set()
+            if not required_cols.issubset(cached_cols):
+                # Reload with all required columns
+                del self.db.tables["COND"]
         if "COND" not in self.db.tables:
-            self.db.load_table("COND")
+            self.db.load_table("COND", columns=cond_cols)
         cond_df = self.db.tables["COND"]
 
         # Load PLOT table

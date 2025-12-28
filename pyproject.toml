@@ -91,7 +91,7 @@ all = ["pyfia[spatial,pandas,dev]"]
 
 [project.urls]
 Homepage = "https://fiatools.org/tools/pyfia/"
-Documentation = "https://mihiarc.github.io/pyfia/"
+Documentation = "https://pyfia.fiatools.org/"
 Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 Changelog = "https://github.com/mihiarc/pyfia/releases"

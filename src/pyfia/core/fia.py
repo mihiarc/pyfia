@@ -83,13 +83,21 @@ class FIA:
         Parameters
         ----------
         db_path : str or Path
-            Path to FIA database (DuckDB or SQLite).
+            Path to FIA database. Supports:
+            - Local file: "path/to/database.duckdb"
+            - MotherDuck: "md:database_name" or "motherduck:database_name"
         engine : str, optional
             Database engine ('duckdb', 'sqlite', or None for auto-detect).
         """
-        self.db_path = Path(db_path)
-        if not self.db_path.exists():
-            raise FileNotFoundError(f"Database not found: {db_path}")
+        db_str = str(db_path)
+        self._is_motherduck = db_str.startswith("md:") or db_str.startswith("motherduck:")
+
+        if self._is_motherduck:
+            self.db_path = db_str  # type: ignore[assignment]
+        else:
+            self.db_path = Path(db_path)
+            if not self.db_path.exists():
+                raise FileNotFoundError(f"Database not found: {db_path}")
 
         # Initialize with appropriate engine
         self.tables: Dict[str, pl.LazyFrame] = {}

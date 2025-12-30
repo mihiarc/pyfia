@@ -40,11 +40,13 @@ class StateConfig:
     evalid: int  # For inventory estimates (EXPCURR, EXPVOL)
     evalid_grm: int  # For GRM estimates (EXPGROW, EXPMORT, EXPREMV)
     year: int
-    db_path: str
+    db_path: str  # Local file path
+    motherduck_db: str  # MotherDuck database name
 
 
 # Available states for validation testing
 # Add new states here after downloading with: pyfia.download(states="XX", dir="data/")
+# MotherDuck databases follow pattern: fia_{state}_eval{year}
 STATES = {
     "georgia": StateConfig(
         name="Georgia",
@@ -54,6 +56,7 @@ STATES = {
         evalid_grm=132303,
         year=2023,
         db_path="data/georgia.duckdb",
+        motherduck_db="fia_ga_eval2023",
     ),
     "oregon": StateConfig(
         name="Oregon",
@@ -63,6 +66,7 @@ STATES = {
         evalid_grm=412203,
         year=2022,
         db_path="data/or/or.duckdb",
+        motherduck_db="fia_or_eval2022",
     ),
 }
 
@@ -126,20 +130,38 @@ def pytest_collection_modifyitems(items):
 # =============================================================================
 
 
-def _find_database(state_key: str | None = None) -> Path | None:
-    """Find FIA database for validation tests."""
+def _find_database(state_key: str | None = None) -> str | None:
+    """Find FIA database for validation tests.
+
+    Checks in order:
+    1. Local file for specified state
+    2. PYFIA_DATABASE_PATH environment variable
+    3. Default local file locations
+    4. MotherDuck (if MOTHERDUCK_TOKEN is set)
+    """
     # If state specified, look for that state's database
     if state_key and state_key in STATES:
-        state_path = Path.cwd() / STATES[state_key].db_path
+        state_config = STATES[state_key]
+
+        # Try local file first
+        state_path = Path.cwd() / state_config.db_path
         if state_path.exists():
-            return state_path
+            return str(state_path)
+
+        # Try MotherDuck if token is available
+        if os.getenv("MOTHERDUCK_TOKEN"):
+            return f"md:{state_config.motherduck_db}"
 
     # Try environment variable
     env_path = os.getenv("PYFIA_DATABASE_PATH")
-    if env_path and Path(env_path).exists():
-        return Path(env_path)
+    if env_path:
+        # Could be a local path or MotherDuck connection string
+        if env_path.startswith("md:") or env_path.startswith("motherduck:"):
+            return env_path
+        if Path(env_path).exists():
+            return env_path
 
-    # Try default locations
+    # Try default local locations
     paths_to_try = [
         Path.cwd() / "data" / "georgia.duckdb",
         Path.cwd() / "fia.duckdb",
@@ -148,7 +170,11 @@ def _find_database(state_key: str | None = None) -> Path | None:
 
     for path in paths_to_try:
         if path.exists():
-            return path
+            return str(path)
+
+    # Fallback to MotherDuck for default state if token available
+    if os.getenv("MOTHERDUCK_TOKEN"):
+        return f"md:{STATES[DEFAULT_STATE].motherduck_db}"
 
     return None
 
@@ -189,9 +215,12 @@ def state_config(request):
     state_key = request.param
     config = STATES[state_key]
 
-    # Check if database exists for this state
+    # Check if database exists for this state (local file or MotherDuck)
     db_path = Path.cwd() / config.db_path
-    if not db_path.exists():
+    has_local = db_path.exists()
+    has_motherduck = bool(os.getenv("MOTHERDUCK_TOKEN"))
+
+    if not has_local and not has_motherduck:
         pytest.skip(f"Database not found for {config.name}: {config.db_path}")
 
     return config

@@ -440,7 +440,8 @@ def get_grm_required_tables(
     ]
 
     if component_type == "growth":
-        # Growth also needs BEGIN table and BEGINEND for cross-join
-        base_tables.extend(["TREE_GRM_BEGIN", "TREE", "BEGINEND"])
+        # Growth also needs BEGIN table and TREE
+        # Note: BEGINEND is created dynamically (not available from DataMart)
+        base_tables.extend(["TREE_GRM_BEGIN", "TREE"])
 
     return base_tables

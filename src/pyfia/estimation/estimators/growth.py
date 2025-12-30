@@ -164,20 +164,31 @@ class GrowthEstimator(GRMBaseEstimator):
 
         data = data.join(plot, left_on="PLT_CN", right_on="CN", how="inner")
 
-        # Join COND
+        # Join COND - check for required columns and reload if necessary
+        cond_cols = self.get_cond_columns()
+        if "COND" in self.db.tables:
+            cached = self.db.tables["COND"]
+            cached_cols = set(
+                cached.collect_schema().names()
+                if isinstance(cached, pl.LazyFrame)
+                else cached.columns
+            )
+            required_cols = set(cond_cols)
+            if not required_cols.issubset(cached_cols):
+                # Reload with all required columns
+                del self.db.tables["COND"]
+
         if "COND" not in self.db.tables:
-            self.db.load_table("COND")
+            self.db.load_table("COND", columns=cond_cols)
 
         cond = self.db.tables["COND"]
         if not isinstance(cond, pl.LazyFrame):
             cond = cond.lazy()
 
-        cond_cols = self.get_cond_columns()
-        try:
-            cond = cond.select(cond_cols)
-        except Exception:
-            available = cond.collect_schema().names()
-            cond = cond.select([c for c in cond_cols if c in available])
+        # Select only the columns we need
+        available = cond.collect_schema().names()
+        select_cols = [c for c in cond_cols if c in available]
+        cond = cond.select(select_cols)
 
         data = data.join(
             cond,

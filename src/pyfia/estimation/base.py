@@ -1248,8 +1248,24 @@ class GRMBaseEstimator(BaseEstimator):
         data = filter_by_evalid(data, self.db)
 
         # Load and aggregate COND to plot level
+        # Required columns for aggregate_cond_to_plot()
+        cond_cols = self.get_cond_columns()
+
+        # Check if cached COND has all required columns
+        if "COND" in self.db.tables:
+            cached = self.db.tables["COND"]
+            cached_cols = set(
+                cached.collect_schema().names()
+                if isinstance(cached, pl.LazyFrame)
+                else cached.columns
+            )
+            required_cols = set(cond_cols)
+            if not required_cols.issubset(cached_cols):
+                # Reload with all required columns
+                del self.db.tables["COND"]
+
         if "COND" not in self.db.tables:
-            self.db.load_table("COND")
+            self.db.load_table("COND", columns=cond_cols)
 
         cond = self.db.tables["COND"]
         if not isinstance(cond, pl.LazyFrame):

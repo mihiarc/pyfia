@@ -6,6 +6,7 @@ to ensure pyFIA produces correct estimates across different regions.
 All estimates (area, volume, biomass, TPA) MUST match EVALIDator exactly.
 """
 
+import os
 from pathlib import Path
 
 from pyfia import FIA, area, volume, biomass, tpa
@@ -18,14 +19,24 @@ from .conftest import (
 )
 
 
+def _get_db_path(state_config: StateConfig) -> str:
+    """Get database path for state (local file or MotherDuck)."""
+    local_path = Path.cwd() / state_config.db_path
+    if local_path.exists():
+        return str(local_path)
+    if os.getenv("MOTHERDUCK_TOKEN"):
+        return f"md:{state_config.motherduck_db}"
+    raise FileNotFoundError(f"Database not found: {state_config.db_path}")
+
+
 class TestMultiStateArea:
     """Validate area estimates across multiple states."""
 
     def test_forest_area(self, state_config: StateConfig, evalidator_client):
         """Validate total forest area matches EVALIDator for each state."""
-        db_path = Path.cwd() / state_config.db_path
+        db_path = _get_db_path(state_config)
 
-        with FIA(str(db_path)) as db:
+        with FIA(db_path) as db:
             db.clip_by_evalid(state_config.evalid)
             result = area(db, land_type="forest", totals=True)
             pyfia_area = result["AREA"][0]
@@ -55,9 +66,9 @@ class TestMultiStateArea:
 
     def test_timberland_area(self, state_config: StateConfig, evalidator_client):
         """Validate timberland area matches EVALIDator for each state."""
-        db_path = Path.cwd() / state_config.db_path
+        db_path = _get_db_path(state_config)
 
-        with FIA(str(db_path)) as db:
+        with FIA(db_path) as db:
             db.clip_by_evalid(state_config.evalid)
             result = area(db, land_type="timber", totals=True)
             pyfia_area = result["AREA"][0]
@@ -91,9 +102,9 @@ class TestMultiStateVolume:
 
     def test_growing_stock_volume(self, state_config: StateConfig, evalidator_client):
         """Validate growing stock volume matches EVALIDator for each state."""
-        db_path = Path.cwd() / state_config.db_path
+        db_path = _get_db_path(state_config)
 
-        with FIA(str(db_path)) as db:
+        with FIA(db_path) as db:
             db.clip_by_evalid(state_config.evalid)
             result = volume(db, land_type="forest", vol_type="net", tree_type="gs", totals=True)
             pyfia_vol = result["VOLCFNET_TOTAL"][0]
@@ -127,9 +138,9 @@ class TestMultiStateBiomass:
 
     def test_aboveground_biomass(self, state_config: StateConfig, evalidator_client):
         """Validate aboveground biomass matches EVALIDator for each state."""
-        db_path = Path.cwd() / state_config.db_path
+        db_path = _get_db_path(state_config)
 
-        with FIA(str(db_path)) as db:
+        with FIA(db_path) as db:
             db.clip_by_evalid(state_config.evalid)
             result = biomass(db, land_type="forest", tree_type="live", totals=True)
             pyfia_bio = result["BIO_TOTAL"][0]
@@ -162,9 +173,9 @@ class TestMultiStateTPA:
 
     def test_total_tree_count(self, state_config: StateConfig, evalidator_client):
         """Validate total tree count matches EVALIDator for each state."""
-        db_path = Path.cwd() / state_config.db_path
+        db_path = _get_db_path(state_config)
 
-        with FIA(str(db_path)) as db:
+        with FIA(db_path) as db:
             db.clip_by_evalid(state_config.evalid)
             result = tpa(db, land_type="forest", tree_type="live", totals=True)
             pyfia_count = result["TPA_TOTAL"][0]

@@ -25,26 +25,32 @@ __all__ = [
 
 def create_backend(db_path: Union[str, Path], **kwargs: Any) -> DatabaseBackend:
     """
-    Create a DuckDB database backend.
+    Create a database backend (DuckDB or MotherDuck).
 
     Parameters
     ----------
     db_path : Union[str, Path]
-        Path to the DuckDB database file
+        Path to the database. Supports:
+        - Local file path: "path/to/database.duckdb"
+        - MotherDuck: "md:database_name" or "motherduck:database_name"
     **kwargs : Any
         Additional backend configuration options:
         - read_only: bool, default True
         - memory_limit: str, e.g., "8GB"
         - threads: int
+        - motherduck_token: str (for MotherDuck connections)
 
     Returns
     -------
     DatabaseBackend
-        DuckDB backend instance
+        DuckDB or MotherDuck backend instance
 
     Examples
     --------
     >>> backend = create_backend("path/to/database.duckdb")
+
+    >>> # MotherDuck connection
+    >>> backend = create_backend("md:fia_ga_eval2023")
 
     >>> # With memory limit
     >>> backend = create_backend(
@@ -53,6 +59,19 @@ def create_backend(db_path: Union[str, Path], **kwargs: Any) -> DatabaseBackend:
     ...     threads=4
     ... )
     """
+    db_str = str(db_path)
+
+    # Check for MotherDuck prefix
+    if db_str.startswith("md:") or db_str.startswith("motherduck:"):
+        # Extract database name from prefix
+        if db_str.startswith("md:"):
+            database = db_str[3:]
+        else:
+            database = db_str[11:]
+
+        motherduck_token = kwargs.pop("motherduck_token", None)
+        return MotherDuckBackend(database, motherduck_token=motherduck_token, **kwargs)
+
     return DuckDBBackend(Path(db_path), **kwargs)
 
 

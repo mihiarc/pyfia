@@ -13,7 +13,6 @@ FIA Database User Guide, SUBP_COND_CHNG_MTRX table documentation
 
 from typing import List, Literal, Optional, Union
 
-import duckdb
 import polars as pl
 
 from ...core import FIA
@@ -170,11 +169,11 @@ class AreaChangeEstimator(BaseEstimator):
         # Join previous condition to get previous status
         # IMPORTANT: Load the FULL COND table (without EVALID filter) because
         # PREV_PLT_CN references plots from previous inventory cycles
-        conn = duckdb.connect(str(self.db.db_path), read_only=True)
-        cond_prev = conn.execute(
-            "SELECT PLT_CN, CONDID, COND_STATUS_CD FROM COND"
-        ).pl().lazy()
-        conn.close()
+        cond_prev = self.db._reader.read_table(
+            "COND",
+            columns=["PLT_CN", "CONDID", "COND_STATUS_CD"],
+            lazy=True,
+        )
 
         # Alias the status column for previous condition
         cond_prev = cond_prev.select([

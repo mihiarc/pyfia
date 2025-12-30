@@ -111,7 +111,7 @@ api.download_species(state="NC", species_codes=species_list)
 
 ## The FIAtools Ecosystem
 
-PyFIA is part of the [FIAtools Python ecosystem](https://fiatools.org) - a unified suite of open-source tools for forest inventory analysis:
+PyFIA is part of the [FIAtools Python ecosystem](https://fiatools.org) - a unified suite of open-source tools for forest inventory applications:
 
 | Tool | Purpose | Key Features |
 |------|---------|--------------|
@@ -126,7 +126,7 @@ PyFIA is part of the [FIAtools Python ecosystem](https://fiatools.org) - a unifi
 
 ```bibtex
 @software{pyfia2025,
-  title = {pyFIA: A Python Library for Forest Inventory Analysis},
+  title = {pyFIA: A Python Library for Forest Inventory Applications},
   author = {Mihiar, Christopher},
   year = {2025},
   url = {https://fiatools.org}
@@ -135,7 +135,13 @@ PyFIA is part of the [FIAtools Python ecosystem](https://fiatools.org) - a unifi
 
 ---
 
+## Affiliation
+
+Developed in collaboration with USDA Forest Service Research & Development. pyFIA provides programmatic access to Forest Inventory and Analysis (FIA) data but is not part of the official FIA Program.
+
+---
+
 <div align="center">
-  <a href="https://fiatools.org"><strong>fiatools.org</strong></a> · Python Ecosystem for Forest Inventory Analysis<br>
+  <a href="https://fiatools.org"><strong>fiatools.org</strong></a> · Python Ecosystem for Forest Inventory Applications<br>
   <sub>Built by <a href="https://github.com/mihiarc">Chris Mihiar</a> · USDA Forest Service Southern Research Station</sub>
 </div>

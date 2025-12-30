@@ -1,5 +1,5 @@
 ---
-title: PyFIA - Python API for Forest Inventory Analysis
+title: PyFIA - Python API for Forest Inventory Applications
 description: High-performance Python library for USDA FIA data analysis. Built on DuckDB and Polars for 10-100x faster analysis than EVALIDator with statistically valid estimates.
 ---
 
@@ -152,5 +152,5 @@ PyFIA is released under the MIT License.
 ---
 
 <div align="center">
-<strong><a href="https://fiatools.org">fiatools.org</a></strong> · Python Ecosystem for Forest Inventory Analysis
+<strong><a href="https://fiatools.org">fiatools.org</a></strong> · Python Ecosystem for Forest Inventory Applications
 </div>

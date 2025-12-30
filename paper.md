@@ -1,5 +1,5 @@
 ---
-title: 'pyFIA: A Python Library for Statistically Rigorous Forest Inventory Analysis'
+title: 'pyFIA: A Python Library for Statistically Rigorous Forest Inventory Applications'
 tags:
   - Python
   - forestry

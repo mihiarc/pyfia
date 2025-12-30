@@ -191,22 +191,31 @@ class GrowthEstimator(GRMBaseEstimator):
         data = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Join BEGINEND (cross-join)
+        # BEGINEND is a simple reference table with ONEORTWO values 1 and 2
+        # Used for begin/end methodology: ONEORTWO=2 adds ending values,
+        # ONEORTWO=1 subtracts beginning values, sum gives net growth
         if "BEGINEND" not in self.db.tables:
             try:
                 self.db.load_table("BEGINEND")
-            except Exception as e:
-                raise ValueError(f"BEGINEND not found: {e}")
+            except Exception:
+                # BEGINEND may not exist in some databases (e.g., MotherDuck)
+                # Create it dynamically - it's just a 2-row reference table
+                pass
 
-        beginend = self.db.tables["BEGINEND"]
-        if not isinstance(beginend, pl.LazyFrame):
-            beginend = beginend.lazy()
+        if "BEGINEND" in self.db.tables:
+            beginend = self.db.tables["BEGINEND"]
+            if not isinstance(beginend, pl.LazyFrame):
+                beginend = beginend.lazy()
 
-        if hasattr(self.db, "_state_filter") and self.db._state_filter:
-            beginend = beginend.filter(
-                pl.col("STATE_ADDED").is_in(self.db._state_filter)
-            )
+            if hasattr(self.db, "_state_filter") and self.db._state_filter:
+                beginend = beginend.filter(
+                    pl.col("STATE_ADDED").is_in(self.db._state_filter)
+                )
 
-        beginend = beginend.select(["ONEORTWO"]).unique()
+            beginend = beginend.select(["ONEORTWO"]).unique()
+        else:
+            # Create BEGINEND dynamically - just needs ONEORTWO = 1 and 2
+            beginend = pl.DataFrame({"ONEORTWO": [1, 2]}).lazy()
 
         data = data.join(beginend, how="cross")
 

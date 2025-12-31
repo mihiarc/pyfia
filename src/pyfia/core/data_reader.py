@@ -230,7 +230,9 @@ class FIADataReader:
         """
         # Build SELECT clause with appropriate type casting
         select_clause = self._build_select_clause(table_name, columns)
-        query = f"SELECT {select_clause} FROM {table_name}"
+        # Use qualified table name (for MotherDuck cross-database reference table queries)
+        qualified_name = self._backend._get_qualified_table_name(table_name)
+        query = f"SELECT {select_clause} FROM {qualified_name}"
 
         if where:
             query += f" WHERE {where}"

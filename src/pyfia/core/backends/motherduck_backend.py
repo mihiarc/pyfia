@@ -17,6 +17,19 @@ from .base import DatabaseBackend
 
 logger = logging.getLogger(__name__)
 
+# Reference tables that are stored in the shared fia_reference database
+REFERENCE_TABLES = {
+    "REF_SPECIES",
+    "REF_FOREST_TYPE",
+    "REF_FOREST_TYPE_GROUP",
+    "REF_OWNGRPCD",
+    "REF_STATE",
+    "REF_STATE_ELEV",
+}
+
+# Shared reference database name
+REFERENCE_DATABASE = "fia_reference"
+
 
 class MotherDuckBackend(DatabaseBackend):
     """
@@ -74,9 +87,40 @@ class MotherDuckBackend(DatabaseBackend):
             connection_string = f"md:{self.database}?motherduck_token={self.motherduck_token}"
             self._connection = duckdb.connect(connection_string)
             logger.info(f"Connected to MotherDuck database: {self.database}")
+
+            # Attach the shared reference database for cross-database queries
+            self._attach_reference_database()
         except Exception as e:
             logger.error(f"Failed to connect to MotherDuck: {e}")
             raise
+
+    def _attach_reference_database(self) -> None:
+        """
+        Attach the shared fia_reference database for reference table access.
+
+        This enables cross-database queries to access REF_SPECIES, REF_FOREST_TYPE,
+        and other reference tables that are stored in a separate shared database.
+        """
+        if self._connection is None:
+            return
+
+        try:
+            # Check if reference database is already attached
+            result = self._connection.execute(
+                "SELECT database_name FROM duckdb_databases() WHERE database_name = ?",
+                [REFERENCE_DATABASE],
+            ).fetchone()
+
+            if result is None:
+                # Attach the reference database
+                self._connection.execute(f"ATTACH 'md:{REFERENCE_DATABASE}'")
+                logger.info(f"Attached shared reference database: {REFERENCE_DATABASE}")
+        except Exception as e:
+            # Reference database attachment is optional - log warning but don't fail
+            logger.warning(
+                f"Could not attach reference database '{REFERENCE_DATABASE}': {e}. "
+                "Reference table joins may not work."
+            )
 
     def disconnect(self) -> None:
         """Close MotherDuck connection."""
@@ -141,6 +185,24 @@ class MotherDuckBackend(DatabaseBackend):
                 logger.debug(f"Parameters: {params}")
             raise
 
+    def _get_qualified_table_name(self, table_name: str) -> str:
+        """
+        Get fully qualified table name with database prefix for reference tables.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+
+        Returns
+        -------
+        str
+            Qualified table name (e.g., 'fia_reference.main.REF_SPECIES')
+        """
+        if table_name in REFERENCE_TABLES:
+            return f"{REFERENCE_DATABASE}.main.{table_name}"
+        return table_name
+
     def get_table_schema(self, table_name: str) -> Dict[str, str]:
         """
         Get schema information for a table.
@@ -162,8 +224,10 @@ class MotherDuckBackend(DatabaseBackend):
             self.connect()
 
         try:
+            # Use qualified name for reference tables
+            qualified_name = self._get_qualified_table_name(table_name)
             result = self._connection.execute(  # type: ignore[union-attr]
-                f"DESCRIBE {table_name}"
+                f"DESCRIBE {qualified_name}"
             ).fetchall()
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
@@ -190,10 +254,18 @@ class MotherDuckBackend(DatabaseBackend):
             self.connect()
 
         try:
-            result = self._connection.execute(  # type: ignore[union-attr]
-                "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-                [table_name],
-            ).fetchone()
+            # For reference tables, check in the reference database
+            if table_name in REFERENCE_TABLES:
+                result = self._connection.execute(  # type: ignore[union-attr]
+                    f"SELECT COUNT(*) FROM information_schema.tables "
+                    f"WHERE table_catalog = ? AND table_name = ?",
+                    [REFERENCE_DATABASE, table_name],
+                ).fetchone()
+            else:
+                result = self._connection.execute(  # type: ignore[union-attr]
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
+                    [table_name],
+                ).fetchone()
             return result[0] > 0 if result else False
         except Exception:
             return False
@@ -216,8 +288,10 @@ class MotherDuckBackend(DatabaseBackend):
             self.connect()
 
         try:
+            # Use qualified name for reference tables
+            qualified_name = self._get_qualified_table_name(table_name)
             return self._connection.execute(  # type: ignore[union-attr, no-any-return]
-                f"DESCRIBE {table_name}"
+                f"DESCRIBE {qualified_name}"
             ).fetchall()
         except Exception as e:
             logger.error(f"Failed to describe table {table_name}: {e}")

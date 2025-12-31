@@ -1384,7 +1384,9 @@ class _MotherDuckReaderWrapper:
     ):
         """Read a table from the MotherDuck database."""
         select_clause = self._backend.build_select_clause(table_name, columns)
-        query = f"SELECT {select_clause} FROM {table_name}"
+        # Use qualified table name for reference tables (cross-database query)
+        qualified_name = self._backend._get_qualified_table_name(table_name)
+        query = f"SELECT {select_clause} FROM {qualified_name}"
 
         if where:
             query += f" WHERE {where}"

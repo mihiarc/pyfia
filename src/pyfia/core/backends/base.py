@@ -221,3 +221,23 @@ class DatabaseBackend(ABC):
     def is_connected(self) -> bool:
         """Check if database is connected."""
         return self._connection is not None
+
+    def _get_qualified_table_name(self, table_name: str) -> str:
+        """
+        Get fully qualified table name.
+
+        For most backends, this returns the table name unchanged.
+        MotherDuck backend overrides this to prefix reference tables
+        with the shared reference database name.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+
+        Returns
+        -------
+        str
+            Qualified table name
+        """
+        return table_name

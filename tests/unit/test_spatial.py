@@ -5,6 +5,7 @@ Tests the clip_by_polygon method and related spatial operations.
 """
 
 import json
+import os
 import tempfile
 from pathlib import Path
 
@@ -16,6 +17,23 @@ from pyfia.core.exceptions import (
     SpatialExtensionError,
     SpatialFileError,
 )
+
+
+def _get_test_db_path() -> str | Path | None:
+    """Get database path for tests, supporting MotherDuck."""
+    env_path = os.getenv("PYFIA_DATABASE_PATH")
+    if env_path:
+        # MotherDuck connection strings don't need file existence check
+        if env_path.startswith("md:") or env_path.startswith("motherduck:"):
+            return env_path
+        if Path(env_path).exists():
+            return env_path
+
+    default_path = Path("data/georgia.duckdb")
+    if default_path.exists():
+        return default_path
+
+    return None
 
 
 class TestSpatialExceptions:
@@ -72,13 +90,13 @@ class TestClipByPolygonValidation:
     @pytest.fixture
     def db_path(self):
         """Return path to test database."""
-        return Path("data/georgia.duckdb")
+        path = _get_test_db_path()
+        if path is None:
+            pytest.skip("No FIA database found")
+        return path
 
     def test_file_not_found_raises_error(self, db_path):
         """Test that non-existent file raises SpatialFileError."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
-
         with FIA(db_path) as db:
             with pytest.raises(SpatialFileError) as exc_info:
                 db.clip_by_polygon("nonexistent_file.shp")
@@ -88,9 +106,6 @@ class TestClipByPolygonValidation:
 
     def test_invalid_file_extension_still_attempts_read(self, db_path):
         """Test that any file extension is attempted (GDAL determines format)."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
-
         # Create a temporary file with invalid content
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             f.write(b"not a spatial file")
@@ -111,7 +126,10 @@ class TestClipByPolygonIntegration:
     @pytest.fixture
     def db_path(self):
         """Return path to test database."""
-        return Path("data/georgia.duckdb")
+        path = _get_test_db_path()
+        if path is None:
+            pytest.skip("No FIA database found")
+        return path
 
     @pytest.fixture
     def georgia_bbox_geojson(self, tmp_path):
@@ -179,8 +197,6 @@ class TestClipByPolygonIntegration:
 
     def test_clip_by_polygon_returns_self(self, db_path, georgia_bbox_geojson):
         """Test that clip_by_polygon returns self for chaining."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             result = db.clip_by_polygon(georgia_bbox_geojson)
@@ -188,8 +204,6 @@ class TestClipByPolygonIntegration:
 
     def test_clip_by_polygon_filters_plots(self, db_path, georgia_bbox_geojson):
         """Test that clip_by_polygon reduces the number of plots."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             # Get all plots first
@@ -211,8 +225,6 @@ class TestClipByPolygonIntegration:
 
     def test_clip_by_polygon_sets_spatial_plot_cns(self, db_path, georgia_bbox_geojson):
         """Test that clip_by_polygon sets _spatial_plot_cns attribute."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             assert db._spatial_plot_cns is None
@@ -224,8 +236,6 @@ class TestClipByPolygonIntegration:
         self, db_path, small_polygon_geojson
     ):
         """Test that empty result raises NoSpatialFilterError."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)  # Georgia
@@ -236,8 +246,6 @@ class TestClipByPolygonIntegration:
         self, db_path, georgia_bbox_geojson
     ):
         """Test that clip_by_polygon works after clip_by_state."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             # Chain filters
@@ -249,8 +257,6 @@ class TestClipByPolygonIntegration:
 
     def test_clip_by_polygon_clears_tables(self, db_path, georgia_bbox_geojson):
         """Test that clip_by_polygon clears cached tables."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -266,8 +272,6 @@ class TestClipByPolygonIntegration:
 
     def test_clip_by_polygon_with_predicate(self, db_path, georgia_bbox_geojson):
         """Test clip_by_polygon with different predicates."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -292,13 +296,13 @@ class TestSpatialExtensionLoading:
     @pytest.fixture
     def db_path(self):
         """Return path to test database."""
-        return Path("data/georgia.duckdb")
+        path = _get_test_db_path()
+        if path is None:
+            pytest.skip("No FIA database found")
+        return path
 
     def test_spatial_extension_loads_on_demand(self, db_path):
         """Test that spatial extension is loaded when needed."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
-
         with FIA(db_path) as db:
             backend = db._reader._backend
             assert hasattr(backend, "_spatial_loaded")
@@ -310,9 +314,6 @@ class TestSpatialExtensionLoading:
 
     def test_spatial_extension_loads_once(self, db_path):
         """Test that spatial extension is only loaded once."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
-
         with FIA(db_path) as db:
             backend = db._reader._backend
 
@@ -330,7 +331,10 @@ class TestIntersectPolygons:
     @pytest.fixture
     def db_path(self):
         """Return path to test database."""
-        return Path("data/georgia.duckdb")
+        path = _get_test_db_path()
+        if path is None:
+            pytest.skip("No FIA database found")
+        return path
 
     @pytest.fixture
     def counties_geojson(self, tmp_path):
@@ -381,8 +385,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_returns_self(self, db_path, counties_geojson):
         """Test that intersect_polygons returns self for chaining."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -391,8 +393,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_sets_attributes(self, db_path, counties_geojson):
         """Test that intersect_polygons sets _polygon_attributes."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -405,8 +405,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_joins_to_plot(self, db_path, counties_geojson):
         """Test that polygon attributes are joined to PLOT table."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -421,8 +419,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_file_not_found(self, db_path):
         """Test that non-existent file raises SpatialFileError."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             with pytest.raises(SpatialFileError) as exc_info:
@@ -434,8 +430,6 @@ class TestIntersectPolygons:
         self, db_path, counties_geojson
     ):
         """Test that empty attributes list raises ValueError."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             with pytest.raises(ValueError) as exc_info:
@@ -447,8 +441,6 @@ class TestIntersectPolygons:
         self, db_path, counties_geojson
     ):
         """Test that requesting non-existent attribute raises ValueError."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             with pytest.raises(ValueError) as exc_info:
@@ -460,8 +452,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_clears_tables(self, db_path, counties_geojson):
         """Test that intersect_polygons clears cached tables."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -477,8 +467,6 @@ class TestIntersectPolygons:
         self, db_path, counties_geojson
     ):
         """Test that intersect_polygons and clip_by_polygon can be used together."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         # Create a smaller clip polygon
         clip_geojson = {
@@ -525,8 +513,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_multiple_attributes(self, db_path, counties_geojson):
         """Test that multiple attributes can be requested."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
@@ -539,8 +525,6 @@ class TestIntersectPolygons:
 
     def test_intersect_polygons_assigns_correct_region(self, db_path, counties_geojson):
         """Test that plots are assigned to correct regions based on location."""
-        if not db_path.exists():
-            pytest.skip("Test database not found")
 
         with FIA(db_path) as db:
             db.clip_by_state(13)

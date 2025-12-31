@@ -420,8 +420,12 @@ class TestCarbonFluxIntegration:
 
         # Try environment variable first
         env_path = os.getenv("PYFIA_DATABASE_PATH")
-        if env_path and Path(env_path).exists():
-            return env_path
+        if env_path:
+            # MotherDuck connection strings don't need file existence check
+            if env_path.startswith("md:") or env_path.startswith("motherduck:"):
+                return env_path
+            if Path(env_path).exists():
+                return env_path
 
         # Try default location
         default_path = Path("data/georgia.duckdb")

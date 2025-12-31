@@ -36,6 +36,19 @@ def _get_test_db_path() -> str | Path | None:
     return None
 
 
+def _is_motherduck() -> bool:
+    """Check if tests are running against MotherDuck."""
+    env_path = os.getenv("PYFIA_DATABASE_PATH", "")
+    return env_path.startswith("md:") or env_path.startswith("motherduck:")
+
+
+# Skip marker for tests that require local DuckDB with spatial extension
+requires_local_duckdb = pytest.mark.skipif(
+    _is_motherduck(),
+    reason="Spatial operations require local DuckDB with spatial extension"
+)
+
+
 class TestSpatialExceptions:
     """Test spatial exception classes."""
 
@@ -84,6 +97,7 @@ class TestSpatialExceptions:
         assert "5 polygon" in str(error)
 
 
+@requires_local_duckdb
 class TestClipByPolygonValidation:
     """Test clip_by_polygon input validation."""
 
@@ -120,6 +134,7 @@ class TestClipByPolygonValidation:
             Path(temp_path).unlink()
 
 
+@requires_local_duckdb
 class TestClipByPolygonIntegration:
     """Integration tests for clip_by_polygon with real data."""
 
@@ -290,6 +305,7 @@ class TestClipByPolygonIntegration:
         assert within_count == intersects_count
 
 
+@requires_local_duckdb
 class TestSpatialExtensionLoading:
     """Test DuckDB spatial extension loading."""
 
@@ -325,6 +341,7 @@ class TestSpatialExtensionLoading:
             assert backend._spatial_loaded
 
 
+@requires_local_duckdb
 class TestIntersectPolygons:
     """Test intersect_polygons method for spatial attribute joins."""
 

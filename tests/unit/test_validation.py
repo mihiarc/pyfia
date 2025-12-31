@@ -11,6 +11,9 @@ from pyfia.validation import (
     validate_grp_by,
     validate_boolean,
     validate_mortality_measure,
+    sanitize_sql_path,
+    validate_sql_identifier,
+    quote_sql_identifier,
 )
 
 
@@ -158,3 +161,126 @@ class TestValidators:
 
         with pytest.raises(ValueError, match="Invalid temporal method"):
             validate_temporal_method("ti")  # Case sensitive
+
+
+class TestSQLSecurityValidation:
+    """Test SQL security validation functions to prevent injection attacks."""
+
+    def test_sanitize_sql_path_valid(self):
+        """Test valid paths pass through sanitization."""
+        assert sanitize_sql_path("/data/counties.shp") == "/data/counties.shp"
+        assert sanitize_sql_path("/tmp/test_file.geojson") == "/tmp/test_file.geojson"
+        assert sanitize_sql_path("data/polygons.gpkg") == "data/polygons.gpkg"
+        # Paths with spaces are valid
+        assert sanitize_sql_path("/data/my folder/file.shp") == "/data/my folder/file.shp"
+
+    def test_sanitize_sql_path_rejects_single_quotes(self):
+        """Test that single quotes are rejected (SQL injection vector)."""
+        with pytest.raises(ValueError, match="single quotes"):
+            sanitize_sql_path("data'; DROP TABLE PLOT; --")
+
+        with pytest.raises(ValueError, match="single quotes"):
+            sanitize_sql_path("/path/with'quote.shp")
+
+    def test_sanitize_sql_path_rejects_double_quotes(self):
+        """Test that double quotes are rejected."""
+        with pytest.raises(ValueError, match="double quotes"):
+            sanitize_sql_path('/path/with"quote.shp')
+
+    def test_sanitize_sql_path_rejects_semicolons(self):
+        """Test that semicolons are rejected (SQL statement separator)."""
+        with pytest.raises(ValueError, match="semicolons"):
+            sanitize_sql_path("/path/file;drop.shp")
+
+    def test_sanitize_sql_path_rejects_backslashes(self):
+        """Test that backslashes are rejected (escape character)."""
+        with pytest.raises(ValueError, match="backslashes"):
+            sanitize_sql_path("data\\file.shp")
+
+    def test_sanitize_sql_path_rejects_sql_comments(self):
+        """Test that SQL comment sequences are rejected."""
+        with pytest.raises(ValueError, match="SQL comment sequences"):
+            sanitize_sql_path("/data/file--comment.shp")
+
+        with pytest.raises(ValueError, match="SQL comment sequences"):
+            sanitize_sql_path("/data/file/*comment*/.shp")
+
+    def test_sanitize_sql_path_handles_pathlib(self):
+        """Test that pathlib.Path objects are handled."""
+        from pathlib import Path
+        assert sanitize_sql_path(Path("/data/file.shp")) == "/data/file.shp"
+
+    def test_validate_sql_identifier_valid(self):
+        """Test valid SQL identifiers."""
+        assert validate_sql_identifier("PLOT", "table name") == "PLOT"
+        assert validate_sql_identifier("TREE", "table name") == "TREE"
+        assert validate_sql_identifier("TREE_GRM_COMPONENT", "table name") == "TREE_GRM_COMPONENT"
+        assert validate_sql_identifier("_private", "table name") == "_private"
+        assert validate_sql_identifier("Table123", "table name") == "Table123"
+
+    def test_validate_sql_identifier_rejects_empty(self):
+        """Test that empty identifiers are rejected."""
+        with pytest.raises(ValueError, match="Empty"):
+            validate_sql_identifier("", "table name")
+
+    def test_validate_sql_identifier_rejects_special_chars(self):
+        """Test that special characters are rejected."""
+        with pytest.raises(ValueError, match="Invalid table name"):
+            validate_sql_identifier("table; DROP TABLE", "table name")
+
+        with pytest.raises(ValueError, match="Invalid table name"):
+            validate_sql_identifier("table--comment", "table name")
+
+        with pytest.raises(ValueError, match="Invalid column name"):
+            validate_sql_identifier("column'name", "column name")
+
+        with pytest.raises(ValueError, match="Invalid identifier"):
+            validate_sql_identifier("table.name", "identifier")
+
+    def test_validate_sql_identifier_rejects_leading_numbers(self):
+        """Test that identifiers starting with numbers are rejected."""
+        with pytest.raises(ValueError, match="Invalid table name"):
+            validate_sql_identifier("123table", "table name")
+
+    def test_validate_sql_identifier_rejects_spaces(self):
+        """Test that spaces in identifiers are rejected."""
+        with pytest.raises(ValueError, match="Invalid table name"):
+            validate_sql_identifier("table name", "table name")
+
+    def test_quote_sql_identifier_valid(self):
+        """Test that valid identifiers are properly quoted."""
+        assert quote_sql_identifier("PLOT") == '"PLOT"'
+        assert quote_sql_identifier("TREE_GRM_COMPONENT") == '"TREE_GRM_COMPONENT"'
+
+    def test_quote_sql_identifier_rejects_invalid(self):
+        """Test that invalid identifiers are rejected before quoting."""
+        with pytest.raises(ValueError):
+            quote_sql_identifier("table; DROP TABLE")
+
+        with pytest.raises(ValueError):
+            quote_sql_identifier("")
+
+    def test_sql_injection_attack_patterns(self):
+        """Test common SQL injection attack patterns are blocked."""
+        attack_patterns = [
+            "'; DROP TABLE users; --",
+            "' OR '1'='1",
+            "'; INSERT INTO admin VALUES ('hacker', 'password'); --",
+            "' UNION SELECT * FROM passwords --",
+            "'; EXEC xp_cmdshell('dir'); --",
+        ]
+
+        for pattern in attack_patterns:
+            with pytest.raises(ValueError):
+                sanitize_sql_path(f"/data/{pattern}/file.shp")
+
+        identifier_attacks = [
+            "PLOT; DROP TABLE TREE",
+            "table--",
+            "name'injection",
+            "col/**/name",
+        ]
+
+        for attack in identifier_attacks:
+            with pytest.raises(ValueError):
+                validate_sql_identifier(attack, "identifier")

@@ -13,6 +13,7 @@ from typing import Dict, List, Optional, Union
 import polars as pl
 
 from ..constants.defaults import EVALIDYearParsing
+from ..validation import sanitize_sql_path
 from .data_reader import FIADataReader
 from .exceptions import (
     DatabaseError,
@@ -686,6 +687,9 @@ class FIA:
         # Store polygon path for reference
         self._polygon_path = str(polygon_path)
 
+        # Sanitize the path for safe SQL interpolation (prevents SQL injection)
+        safe_path = sanitize_sql_path(polygon_path)
+
         # Build the spatial query
         # Note: FIA stores coordinates as LAT, LON but we need to create POINT(LON, LAT)
         # because ST_Point expects (x, y) = (longitude, latitude)
@@ -696,7 +700,7 @@ class FIA:
         query = f"""
             WITH boundary AS (
                 SELECT ST_Union_Agg(geom) as geom
-                FROM ST_Read('{polygon_path}')
+                FROM ST_Read('{safe_path}')
             )
             SELECT CAST(p.CN AS VARCHAR) as CN
             FROM PLOT p, boundary b
@@ -712,7 +716,7 @@ class FIA:
             query = f"""
                 WITH boundary AS (
                     SELECT ST_Union_Agg(geom) as geom
-                    FROM ST_Read('{polygon_path}')
+                    FROM ST_Read('{safe_path}')
                 )
                 SELECT CAST(p.CN AS VARCHAR) as CN
                 FROM PLOT p, boundary b
@@ -856,9 +860,12 @@ class FIA:
                 "SQLite does not support spatial queries."
             )
 
+        # Sanitize the path for safe SQL interpolation (prevents SQL injection)
+        safe_path = sanitize_sql_path(polygon_path)
+
         # First, check what columns exist in the polygon file
         try:
-            check_query = f"SELECT * FROM ST_Read('{polygon_path}') LIMIT 0"
+            check_query = f"SELECT * FROM ST_Read('{safe_path}') LIMIT 0"
             schema_result = self._reader._backend.execute_spatial_query(check_query)
             available_cols = schema_result.columns
         except Exception as e:
@@ -888,7 +895,7 @@ class FIA:
                     {attr_select},
                     ROW_NUMBER() OVER (PARTITION BY p.CN ORDER BY p.CN) as rn
                 FROM PLOT p
-                JOIN ST_Read('{polygon_path}') poly
+                JOIN ST_Read('{safe_path}') poly
                 ON ST_Intersects(ST_Point(p.LON, p.LAT), poly.geom)
         """
 

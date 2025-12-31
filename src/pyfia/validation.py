@@ -78,9 +78,7 @@ def validate_domain_expression(
 
     # Check for common SQL injection patterns with word boundaries
     # Using word boundaries to avoid false positives (e.g., "UPDATED_DATE" is OK)
-    import re
-
-    dangerous_patterns = [
+    dangerous_keyword_patterns = [
         r"\bDROP\b",
         r"\bDELETE\b",
         r"\bINSERT\b",
@@ -90,15 +88,33 @@ def validate_domain_expression(
         r"\bEXEC\b",
         r"\bEXECUTE\b",
         r"\bTRUNCATE\b",
+        r"\bUNION\b",
+        r"\bINTO\b",
+        r"\bGRANT\b",
+        r"\bREVOKE\b",
     ]
     domain_upper = domain.upper()
-    for pattern in dangerous_patterns:
+    for pattern in dangerous_keyword_patterns:
         if re.search(pattern, domain_upper):
             # Extract the keyword for the error message
             keyword = pattern.replace(r"\b", "")
             raise ValueError(
                 f"{domain_type} contains potentially dangerous SQL keyword: {keyword}. "
                 f"If this is a legitimate column name, please contact support."
+            )
+
+    # Check for SQL injection syntax patterns (not column names)
+    dangerous_syntax_patterns = [
+        (r";", "semicolon (statement separator)"),
+        (r"--", "SQL comment"),
+        (r"/\*", "SQL block comment"),
+        (r"\\x[0-9a-fA-F]+", "hex escape sequence"),
+    ]
+    for pattern, description in dangerous_syntax_patterns:
+        if re.search(pattern, domain):
+            raise ValueError(
+                f"{domain_type} contains potentially dangerous SQL syntax: {description}. "
+                f"These characters are not allowed in filter expressions."
             )
 
     return domain

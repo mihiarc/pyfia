@@ -13,6 +13,8 @@ from typing import Any, Dict, Iterator, List, Optional, Union
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
 
+from pyfia.validation import validate_domain_expression, validate_sql_identifier
+
 
 class QueryResult(BaseModel):
     """Result of a database query."""
@@ -167,14 +169,22 @@ class DatabaseBackend(ABC):
         pl.DataFrame
             Polars DataFrame with the results
         """
-        # Build query
-        if columns:
-            col_str = ", ".join(columns)
-            query = f"SELECT {col_str} FROM {table_name}"
-        else:
-            query = f"SELECT * FROM {table_name}"
+        # Validate table name to prevent SQL injection
+        safe_table = validate_sql_identifier(table_name, "table name")
 
+        # Validate column names if provided
+        if columns:
+            safe_columns = [
+                validate_sql_identifier(col, "column name") for col in columns
+            ]
+            col_str = ", ".join(f'"{col}"' for col in safe_columns)
+            query = f'SELECT {col_str} FROM "{safe_table}"'
+        else:
+            query = f'SELECT * FROM "{safe_table}"'
+
+        # Validate WHERE clause if provided (prevents SQL injection)
         if where:
+            validate_domain_expression(where, "WHERE clause")
             query += f" WHERE {where}"
 
         if limit:

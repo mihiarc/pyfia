@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional
 import duckdb
 import polars as pl
 
+from pyfia.validation import validate_sql_identifier
+
 from .base import DatabaseBackend
 
 logger = logging.getLogger(__name__)
@@ -197,11 +199,15 @@ class MotherDuckBackend(DatabaseBackend):
         Returns
         -------
         str
-            Qualified table name (e.g., 'fia_reference.main.REF_SPECIES')
+            Quoted qualified table name (e.g., '"fia_reference"."main"."REF_SPECIES"')
         """
+        # Validate table name to prevent SQL injection
+        safe_table = validate_sql_identifier(table_name, "table name")
+
         if table_name in REFERENCE_TABLES:
-            return f"{REFERENCE_DATABASE}.main.{table_name}"
-        return table_name
+            # Quote all parts of the qualified name
+            return f'"{REFERENCE_DATABASE}"."main"."{safe_table}"'
+        return f'"{safe_table}"'
 
     def get_table_schema(self, table_name: str) -> Dict[str, str]:
         """

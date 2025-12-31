@@ -13,6 +13,8 @@ from typing import Any, Dict, List, Optional, Union
 import duckdb
 import polars as pl
 
+from pyfia.validation import validate_sql_identifier
+
 from .base import DatabaseBackend
 
 logger = logging.getLogger(__name__)
@@ -170,9 +172,12 @@ class DuckDBBackend(DatabaseBackend):
         if not self._connection:
             self.connect()
 
+        # Validate table name to prevent SQL injection
+        safe_table = validate_sql_identifier(table_name, "table name")
+
         try:
             result = self._connection.execute(  # type: ignore[union-attr]
-                f"DESCRIBE {table_name}"
+                f'DESCRIBE "{safe_table}"'
             ).fetchall()
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
@@ -224,9 +229,12 @@ class DuckDBBackend(DatabaseBackend):
         if not self._connection:
             self.connect()
 
+        # Validate table name to prevent SQL injection
+        safe_table = validate_sql_identifier(table_name, "table name")
+
         try:
             return self._connection.execute(  # type: ignore[union-attr, no-any-return]
-                f"DESCRIBE {table_name}"
+                f'DESCRIBE "{safe_table}"'
             ).fetchall()
         except Exception as e:
             logger.error(f"Failed to describe table {table_name}: {e}")

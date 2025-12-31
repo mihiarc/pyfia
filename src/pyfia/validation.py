@@ -1,5 +1,7 @@
 """Simple input validation for pyFIA public API functions."""
 
+import re
+from pathlib import Path
 from typing import Any, List, Optional, Union
 
 # Valid values for common parameters
@@ -154,3 +156,146 @@ def validate_mortality_measure(measure: str) -> str:
             f"Must be one of: {', '.join(sorted(valid_measures))}"
         )
     return measure
+
+
+# =============================================================================
+# SQL Security Validation Functions
+# =============================================================================
+
+# Characters that are dangerous in SQL string literals
+# These could be used for SQL injection attacks
+SQL_DANGEROUS_CHARS = re.compile(r"['\";\\]")
+
+
+def sanitize_sql_path(path: Union[str, Path]) -> str:
+    """
+    Sanitize a file path for safe use in SQL queries.
+
+    This function validates that a file path is safe to interpolate into
+    SQL queries (e.g., in ST_Read() or read_csv_auto() functions). It
+    prevents SQL injection by rejecting paths containing dangerous characters.
+
+    Parameters
+    ----------
+    path : str or Path
+        The file path to sanitize.
+
+    Returns
+    -------
+    str
+        The sanitized path string, safe for use in SQL.
+
+    Raises
+    ------
+    ValueError
+        If the path contains dangerous characters that could enable SQL injection.
+
+    Examples
+    --------
+    >>> sanitize_sql_path("/data/counties.shp")
+    '/data/counties.shp'
+    >>> sanitize_sql_path("data'; DROP TABLE PLOT; --")
+    ValueError: Path contains characters that are not allowed in SQL queries
+    """
+    path_str = str(path)
+
+    # Check for dangerous characters that could enable SQL injection
+    if SQL_DANGEROUS_CHARS.search(path_str):
+        raise ValueError(
+            f"Path contains characters that are not allowed in SQL queries: "
+            f"single quotes, double quotes, semicolons, or backslashes. "
+            f"Path: {path_str}"
+        )
+
+    # Check for SQL comment sequences
+    if "--" in path_str or "/*" in path_str:
+        raise ValueError(
+            f"Path contains SQL comment sequences (-- or /*) which are not allowed. "
+            f"Path: {path_str}"
+        )
+
+    return path_str
+
+
+# Pattern for valid SQL identifiers: alphanumeric and underscore only
+SQL_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
+
+
+def validate_sql_identifier(identifier: str, identifier_type: str = "identifier") -> str:
+    """
+    Validate that a string is a safe SQL identifier (table name, column name).
+
+    SQL identifiers must start with a letter or underscore and contain only
+    alphanumeric characters and underscores. This prevents SQL injection
+    through malicious table or column names.
+
+    Parameters
+    ----------
+    identifier : str
+        The identifier to validate.
+    identifier_type : str, default "identifier"
+        Description of the identifier type for error messages
+        (e.g., "table name", "column name").
+
+    Returns
+    -------
+    str
+        The validated identifier (unchanged if valid).
+
+    Raises
+    ------
+    ValueError
+        If the identifier contains invalid characters.
+
+    Examples
+    --------
+    >>> validate_sql_identifier("PLOT", "table name")
+    'PLOT'
+    >>> validate_sql_identifier("TREE_GRM_COMPONENT", "table name")
+    'TREE_GRM_COMPONENT'
+    >>> validate_sql_identifier("table; DROP TABLE--", "table name")
+    ValueError: Invalid table name
+    """
+    if not identifier:
+        raise ValueError(f"Empty {identifier_type} is not allowed")
+
+    if not SQL_IDENTIFIER_PATTERN.match(identifier):
+        raise ValueError(
+            f"Invalid {identifier_type}: '{identifier}'. "
+            f"Must contain only letters, numbers, and underscores, "
+            f"and must start with a letter or underscore."
+        )
+
+    return identifier
+
+
+def quote_sql_identifier(identifier: str) -> str:
+    """
+    Quote a SQL identifier for safe use in queries.
+
+    This function validates the identifier and returns it wrapped in
+    double quotes for use in SQL queries. Double-quoted identifiers
+    are treated as literal names by most SQL databases.
+
+    Parameters
+    ----------
+    identifier : str
+        The identifier to quote.
+
+    Returns
+    -------
+    str
+        The quoted identifier (e.g., '"PLOT"').
+
+    Raises
+    ------
+    ValueError
+        If the identifier contains invalid characters.
+
+    Examples
+    --------
+    >>> quote_sql_identifier("PLOT")
+    '"PLOT"'
+    """
+    validated = validate_sql_identifier(identifier)
+    return f'"{validated}"'

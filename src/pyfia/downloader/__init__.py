@@ -55,6 +55,7 @@ from pyfia.downloader.tables import (
     get_tables_for_download,
     validate_state_code,
 )
+from pyfia.validation import sanitize_sql_path, validate_sql_identifier
 
 logger = logging.getLogger(__name__)
 console = Console()
@@ -143,24 +144,34 @@ def _convert_csvs_to_duckdb(
 
             table_name = table_name.upper()
 
+            # Validate table name to prevent SQL injection
+            try:
+                safe_table = validate_sql_identifier(table_name, "table name")
+            except ValueError as e:
+                logger.warning(f"Skipping invalid table name {table_name}: {e}")
+                continue
+
+            # Sanitize CSV path for safe SQL interpolation
+            safe_csv_path = sanitize_sql_path(csv_file)
+
             if show_progress:
-                console.print(f"  Converting {table_name}...", end=" ")
+                console.print(f"  Converting {safe_table}...", end=" ")
 
             try:
                 if state_code is not None:
                     conn.execute(f"""
-                        CREATE TABLE IF NOT EXISTS {table_name} AS
+                        CREATE TABLE IF NOT EXISTS "{safe_table}" AS
                         SELECT *, {state_code} AS STATE_ADDED
-                        FROM read_csv_auto('{csv_file}', header=true, ignore_errors=true)
+                        FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
                     """)
                 else:
                     conn.execute(f"""
-                        CREATE TABLE IF NOT EXISTS {table_name} AS
-                        SELECT * FROM read_csv_auto('{csv_file}', header=true, ignore_errors=true)
+                        CREATE TABLE IF NOT EXISTS "{safe_table}" AS
+                        SELECT * FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
                     """)
 
                 row_result = conn.execute(
-                    f"SELECT COUNT(*) FROM {table_name}"
+                    f'SELECT COUNT(*) FROM "{safe_table}"'
                 ).fetchone()
                 row_count = row_result[0] if row_result else 0
                 if show_progress:
@@ -169,7 +180,7 @@ def _convert_csvs_to_duckdb(
             except Exception as e:
                 if show_progress:
                     console.print(f"[red]FAILED[/red] ({e})")
-                logger.warning(f"Failed to convert {table_name}: {e}")
+                logger.warning(f"Failed to convert {safe_table}: {e}")
 
         conn.execute("CHECKPOINT")
 
@@ -477,32 +488,44 @@ def _download_multi_state(
                         table_name = name_parts[0]
                     table_name = table_name.upper()
 
+                    # Validate table name to prevent SQL injection
                     try:
-                        # Check if table exists
+                        safe_table = validate_sql_identifier(table_name, "table name")
+                    except ValueError as e:
+                        logger.warning(
+                            f"Skipping invalid table name {table_name}: {e}"
+                        )
+                        continue
+
+                    # Sanitize CSV path for safe SQL interpolation
+                    safe_csv_path = sanitize_sql_path(csv_file)
+
+                    try:
+                        # Check if table exists (using parameterized query - safe)
                         existing_result = conn.execute(
                             "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
-                            [table_name],
+                            [safe_table],
                         ).fetchone()
                         existing = existing_result[0] if existing_result else 0
 
                         if existing > 0:
                             # Append to existing table
                             conn.execute(f"""
-                                INSERT INTO {table_name}
+                                INSERT INTO "{safe_table}"
                                 SELECT *, {state_code} AS STATE_ADDED
-                                FROM read_csv_auto('{csv_file}', header=true, ignore_errors=true)
+                                FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
                             """)
                         else:
                             # Create new table
                             conn.execute(f"""
-                                CREATE TABLE {table_name} AS
+                                CREATE TABLE "{safe_table}" AS
                                 SELECT *, {state_code} AS STATE_ADDED
-                                FROM read_csv_auto('{csv_file}', header=true, ignore_errors=true)
+                                FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
                             """)
 
                     except Exception as e:
                         logger.warning(
-                            f"Failed to import {table_name} for {state}: {e}"
+                            f"Failed to import {safe_table} for {state}: {e}"
                         )
 
         conn.execute("CHECKPOINT")

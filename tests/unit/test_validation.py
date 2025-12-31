@@ -110,6 +110,37 @@ class TestValidators:
         with pytest.raises(ValueError, match="dangerous SQL keyword: UPDATE"):
             validate_domain_expression("UPDATE SET x=1", "tree_domain")
 
+    def test_validate_domain_expression_blocks_union(self):
+        """Test that UNION keyword is blocked (data exfiltration vector)."""
+        with pytest.raises(ValueError, match="dangerous SQL keyword: UNION"):
+            validate_domain_expression("DIA > 5 UNION SELECT * FROM passwords", "tree_domain")
+
+    def test_validate_domain_expression_blocks_into(self):
+        """Test that INTO keyword is blocked."""
+        with pytest.raises(ValueError, match="dangerous SQL keyword: INTO"):
+            validate_domain_expression("SELECT * INTO outfile", "tree_domain")
+
+    def test_validate_domain_expression_blocks_grant_revoke(self):
+        """Test that GRANT/REVOKE keywords are blocked."""
+        with pytest.raises(ValueError, match="dangerous SQL keyword: GRANT"):
+            validate_domain_expression("GRANT ALL ON users", "tree_domain")
+
+        with pytest.raises(ValueError, match="dangerous SQL keyword: REVOKE"):
+            validate_domain_expression("REVOKE SELECT ON table", "tree_domain")
+
+    def test_validate_domain_expression_blocks_semicolons(self):
+        """Test that semicolons are blocked (statement separator)."""
+        with pytest.raises(ValueError, match="semicolon"):
+            validate_domain_expression("DIA > 5; SELECT 1", "tree_domain")
+
+    def test_validate_domain_expression_blocks_sql_comments(self):
+        """Test that SQL comments are blocked."""
+        with pytest.raises(ValueError, match="SQL comment"):
+            validate_domain_expression("DIA > 5 -- comment", "tree_domain")
+
+        with pytest.raises(ValueError, match="SQL block comment"):
+            validate_domain_expression("DIA > 5 /* comment */", "tree_domain")
+
     def test_validate_grp_by_valid(self):
         """Test valid grp_by values."""
         assert validate_grp_by(None) is None

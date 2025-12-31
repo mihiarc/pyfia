@@ -15,11 +15,15 @@ from pyfia import FIA, area, volume
 from pyfia.estimation.utils import _enhance_grouping_columns, format_output_columns
 
 
-def _find_database() -> Path | None:
+def _find_database() -> Path | str | None:
     """Find FIA database for tests."""
     env_path = os.getenv("PYFIA_DATABASE_PATH")
-    if env_path and Path(env_path).exists():
-        return Path(env_path)
+    if env_path:
+        # MotherDuck connection strings don't need file existence check
+        if env_path.startswith("md:") or env_path.startswith("motherduck:"):
+            return env_path
+        if Path(env_path).exists():
+            return Path(env_path)
 
     paths_to_try = [
         Path.cwd() / "data" / "georgia.duckdb",

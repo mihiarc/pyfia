@@ -99,11 +99,11 @@ def setup_grouping_columns(
     if by_land_type:
         ColumnValidator.validate_columns(
             df,
-            required_columns="landType",
+            required_columns="LAND_TYPE",
             context="land type grouping (run add_land_type_column() first)",
             raise_on_missing=True,
         )
-        group_cols.append("landType")
+        group_cols.append("LAND_TYPE")
 
     # Remove duplicates while preserving order
     seen: set[str] = set()
@@ -165,7 +165,7 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
     """
     Add land type category column for area estimation grouping.
 
-    Creates a 'landType' column based on COND_STATUS_CD and other attributes.
+    Creates a 'LAND_TYPE' column based on COND_STATUS_CD and other attributes.
 
     Parameters
     ----------
@@ -175,7 +175,7 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
     Returns
     -------
     pl.DataFrame
-        Dataframe with 'landType' column added
+        Dataframe with 'LAND_TYPE' column added
     """
     required_cols = ["COND_STATUS_CD", "SITECLCD", "RESERVCD"]
     missing_cols = [col for col in required_cols if col not in df.columns]
@@ -200,7 +200,7 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
             .then(pl.lit("Timber"))
             .otherwise(pl.lit("Non-timber forest"))
         )
-        .alias("landType")
+        .alias("LAND_TYPE")
     )
 
     return df.with_columns(land_type_expr)

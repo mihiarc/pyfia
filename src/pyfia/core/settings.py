@@ -47,6 +47,12 @@ class PyFIASettings(BaseSettings):
     chunk_size: int = Field(
         default=10000, ge=1000, description="Chunk size for batch processing"
     )
+    sql_batch_size: int = Field(
+        default=900,
+        ge=100,
+        le=2000,
+        description="Batch size for SQL IN clauses to avoid query limits",
+    )
 
     # Cache settings
     cache_enabled: bool = Field(default=True, description="Enable caching")

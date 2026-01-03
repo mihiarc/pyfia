@@ -171,41 +171,6 @@ def assign_size_class(
     return tree_df.with_columns(size_expr)
 
 
-def assign_prop_basis(
-    cond_df: pl.DataFrame,
-    macro_breakpoint_column: str = "MACRO_BREAKPOINT_DIA",
-    output_column: str = "PROP_BASIS",
-) -> pl.DataFrame:
-    """
-    Assign PROP_BASIS for condition area calculations.
-
-    Determines whether condition area should use subplot or macroplot
-    adjustment factors based on plot design.
-
-    Parameters
-    ----------
-    cond_df : pl.DataFrame
-        Condition dataframe
-    macro_breakpoint_column : str, default "MACRO_BREAKPOINT_DIA"
-        Column containing macroplot breakpoint diameter
-    output_column : str, default "PROP_BASIS"
-        Name for output column
-
-    Returns
-    -------
-    pl.DataFrame
-        Condition dataframe with PROP_BASIS column added
-    """
-    prop_basis_expr = (
-        pl.when(pl.col(macro_breakpoint_column) > 0)
-        .then(pl.lit(PlotBasis.MACROPLOT))
-        .otherwise(pl.lit(PlotBasis.SUBPLOT))
-        .alias(output_column)
-    )
-
-    return cond_df.with_columns(prop_basis_expr)
-
-
 def assign_forest_type_group(
     cond_df: pl.DataFrame,
     fortypcd_column: str = "FORTYPCD",
@@ -260,49 +225,6 @@ def assign_forest_type_group(
     )
 
     return cond_df.with_columns(forest_type_expr)
-
-
-def assign_land_use_class(
-    cond_df: pl.DataFrame,
-    cond_status_column: str = "COND_STATUS_CD",
-    reserve_column: str = "RESERVCD",
-    output_column: str = "LAND_USE_CLASS",
-) -> pl.DataFrame:
-    """
-    Assign land use classes based on condition status and reserve codes.
-
-    Parameters
-    ----------
-    cond_df : pl.DataFrame
-        Condition dataframe
-    cond_status_column : str, default "COND_STATUS_CD"
-        Column containing condition status codes
-    reserve_column : str, default "RESERVCD"
-        Column containing reserve codes
-    output_column : str, default "LAND_USE_CLASS"
-        Name for output column
-
-    Returns
-    -------
-    pl.DataFrame
-        Condition dataframe with land use class column added
-    """
-    land_use_expr = (
-        pl.when(pl.col(cond_status_column) == 1)
-        .then(
-            pl.when(pl.col(reserve_column) == 0)
-            .then(pl.lit("Timberland"))
-            .otherwise(pl.lit("Reserved Forest"))
-        )
-        .when(pl.col(cond_status_column) == 2)
-        .then(pl.lit("Other Forest"))
-        .when(pl.col(cond_status_column) == 3)
-        .then(pl.lit("Non-forest"))
-        .otherwise(pl.lit("Other/Unknown"))
-        .alias(output_column)
-    )
-
-    return cond_df.with_columns(land_use_expr)
 
 
 def assign_species_group(

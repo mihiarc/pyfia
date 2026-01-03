@@ -10,6 +10,7 @@ from typing import Dict, List, Literal, Optional, Union
 
 import polars as pl
 
+from .validation import ColumnValidator
 from ...constants.plot_design import (
     DESCRIPTIVE_SIZE_CLASSES,
     STANDARD_SIZE_CLASSES,
@@ -298,9 +299,6 @@ def add_species_info(
 
 # standardize_group_names function removed - no longer needed
 # All modules now use consistent snake_case naming
-
-
-from .validation import ColumnValidator
 
 
 def validate_grouping_columns(

@@ -164,6 +164,52 @@ class FIADataReader:
         """
         return self._backend.is_integer_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
 
+    def supports_spatial(self) -> bool:
+        """
+        Check if the backend supports spatial operations.
+
+        Returns
+        -------
+        bool
+            True if spatial queries are supported (DuckDB with spatial extension).
+        """
+        from .backends.duckdb_backend import DuckDBBackend
+
+        return isinstance(self._backend, DuckDBBackend)
+
+    def execute_spatial_query(
+        self, query: str, params: Optional[Dict] = None
+    ) -> pl.DataFrame:
+        """
+        Execute a spatial SQL query.
+
+        Parameters
+        ----------
+        query : str
+            SQL query with spatial operations.
+        params : dict, optional
+            Query parameters.
+
+        Returns
+        -------
+        pl.DataFrame
+            Query result.
+
+        Raises
+        ------
+        SpatialExtensionError
+            If the backend does not support spatial operations.
+        """
+        from .backends.duckdb_backend import DuckDBBackend
+        from .exceptions import SpatialExtensionError
+
+        if not isinstance(self._backend, DuckDBBackend):
+            raise SpatialExtensionError(
+                "Spatial operations require DuckDB backend. "
+                "SQLite does not support spatial queries."
+            )
+        return self._backend.execute_spatial_query(query, params)
+
     def _build_select_clause(
         self, table_name: str, columns: Optional[List[str]] = None
     ) -> str:
@@ -283,20 +329,16 @@ class FIADataReader:
         # Get unique plot CNs
         plot_cns = ppsa.select("PLT_CN").unique().collect()["PLT_CN"].to_list()
 
-        # Read plots
+        # Read plots using batch processing utility
+        from .utils import batch_query_by_values
+
         if plot_cns:
-            # SQLite has limits on IN clause size, so batch if needed
-            batch_size = 900
-            plot_dfs = []
-
-            for i in range(0, len(plot_cns), batch_size):
-                batch = plot_cns[i : i + batch_size]
+            def query_plots(batch: List[str]) -> pl.LazyFrame:
                 cn_str = ", ".join(f"'{cn}'" for cn in batch)
+                return self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=True)
 
-                df = self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=True)
-                plot_dfs.append(df)
-
-            plots = pl.concat(plot_dfs).collect() if plot_dfs else pl.DataFrame()
+            result = batch_query_by_values(plot_cns, query_plots)
+            plots = result.collect() if hasattr(result, "collect") else result
         else:
             plots = pl.DataFrame()
 
@@ -329,21 +371,17 @@ class FIADataReader:
         pl.DataFrame
             DataFrame with tree data.
         """
+        from .utils import batch_query_by_values
+
         if not plot_cns:
             return pl.DataFrame()
 
-        # Batch process due to SQLite IN clause limits
-        batch_size = 900
-        tree_dfs = []
-
-        for i in range(0, len(plot_cns), batch_size):
-            batch = plot_cns[i : i + batch_size]
+        def query_trees(batch: List[str]) -> pl.LazyFrame:
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
+            return self.read_table("TREE", where=f"PLT_CN IN ({cn_str})", lazy=True)
 
-            df = self.read_table("TREE", where=f"PLT_CN IN ({cn_str})", lazy=True)
-            tree_dfs.append(df)
-
-        return pl.concat(tree_dfs).collect() if tree_dfs else pl.DataFrame()
+        result = batch_query_by_values(plot_cns, query_trees)
+        return result.collect() if hasattr(result, "collect") else result
 
     def read_cond_data(self, plot_cns: List[str]) -> pl.DataFrame:
         """
@@ -359,21 +397,17 @@ class FIADataReader:
         pl.DataFrame
             DataFrame with condition data.
         """
+        from .utils import batch_query_by_values
+
         if not plot_cns:
             return pl.DataFrame()
 
-        # Batch process due to SQLite IN clause limits
-        batch_size = 900
-        cond_dfs = []
-
-        for i in range(0, len(plot_cns), batch_size):
-            batch = plot_cns[i : i + batch_size]
+        def query_conds(batch: List[str]) -> pl.LazyFrame:
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
+            return self.read_table("COND", where=f"PLT_CN IN ({cn_str})", lazy=True)
 
-            df = self.read_table("COND", where=f"PLT_CN IN ({cn_str})", lazy=True)
-            cond_dfs.append(df)
-
-        return pl.concat(cond_dfs).collect() if cond_dfs else pl.DataFrame()
+        result = batch_query_by_values(plot_cns, query_conds)
+        return result.collect() if hasattr(result, "collect") else result
 
     def read_pop_tables(self, evalid: List[int]) -> Dict[str, pl.DataFrame]:
         """

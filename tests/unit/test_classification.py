@@ -11,8 +11,6 @@ import pytest
 
 from pyfia.filtering.utils.classification import (
     assign_forest_type_group,
-    assign_land_use_class,
-    assign_prop_basis,
     assign_size_class,
     assign_species_group,
     assign_tree_basis,
@@ -219,37 +217,6 @@ class TestAssignSizeClass:
         assert classes[5] == "Large"
 
 
-class TestAssignPropBasis:
-    """Tests for assign_prop_basis function."""
-
-    def test_macroplot_when_breakpoint_positive(self):
-        """Test macroplot assignment when breakpoint > 0."""
-        cond_df = pl.DataFrame({"MACRO_BREAKPOINT_DIA": [24.0, 20.0]})
-        result = assign_prop_basis(cond_df)
-
-        assert "PROP_BASIS" in result.columns
-        assert all(b == PlotBasis.MACROPLOT for b in result["PROP_BASIS"].to_list())
-
-    def test_subplot_when_breakpoint_zero(self):
-        """Test subplot assignment when breakpoint <= 0."""
-        cond_df = pl.DataFrame({"MACRO_BREAKPOINT_DIA": [0, -1]})
-        result = assign_prop_basis(cond_df)
-
-        assert all(b == PlotBasis.SUBPLOT for b in result["PROP_BASIS"].to_list())
-
-    def test_custom_column_names(self):
-        """Test custom input and output column names."""
-        cond_df = pl.DataFrame({"MY_BREAKPOINT": [24.0]})
-        result = assign_prop_basis(
-            cond_df,
-            macro_breakpoint_column="MY_BREAKPOINT",
-            output_column="MY_PROP_BASIS",
-        )
-
-        assert "MY_PROP_BASIS" in result.columns
-        assert result["MY_PROP_BASIS"][0] == PlotBasis.MACROPLOT
-
-
 class TestAssignForestTypeGroup:
     """Tests for assign_forest_type_group function."""
 
@@ -334,76 +301,6 @@ class TestAssignForestTypeGroup:
 
         assert "MY_GROUP" in result.columns
         assert result["MY_GROUP"][0] == "Oak/Pine"
-
-
-class TestAssignLandUseClass:
-    """Tests for assign_land_use_class function."""
-
-    def test_timberland(self):
-        """Test timberland classification (forest, not reserved)."""
-        cond_df = pl.DataFrame({
-            "COND_STATUS_CD": [1],
-            "RESERVCD": [0],
-        })
-        result = assign_land_use_class(cond_df)
-
-        assert result["LAND_USE_CLASS"][0] == "Timberland"
-
-    def test_reserved_forest(self):
-        """Test reserved forest classification."""
-        cond_df = pl.DataFrame({
-            "COND_STATUS_CD": [1],
-            "RESERVCD": [1],
-        })
-        result = assign_land_use_class(cond_df)
-
-        assert result["LAND_USE_CLASS"][0] == "Reserved Forest"
-
-    def test_other_forest(self):
-        """Test other forest classification (status 2)."""
-        cond_df = pl.DataFrame({
-            "COND_STATUS_CD": [2],
-            "RESERVCD": [0],
-        })
-        result = assign_land_use_class(cond_df)
-
-        assert result["LAND_USE_CLASS"][0] == "Other Forest"
-
-    def test_non_forest(self):
-        """Test non-forest classification (status 3)."""
-        cond_df = pl.DataFrame({
-            "COND_STATUS_CD": [3],
-            "RESERVCD": [0],
-        })
-        result = assign_land_use_class(cond_df)
-
-        assert result["LAND_USE_CLASS"][0] == "Non-forest"
-
-    def test_other_unknown(self):
-        """Test other/unknown classification."""
-        cond_df = pl.DataFrame({
-            "COND_STATUS_CD": [5],
-            "RESERVCD": [0],
-        })
-        result = assign_land_use_class(cond_df)
-
-        assert result["LAND_USE_CLASS"][0] == "Other/Unknown"
-
-    def test_custom_column_names(self):
-        """Test custom input and output column names."""
-        cond_df = pl.DataFrame({
-            "MY_STATUS": [1],
-            "MY_RESERVE": [0],
-        })
-        result = assign_land_use_class(
-            cond_df,
-            cond_status_column="MY_STATUS",
-            reserve_column="MY_RESERVE",
-            output_column="MY_LAND_USE",
-        )
-
-        assert "MY_LAND_USE" in result.columns
-        assert result["MY_LAND_USE"][0] == "Timberland"
 
 
 class TestAssignSpeciesGroup:

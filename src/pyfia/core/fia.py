@@ -263,34 +263,24 @@ class FIA:
         if self.evalid and table_name in ["TREE", "COND"]:
             valid_plot_cns = self._get_valid_plot_cns()
             if valid_plot_cns:
-                # Batch the PLT_CN values to avoid SQL query limits
-                batch_size = 900
-                dfs = []
+                from .utils import batch_query_by_values
 
-                for i in range(0, len(valid_plot_cns), batch_size):
-                    batch = valid_plot_cns[i : i + batch_size]
+                def query_batch(batch: list) -> pl.LazyFrame:
                     cn_str = ", ".join(f"'{cn}'" for cn in batch)
                     plt_cn_where = f"PLT_CN IN ({cn_str})"
-
                     # Combine with base where clause if present
                     if base_where_clause:
                         where_clause = f"{base_where_clause} AND {plt_cn_where}"
                     else:
                         where_clause = plt_cn_where
-
-                    df = self._reader.read_table(
+                    return self._reader.read_table(
                         table_name,
                         columns=columns,
                         where=where_clause,
                         lazy=True,
                     )
-                    dfs.append(df)
 
-                # Concatenate all batches
-                if len(dfs) == 1:
-                    result = dfs[0]
-                else:
-                    result = pl.concat(dfs)
+                result = batch_query_by_values(valid_plot_cns, query_batch)
 
                 # Join polygon attributes for PLOT table if available
                 if table_name == "PLOT" and self._polygon_attributes is not None:
@@ -666,8 +656,6 @@ class FIA:
         ...     db.clip_by_polygon("counties.shp")
         ...     result = db.area()
         """
-        from .backends.duckdb_backend import DuckDBBackend
-
         # Validate inputs
         polygon_path = Path(polygon)
         if not polygon_path.exists():
@@ -678,7 +666,7 @@ class FIA:
             )
 
         # Ensure we're using DuckDB backend (spatial requires DuckDB)
-        if not isinstance(self._reader._backend, DuckDBBackend):
+        if not self._reader.supports_spatial():
             raise SpatialExtensionError(
                 "Spatial operations require DuckDB backend. "
                 "SQLite does not support spatial queries."
@@ -729,7 +717,7 @@ class FIA:
 
         try:
             # Execute spatial query
-            result = self._reader._backend.execute_spatial_query(query)  # type: ignore[attr-defined]
+            result = self._reader.execute_spatial_query(query)  # type: ignore[attr-defined]
 
             if result.is_empty():
                 raise NoSpatialFilterError(str(polygon_path))
@@ -837,8 +825,6 @@ class FIA:
         ...     db.intersect_polygons("regions.geojson", ["REGION", "DISTRICT"])
         ...     result = area(db, grp_by=["REGION", "DISTRICT"])
         """
-        from .backends.duckdb_backend import DuckDBBackend
-
         # Validate inputs
         polygon_path = Path(polygon)
         if not polygon_path.exists():
@@ -854,7 +840,7 @@ class FIA:
             )
 
         # Ensure we're using DuckDB backend (spatial requires DuckDB)
-        if not isinstance(self._reader._backend, DuckDBBackend):
+        if not self._reader.supports_spatial():
             raise SpatialExtensionError(
                 "Spatial operations require DuckDB backend. "
                 "SQLite does not support spatial queries."
@@ -866,7 +852,7 @@ class FIA:
         # First, check what columns exist in the polygon file
         try:
             check_query = f"SELECT * FROM ST_Read('{safe_path}') LIMIT 0"
-            schema_result = self._reader._backend.execute_spatial_query(check_query)
+            schema_result = self._reader.execute_spatial_query(check_query)
             available_cols = schema_result.columns
         except Exception as e:
             raise SpatialFileError(
@@ -917,7 +903,7 @@ class FIA:
 
         try:
             # Execute spatial join query
-            result = self._reader._backend.execute_spatial_query(query)
+            result = self._reader.execute_spatial_query(query)
 
             # Store polygon attributes
             self._polygon_attributes = result
@@ -1035,17 +1021,16 @@ class FIA:
         if self.evalid:
             # Get plot CNs efficiently
             plot_query = self.tables["PLOT"].select("CN")
-            if self.evalid:
-                evalid_str = ", ".join(str(e) for e in self.evalid)
-                ppsa = self._reader.read_table(
-                    "POP_PLOT_STRATUM_ASSGN",
-                    columns=["PLT_CN"],
-                    where=f"EVALID IN ({evalid_str})",
-                    lazy=True,
-                ).unique()
-                plot_query = plot_query.join(
-                    ppsa, left_on="CN", right_on="PLT_CN", how="inner"
-                )
+            evalid_str = ", ".join(str(e) for e in self.evalid)
+            ppsa = self._reader.read_table(
+                "POP_PLOT_STRATUM_ASSGN",
+                columns=["PLT_CN"],
+                where=f"EVALID IN ({evalid_str})",
+                lazy=True,
+            ).unique()
+            plot_query = plot_query.join(
+                ppsa, left_on="CN", right_on="PLT_CN", how="inner"
+            )
 
             # Filter trees to those plots
             trees = self.tables["TREE"].join(
@@ -1082,17 +1067,16 @@ class FIA:
         if self.evalid:
             # Get plot CNs efficiently
             plot_query = self.tables["PLOT"].select("CN")
-            if self.evalid:
-                evalid_str = ", ".join(str(e) for e in self.evalid)
-                ppsa = self._reader.read_table(
-                    "POP_PLOT_STRATUM_ASSGN",
-                    columns=["PLT_CN"],
-                    where=f"EVALID IN ({evalid_str})",
-                    lazy=True,
-                ).unique()
-                plot_query = plot_query.join(
-                    ppsa, left_on="CN", right_on="PLT_CN", how="inner"
-                )
+            evalid_str = ", ".join(str(e) for e in self.evalid)
+            ppsa = self._reader.read_table(
+                "POP_PLOT_STRATUM_ASSGN",
+                columns=["PLT_CN"],
+                where=f"EVALID IN ({evalid_str})",
+                lazy=True,
+            ).unique()
+            plot_query = plot_query.join(
+                ppsa, left_on="CN", right_on="PLT_CN", how="inner"
+            )
 
             # Filter conditions to those plots
             conds = self.tables["COND"].join(

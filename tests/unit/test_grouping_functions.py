@@ -120,7 +120,7 @@ class TestAddLandTypeColumn:
             "RESERVCD": [0],  # Not reserved
         })
         result = add_land_type_column(df)
-        assert result["landType"][0] == "Timber"
+        assert result["LAND_TYPE"][0] == "Timber"
 
     def test_forest_non_timber(self):
         """Test non-timber forest (reserved)."""
@@ -130,7 +130,7 @@ class TestAddLandTypeColumn:
             "RESERVCD": [1],  # Reserved
         })
         result = add_land_type_column(df)
-        assert result["landType"][0] == "Non-timber forest"
+        assert result["LAND_TYPE"][0] == "Non-timber forest"
 
     def test_nonforest(self):
         """Test non-forest land."""
@@ -140,7 +140,7 @@ class TestAddLandTypeColumn:
             "RESERVCD": [0],
         })
         result = add_land_type_column(df)
-        assert result["landType"][0] == "Non-forest"
+        assert result["LAND_TYPE"][0] == "Non-forest"
 
     def test_water(self):
         """Test water classification."""
@@ -150,7 +150,7 @@ class TestAddLandTypeColumn:
             "RESERVCD": [0],
         })
         result = add_land_type_column(df)
-        assert result["landType"][0] == "Water"
+        assert result["LAND_TYPE"][0] == "Water"
 
     def test_other_status(self):
         """Test other/unknown status codes."""
@@ -160,7 +160,7 @@ class TestAddLandTypeColumn:
             "RESERVCD": [0],
         })
         result = add_land_type_column(df)
-        assert result["landType"][0] == "Other"
+        assert result["LAND_TYPE"][0] == "Other"
 
     def test_missing_columns_raises_error(self):
         """Test that missing columns raise ValueError."""
@@ -644,12 +644,12 @@ class TestSetupGroupingColumns:
 
     def test_by_land_type(self):
         """Test grouping by land type."""
-        df = pl.DataFrame({"landType": ["Timber", "Non-forest"], "VALUE": [100, 200]})
+        df = pl.DataFrame({"LAND_TYPE": ["Timber", "Non-forest"], "VALUE": [100, 200]})
         result_df, group_cols = setup_grouping_columns(df, by_land_type=True)
-        assert "landType" in group_cols
+        assert "LAND_TYPE" in group_cols
 
     def test_by_land_type_missing_column(self):
-        """Test by_land_type raises error when landType missing."""
+        """Test by_land_type raises error when LAND_TYPE missing."""
         df = pl.DataFrame({"VALUE": [100]})
         with pytest.raises(ValueError):
             setup_grouping_columns(df, by_land_type=True)

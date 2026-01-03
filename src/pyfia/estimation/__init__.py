@@ -20,6 +20,19 @@ All functions follow a consistent pattern:
 
 # Import base components
 from .base import BaseEstimator
+
+# Import column resolution helpers
+from .columns import (
+    BASE_COND_COLUMNS,
+    BASE_TREE_COLUMNS,
+    BIOMASS_COLUMNS,
+    COND_GROUPING_COLUMNS,
+    TIMBER_LAND_COLUMNS,
+    TREE_GROUPING_COLUMNS,
+    VOLUME_COLUMNS,
+    get_cond_columns,
+    get_tree_columns,
+)
 from .config import (
     BiomassConfig,
     EstimatorConfig,
@@ -93,6 +106,16 @@ __all__ = [
     "BiomassConfig",
     "MortalityConfig",
     "create_config",
+    # Column resolution helpers
+    "BASE_TREE_COLUMNS",
+    "BASE_COND_COLUMNS",
+    "VOLUME_COLUMNS",
+    "BIOMASS_COLUMNS",
+    "TREE_GROUPING_COLUMNS",
+    "COND_GROUPING_COLUMNS",
+    "TIMBER_LAND_COLUMNS",
+    "get_tree_columns",
+    "get_cond_columns",
     # Utilities (for advanced users)
     "VarianceCalculator",
     "calculate_ratio_of_means_variance",

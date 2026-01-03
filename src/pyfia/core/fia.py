@@ -221,6 +221,56 @@ class FIA:
         self._valid_plot_cns = ppsa["PLT_CN"].unique().to_list()
         return self._valid_plot_cns
 
+    def _apply_spatial_filter(self, df: pl.LazyFrame, table_name: str) -> pl.LazyFrame:
+        """
+        Apply spatial filter to a LazyFrame if spatial filtering is active.
+
+        Parameters
+        ----------
+        df : pl.LazyFrame
+            The LazyFrame to filter.
+        table_name : str
+            Name of the table being filtered (e.g., 'PLOT', 'TREE', 'COND').
+
+        Returns
+        -------
+        pl.LazyFrame
+            Filtered LazyFrame if spatial filter is set, otherwise unchanged.
+        """
+        if self._spatial_plot_cns is None:
+            return df
+        if table_name == "PLOT":
+            return df.filter(pl.col("CN").is_in(self._spatial_plot_cns))
+        elif table_name in ["TREE", "COND"]:
+            return df.filter(pl.col("PLT_CN").is_in(self._spatial_plot_cns))
+        return df
+
+    def _get_evalid_filtered_plot_cns(self) -> Optional[pl.LazyFrame]:
+        """
+        Get plot CNs filtered by current EVALID, or None if no EVALID filter.
+
+        This helper is used by get_trees() and get_conditions() to filter
+        data to only plots included in the current evaluation.
+
+        Returns
+        -------
+        pl.LazyFrame or None
+            LazyFrame with plot CNs column if EVALID filter is set, else None.
+        """
+        if not self.evalid:
+            return None
+        if "PLOT" not in self.tables:
+            self.load_table("PLOT")
+        plot_query = self.tables["PLOT"].select("CN")
+        evalid_str = ", ".join(str(e) for e in self.evalid)
+        ppsa = self._reader.read_table(
+            "POP_PLOT_STRATUM_ASSGN",
+            columns=["PLT_CN"],
+            where=f"EVALID IN ({evalid_str})",
+            lazy=True,
+        ).unique()
+        return plot_query.join(ppsa, left_on="CN", right_on="PLT_CN", how="inner")
+
     def load_table(
         self,
         table_name: str,
@@ -291,15 +341,7 @@ class FIA:
                     )
 
                 # Apply spatial filter if set (clip_by_polygon)
-                if self._spatial_plot_cns is not None:
-                    if table_name == "PLOT":
-                        result = result.filter(
-                            pl.col("CN").is_in(self._spatial_plot_cns)
-                        )
-                    elif table_name in ["TREE", "COND"]:
-                        result = result.filter(
-                            pl.col("PLT_CN").is_in(self._spatial_plot_cns)
-                        )
+                result = self._apply_spatial_filter(result, table_name)
 
                 self.tables[table_name] = result
                 return self.tables[table_name]
@@ -321,11 +363,7 @@ class FIA:
             )
 
         # Apply spatial filter if set (clip_by_polygon)
-        if self._spatial_plot_cns is not None:
-            if table_name == "PLOT":
-                df = df.filter(pl.col("CN").is_in(self._spatial_plot_cns))
-            elif table_name in ["TREE", "COND"]:
-                df = df.filter(pl.col("PLT_CN").is_in(self._spatial_plot_cns))
+        df = self._apply_spatial_filter(df, table_name)
 
         self.tables[table_name] = df
         return self.tables[table_name]
@@ -1017,24 +1055,11 @@ class FIA:
         if "TREE" not in self.tables:
             self.load_table("TREE")
 
-        # If we need additional filtering by plot CNs
-        if self.evalid:
-            # Get plot CNs efficiently
-            plot_query = self.tables["PLOT"].select("CN")
-            evalid_str = ", ".join(str(e) for e in self.evalid)
-            ppsa = self._reader.read_table(
-                "POP_PLOT_STRATUM_ASSGN",
-                columns=["PLT_CN"],
-                where=f"EVALID IN ({evalid_str})",
-                lazy=True,
-            ).unique()
-            plot_query = plot_query.join(
-                ppsa, left_on="CN", right_on="PLT_CN", how="inner"
-            )
-
-            # Filter trees to those plots
+        # Filter by EVALID if set
+        evalid_plot_cns = self._get_evalid_filtered_plot_cns()
+        if evalid_plot_cns is not None:
             trees = self.tables["TREE"].join(
-                plot_query.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
+                evalid_plot_cns.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
             )
         else:
             trees = self.tables["TREE"]
@@ -1063,24 +1088,11 @@ class FIA:
         if "COND" not in self.tables:
             self.load_table("COND")
 
-        # If we need additional filtering by plot CNs
-        if self.evalid:
-            # Get plot CNs efficiently
-            plot_query = self.tables["PLOT"].select("CN")
-            evalid_str = ", ".join(str(e) for e in self.evalid)
-            ppsa = self._reader.read_table(
-                "POP_PLOT_STRATUM_ASSGN",
-                columns=["PLT_CN"],
-                where=f"EVALID IN ({evalid_str})",
-                lazy=True,
-            ).unique()
-            plot_query = plot_query.join(
-                ppsa, left_on="CN", right_on="PLT_CN", how="inner"
-            )
-
-            # Filter conditions to those plots
+        # Filter by EVALID if set
+        evalid_plot_cns = self._get_evalid_filtered_plot_cns()
+        if evalid_plot_cns is not None:
             conds = self.tables["COND"].join(
-                plot_query.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
+                evalid_plot_cns.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
             )
         else:
             conds = self.tables["COND"]

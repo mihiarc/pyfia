@@ -179,6 +179,10 @@ def assign_forest_type_group(
     """
     Assign forest type groups based on forest type codes.
 
+    .. deprecated::
+        Use `add_forest_type_group` from `grouping_functions` instead for
+        more accurate western forest type handling.
+
     Groups forest types into major categories following FIA classification.
 
     Parameters
@@ -200,31 +204,21 @@ def assign_forest_type_group(
     >>> # Add forest type groups
     >>> conds_with_groups = assign_forest_type_group(conditions)
     """
-    # Major forest type groupings based on FIA codes
-    forest_type_expr = (
-        pl.when(pl.col(fortypcd_column).is_between(100, 199))
-        .then(pl.lit("White/Red/Jack Pine"))
-        .when(pl.col(fortypcd_column).is_between(200, 299))
-        .then(pl.lit("Spruce/Fir"))
-        .when(pl.col(fortypcd_column).is_between(300, 399))
-        .then(pl.lit("Longleaf/Slash Pine"))
-        .when(pl.col(fortypcd_column).is_between(400, 499))
-        .then(pl.lit("Loblolly/Shortleaf Pine"))
-        .when(pl.col(fortypcd_column).is_between(500, 599))
-        .then(pl.lit("Oak/Pine"))
-        .when(pl.col(fortypcd_column).is_between(600, 699))
-        .then(pl.lit("Oak/Hickory"))
-        .when(pl.col(fortypcd_column).is_between(700, 799))
-        .then(pl.lit("Oak/Gum/Cypress"))
-        .when(pl.col(fortypcd_column).is_between(800, 899))
-        .then(pl.lit("Elm/Ash/Cottonwood"))
-        .when(pl.col(fortypcd_column).is_between(900, 999))
-        .then(pl.lit("Maple/Beech/Birch"))
-        .otherwise(pl.lit("Other/Unknown"))
-        .alias(output_column)
-    )
+    import warnings
 
-    return cond_df.with_columns(forest_type_expr)
+    from .grouping_functions import add_forest_type_group
+
+    warnings.warn(
+        "assign_forest_type_group is deprecated. "
+        "Use add_forest_type_group from grouping_functions instead.",
+        DeprecationWarning,
+        stacklevel=2,
+    )
+    return add_forest_type_group(
+        cond_df,
+        fortypcd_col=fortypcd_column,
+        output_col=output_column,
+    )
 
 
 def assign_species_group(

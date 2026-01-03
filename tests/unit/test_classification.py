@@ -218,89 +218,163 @@ class TestAssignSizeClass:
 
 
 class TestAssignForestTypeGroup:
-    """Tests for assign_forest_type_group function."""
+    """Tests for assign_forest_type_group function.
+
+    Note: This function is deprecated and now delegates to add_forest_type_group
+    from grouping_functions, which has more accurate western forest type handling.
+    """
+
+    def test_deprecation_warning(self):
+        """Test that deprecation warning is raised."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [100]})
+
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            assign_forest_type_group(cond_df)
+
+            assert len(w) == 1
+            assert issubclass(w[0].category, DeprecationWarning)
+            assert "deprecated" in str(w[0].message).lower()
 
     def test_white_red_jack_pine(self):
         """Test 100-199 range returns White/Red/Jack Pine."""
+        import warnings
         cond_df = pl.DataFrame({"FORTYPCD": [100, 150, 199]})
-        result = assign_forest_type_group(cond_df)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "White/Red/Jack Pine" for g in result["FOREST_TYPE_GROUP"].to_list())
 
-    def test_spruce_fir(self):
-        """Test 200-299 range returns Spruce/Fir."""
-        cond_df = pl.DataFrame({"FORTYPCD": [200, 250, 299]})
-        result = assign_forest_type_group(cond_df)
+    def test_spruce_fir_and_western_types(self):
+        """Test 200-299 range returns Spruce/Fir or western forest type variants.
 
+        Note: The new implementation has more granular western forest type handling.
+        Code 200 returns 'Douglas-fir', 250/290 return 'Spruce/Fir'.
+        """
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [250, 290]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
+
+        # These non-special codes should still return Spruce/Fir
         assert all(g == "Spruce/Fir" for g in result["FOREST_TYPE_GROUP"].to_list())
 
+    def test_douglas_fir_specific(self):
+        """Test code 200 returns Douglas-fir specifically."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [200]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
+
+        assert result["FOREST_TYPE_GROUP"][0] == "Douglas-fir"
+
     def test_longleaf_slash_pine(self):
-        """Test 300-399 range returns Longleaf/Slash Pine."""
-        cond_df = pl.DataFrame({"FORTYPCD": [300, 350, 399]})
-        result = assign_forest_type_group(cond_df)
+        """Test 300-399 range returns Longleaf/Slash Pine or western variants."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [350, 399]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "Longleaf/Slash Pine" for g in result["FOREST_TYPE_GROUP"].to_list())
 
-    def test_loblolly_shortleaf_pine(self):
-        """Test 400-499 range returns Loblolly/Shortleaf Pine."""
-        cond_df = pl.DataFrame({"FORTYPCD": [400, 450, 499]})
-        result = assign_forest_type_group(cond_df)
-
-        assert all(g == "Loblolly/Shortleaf Pine" for g in result["FOREST_TYPE_GROUP"].to_list())
-
     def test_oak_pine(self):
-        """Test 500-599 range returns Oak/Pine."""
-        cond_df = pl.DataFrame({"FORTYPCD": [500, 550, 599]})
-        result = assign_forest_type_group(cond_df)
+        """Test 400-499 range returns Oak/Pine."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [400, 450, 499]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "Oak/Pine" for g in result["FOREST_TYPE_GROUP"].to_list())
 
     def test_oak_hickory(self):
-        """Test 600-699 range returns Oak/Hickory."""
-        cond_df = pl.DataFrame({"FORTYPCD": [600, 650, 699]})
-        result = assign_forest_type_group(cond_df)
+        """Test 500-599 range returns Oak/Hickory."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [500, 550, 599]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "Oak/Hickory" for g in result["FOREST_TYPE_GROUP"].to_list())
 
     def test_oak_gum_cypress(self):
-        """Test 700-799 range returns Oak/Gum/Cypress."""
-        cond_df = pl.DataFrame({"FORTYPCD": [700, 750, 799]})
-        result = assign_forest_type_group(cond_df)
+        """Test 600-699 range returns Oak/Gum/Cypress."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [600, 650, 699]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "Oak/Gum/Cypress" for g in result["FOREST_TYPE_GROUP"].to_list())
 
     def test_elm_ash_cottonwood(self):
-        """Test 800-899 range returns Elm/Ash/Cottonwood."""
-        cond_df = pl.DataFrame({"FORTYPCD": [800, 850, 899]})
-        result = assign_forest_type_group(cond_df)
+        """Test 700-799 range returns Elm/Ash/Cottonwood."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [700, 750, 799]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "Elm/Ash/Cottonwood" for g in result["FOREST_TYPE_GROUP"].to_list())
 
     def test_maple_beech_birch(self):
-        """Test 900-999 range returns Maple/Beech/Birch."""
-        cond_df = pl.DataFrame({"FORTYPCD": [900, 950, 999]})
-        result = assign_forest_type_group(cond_df)
+        """Test 800-899 range returns Maple/Beech/Birch."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [800, 850, 899]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
 
         assert all(g == "Maple/Beech/Birch" for g in result["FOREST_TYPE_GROUP"].to_list())
 
-    def test_other_unknown(self):
-        """Test out-of-range codes return Other/Unknown."""
-        cond_df = pl.DataFrame({"FORTYPCD": [50, 1000, 0]})
-        result = assign_forest_type_group(cond_df)
+    def test_900_range_has_variants(self):
+        """Test 900-999 range has various western hardwood types.
 
-        assert all(g == "Other/Unknown" for g in result["FOREST_TYPE_GROUP"].to_list())
+        Note: The new implementation distinguishes between Aspen/Birch,
+        Alder/Maple, Western Oak, etc. in the 900 range.
+        """
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [900, 950, 999]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
+
+        groups = result["FOREST_TYPE_GROUP"].to_list()
+        # 900 should be Aspen/Birch, 950 Other Western Hardwoods, 999 Nonstocked
+        assert groups[0] == "Aspen/Birch"
+        assert groups[1] == "Other Western Hardwoods"
+        assert groups[2] == "Nonstocked"
+
+    def test_other_unknown(self):
+        """Test out-of-range codes return Other."""
+        import warnings
+        cond_df = pl.DataFrame({"FORTYPCD": [50, 1000, 0]})
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(cond_df)
+
+        # The new implementation returns "Other" for out-of-range codes
+        assert all(g == "Other" for g in result["FOREST_TYPE_GROUP"].to_list())
 
     def test_custom_column_names(self):
         """Test custom input and output column names."""
+        import warnings
         cond_df = pl.DataFrame({"MY_FORTYP": [500]})
-        result = assign_forest_type_group(
-            cond_df,
-            fortypcd_column="MY_FORTYP",
-            output_column="MY_GROUP",
-        )
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            result = assign_forest_type_group(
+                cond_df,
+                fortypcd_column="MY_FORTYP",
+                output_column="MY_GROUP",
+            )
 
         assert "MY_GROUP" in result.columns
-        assert result["MY_GROUP"][0] == "Oak/Pine"
+        assert result["MY_GROUP"][0] == "Oak/Hickory"
 
 
 class TestAssignSpeciesGroup:

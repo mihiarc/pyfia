@@ -7,12 +7,17 @@ and retrieving official population estimates for validation.
 Reference: https://apps.fs.usda.gov/fiadb-api/
 """
 
+import logging
+import random
+import time
 from dataclasses import dataclass
 from typing import Any, Dict, Optional
 
 import requests
 
 from .estimate_types import EstimateType
+
+logger = logging.getLogger(__name__)
 
 # EVALIDator API base URL
 EVALIDATOR_API_URL = "https://apps.fs.usda.gov/fiadb-api/fullreport"
@@ -47,6 +52,11 @@ class EVALIDatorClient:
     ----------
     timeout : int, optional
         Request timeout in seconds. Default is 30.
+    max_retries : int, optional
+        Maximum number of retry attempts for failed requests. Default is 3.
+    retry_delay : float, optional
+        Base delay between retries in seconds. Uses exponential backoff
+        with jitter: delay * (2^attempt) + random(0, 1). Default is 2.0.
 
     Example
     -------
@@ -55,8 +65,15 @@ class EVALIDatorClient:
     >>> print(f"Forest area: {result.estimate:,.0f} acres (SE: {result.sampling_error_pct:.1f}%)")
     """
 
-    def __init__(self, timeout: int = 30):
+    def __init__(
+        self,
+        timeout: int = 30,
+        max_retries: int = 3,
+        retry_delay: float = 2.0,
+    ):
         self.timeout = timeout
+        self.max_retries = max_retries
+        self.retry_delay = retry_delay
         self.session = requests.Session()
         self.session.headers.update({"User-Agent": "pyFIA/1.0 (validation client)"})
 
@@ -79,7 +96,7 @@ class EVALIDatorClient:
         **kwargs,
     ) -> Dict[str, Any]:
         """
-        Make a request to the EVALIDator API.
+        Make a request to the EVALIDator API with automatic retry.
 
         Parameters
         ----------
@@ -106,7 +123,7 @@ class EVALIDatorClient:
         Raises
         ------
         requests.RequestException
-            If the API request fails
+            If the API request fails after all retries
         ValueError
             If the API returns an error response
         """
@@ -119,19 +136,61 @@ class EVALIDatorClient:
             **kwargs,
         }
 
-        response = self.session.post(
-            EVALIDATOR_API_URL, data=params, timeout=self.timeout
-        )
-        response.raise_for_status()
+        last_exception: Optional[Exception] = None
 
-        data = response.json()
+        for attempt in range(self.max_retries + 1):
+            try:
+                response = self.session.post(
+                    EVALIDATOR_API_URL, data=params, timeout=self.timeout
+                )
+                response.raise_for_status()
 
-        # Check for API errors in response
-        if "error" in data:
-            raise ValueError(f"EVALIDator API error: {data['error']}")
+                # Handle empty responses (server returns 200 but no content)
+                if not response.content or not response.content.strip():
+                    raise requests.exceptions.JSONDecodeError(
+                        "Empty response from EVALIDator API",
+                        doc="",
+                        pos=0,
+                    )
 
-        result: Dict[str, Any] = data
-        return result
+                data = response.json()
+
+                # Check for API errors in response
+                if "error" in data:
+                    raise ValueError(f"EVALIDator API error: {data['error']}")
+
+                result: Dict[str, Any] = data
+                return result
+
+            except (
+                requests.exceptions.ConnectionError,
+                requests.exceptions.Timeout,
+                requests.exceptions.JSONDecodeError,
+            ) as e:
+                last_exception = e
+                if attempt < self.max_retries:
+                    # Exponential backoff with jitter
+                    delay = self.retry_delay * (2**attempt) + random.random()
+                    logger.warning(
+                        "EVALIDator request failed (attempt %d/%d): %s. "
+                        "Retrying in %.1f seconds...",
+                        attempt + 1,
+                        self.max_retries + 1,
+                        str(e)[:100],
+                        delay,
+                    )
+                    time.sleep(delay)
+                else:
+                    logger.error(
+                        "EVALIDator request failed after %d attempts: %s",
+                        self.max_retries + 1,
+                        str(e),
+                    )
+
+        # If we get here, all retries failed
+        if last_exception is not None:
+            raise last_exception
+        raise requests.exceptions.RequestException("Request failed after retries")
 
     def _parse_njson_response(
         self,

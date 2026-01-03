@@ -199,10 +199,15 @@ def fia_db():
 
 @pytest.fixture(scope="module")
 def evalidator_client():
-    """Create EVALIDator client with extended timeout for validation tests."""
+    """Create EVALIDator client with extended timeout and retry for validation tests.
+
+    The EVALIDator API is occasionally unstable, returning empty responses,
+    connection resets, or timeouts. This fixture configures aggressive retry
+    settings to handle transient failures gracefully.
+    """
     from pyfia.evalidator.client import EVALIDatorClient
 
-    return EVALIDatorClient(timeout=120)
+    return EVALIDatorClient(timeout=120, max_retries=5, retry_delay=3.0)
 
 
 @pytest.fixture(scope="module", params=list(STATES.keys()))

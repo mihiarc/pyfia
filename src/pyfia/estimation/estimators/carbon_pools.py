@@ -20,7 +20,7 @@ import polars as pl
 from ...core import FIA
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..variance import calculate_ratio_variance
+from ..variance import calculate_domain_total_variance
 
 # Unit conversion constant
 # CARBON_AG and CARBON_BG are stored in pounds in the FIA database
@@ -148,7 +148,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
         Implements FIA's design-based estimation methodology:
         Stage 1: Aggregate trees to plot-condition level
-        Stage 2: Apply expansion factors and calculate ratio-of-means
+        Stage 2: Apply expansion factors and calculate population totals
         """
         # Validate required columns exist
         data_schema = data.collect_schema()
@@ -205,12 +205,15 @@ class CarbonPoolEstimator(BaseEstimator):
 
     def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """
-        Calculate variance for carbon estimates using proper ratio estimation formula.
+        Calculate variance for carbon estimates using domain total variance formula.
 
-        Carbon estimation uses ratio-of-means: R = Y/X where Y is carbon and X is area.
-        The variance formula accounts for covariance between numerator and denominator.
+        Implements the stratified domain total variance formula from
+        Bechtold & Patterson (2005):
 
-        Following Bechtold & Patterson (2005) methodology for stratified sampling.
+        V(Ŷ) = Σ_h W_h² × s²_yh × n_h
+
+        Where W_h is the stratum expansion factor (EXPNS), s²_yh is the sample
+        variance within stratum h, and n_h is the number of plots in stratum h.
 
         Raises
         ------
@@ -299,11 +302,20 @@ class CarbonPoolEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    carb_stats = calculate_ratio_variance(all_plots_group, "y_carb_i")
+                    carb_stats = calculate_domain_total_variance(
+                        all_plots_group, "y_carb_i"
+                    )
+                    # Calculate total area for per-acre SE
+                    total_area = (
+                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                    ).sum()
+                    se_acre = (
+                        carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
                     variance_results.append(
                         {
                             **group_dict,
-                            "CARBON_ACRE_SE": carb_stats["se_acre"],
+                            "CARBON_ACRE_SE": se_acre,
                             "CARBON_TOTAL_SE": carb_stats["se_total"],
                         }
                     )
@@ -322,11 +334,14 @@ class CarbonPoolEstimator(BaseEstimator):
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
             # No grouping, calculate overall variance
-            carb_stats = calculate_ratio_variance(plot_data, "y_carb_i")
+            carb_stats = calculate_domain_total_variance(plot_data, "y_carb_i")
+            # Calculate total area for per-acre SE
+            total_area = (plot_data["EXPNS"] * plot_data["x_i"]).sum()
+            se_acre = carb_stats["se_total"] / total_area if total_area > 0 else 0.0
 
             results = results.with_columns(
                 [
-                    pl.lit(carb_stats["se_acre"]).alias("CARBON_ACRE_SE"),
+                    pl.lit(se_acre).alias("CARBON_ACRE_SE"),
                     pl.lit(carb_stats["se_total"]).alias("CARBON_TOTAL_SE"),
                 ]
             )

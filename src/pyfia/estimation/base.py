@@ -942,7 +942,6 @@ class BaseEstimator(ABC):
         group_cols: List[str],
         metric_mappings: Dict[str, tuple[str, str]],
         y_col_alias: str = "y_i",
-        use_domain_total_variance: bool = False,
     ) -> pl.DataFrame:
         """
         Calculate variance for grouped estimates using vectorized operations.
@@ -950,6 +949,9 @@ class BaseEstimator(ABC):
         This method computes variance for all groups in a single pass using
         Polars group_by operations, avoiding the N+1 query pattern of iterating
         through groups individually.
+
+        Implements the domain total variance formula from Bechtold & Patterson (2005):
+        V(Ŷ) = Σ_h W_h² × s²_yh × n_h
 
         Parameters
         ----------
@@ -964,20 +966,13 @@ class BaseEstimator(ABC):
             e.g., {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
         y_col_alias : str, default "y_i"
             Alias for the y column in plot-level aggregation
-        use_domain_total_variance : bool, default False
-            If True, use domain total variance formula V(Ŷ) = Σ_h w_h² × s²_yh × n_h.
-            If False, use ratio-of-means variance formula which includes covariance terms.
-            EVALIDator uses domain total variance for tree-based estimates.
 
         Returns
         -------
         pl.DataFrame
             Results with variance columns added
         """
-        from .variance import (
-            calculate_grouped_domain_total_variance,
-            calculate_grouped_ratio_variance,
-        )
+        from .variance import calculate_grouped_domain_total_variance
 
         # Get the first metric column for aggregation
         metric_col = list(metric_mappings.keys())[0]
@@ -1046,24 +1041,14 @@ class BaseEstimator(ABC):
             ])
 
         # Step 5: Calculate variance for all groups in one vectorized operation
-        if use_domain_total_variance:
-            variance_df = calculate_grouped_domain_total_variance(
-                all_plots_with_data,
-                group_cols=valid_group_cols,
-                y_col=y_col_alias,
-                x_col="x_i",
-                stratum_col="STRATUM_CN",
-                weight_col="EXPNS",
-            )
-        else:
-            variance_df = calculate_grouped_ratio_variance(
-                all_plots_with_data,
-                group_cols=valid_group_cols,
-                y_col=y_col_alias,
-                x_col="x_i",
-                stratum_col="STRATUM_CN",
-                weight_col="EXPNS",
-            )
+        variance_df = calculate_grouped_domain_total_variance(
+            all_plots_with_data,
+            group_cols=valid_group_cols,
+            y_col=y_col_alias,
+            x_col="x_i",
+            stratum_col="STRATUM_CN",
+            weight_col="EXPNS",
+        )
 
         # Step 6: Rename variance columns to match expected output
         # Map generic variance columns to metric-specific names

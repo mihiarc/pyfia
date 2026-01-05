@@ -58,7 +58,7 @@ class CarbonPoolEstimator(BaseEstimator):
         - variance : bool - Calculate variance estimates
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict):
+    def __init__(self, db: Union[str, FIA], config: dict) -> None:
         """Initialize with storage for variance calculation."""
         super().__init__(db, config)
         self.plot_tree_data: Optional[pl.DataFrame] = None

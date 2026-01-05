@@ -66,7 +66,7 @@ class AreaChangeEstimator(BaseEstimator):
         - Loss: Previous COND_STATUS_CD == 1, Current COND_STATUS_CD != 1
     """
 
-    def __init__(self, db: FIA, config: dict):
+    def __init__(self, db: Union[str, FIA], config: dict) -> None:
         """Initialize with storage for variance calculation."""
         super().__init__(db, config)
         self.plot_change_data: Optional[pl.DataFrame] = None

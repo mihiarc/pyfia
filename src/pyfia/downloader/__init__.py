@@ -177,7 +177,7 @@ def _convert_csvs_to_duckdb(
                 if show_progress:
                     console.print(f"[green]{row_count:,} rows[/green]")
 
-            except Exception as e:
+            except duckdb.Error as e:
                 if show_progress:
                     console.print(f"[red]FAILED[/red] ({e})")
                 logger.warning(f"Failed to convert {safe_table}: {e}")
@@ -523,7 +523,7 @@ def _download_multi_state(
                                 FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
                             """)
 
-                    except Exception as e:
+                    except duckdb.Error as e:
                         logger.warning(
                             f"Failed to import {safe_table} for {state}: {e}"
                         )

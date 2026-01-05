@@ -92,7 +92,7 @@ class MotherDuckBackend(DatabaseBackend):
 
             # Attach the shared reference database for cross-database queries
             self._attach_reference_database()
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Failed to connect to MotherDuck: {e}")
             raise
 
@@ -117,7 +117,7 @@ class MotherDuckBackend(DatabaseBackend):
                 # Attach the reference database
                 self._connection.execute(f"ATTACH 'md:{REFERENCE_DATABASE}'")
                 logger.info(f"Attached shared reference database: {REFERENCE_DATABASE}")
-        except Exception as e:
+        except duckdb.Error as e:
             # Reference database attachment is optional - log warning but don't fail
             logger.warning(
                 f"Could not attach reference database '{REFERENCE_DATABASE}': {e}. "
@@ -131,7 +131,7 @@ class MotherDuckBackend(DatabaseBackend):
                 self._connection.close()
                 self._connection = None
                 logger.info("Disconnected from MotherDuck database")
-            except Exception as e:
+            except duckdb.Error as e:
                 logger.error(f"Error closing MotherDuck connection: {e}")
 
     def execute_query(
@@ -180,7 +180,7 @@ class MotherDuckBackend(DatabaseBackend):
 
             return df
 
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Query execution failed: {e}")
             logger.debug(f"Query: {query}")
             if params:
@@ -238,7 +238,7 @@ class MotherDuckBackend(DatabaseBackend):
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
             return schema
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Failed to get schema for table {table_name}: {e}")
             raise
 
@@ -273,7 +273,7 @@ class MotherDuckBackend(DatabaseBackend):
                     [table_name],
                 ).fetchone()
             return result[0] > 0 if result else False
-        except Exception:
+        except duckdb.Error:
             return False
 
     def describe_table(self, table_name: str) -> List[tuple]:
@@ -299,7 +299,7 @@ class MotherDuckBackend(DatabaseBackend):
             return self._connection.execute(  # type: ignore[union-attr, no-any-return]
                 f"DESCRIBE {qualified_name}"
             ).fetchall()
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Failed to describe table {table_name}: {e}")
             raise
 

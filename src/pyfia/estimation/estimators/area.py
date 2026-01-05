@@ -4,11 +4,19 @@ Area estimation for FIA data.
 Simple, straightforward implementation without unnecessary abstractions.
 """
 
+import re
+import warnings
 from typing import Dict, List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
+from ...validation import (
+    validate_boolean,
+    validate_domain_expression,
+    validate_grp_by,
+    validate_land_type,
+)
 from ..base import BaseEstimator
 from ..tree_expansion import apply_area_adjustment_factors
 from ..utils import format_output_columns
@@ -22,7 +30,7 @@ class AreaEstimator(BaseEstimator):
     abstractions or deep inheritance hierarchies.
     """
 
-    def __init__(self, db, config):
+    def __init__(self, db: Union[str, FIA], config: dict) -> None:
         """Initialize with storage for variance calculation."""
         super().__init__(db, config)
         self.plot_condition_data = None  # Store for variance calculation
@@ -53,8 +61,6 @@ class AreaEstimator(BaseEstimator):
         if area_domain:
             # Parse domain string to extract column names
             # Simple extraction - could be enhanced with proper parser
-            import re
-
             # Exclude SQL keywords and operators
             sql_keywords = {
                 "AND",
@@ -774,14 +780,6 @@ def area(
     ...     land_type="forest"
     ... )
     """
-    # Import validation functions
-    from ...validation import (
-        validate_boolean,
-        validate_domain_expression,
-        validate_grp_by,
-        validate_land_type,
-    )
-
     # Validate inputs
     land_type = validate_land_type(land_type)
     grp_by = validate_grp_by(grp_by)
@@ -801,8 +799,6 @@ def area(
     # CRITICAL: If no EVALID is set, automatically select most recent EXPALL
     # This prevents massive overcounting from including all historical evaluations
     if db.evalid is None:
-        import warnings
-
         warnings.warn(
             "No EVALID specified. Automatically selecting most recent EXPALL evaluations. "
             "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling area()."

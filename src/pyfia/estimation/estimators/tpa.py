@@ -25,7 +25,7 @@ class TPAEstimator(BaseEstimator):
     Estimates tree density (TPA) and basal area per acre (BAA).
     """
 
-    def __init__(self, db, config):
+    def __init__(self, db: Union[str, "FIA"], config: dict) -> None:
         """Initialize with storage for variance calculation."""
         super().__init__(db, config)
         self.plot_tree_data = None  # Store for variance calculation

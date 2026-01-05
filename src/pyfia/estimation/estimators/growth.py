@@ -246,7 +246,8 @@ class GrowthEstimator(GRMBaseEstimator):
 
         if area_domain:
             # apply_area_filters expects DataFrame, collect and convert back
-            data_df = apply_area_filters(data.collect(), area_domain)
+            # NOTE: Must use keyword argument - positional would map to land_type!
+            data_df = apply_area_filters(data.collect(), area_domain=area_domain)
             data = data_df.lazy()
 
         if tree_domain:

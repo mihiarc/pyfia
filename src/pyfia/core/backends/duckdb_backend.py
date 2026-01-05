@@ -85,7 +85,7 @@ class DuckDBBackend(DatabaseBackend):
         try:
             self._connection = duckdb.connect(**connect_kwargs)  # type: ignore[arg-type]
             logger.info(f"Connected to DuckDB database: {self.db_path}")
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Failed to connect to DuckDB: {e}")
             raise
 
@@ -96,7 +96,7 @@ class DuckDBBackend(DatabaseBackend):
                 self._connection.close()
                 self._connection = None
                 logger.info("Disconnected from DuckDB database")
-            except Exception as e:
+            except duckdb.Error as e:
                 logger.error(f"Error closing DuckDB connection: {e}")
 
     def execute_query(
@@ -145,7 +145,7 @@ class DuckDBBackend(DatabaseBackend):
 
             return df
 
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Query execution failed: {e}")
             logger.debug(f"Query: {query}")
             if params:
@@ -182,7 +182,7 @@ class DuckDBBackend(DatabaseBackend):
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
             return schema
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Failed to get schema for table {table_name}: {e}")
             raise
 
@@ -209,7 +209,7 @@ class DuckDBBackend(DatabaseBackend):
                 [table_name],
             ).fetchone()
             return result[0] > 0 if result else False
-        except Exception:
+        except duckdb.Error:
             return False
 
     def describe_table(self, table_name: str) -> List[tuple]:
@@ -236,7 +236,7 @@ class DuckDBBackend(DatabaseBackend):
             return self._connection.execute(  # type: ignore[union-attr, no-any-return]
                 f'DESCRIBE "{safe_table}"'
             ).fetchall()
-        except Exception as e:
+        except duckdb.Error as e:
             logger.error(f"Failed to describe table {table_name}: {e}")
             raise
 
@@ -406,7 +406,7 @@ class DuckDBBackend(DatabaseBackend):
             self._connection.execute("LOAD spatial")  # type: ignore[union-attr]
             self._spatial_loaded = True
             logger.info("DuckDB spatial extension loaded successfully")
-        except Exception as e:
+        except duckdb.Error as e:
             from ..exceptions import SpatialExtensionError
 
             logger.error(f"Failed to load spatial extension: {e}")

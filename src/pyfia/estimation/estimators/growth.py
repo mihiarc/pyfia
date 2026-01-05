@@ -208,8 +208,10 @@ class GrowthEstimator(GRMBaseEstimator):
         if "BEGINEND" not in self.db.tables:
             try:
                 self.db.load_table("BEGINEND")
-            except Exception:
+            except (KeyError, ValueError):
                 # BEGINEND may not exist in some databases (e.g., MotherDuck)
+                # KeyError: table not found in database
+                # ValueError: table loading validation error
                 # Create it dynamically - it's just a 2-row reference table
                 pass
 
@@ -254,7 +256,8 @@ class GrowthEstimator(GRMBaseEstimator):
             try:
                 if "DIA_MIDPT >= 5.0" in tree_domain:
                     data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
-            except Exception:
+            except pl.exceptions.ColumnNotFoundError:
+                # DIA_MIDPT column may not exist in some data configurations
                 pass
 
         # Filter to records with non-null TPA_UNADJ

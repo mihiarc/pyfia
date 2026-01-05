@@ -74,7 +74,9 @@ class FIADataReader:
         try:
             if hasattr(self, "_backend") and self._backend:
                 self._backend.disconnect()
-        except Exception:
+        except (AttributeError, RuntimeError):
+            # AttributeError: backend may not be fully initialized
+            # RuntimeError: can occur during interpreter shutdown
             # Avoid raising during garbage collection
             pass
 

@@ -61,8 +61,14 @@ class DomainExpressionParser:
 
         try:
             return pl.sql_expr(domain_expr)
-        except Exception as e:
-            # Provide consistent error message format
+        except (
+            pl.exceptions.ComputeError,
+            pl.exceptions.InvalidOperationError,
+            pl.exceptions.SQLInterfaceError,
+        ) as e:
+            # pl.sql_expr raises ComputeError for invalid SQL syntax
+            # InvalidOperationError for unsupported operations
+            # SQLInterfaceError for SQL parsing errors
             raise ValueError(
                 f"Invalid {domain_type} domain expression: {domain_expr}"
             ) from e

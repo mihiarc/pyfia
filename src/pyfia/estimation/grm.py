@@ -175,7 +175,7 @@ def load_grm_component(
     if "TREE_GRM_COMPONENT" not in db.tables:
         try:
             db.load_table("TREE_GRM_COMPONENT")
-        except Exception as e:
+        except (KeyError, ValueError) as e:
             raise ValueError(f"TREE_GRM_COMPONENT table not found: {e}")
 
     grm_component = db.tables["TREE_GRM_COMPONENT"]
@@ -224,7 +224,7 @@ def load_grm_midpt(
     if "TREE_GRM_MIDPT" not in db.tables:
         try:
             db.load_table("TREE_GRM_MIDPT")
-        except Exception as e:
+        except (KeyError, ValueError) as e:
             raise ValueError(f"TREE_GRM_MIDPT table not found: {e}")
 
     grm_midpt = db.tables["TREE_GRM_MIDPT"]
@@ -274,7 +274,7 @@ def load_grm_begin(
     if "TREE_GRM_BEGIN" not in db.tables:
         try:
             db.load_table("TREE_GRM_BEGIN")
-        except Exception as e:
+        except (KeyError, ValueError) as e:
             raise ValueError(f"TREE_GRM_BEGIN table not found: {e}")
 
     grm_begin = db.tables["TREE_GRM_BEGIN"]

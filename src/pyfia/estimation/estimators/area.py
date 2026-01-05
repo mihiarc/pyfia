@@ -155,14 +155,26 @@ class AreaEstimator(BaseEstimator):
             # "all" means everything is in the domain
             data = data.with_columns([pl.lit(1.0).alias("DOMAIN_IND")])
 
-        # Apply area domain filter
-        if self.config.get("area_domain"):
-            # This would use the domain parser from utils
-            # For now, simplified example:
-            domain_str = self.config["area_domain"]
-            if "STDAGE > " in domain_str:
-                age_threshold = int(domain_str.split(">")[1].strip())
-                data = data.filter(pl.col("STDAGE") > age_threshold)
+        # Apply area domain filter using centralized parser
+        area_domain = self.config.get("area_domain")
+        if area_domain:
+            from ...filtering.core.parser import DomainExpressionParser
+
+            # For area estimation with domain indicators, we need to incorporate
+            # the area_domain into the DOMAIN_IND rather than filtering rows.
+            # This ensures proper variance calculation by keeping all plots.
+            # The area_domain condition is ANDed with the existing land_type indicator.
+            area_domain_expr = DomainExpressionParser.parse(area_domain, "area")
+            data = data.with_columns(
+                [
+                    pl.when(pl.col("DOMAIN_IND") == 1.0)
+                    .then(
+                        pl.when(area_domain_expr).then(1.0).otherwise(0.0)
+                    )
+                    .otherwise(0.0)
+                    .alias("DOMAIN_IND")
+                ]
+            )
 
         return data
 

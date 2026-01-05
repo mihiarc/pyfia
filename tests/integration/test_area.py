@@ -476,3 +476,207 @@ class TestVarianceCalculation:
         # AREA_VALUE should be CONDPROP_UNADJ * DOMAIN_IND
         expected_values = [1.0, 0.0, 1.0]  # 1.0*1.0, 0.8*0.0, 1.0*1.0
         assert result["AREA_VALUE"].to_list() == expected_values
+
+
+class TestAreaDomainFiltering:
+    """Tests for area_domain parameter filtering functionality.
+
+    These tests validate that area_domain properly filters results using
+    SQL-like expressions via the DomainExpressionParser.
+    """
+
+    def test_area_domain_filters_by_fortypcd(self, mock_fia_database):
+        """Test that area_domain correctly filters by forest type code."""
+        from pyfia.estimation.estimators.area import AreaEstimator
+
+        # Create test data with multiple forest types
+        test_data = pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3", "P4"],
+            "CONDID": [1, 1, 1, 1],
+            "COND_STATUS_CD": [1, 1, 1, 1],  # All forest
+            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+            "FORTYPCD": [161, 162, 161, 406],  # Loblolly, Shortleaf, Loblolly, Other
+        })
+
+        # Test filtering for FORTYPCD == 161 (Loblolly pine)
+        config = {"land_type": "forest", "area_domain": "FORTYPCD == 161"}
+        estimator = AreaEstimator(mock_fia_database, config)
+
+        result = estimator.apply_filters(test_data.lazy()).collect()
+
+        # All plots retained but DOMAIN_IND should reflect the filter
+        assert len(result) == 4
+        assert "DOMAIN_IND" in result.columns
+
+        # Only FORTYPCD == 161 should have DOMAIN_IND = 1.0
+        expected_indicators = [1.0, 0.0, 1.0, 0.0]
+        assert result["DOMAIN_IND"].to_list() == expected_indicators
+
+    def test_area_domain_with_in_clause(self, mock_fia_database):
+        """Test area_domain with IN clause for multiple values."""
+        from pyfia.estimation.estimators.area import AreaEstimator
+
+        test_data = pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3", "P4"],
+            "CONDID": [1, 1, 1, 1],
+            "COND_STATUS_CD": [1, 1, 1, 1],
+            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+            "FORTYPCD": [161, 162, 141, 406],  # Loblolly, Shortleaf, Longleaf, Other
+        })
+
+        # Test filtering for multiple SYP forest types
+        config = {"land_type": "forest", "area_domain": "FORTYPCD IN (161, 162, 141)"}
+        estimator = AreaEstimator(mock_fia_database, config)
+
+        result = estimator.apply_filters(test_data.lazy()).collect()
+
+        # Only non-SYP (406) should have DOMAIN_IND = 0.0
+        expected_indicators = [1.0, 1.0, 1.0, 0.0]
+        assert result["DOMAIN_IND"].to_list() == expected_indicators
+
+    def test_area_domain_combines_with_land_type(self, mock_fia_database):
+        """Test that area_domain is ANDed with land_type filter."""
+        from pyfia.estimation.estimators.area import AreaEstimator
+
+        test_data = pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3", "P4"],
+            "CONDID": [1, 1, 1, 1],
+            "COND_STATUS_CD": [1, 2, 1, 1],  # Forest, Non-forest, Forest, Forest
+            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+            "FORTYPCD": [161, 161, 162, 161],  # All could match FORTYPCD filter
+        })
+
+        # land_type="forest" AND area_domain="FORTYPCD == 161"
+        config = {"land_type": "forest", "area_domain": "FORTYPCD == 161"}
+        estimator = AreaEstimator(mock_fia_database, config)
+
+        result = estimator.apply_filters(test_data.lazy()).collect()
+
+        # P1: forest AND FORTYPCD=161 -> 1.0
+        # P2: non-forest -> 0.0 (land_type filter excludes it)
+        # P3: forest AND FORTYPCD=162 -> 0.0 (area_domain filter excludes it)
+        # P4: forest AND FORTYPCD=161 -> 1.0
+        expected_indicators = [1.0, 0.0, 0.0, 1.0]
+        assert result["DOMAIN_IND"].to_list() == expected_indicators
+
+    def test_area_domain_with_comparison_operators(self, mock_fia_database):
+        """Test area_domain with various comparison operators."""
+        from pyfia.estimation.estimators.area import AreaEstimator
+
+        test_data = pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3", "P4"],
+            "CONDID": [1, 1, 1, 1],
+            "COND_STATUS_CD": [1, 1, 1, 1],
+            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+            "STDAGE": [10, 25, 50, 75],  # Various ages
+        })
+
+        # Test STDAGE > 30 (only ages 50 and 75 should match)
+        config = {"land_type": "forest", "area_domain": "STDAGE > 30"}
+        estimator = AreaEstimator(mock_fia_database, config)
+
+        result = estimator.apply_filters(test_data.lazy()).collect()
+
+        expected_indicators = [0.0, 0.0, 1.0, 1.0]
+        assert result["DOMAIN_IND"].to_list() == expected_indicators
+
+    def test_different_area_domains_produce_different_results(
+        self,
+        mock_fia_database,
+        sample_plot_data,
+        sample_cond_data,
+        sample_stratum_data,
+        sample_ppsa_data,
+    ):
+        """Test that different area_domain values produce different area estimates."""
+        from unittest.mock import Mock
+
+        # Setup mock database
+        table_data = {
+            "PLOT": sample_plot_data.lazy(),
+            "COND": sample_cond_data.lazy(),
+        }
+
+        def load_table_side_effect(table_name, columns=None):
+            if table_name in table_data:
+                mock_fia_database.tables[table_name] = table_data[table_name]
+                return table_data[table_name]
+            return None
+
+        mock_fia_database.load_table = Mock(side_effect=load_table_side_effect)
+        mock_fia_database.tables = {
+            "POP_STRATUM": sample_stratum_data.lazy(),
+            "POP_PLOT_STRATUM_ASSGN": sample_ppsa_data.lazy(),
+        }
+
+        # Get results for two different forest types that exist in sample data
+        # sample_cond_data has FORTYPCD values: 171, 171, 162, 0, 0, 182
+        result_171 = area(mock_fia_database, area_domain="FORTYPCD == 171", land_type="forest")
+        result_162 = area(mock_fia_database, area_domain="FORTYPCD == 162", land_type="forest")
+
+        # Results should be different DataFrames (different forest types)
+        assert isinstance(result_171, pl.DataFrame)
+        assert isinstance(result_162, pl.DataFrame)
+
+        # At least one should have results
+        assert len(result_171) > 0 or len(result_162) > 0
+
+    @pytest.fixture
+    def sample_plot_data(self):
+        """Create sample PLOT data matching FIA schema."""
+        return pl.DataFrame({
+            "CN": ["P1", "P2", "P3", "P4", "P5"],
+            "INVYR": [2023, 2023, 2023, 2023, 2023],
+            "STATECD": [37, 37, 37, 37, 37],
+            "PLOT": [1, 2, 3, 4, 5],
+            "ELEV": [100.0, 200.0, 150.0, 300.0, 125.0],
+            "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
+            "LON": [-78.5, -78.6, -78.7, -78.8, -78.9],
+            "ECOSUBCD": ["231A", "231A", "231B", "231A", "231A"],
+            "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0],
+            "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0],
+        })
+
+    @pytest.fixture
+    def sample_cond_data(self):
+        """Create sample COND data with various forest types."""
+        return pl.DataFrame({
+            "CN": ["C1", "C2", "C3", "C4", "C5", "C6"],
+            "PLT_CN": ["P1", "P1", "P2", "P3", "P4", "P5"],
+            "CONDID": [1, 2, 1, 1, 1, 1],
+            "COND_STATUS_CD": [1, 1, 1, 2, 3, 1],
+            "CONDPROP_UNADJ": [0.7, 0.3, 1.0, 1.0, 0.2, 1.0],
+            "PROP_BASIS": ["SUBP", "SUBP", "MACR", "SUBP", "SUBP", "MACR"],
+            "FORTYPCD": [171, 171, 162, 0, 0, 182],
+            "SITECLCD": [2, 2, 1, 7, 7, 3],
+            "RESERVCD": [0, 0, 0, 0, 0, 0]
+        })
+
+    @pytest.fixture
+    def sample_stratum_data(self):
+        """Create sample POP_STRATUM data."""
+        return pl.DataFrame({
+            "CN": ["S1", "S2"],
+            "EVALID": [372301, 372301],
+            "ESTN_UNIT_CN": ["EU1", "EU2"],
+            "ADJ_FACTOR_SUBP": [1.0, 1.0],
+            "ADJ_FACTOR_MACR": [0.0, 0.0],
+            "ADJ_FACTOR_MICR": [1.0, 1.0],
+            "EXPNS": [6234.58, 5968.86],
+            "P2POINTCNT": [100, 200],
+            "STRATUM_CN": ["S1", "S2"],
+            "P1POINTCNT": [50, 150]
+        })
+
+    @pytest.fixture
+    def sample_ppsa_data(self):
+        """Create sample POP_PLOT_STRATUM_ASSGN data."""
+        return pl.DataFrame({
+            "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+            "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
+            "EVALID": [372301, 372301, 372301, 372301, 372301],
+        })

@@ -8,7 +8,7 @@ like size class, species, forest type, and ownership.
 import polars as pl
 import pytest
 
-from pyfia.filtering.utils.grouping_functions import (
+from pyfia.filtering.utils import (
     add_forest_type_group,
     add_forest_type_group_code,
     add_land_type_column,

@@ -3,7 +3,7 @@
 import pytest
 import polars as pl
 
-from pyfia.filtering.core.parser import DomainExpressionParser
+from pyfia.filtering.parser import DomainExpressionParser
 
 
 class TestDomainExpressionParserParse:

@@ -9,7 +9,7 @@ forest type groupings.
 import polars as pl
 import pytest
 
-from pyfia.filtering.utils.classification import (
+from pyfia.filtering.utils import (
     assign_forest_type_group,
     assign_size_class,
     assign_species_group,

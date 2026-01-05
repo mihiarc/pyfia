@@ -6,7 +6,7 @@ all domain expression parsing throughout the pyFIA library, eliminating
 code duplication between filters and estimation modules.
 """
 
-from typing import Optional, TypeVar
+from typing import List, Optional, Tuple, TypeVar
 
 import polars as pl
 
@@ -158,8 +158,8 @@ class DomainExpressionParser:
     def validate_expression(
         domain_expr: str,
         domain_type: str = "domain",
-        available_columns: Optional[list] = None,
-    ) -> tuple[bool, Optional[str]]:
+        available_columns: Optional[List[str]] = None,
+    ) -> Tuple[bool, Optional[str]]:
         """
         Validate a domain expression without applying it.
 
@@ -214,7 +214,7 @@ class DomainExpressionParser:
 
     @staticmethod
     def combine_expressions(
-        expressions: list[str], operator: str = "AND", domain_type: str = "domain"
+        expressions: List[str], operator: str = "AND", domain_type: str = "domain"
     ) -> pl.Expr:
         """
         Combine multiple domain expressions with a logical operator.

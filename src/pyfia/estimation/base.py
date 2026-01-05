@@ -8,7 +8,7 @@ straightforward approach without unnecessary abstractions.
 import logging
 from abc import ABC, abstractmethod
 from functools import lru_cache
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import polars as pl
 
@@ -101,21 +101,21 @@ class BaseEstimator(ABC):
         # Load tree and condition data
         return self._load_tree_cond_data()
 
-    def _load_tree_cond_data(self) -> pl.LazyFrame:
-        """Load and join tree and condition data.
-
-        Memory optimization:
-        1. Column projection: Load only required columns at SQL level
-        2. Database-side filtering: Push tree_type and land_type filters to SQL
-
-        This reduces memory footprint by 60-80% for large TREE tables.
+    def _prepare_column_lists(
+        self,
+    ) -> Tuple[Optional[List[str]], Optional[List[str]]]:
         """
-        # Get required columns FIRST (before loading)
+        Prepare column lists for TREE and COND tables including grouping columns.
+
+        Returns
+        -------
+        tuple[Optional[List[str]], Optional[List[str]]]
+            (tree_cols, cond_cols) with grouping columns added
+        """
         tree_cols = self.get_tree_columns()
         cond_cols = self.get_cond_columns()
 
         # Get table schemas to determine where grp_by columns live
-        # This is a metadata-only query, not loading actual data
         tree_schema = list(self.db._reader.get_table_schema("TREE").keys())
         cond_schema = list(self.db._reader.get_table_schema("COND").keys())
 
@@ -126,66 +126,76 @@ class BaseEstimator(ABC):
                 grp_by = [grp_by]
 
             for col in grp_by:
-                # Add to appropriate table's column list if not already present
-                in_tree = col in tree_schema and col not in tree_cols
-                in_cond = col in cond_schema and col not in cond_cols
+                in_tree = col in tree_schema and (
+                    tree_cols is None or col not in tree_cols
+                )
+                in_cond = col in cond_schema and (
+                    cond_cols is None or col not in cond_cols
+                )
                 if tree_cols is not None and in_tree:
                     tree_cols.append(col)
                 elif cond_cols is not None and in_cond:
                     cond_cols.append(col)
 
-        # Build SQL WHERE clauses for database-side filtering
-        # This significantly reduces data loaded into memory
-        tree_where = self._build_tree_sql_filter()
-        cond_where = self._build_cond_sql_filter()
+        return tree_cols, cond_cols
 
-        # Load TREE table with column projection and SQL filtering
-        # This is the key optimization - filter at SQL level before loading
-        # Check if we need to reload (new columns required that aren't in cached table)
-        if "TREE" in self.db.tables:
-            cached = self.db.tables["TREE"]
+    def _load_table_with_cache_check(
+        self,
+        table_name: str,
+        columns: Optional[List[str]],
+        where: Optional[str] = None,
+    ) -> pl.LazyFrame:
+        """
+        Load a table with cache invalidation if required columns are missing.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table to load
+        columns : Optional[List[str]]
+            Required columns
+        where : Optional[str]
+            SQL WHERE clause
+
+        Returns
+        -------
+        pl.LazyFrame
+            Loaded table as LazyFrame
+        """
+        # Check if cached table has all required columns
+        if table_name in self.db.tables:
+            cached = self.db.tables[table_name]
             cached_cols = set(
                 cached.collect_schema().names()
                 if isinstance(cached, pl.LazyFrame)
                 else cached.columns
             )
-            required_cols = set(tree_cols) if tree_cols else set()
+            required_cols = set(columns) if columns else set()
             if not required_cols.issubset(cached_cols):
-                # Reload with all required columns
-                del self.db.tables["TREE"]
-        if "TREE" not in self.db.tables:
-            self.db.load_table("TREE", columns=tree_cols, where=tree_where)
-        tree_df = self.db.tables["TREE"]
+                del self.db.tables[table_name]
 
-        # Load COND table with column projection and SQL filtering
-        # Check if we need to reload (new columns required that aren't in cached table)
-        if "COND" in self.db.tables:
-            cached = self.db.tables["COND"]
-            cached_cols = set(
-                cached.collect_schema().names()
-                if isinstance(cached, pl.LazyFrame)
-                else cached.columns
-            )
-            required_cols = set(cond_cols) if cond_cols else set()
-            if not required_cols.issubset(cached_cols):
-                # Reload with all required columns
-                del self.db.tables["COND"]
-        if "COND" not in self.db.tables:
-            self.db.load_table("COND", columns=cond_cols, where=cond_where)
-        cond_df = self.db.tables["COND"]
+        if table_name not in self.db.tables:
+            self.db.load_table(table_name, columns=columns, where=where)
 
-        # Ensure LazyFrames
-        if not isinstance(tree_df, pl.LazyFrame):
-            tree_df = tree_df.lazy()
-        if not isinstance(cond_df, pl.LazyFrame):
-            cond_df = cond_df.lazy()
+        df = self.db.tables[table_name]
+        if not isinstance(df, pl.LazyFrame):
+            df = df.lazy()
 
-        # Apply EVALID filtering if set (via POP_PLOT_STRATUM_ASSGN)
-        # Also handle plot_domain filtering by getting valid PLT_CNs from PLOT table
+        return df
+
+    def _get_valid_plots_filter(self) -> Optional[pl.LazyFrame]:
+        """
+        Get valid plot CNs based on EVALID and plot_domain filters.
+
+        Returns
+        -------
+        Optional[pl.LazyFrame]
+            LazyFrame with valid PLT_CN values, or None if no filters
+        """
         valid_plots = None
 
+        # Apply EVALID filtering
         if self.db.evalid:
-            # Load POP_PLOT_STRATUM_ASSGN to get plots for the EVALID
             if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
                 self.db.load_table("POP_PLOT_STRATUM_ASSGN")
 
@@ -193,7 +203,6 @@ class BaseEstimator(ABC):
             if not isinstance(ppsa, pl.LazyFrame):
                 ppsa = ppsa.lazy()
 
-            # Filter to get PLT_CNs for the specified EVALID(s)
             valid_plots = (
                 ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
                 .select("PLT_CN")
@@ -202,49 +211,93 @@ class BaseEstimator(ABC):
 
         # Apply plot domain filter if specified
         if self.config.get("plot_domain"):
-            # Load PLOT table to filter by plot-level attributes
             if "PLOT" not in self.db.tables:
                 self.db.load_table("PLOT")
             plot_df = self.db.tables["PLOT"]
             if not isinstance(plot_df, pl.LazyFrame):
                 plot_df = plot_df.lazy()
 
-            # Apply plot domain filter
             plot_df = apply_plot_filters(plot_df, plot_domain=self.config["plot_domain"])
-
-            # Get PLT_CNs from filtered plots
             plot_filtered_plots = plot_df.select(pl.col("CN").alias("PLT_CN")).unique()
 
             # Combine with EVALID filter if both exist
             if valid_plots is not None:
-                valid_plots = valid_plots.join(plot_filtered_plots, on="PLT_CN", how="inner")
+                valid_plots = valid_plots.join(
+                    plot_filtered_plots, on="PLT_CN", how="inner"
+                )
             else:
                 valid_plots = plot_filtered_plots
 
-        # Apply the combined filter to tree and cond if any filters were set
-        if valid_plots is not None:
-            # Filter tree and cond to only include these plots
-            tree_df = tree_df.join(
-                valid_plots,
-                on="PLT_CN",
-                how="inner",  # This filters to only plots in the EVALID and/or plot_domain
-            )
-            cond_df = cond_df.join(valid_plots, on="PLT_CN", how="inner")
+        return valid_plots
 
-        # Select only needed columns (if table was already loaded without projection)
-        if tree_cols:
-            tree_schema_names = tree_df.collect_schema().names()
-            available_tree_cols = [c for c in tree_cols if c in tree_schema_names]
-            tree_df = tree_df.select(available_tree_cols)
-        if cond_cols:
-            cond_schema_names = cond_df.collect_schema().names()
-            available_cond_cols = [c for c in cond_cols if c in cond_schema_names]
-            cond_df = cond_df.select(available_cond_cols)
+    def _apply_plot_filter_and_select_columns(
+        self,
+        df: pl.LazyFrame,
+        valid_plots: Optional[pl.LazyFrame],
+        columns: Optional[List[str]],
+    ) -> pl.LazyFrame:
+        """
+        Apply plot filter and select required columns from a dataframe.
+
+        Parameters
+        ----------
+        df : pl.LazyFrame
+            Input dataframe
+        valid_plots : Optional[pl.LazyFrame]
+            Valid plot CNs to filter by
+        columns : Optional[List[str]]
+            Columns to select
+
+        Returns
+        -------
+        pl.LazyFrame
+            Filtered and projected dataframe
+        """
+        # Apply plot filter if set
+        if valid_plots is not None:
+            df = df.join(valid_plots, on="PLT_CN", how="inner")
+
+        # Select only needed columns
+        if columns:
+            schema_names = df.collect_schema().names()
+            available_cols = [c for c in columns if c in schema_names]
+            df = df.select(available_cols)
+
+        return df
+
+    def _load_tree_cond_data(self) -> pl.LazyFrame:
+        """Load and join tree and condition data.
+
+        Memory optimization:
+        1. Column projection: Load only required columns at SQL level
+        2. Database-side filtering: Push tree_type and land_type filters to SQL
+
+        This reduces memory footprint by 60-80% for large TREE tables.
+        """
+        # Prepare column lists with grouping columns
+        tree_cols, cond_cols = self._prepare_column_lists()
+
+        # Build SQL WHERE clauses for database-side filtering
+        tree_where = self._build_tree_sql_filter()
+        cond_where = self._build_cond_sql_filter()
+
+        # Load tables with cache invalidation
+        tree_df = self._load_table_with_cache_check("TREE", tree_cols, tree_where)
+        cond_df = self._load_table_with_cache_check("COND", cond_cols, cond_where)
+
+        # Get valid plots based on EVALID and plot_domain filters
+        valid_plots = self._get_valid_plots_filter()
+
+        # Apply filters and column selection
+        tree_df = self._apply_plot_filter_and_select_columns(
+            tree_df, valid_plots, tree_cols
+        )
+        cond_df = self._apply_plot_filter_and_select_columns(
+            cond_df, valid_plots, cond_cols
+        )
 
         # Join tree and condition
-        data = tree_df.join(cond_df, on=["PLT_CN", "CONDID"], how="inner")
-
-        return data
+        return tree_df.join(cond_df, on=["PLT_CN", "CONDID"], how="inner")
 
     def _load_area_data(self) -> pl.LazyFrame:
         """Load condition and plot data for area estimation."""
@@ -546,6 +599,187 @@ class BaseEstimator(ABC):
 
         return group_cols
 
+    def _aggregate_to_condition_level(
+        self,
+        data_with_strat: pl.LazyFrame,
+        metric_mappings: Dict[str, str],
+        group_cols: List[str],
+        available_cols: List[str],
+    ) -> Tuple[pl.LazyFrame, List[str]]:
+        """
+        Stage 1: Aggregate metrics to plot-condition level.
+
+        Each condition's area proportion (CONDPROP_UNADJ) is counted exactly once.
+        Trees within a condition are summed together.
+
+        Parameters
+        ----------
+        data_with_strat : pl.LazyFrame
+            Data with stratification columns joined
+        metric_mappings : Dict[str, str]
+            Mapping of adjusted metrics to condition-level aggregates
+        group_cols : List[str]
+            User-specified grouping columns
+        available_cols : List[str]
+            Available columns in the data
+
+        Returns
+        -------
+        tuple[pl.LazyFrame, List[str]]
+            Condition-level aggregated data and the grouping columns used
+        """
+        # Define condition-level grouping columns (always needed)
+        condition_group_cols = [
+            "PLT_CN",
+            "CONDID",
+            "STRATUM_CN",
+            "EXPNS",
+            "CONDPROP_UNADJ",
+        ]
+
+        # Add user-specified grouping columns if they exist at condition level
+        if group_cols:
+            for col in group_cols:
+                if col in available_cols and col not in condition_group_cols:
+                    condition_group_cols.append(col)
+
+        # Build aggregation expressions
+        agg_exprs = []
+        for adj_col, cond_col in metric_mappings.items():
+            agg_exprs.append(pl.col(adj_col).sum().alias(cond_col))
+        # Add tree count for diagnostics
+        agg_exprs.append(pl.len().alias("TREES_PER_CONDITION"))
+
+        # Aggregate at condition level
+        condition_agg = data_with_strat.group_by(condition_group_cols).agg(agg_exprs)
+
+        return condition_agg, condition_group_cols
+
+    def _aggregate_to_population_level(
+        self,
+        condition_agg: pl.LazyFrame,
+        metric_mappings: Dict[str, str],
+        group_cols: List[str],
+        condition_group_cols: List[str],
+    ) -> pl.LazyFrame:
+        """
+        Stage 2: Apply expansion factors and calculate population estimates.
+
+        Condition-level values are expanded using stratification factors (EXPNS).
+
+        Parameters
+        ----------
+        condition_agg : pl.LazyFrame
+            Condition-level aggregated data
+        metric_mappings : Dict[str, str]
+            Mapping of adjusted metrics to condition-level aggregates
+        group_cols : List[str]
+            User-specified grouping columns
+        condition_group_cols : List[str]
+            Columns used in condition-level grouping
+
+        Returns
+        -------
+        pl.LazyFrame
+            Population-level aggregated results
+        """
+        # Build final aggregation expressions
+        final_agg_exprs = []
+
+        # For each metric, create numerator and total calculations
+        for adj_col, cond_col in metric_mappings.items():
+            metric_name = cond_col.replace("CONDITION_", "")
+
+            # Numerator: sum(metric × EXPNS)
+            final_agg_exprs.append(
+                (pl.col(cond_col) * pl.col("EXPNS")).sum().alias(f"{metric_name}_NUM")
+            )
+
+            # Total: sum(metric × EXPNS) - same as numerator but kept for clarity
+            final_agg_exprs.append(
+                (pl.col(cond_col) * pl.col("EXPNS")).sum().alias(f"{metric_name}_TOTAL")
+            )
+
+        # Denominator: sum(CONDPROP_UNADJ × EXPNS) - shared across all metrics
+        final_agg_exprs.append(
+            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL")
+        )
+
+        # Diagnostic counts
+        final_agg_exprs.extend(
+            [
+                pl.n_unique("PLT_CN").alias("N_PLOTS"),
+                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
+                pl.len().alias("N_CONDITIONS"),
+            ]
+        )
+
+        # Apply final aggregation based on grouping
+        if group_cols:
+            # Filter to valid grouping columns at condition level
+            final_group_cols = [
+                col for col in group_cols if col in condition_group_cols
+            ]
+
+            if final_group_cols:
+                return condition_agg.group_by(final_group_cols).agg(final_agg_exprs)
+            else:
+                # No valid grouping columns, aggregate all
+                return condition_agg.select(final_agg_exprs)
+        else:
+            # No grouping specified, aggregate all
+            return condition_agg.select(final_agg_exprs)
+
+    def _compute_per_acre_values(
+        self,
+        results_df: pl.DataFrame,
+        metric_mappings: Dict[str, str],
+    ) -> pl.DataFrame:
+        """
+        Calculate per-acre values using ratio-of-means and clean up intermediate columns.
+
+        Per-acre estimates = sum(metric × EXPNS) / sum(CONDPROP_UNADJ × EXPNS)
+
+        Parameters
+        ----------
+        results_df : pl.DataFrame
+            Population-level results with numerator, total, and area columns
+        metric_mappings : Dict[str, str]
+            Mapping of adjusted metrics to condition-level aggregates
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with per-acre values calculated and intermediate columns removed
+        """
+        # Calculate per-acre values
+        per_acre_exprs = []
+        for adj_col, cond_col in metric_mappings.items():
+            metric_name = cond_col.replace("CONDITION_", "")
+
+            # Per-acre = numerator / denominator with division-by-zero protection
+            per_acre_exprs.append(
+                pl.when(pl.col("AREA_TOTAL") > 0)
+                .then(pl.col(f"{metric_name}_NUM") / pl.col("AREA_TOTAL"))
+                .otherwise(0.0)
+                .alias(f"{metric_name}_ACRE")
+            )
+
+        results_df = results_df.with_columns(per_acre_exprs)
+
+        # Clean up intermediate columns (keep totals and per-acre values)
+        cols_to_drop = ["N_CONDITIONS", "AREA_TOTAL"]
+        for adj_col, cond_col in metric_mappings.items():
+            metric_name = cond_col.replace("CONDITION_", "")
+            cols_to_drop.append(f"{metric_name}_NUM")
+
+        # Only drop columns that exist
+        cols_to_drop = [col for col in cols_to_drop if col in results_df.columns]
+        if cols_to_drop:
+            results_df = results_df.drop(cols_to_drop)
+
+        return results_df
+
     def _apply_two_stage_aggregation(
         self,
         data_with_strat: pl.LazyFrame,
@@ -589,119 +823,22 @@ class BaseEstimator(ABC):
         - Condition-level values are expanded using stratification factors (EXPNS)
         - Per-acre estimates = sum(metric × EXPNS) / sum(CONDPROP_UNADJ × EXPNS)
         """
-        # ========================================================================
-        # STAGE 1: Aggregate to plot-condition level
-        # ========================================================================
-
         # Cache schema once at the beginning to avoid repeated collection
         available_cols = data_with_strat.collect_schema().names()
 
-        # Define condition-level grouping columns (always needed)
-        condition_group_cols = [
-            "PLT_CN",
-            "CONDID",
-            "STRATUM_CN",
-            "EXPNS",
-            "CONDPROP_UNADJ",
-        ]
-
-        # Add user-specified grouping columns if they exist at condition level
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in condition_group_cols:
-                    condition_group_cols.append(col)
-
-        # Build aggregation expressions for Stage 1
-        agg_exprs = []
-        for adj_col, cond_col in metric_mappings.items():
-            agg_exprs.append(pl.col(adj_col).sum().alias(cond_col))
-        # Add tree count for diagnostics
-        agg_exprs.append(pl.len().alias("TREES_PER_CONDITION"))
-
-        # Aggregate at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg(agg_exprs)
-
-        # ========================================================================
-        # STAGE 2: Apply expansion factors and calculate population estimates
-        # ========================================================================
-
-        # Build final aggregation expressions
-        final_agg_exprs = []
-
-        # For each metric, create numerator, total, and per-acre calculations
-        for adj_col, cond_col in metric_mappings.items():
-            # Extract base metric name (e.g., "VOLUME" from "CONDITION_VOLUME")
-            metric_name = cond_col.replace("CONDITION_", "")
-
-            # Numerator: sum(metric × EXPNS)
-            final_agg_exprs.append(
-                (pl.col(cond_col) * pl.col("EXPNS")).sum().alias(f"{metric_name}_NUM")
-            )
-
-            # Total: sum(metric × EXPNS) - same as numerator but kept for clarity
-            final_agg_exprs.append(
-                (pl.col(cond_col) * pl.col("EXPNS")).sum().alias(f"{metric_name}_TOTAL")
-            )
-
-        # Denominator: sum(CONDPROP_UNADJ × EXPNS) - shared across all metrics
-        final_agg_exprs.append(
-            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL")
+        # Stage 1: Aggregate to condition level
+        condition_agg, condition_group_cols = self._aggregate_to_condition_level(
+            data_with_strat, metric_mappings, group_cols, available_cols
         )
 
-        # Diagnostic counts
-        final_agg_exprs.extend(
-            [
-                pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                pl.len().alias("N_CONDITIONS"),
-            ]
+        # Stage 2: Aggregate to population level
+        results = self._aggregate_to_population_level(
+            condition_agg, metric_mappings, group_cols, condition_group_cols
         )
 
-        # Apply final aggregation based on grouping
-        if group_cols:
-            # Filter to valid grouping columns at condition level (using cached schema)
-            # Note: After aggregation, only columns in condition_group_cols are available
-            final_group_cols = [
-                col for col in group_cols if col in condition_group_cols
-            ]
-
-            if final_group_cols:
-                results = condition_agg.group_by(final_group_cols).agg(final_agg_exprs)
-            else:
-                # No valid grouping columns, aggregate all
-                results = condition_agg.select(final_agg_exprs)
-        else:
-            # No grouping specified, aggregate all
-            results = condition_agg.select(final_agg_exprs)
-
-        # Collect results
+        # Collect and compute per-acre values
         results_df: pl.DataFrame = results.collect()
-
-        # Calculate per-acre values using ratio-of-means
-        per_acre_exprs = []
-        for adj_col, cond_col in metric_mappings.items():
-            metric_name = cond_col.replace("CONDITION_", "")
-
-            # Per-acre = numerator / denominator with division-by-zero protection
-            per_acre_exprs.append(
-                pl.when(pl.col("AREA_TOTAL") > 0)
-                .then(pl.col(f"{metric_name}_NUM") / pl.col("AREA_TOTAL"))
-                .otherwise(0.0)
-                .alias(f"{metric_name}_ACRE")
-            )
-
-        results_df = results_df.with_columns(per_acre_exprs)
-
-        # Clean up intermediate columns (keep totals and per-acre values)
-        cols_to_drop = ["N_CONDITIONS", "AREA_TOTAL"]
-        for adj_col, cond_col in metric_mappings.items():
-            metric_name = cond_col.replace("CONDITION_", "")
-            cols_to_drop.append(f"{metric_name}_NUM")
-
-        # Only drop columns that exist
-        cols_to_drop = [col for col in cols_to_drop if col in results_df.columns]
-        if cols_to_drop:
-            results_df = results_df.drop(cols_to_drop)
+        results_df = self._compute_per_acre_values(results_df, metric_mappings)
 
         return results_df
 
@@ -809,7 +946,7 @@ class BaseEstimator(ABC):
         data_with_strat: pl.LazyFrame,
         metric_cols: List[str],
         group_cols: Optional[List[str]] = None,
-    ) -> tuple[pl.DataFrame, pl.LazyFrame]:
+    ) -> Tuple[pl.DataFrame, pl.LazyFrame]:
         """
         Preserve plot-tree level data for variance calculation.
 
@@ -935,48 +1072,32 @@ class BaseEstimator(ABC):
 
         return year
 
-    def _calculate_grouped_variance(
+    def _aggregate_to_plot_level_for_variance(
         self,
         plot_tree_data: pl.DataFrame,
-        results: pl.DataFrame,
+        metric_col: str,
         group_cols: List[str],
-        metric_mappings: Dict[str, tuple[str, str]],
-        y_col_alias: str = "y_i",
+        y_col_alias: str,
     ) -> pl.DataFrame:
         """
-        Calculate variance for grouped estimates using vectorized operations.
-
-        This method computes variance for all groups in a single pass using
-        Polars group_by operations, avoiding the N+1 query pattern of iterating
-        through groups individually.
-
-        Implements the domain total variance formula from Bechtold & Patterson (2005):
-        V(Ŷ) = Σ_h W_h² × s²_yh × n_h
+        Aggregate tree data to plot level for variance calculation.
 
         Parameters
         ----------
         plot_tree_data : pl.DataFrame
-            Plot-tree level data preserved during aggregation
-        results : pl.DataFrame
-            Aggregated results with grouping columns
+            Plot-tree level data
+        metric_col : str
+            Column containing the metric to aggregate
         group_cols : List[str]
-            Columns used for grouping
-        metric_mappings : Dict[str, tuple[str, str]]
-            Mapping of adjusted metric column to (SE column name, variance column name)
-            e.g., {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
-        y_col_alias : str, default "y_i"
-            Alias for the y column in plot-level aggregation
+            Grouping columns
+        y_col_alias : str
+            Alias for the y column
 
         Returns
         -------
         pl.DataFrame
-            Results with variance columns added
+            Plot-level aggregated data with y and x columns
         """
-        from .variance import calculate_grouped_domain_total_variance
-
-        # Get the first metric column for aggregation
-        metric_col = list(metric_mappings.keys())[0]
-
         # Step 1: Aggregate to plot-condition level
         base_group_cols = ["PLT_CN", "CONDID", "STRATUM_CN", "EXPNS", "CONDPROP_UNADJ"]
         plot_cond_group_cols = [
@@ -1002,14 +1123,40 @@ class BaseEstimator(ABC):
             ]
         )
 
-        # Step 3: Get ALL plots for proper variance calculation
+        return plot_data
+
+    def _expand_plots_for_all_groups(
+        self,
+        plot_data: pl.DataFrame,
+        results: pl.DataFrame,
+        group_cols: List[str],
+        y_col_alias: str,
+    ) -> Tuple[pl.DataFrame, List[str]]:
+        """
+        Expand plot data to include all plots with zeros for missing groups.
+
+        Parameters
+        ----------
+        plot_data : pl.DataFrame
+            Plot-level aggregated data
+        results : pl.DataFrame
+            Results containing unique group combinations
+        group_cols : List[str]
+            Grouping columns
+        y_col_alias : str
+            Alias for the y column
+
+        Returns
+        -------
+        tuple[pl.DataFrame, List[str]]
+            Expanded plot data and valid group columns
+        """
+        # Get all plots from stratification
         strat_data = self._get_stratification_data()
         all_plots = (
             strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
         )
 
-        # Step 4: Expand plot_data to include all plots with zeros for missing groups
-        # Get unique group combinations from results
         valid_group_cols = [c for c in group_cols if c in plot_data.columns]
 
         if valid_group_cols:
@@ -1040,18 +1187,28 @@ class BaseEstimator(ABC):
                 pl.col("x_i").fill_null(0.0),
             ])
 
-        # Step 5: Calculate variance for all groups in one vectorized operation
-        variance_df = calculate_grouped_domain_total_variance(
-            all_plots_with_data,
-            group_cols=valid_group_cols,
-            y_col=y_col_alias,
-            x_col="x_i",
-            stratum_col="STRATUM_CN",
-            weight_col="EXPNS",
-        )
+        return all_plots_with_data, valid_group_cols
 
-        # Step 6: Rename variance columns to match expected output
-        # Map generic variance columns to metric-specific names
+    def _rename_variance_columns(
+        self,
+        variance_df: pl.DataFrame,
+        metric_mappings: Dict[str, tuple[str, str]],
+    ) -> pl.DataFrame:
+        """
+        Rename generic variance columns to metric-specific names.
+
+        Parameters
+        ----------
+        variance_df : pl.DataFrame
+            Variance results with generic column names
+        metric_mappings : Dict[str, tuple[str, str]]
+            Mapping of metric to (SE column, variance column) names
+
+        Returns
+        -------
+        pl.DataFrame
+            Variance results with metric-specific column names
+        """
         for adj_col, (se_col, var_col) in metric_mappings.items():
             total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
             total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
@@ -1069,9 +1226,33 @@ class BaseEstimator(ABC):
         if cols_to_drop:
             variance_df = variance_df.drop(cols_to_drop)
 
-        # Step 7: Join variance results back to main results
+        return variance_df
+
+    def _join_variance_to_results(
+        self,
+        results: pl.DataFrame,
+        variance_df: pl.DataFrame,
+        valid_group_cols: List[str],
+    ) -> pl.DataFrame:
+        """
+        Join variance results back to main results.
+
+        Parameters
+        ----------
+        results : pl.DataFrame
+            Main results dataframe
+        variance_df : pl.DataFrame
+            Variance results to join
+        valid_group_cols : List[str]
+            Columns to join on
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added
+        """
         if valid_group_cols:
-            results = results.join(variance_df, on=valid_group_cols, how="left")
+            return results.join(variance_df, on=valid_group_cols, how="left")
         else:
             # No grouping - just add the single variance row's columns
             for col in variance_df.columns:
@@ -1079,8 +1260,75 @@ class BaseEstimator(ABC):
                     results = results.with_columns(
                         pl.lit(variance_df[col][0]).alias(col)
                     )
+            return results
 
-        return results
+    def _calculate_grouped_variance(
+        self,
+        plot_tree_data: pl.DataFrame,
+        results: pl.DataFrame,
+        group_cols: List[str],
+        metric_mappings: Dict[str, tuple[str, str]],
+        y_col_alias: str = "y_i",
+    ) -> pl.DataFrame:
+        """
+        Calculate variance for grouped estimates using vectorized operations.
+
+        This method computes variance for all groups in a single pass using
+        Polars group_by operations, avoiding the N+1 query pattern of iterating
+        through groups individually.
+
+        Implements the domain total variance formula from Bechtold & Patterson (2005):
+        V(Y_hat) = sum_h W_h^2 * s^2_yh * n_h
+
+        Parameters
+        ----------
+        plot_tree_data : pl.DataFrame
+            Plot-tree level data preserved during aggregation
+        results : pl.DataFrame
+            Aggregated results with grouping columns
+        group_cols : List[str]
+            Columns used for grouping
+        metric_mappings : Dict[str, tuple[str, str]]
+            Mapping of adjusted metric column to (SE column name, variance column name)
+            e.g., {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
+        y_col_alias : str, default "y_i"
+            Alias for the y column in plot-level aggregation
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added
+        """
+        from .variance import calculate_grouped_domain_total_variance
+
+        # Get the first metric column for aggregation
+        metric_col = list(metric_mappings.keys())[0]
+
+        # Step 1-2: Aggregate to plot level
+        plot_data = self._aggregate_to_plot_level_for_variance(
+            plot_tree_data, metric_col, group_cols, y_col_alias
+        )
+
+        # Step 3-4: Expand to include all plots with zeros for missing groups
+        all_plots_with_data, valid_group_cols = self._expand_plots_for_all_groups(
+            plot_data, results, group_cols, y_col_alias
+        )
+
+        # Step 5: Calculate variance for all groups in one vectorized operation
+        variance_df = calculate_grouped_domain_total_variance(
+            all_plots_with_data,
+            group_cols=valid_group_cols,
+            y_col=y_col_alias,
+            x_col="x_i",
+            stratum_col="STRATUM_CN",
+            weight_col="EXPNS",
+        )
+
+        # Step 6: Rename variance columns to match expected output
+        variance_df = self._rename_variance_columns(variance_df, metric_mappings)
+
+        # Step 7: Join variance results back to main results
+        return self._join_variance_to_results(results, variance_df, valid_group_cols)
 
     # === Abstract Methods ===
 

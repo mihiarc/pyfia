@@ -7,7 +7,7 @@ This module consolidates all utility functionality including:
 - Grouping functions for analysis
 """
 
-from typing import Dict, List, Literal, Optional, Union
+from typing import Dict, List, Literal, Optional, Set, Tuple, Union
 
 import polars as pl
 
@@ -73,7 +73,7 @@ class ColumnValidator:
         context: Optional[str] = None,
         raise_on_missing: bool = True,
         include_available: bool = True,
-    ) -> tuple[bool, List[str]]:
+    ) -> Tuple[bool, List[str]]:
         """
         Validate that required columns exist in a DataFrame.
 
@@ -143,7 +143,7 @@ class ColumnValidator:
         column_groups: List[List[str]],
         context: Optional[str] = None,
         raise_on_missing: bool = True,
-    ) -> tuple[bool, List[str]]:
+    ) -> Tuple[bool, List[str]]:
         """
         Validate that at least one column from each group exists.
 
@@ -391,7 +391,7 @@ def check_columns(
     df: pl.DataFrame,
     required_columns: Optional[Union[List[str], str]] = None,
     column_set: Optional[str] = None,
-) -> tuple[bool, List[str]]:
+) -> Tuple[bool, List[str]]:
     """
     Check if columns exist without raising an error.
 
@@ -763,7 +763,7 @@ def setup_grouping_columns(
     by_land_type: bool = False,
     size_class_type: Literal["standard", "descriptive"] = "standard",
     dia_col: str = "DIA",
-) -> tuple[pl.DataFrame, List[str]]:
+) -> Tuple[pl.DataFrame, List[str]]:
     """
     Set up grouping columns for FIA estimation.
 
@@ -836,7 +836,7 @@ def setup_grouping_columns(
         group_cols.append("LAND_TYPE")
 
     # Remove duplicates while preserving order
-    seen: set[str] = set()
+    seen: Set[str] = set()
     group_cols = [x for x in group_cols if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
 
     return df, group_cols
@@ -975,7 +975,7 @@ def prepare_plot_groups(
         final_groups.extend(additional_groups)
 
     # Remove duplicates while preserving order
-    seen: set[str] = set()
+    seen: Set[str] = set()
     final_groups = [x for x in final_groups if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
 
     return final_groups
@@ -1398,7 +1398,7 @@ def auto_enhance_grouping_data(
     data_df: pl.DataFrame,
     group_cols: List[str],
     preserve_reference_columns: bool = True,
-) -> tuple[pl.DataFrame, List[str]]:
+) -> Tuple[pl.DataFrame, List[str]]:
     """
     Automatically enhance grouping data with reference information.
 

@@ -6,7 +6,7 @@ with unnecessary validation and abstraction layers.
 """
 
 from dataclasses import dataclass
-from typing import List, Optional, Type, Union
+from typing import Dict, List, Optional, Type, Union
 
 
 @dataclass
@@ -129,7 +129,7 @@ def create_config(estimation_type: str, **kwargs) -> EstimatorConfig:
     EstimatorConfig
         Appropriate configuration object
     """
-    config_map: dict[str, Type[EstimatorConfig]] = {
+    config_map: Dict[str, Type[EstimatorConfig]] = {
         "volume": VolumeConfig,
         "biomass": BiomassConfig,
         "mortality": MortalityConfig,

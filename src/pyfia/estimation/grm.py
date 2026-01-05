@@ -7,7 +7,7 @@ TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and TREE_GRM_BEGIN tables.
 """
 
 from dataclasses import dataclass
-from typing import List, Literal, Optional
+from typing import List, Literal, Optional, Union
 
 import polars as pl
 
@@ -371,7 +371,7 @@ def aggregate_cond_to_plot(cond: pl.LazyFrame) -> pl.LazyFrame:
 def filter_by_evalid(
     data: pl.LazyFrame,
     db,
-    evalid: Optional[int | List[int]] = None,
+    evalid: Optional[Union[int, List[int]]] = None,
 ) -> pl.LazyFrame:
     """Filter GRM data to plots in the specified EVALID(s).
 

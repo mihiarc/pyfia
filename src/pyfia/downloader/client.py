@@ -16,6 +16,7 @@ import shutil
 import tempfile
 import zipfile
 from pathlib import Path
+from typing import Dict, List, Optional
 
 import requests
 from rich.progress import (
@@ -112,7 +113,7 @@ class DataMartClient:
         self,
         url: str,
         dest_path: Path,
-        description: str | None = None,
+        description: Optional[str] = None,
         show_progress: bool = True,
     ) -> Path:
         """
@@ -206,7 +207,7 @@ class DataMartClient:
 
     def _extract_zip(
         self, zip_path: Path, extract_dir: Path, show_progress: bool = True
-    ) -> list[Path]:
+    ) -> List[Path]:
         """
         Extract a ZIP file to a directory.
 
@@ -327,11 +328,11 @@ class DataMartClient:
     def download_tables(
         self,
         state: str,
-        tables: list[str] | None = None,
+        tables: Optional[List[str]] = None,
         common: bool = True,
-        dest_dir: Path | None = None,
+        dest_dir: Optional[Path] = None,
         show_progress: bool = True,
-    ) -> dict[str, Path]:
+    ) -> Dict[str, Path]:
         """
         Download multiple FIA tables for a state.
 

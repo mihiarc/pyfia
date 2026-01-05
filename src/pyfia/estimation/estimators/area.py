@@ -5,21 +5,19 @@ Simple, straightforward implementation without unnecessary abstractions.
 """
 
 import re
-import warnings
 from typing import Dict, List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
-from ...validation import (
-    validate_boolean,
-    validate_domain_expression,
-    validate_grp_by,
-    validate_land_type,
-)
 from ..base import BaseEstimator
 from ..tree_expansion import apply_area_adjustment_factors
-from ..utils import format_output_columns
+from ..utils import (
+    ensure_evalid_set,
+    ensure_fia_instance,
+    format_output_columns,
+    validate_estimator_inputs,
+)
 
 
 class AreaEstimator(BaseEstimator):
@@ -780,51 +778,34 @@ def area(
     ...     land_type="forest"
     ... )
     """
-    # Validate inputs
-    land_type = validate_land_type(land_type)
-    grp_by = validate_grp_by(grp_by)
-    area_domain = validate_domain_expression(area_domain, "area_domain")
-    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
-    variance = validate_boolean(variance, "variance")
-    totals = validate_boolean(totals, "totals")
-    most_recent = validate_boolean(most_recent, "most_recent")
+    # Validate inputs using shared utility
+    inputs = validate_estimator_inputs(
+        land_type=land_type,
+        grp_by=grp_by,
+        area_domain=area_domain,
+        plot_domain=plot_domain,
+        variance=variance,
+        totals=totals,
+        most_recent=most_recent,
+    )
 
-    # Ensure db is a FIA instance
-    if isinstance(db, str):
-        db = FIA(db)
-        owns_db = True
-    else:
-        owns_db = False
+    # Ensure db is a FIA instance using shared utility
+    db, owns_db = ensure_fia_instance(db)
 
-    # CRITICAL: If no EVALID is set, automatically select most recent EXPALL
-    # This prevents massive overcounting from including all historical evaluations
-    if db.evalid is None:
-        warnings.warn(
-            "No EVALID specified. Automatically selecting most recent EXPALL evaluations. "
-            "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling area()."
-        )
-        db.clip_most_recent(
-            eval_type="ALL"
-        )  # Use "ALL" not "EXPALL" per line 159-160 in fia.py
+    # Ensure EVALID is set using shared utility
+    # Use "ALL" for area estimation (EXPALL evaluations)
+    ensure_evalid_set(db, eval_type="ALL", estimator_name="area")
 
-        # If still no EVALID (no EXPALL evaluations), try without filtering but warn strongly
-        if db.evalid is None:
-            warnings.warn(
-                "WARNING: No EXPALL evaluations found. Results may be incorrect due to "
-                "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
-                "to explicitly select appropriate EVALIDs."
-            )
-
-    # Create simple config dict
+    # Create simple config dict using validated inputs
     config = {
-        "grp_by": grp_by,
-        "land_type": land_type,
-        "area_domain": area_domain,
-        "plot_domain": plot_domain,
-        "most_recent": most_recent,
+        "grp_by": inputs.grp_by,
+        "land_type": inputs.land_type,
+        "area_domain": inputs.area_domain,
+        "plot_domain": inputs.plot_domain,
+        "most_recent": inputs.most_recent,
         "eval_type": eval_type,
-        "variance": variance,
-        "totals": totals,
+        "variance": inputs.variance,
+        "totals": inputs.totals,
     }
 
     try:

@@ -10,9 +10,15 @@ from typing import List, Optional, Union
 import polars as pl
 
 from ...core import FIA
+from ...validation import validate_boolean, validate_tree_type, validate_vol_type
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import format_output_columns
+from ..utils import (
+    ensure_evalid_set,
+    ensure_fia_instance,
+    format_output_columns,
+    validate_estimator_inputs,
+)
 from ..variance import calculate_domain_total_variance
 
 
@@ -687,72 +693,51 @@ def volume(
     KeyError
         If specified columns in grp_by don't exist in the joined tables.
     """
-    # Import validation functions
-    from ...validation import (
-        validate_boolean,
-        validate_domain_expression,
-        validate_grp_by,
-        validate_land_type,
-        validate_tree_type,
-        validate_vol_type,
+    # Validate common inputs using shared utility
+    inputs = validate_estimator_inputs(
+        land_type=land_type,
+        grp_by=grp_by,
+        area_domain=area_domain,
+        plot_domain=plot_domain,
+        tree_domain=tree_domain,
+        totals=totals,
+        variance=variance,
+        most_recent=most_recent,
     )
 
-    # Validate inputs
-    land_type = validate_land_type(land_type)
+    # Validate volume-specific parameters
     tree_type = validate_tree_type(tree_type)
     vol_type = validate_vol_type(vol_type)
-    grp_by = validate_grp_by(grp_by)
-    tree_domain = validate_domain_expression(tree_domain, "tree_domain")
-    area_domain = validate_domain_expression(area_domain, "area_domain")
-    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
     by_species = validate_boolean(by_species, "by_species")
     by_size_class = validate_boolean(by_size_class, "by_size_class")
-    totals = validate_boolean(totals, "totals")
-    variance = validate_boolean(variance, "variance")
-    most_recent = validate_boolean(most_recent, "most_recent")
 
-    # Ensure db is a FIA instance
-    if isinstance(db, str):
-        db = FIA(db)
-        owns_db = True
-    else:
-        owns_db = False
+    # Ensure db is a FIA instance using shared utility
+    db, owns_db = ensure_fia_instance(db)
 
     # Handle EVALID selection for volume estimation
-    if db.evalid is None and most_recent:
-        db.clip_most_recent(eval_type=eval_type or "VOL")
-    elif db.evalid is None:
-        # Auto-select most recent EXPVOL evaluation for volume
-        import warnings
-
-        warnings.warn(
-            "No EVALID specified. Automatically selecting most recent EXPVOL evaluations. "
-            "For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling volume()."
-        )
-        db.clip_most_recent(eval_type="VOL")
-
-        # If still no EVALID, warn about potential issues
+    if inputs.most_recent:
+        # User explicitly requested most_recent
         if db.evalid is None:
-            warnings.warn(
-                "WARNING: No EXPVOL evaluations found. Results may be incorrect due to "
-                "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
-                "to explicitly select appropriate EVALIDs."
-            )
+            db.clip_most_recent(eval_type=eval_type or "VOL")
+    else:
+        # Auto-select if no EVALID set using shared utility
+        # Use "VOL" for volume estimation (EXPVOL evaluations)
+        ensure_evalid_set(db, eval_type="VOL", estimator_name="volume")
 
-    # Create config
+    # Create config using validated inputs
     config = {
-        "grp_by": grp_by,
+        "grp_by": inputs.grp_by,
         "by_species": by_species,
         "by_size_class": by_size_class,
-        "land_type": land_type,
+        "land_type": inputs.land_type,
         "tree_type": tree_type,
         "vol_type": vol_type,
-        "tree_domain": tree_domain,
-        "area_domain": area_domain,
-        "plot_domain": plot_domain,
-        "totals": totals,
-        "variance": variance,
-        "most_recent": most_recent,
+        "tree_domain": inputs.tree_domain,
+        "area_domain": inputs.area_domain,
+        "plot_domain": inputs.plot_domain,
+        "totals": inputs.totals,
+        "variance": inputs.variance,
+        "most_recent": inputs.most_recent,
     }
 
     try:

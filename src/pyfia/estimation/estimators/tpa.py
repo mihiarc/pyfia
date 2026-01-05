@@ -10,8 +10,10 @@ from typing import TYPE_CHECKING, List, Optional, Union
 
 import polars as pl
 
+from ...validation import validate_boolean, validate_tree_type
 from ..base import BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
+from ..utils import validate_estimator_inputs
 from ..variance import calculate_domain_total_variance
 
 if TYPE_CHECKING:
@@ -804,46 +806,41 @@ def tpa(
     >>> # This demonstrates the critical importance of proper
     >>> # condition-level aggregation before expansion
     """
-    # Import validation functions
-    from ...validation import (
-        validate_boolean,
-        validate_domain_expression,
-        validate_grp_by,
-        validate_land_type,
-        validate_tree_type,
+    # Validate common inputs using shared utility
+    inputs = validate_estimator_inputs(
+        land_type=land_type,
+        grp_by=grp_by,
+        area_domain=area_domain,
+        plot_domain=plot_domain,
+        tree_domain=tree_domain,
+        totals=totals,
+        variance=variance,
     )
 
-    # Validate inputs
-    land_type = validate_land_type(land_type)
+    # Validate tpa-specific parameters
     tree_type = validate_tree_type(tree_type)
-    grp_by = validate_grp_by(grp_by)
-    tree_domain = validate_domain_expression(tree_domain, "tree_domain")
-    area_domain = validate_domain_expression(area_domain, "area_domain")
-    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
     by_species = validate_boolean(by_species, "by_species")
     by_size_class = validate_boolean(by_size_class, "by_size_class")
-    totals = validate_boolean(totals, "totals")
-    variance = validate_boolean(variance, "variance")
 
-    # Validate EVALID is set
+    # Validate EVALID is set (tpa requires explicit EVALID, no auto-selection)
     if db.evalid is None:
         raise ValueError(
             "EVALID must be set before calling tpa(). "
             "Use db.clip_by_evalid() or db.clip_most_recent() to select evaluations."
         )
 
-    # Create config - simpler without deprecated parameters
+    # Create config using validated inputs
     config = {
-        "grp_by": grp_by,
+        "grp_by": inputs.grp_by,
         "by_species": by_species,
         "by_size_class": by_size_class,
-        "land_type": land_type,
+        "land_type": inputs.land_type,
         "tree_type": tree_type,
-        "tree_domain": tree_domain,
-        "area_domain": area_domain,
-        "plot_domain": plot_domain,
-        "totals": totals,
-        "variance": variance,
+        "tree_domain": inputs.tree_domain,
+        "area_domain": inputs.area_domain,
+        "plot_domain": inputs.plot_domain,
+        "totals": inputs.totals,
+        "variance": inputs.variance,
     }
 
     # Create and run estimator - simple and clean

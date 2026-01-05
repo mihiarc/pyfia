@@ -186,13 +186,13 @@ class GRMBaseEstimator(BaseEstimator):
 
         # Apply area domain filter (works with LazyFrames)
         if self.config.get("area_domain"):
-            from ..filtering.area.filters import apply_area_filters
+            from ..filtering.filters import apply_area_filters
 
             data = apply_area_filters(data, area_domain=self.config["area_domain"])
 
         # Apply tree domain filter (works with LazyFrames)
         if self.config.get("tree_domain"):
-            from ..filtering.core.parser import DomainExpressionParser
+            from ..filtering.parser import DomainExpressionParser
 
             data = DomainExpressionParser.apply_to_dataframe(
                 data, self.config["tree_domain"], "tree"

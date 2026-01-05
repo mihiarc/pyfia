@@ -8,7 +8,7 @@ including the ColumnValidator class and convenience functions.
 import polars as pl
 import pytest
 
-from pyfia.filtering.utils.validation import (
+from pyfia.filtering.utils import (
     ColumnValidator,
     check_columns,
     ensure_columns,

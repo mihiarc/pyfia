@@ -1,10 +1,239 @@
 """
 Utility functions for FIA estimation.
 
-Simple utilities for common operations.
+Simple utilities for common operations, including shared validation and
+initialization patterns used across all estimator functions.
 """
 
+import warnings
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+
 import polars as pl
+
+from ..validation import (
+    validate_boolean,
+    validate_domain_expression,
+    validate_grp_by,
+    validate_land_type,
+)
+
+if TYPE_CHECKING:
+    from ..core import FIA
+
+
+@dataclass
+class ValidatedInputs:
+    """Container for validated estimator inputs.
+
+    This dataclass holds the validated and normalized versions of common
+    estimator function parameters. Using a dataclass instead of a tuple
+    provides named access and better type safety.
+
+    Attributes
+    ----------
+    land_type : str
+        Validated land type ('forest', 'timber', or 'all')
+    grp_by : Optional[Union[str, List[str]]]
+        Validated grouping column(s)
+    area_domain : Optional[str]
+        Validated area domain expression
+    plot_domain : Optional[str]
+        Validated plot domain expression
+    tree_domain : Optional[str]
+        Validated tree domain expression (for tree-based estimators)
+    variance : bool
+        Whether to calculate variance
+    totals : bool
+        Whether to include population totals
+    most_recent : bool
+        Whether to use most recent evaluation
+    """
+    land_type: str
+    grp_by: Optional[Union[str, List[str]]]
+    area_domain: Optional[str]
+    plot_domain: Optional[str]
+    tree_domain: Optional[str]
+    variance: bool
+    totals: bool
+    most_recent: bool
+
+
+def validate_estimator_inputs(
+    land_type: str = "forest",
+    grp_by: Optional[Union[str, List[str]]] = None,
+    area_domain: Optional[str] = None,
+    plot_domain: Optional[str] = None,
+    tree_domain: Optional[str] = None,
+    variance: bool = False,
+    totals: bool = True,
+    most_recent: bool = False,
+) -> ValidatedInputs:
+    """
+    Validate common estimator function inputs.
+
+    This function consolidates the validation logic that was previously
+    duplicated across all estimator functions (area, volume, biomass, tpa, etc.).
+
+    Parameters
+    ----------
+    land_type : str, default 'forest'
+        Land type to estimate for ('forest', 'timber', or 'all')
+    grp_by : str or list of str, optional
+        Column name(s) to group results by
+    area_domain : str, optional
+        SQL-like filter for condition-level attributes
+    plot_domain : str, optional
+        SQL-like filter for plot-level attributes
+    tree_domain : str, optional
+        SQL-like filter for tree-level attributes (tree-based estimators only)
+    variance : bool, default False
+        Whether to calculate variance instead of standard error
+    totals : bool, default True
+        Whether to include population-level totals
+    most_recent : bool, default False
+        Whether to automatically select most recent evaluation
+
+    Returns
+    -------
+    ValidatedInputs
+        Dataclass containing all validated inputs
+
+    Raises
+    ------
+    ValueError
+        If any parameter value is invalid
+    TypeError
+        If any parameter has wrong type
+
+    Examples
+    --------
+    >>> inputs = validate_estimator_inputs(
+    ...     land_type="forest",
+    ...     grp_by="OWNGRPCD",
+    ...     area_domain="STDAGE > 50",
+    ...     variance=True
+    ... )
+    >>> inputs.land_type
+    'forest'
+    >>> inputs.variance
+    True
+    """
+    return ValidatedInputs(
+        land_type=validate_land_type(land_type),
+        grp_by=validate_grp_by(grp_by),
+        area_domain=validate_domain_expression(area_domain, "area_domain"),
+        plot_domain=validate_domain_expression(plot_domain, "plot_domain"),
+        tree_domain=validate_domain_expression(tree_domain, "tree_domain"),
+        variance=validate_boolean(variance, "variance"),
+        totals=validate_boolean(totals, "totals"),
+        most_recent=validate_boolean(most_recent, "most_recent"),
+    )
+
+
+def ensure_fia_instance(db: Union[str, "FIA"]) -> Tuple["FIA", bool]:
+    """
+    Ensure db is a FIA instance, creating one if a path string is provided.
+
+    This function handles the common pattern of accepting either a path string
+    or an existing FIA connection, and tracks ownership for proper cleanup.
+
+    Parameters
+    ----------
+    db : str or FIA
+        Either a path to a FIA database file, or an existing FIA connection
+
+    Returns
+    -------
+    tuple[FIA, bool]
+        A tuple of (FIA instance, owns_db) where owns_db is True if this
+        function created the connection (caller should close it), or False
+        if an existing connection was passed in (caller should NOT close it)
+
+    Examples
+    --------
+    >>> db, owns_db = ensure_fia_instance("path/to/fia.duckdb")
+    >>> try:
+    ...     # use db
+    ...     pass
+    ... finally:
+    ...     if owns_db:
+    ...         db.close()
+
+    >>> existing_db = FIA("path/to/fia.duckdb")
+    >>> db, owns_db = ensure_fia_instance(existing_db)
+    >>> owns_db
+    False  # Caller passed in connection, so we don't own it
+    """
+    # Import here to avoid circular imports
+    from ..core import FIA
+
+    if isinstance(db, str):
+        return FIA(db), True
+    else:
+        return db, False
+
+
+def ensure_evalid_set(
+    db: "FIA",
+    eval_type: str = "ALL",
+    estimator_name: str = "estimation",
+) -> None:
+    """
+    Ensure EVALID is set on the database connection, auto-selecting if needed.
+
+    This function implements the common pattern of checking if EVALID is set,
+    and if not, automatically selecting the most recent evaluation with an
+    appropriate warning. This prevents overcounting from multiple evaluations.
+
+    Parameters
+    ----------
+    db : FIA
+        FIA database connection to check/update
+    eval_type : str, default 'ALL'
+        Evaluation type to select if auto-selecting. Common values:
+        - 'ALL': All plots (EXPALL evaluations) - use for area estimation
+        - 'VOL': Volume evaluations (EXPVOL) - use for volume/biomass/tpa
+        - 'GROW': Growth evaluations - use for growth estimation
+        - 'MORT': Mortality evaluations - use for mortality estimation
+    estimator_name : str, default 'estimation'
+        Name of the estimator function for warning messages
+
+    Warns
+    -----
+    UserWarning
+        If no EVALID was set and one was automatically selected
+    UserWarning
+        If no evaluations of the requested type were found
+
+    Examples
+    --------
+    >>> db = FIA("path/to/fia.duckdb")
+    >>> db.clip_by_state(37)
+    >>> ensure_evalid_set(db, eval_type="VOL", estimator_name="volume")
+    UserWarning: No EVALID specified. Automatically selecting most recent EXPVOL evaluations...
+
+    >>> # If EVALID already set, this is a no-op
+    >>> db.clip_most_recent(eval_type="VOL")
+    >>> ensure_evalid_set(db, eval_type="VOL")  # No warning
+    """
+    if db.evalid is not None:
+        return
+
+    # Auto-select most recent evaluation with warning
+    warnings.warn(
+        f"No EVALID specified. Automatically selecting most recent EXP{eval_type} evaluations. "
+        f"For explicit control, use db.clip_most_recent() or db.clip_by_evalid() before calling {estimator_name}()."
+    )
+    db.clip_most_recent(eval_type=eval_type)
+
+    # If still no EVALID, warn about potential issues
+    if db.evalid is None:
+        warnings.warn(
+            f"WARNING: No EXP{eval_type} evaluations found. Results may be incorrect due to "
+            "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
+            "to explicitly select appropriate EVALIDs."
+        )
 
 
 def _enhance_grouping_columns(df: pl.DataFrame) -> pl.DataFrame:
@@ -24,7 +253,7 @@ def _enhance_grouping_columns(df: pl.DataFrame) -> pl.DataFrame:
     pl.DataFrame
         Dataframe with descriptive name columns added
     """
-    from ..filtering.utils.grouping_functions import (
+    from ..filtering.utils import (
         add_forest_type_group,
         add_ownership_group_name,
     )

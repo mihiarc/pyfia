@@ -73,7 +73,7 @@ class DuckDBBackend(DatabaseBackend):
         }
 
         # Add configuration options
-        config_options: dict[str, Any] = {}
+        config_options: Dict[str, Any] = {}
         if self.memory_limit:
             config_options["memory_limit"] = self.memory_limit
         if self.threads:

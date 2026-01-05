@@ -1,58 +1,38 @@
 """
-Simplified FIA estimation module.
+FIA estimation module.
 
-This module provides straightforward statistical estimation functions
-for FIA data without unnecessary abstraction layers.
+This module provides statistical estimation functions for FIA data
+following Bechtold & Patterson (2005) methodology.
 
-Main API Functions:
-- area(): Estimate forest area
-- volume(): Estimate tree volume
-- biomass(): Estimate tree biomass and carbon
-- tpa(): Estimate trees per acre and basal area
-- mortality(): Estimate tree mortality
-- growth(): Estimate growth, removals, and net change
+Public API Functions:
+    area(): Estimate forest area
+    area_change(): Estimate forest area change between inventories
+    biomass(): Estimate tree biomass
+    carbon(): Estimate tree carbon (alias for biomass with carbon output)
+    carbon_flux(): Estimate carbon flux between inventories
+    carbon_pool(): Estimate carbon pools
+    growth(): Estimate tree growth
+    mortality(): Estimate tree mortality
+    removals(): Estimate tree removals
+    tpa(): Estimate trees per acre and basal area
+    volume(): Estimate tree volume
 
 All functions follow a consistent pattern:
-1. Simple parameter interface
-2. Clear calculation logic
-3. Standard output format
+1. Accept a FIADatabase and optional filtering/grouping parameters
+2. Return a polars DataFrame with estimates and uncertainty measures
+3. Include standard error and confidence intervals
+
+For internal implementation details (estimator classes, column constants,
+variance calculations), import directly from submodules:
+    - pyfia.estimation.estimators.*
+    - pyfia.estimation.base
+    - pyfia.estimation.columns
+    - pyfia.estimation.config
+    - pyfia.estimation.statistics
 """
 
-# Import base components
-from .base import BaseEstimator
-
-# Import column resolution helpers
-from .columns import (
-    BASE_COND_COLUMNS,
-    BASE_TREE_COLUMNS,
-    BIOMASS_COLUMNS,
-    COND_GROUPING_COLUMNS,
-    TIMBER_LAND_COLUMNS,
-    TREE_GROUPING_COLUMNS,
-    VOLUME_COLUMNS,
-    get_cond_columns,
-    get_tree_columns,
-)
-from .config import (
-    BiomassConfig,
-    EstimatorConfig,
-    MortalityConfig,
-    VolumeConfig,
-    create_config,
-)
-
-# Import estimator functions - THE MAIN PUBLIC API
-# Import estimator classes for advanced usage
+# Import estimator functions - THE PUBLIC API
 from .estimators import (
-    AreaEstimator,
-    AreaChangeEstimator,
-    BiomassEstimator,
-    CarbonPoolEstimator,
-    GrowthEstimator,
-    MortalityEstimator,
-    RemovalsEstimator,
-    TPAEstimator,
-    VolumeEstimator,
     area,
     area_change,
     biomass,
@@ -65,19 +45,11 @@ from .estimators import (
     tpa,
     volume,
 )
-from .statistics import (
-    VarianceCalculator,
-    calculate_confidence_interval,
-    calculate_cv,
-    calculate_post_stratified_variance,
-    calculate_ratio_of_means_variance,
-)
-from .utils import format_output_columns
 
-__version__ = "2.0.0"  # Major version bump for simplified architecture
+__version__ = "2.0.0"
 
+# Only expose user-facing estimator functions
 __all__ = [
-    # Main API functions
     "area",
     "area_change",
     "biomass",
@@ -89,38 +61,4 @@ __all__ = [
     "removals",
     "tpa",
     "volume",
-    # Estimator classes
-    "AreaEstimator",
-    "AreaChangeEstimator",
-    "BiomassEstimator",
-    "CarbonPoolEstimator",
-    "GrowthEstimator",
-    "MortalityEstimator",
-    "RemovalsEstimator",
-    "TPAEstimator",
-    "VolumeEstimator",
-    # Base components
-    "BaseEstimator",
-    "EstimatorConfig",
-    "VolumeConfig",
-    "BiomassConfig",
-    "MortalityConfig",
-    "create_config",
-    # Column resolution helpers
-    "BASE_TREE_COLUMNS",
-    "BASE_COND_COLUMNS",
-    "VOLUME_COLUMNS",
-    "BIOMASS_COLUMNS",
-    "TREE_GROUPING_COLUMNS",
-    "COND_GROUPING_COLUMNS",
-    "TIMBER_LAND_COLUMNS",
-    "get_tree_columns",
-    "get_cond_columns",
-    # Utilities (for advanced users)
-    "VarianceCalculator",
-    "calculate_ratio_of_means_variance",
-    "calculate_post_stratified_variance",
-    "calculate_confidence_interval",
-    "calculate_cv",
-    "format_output_columns",
 ]

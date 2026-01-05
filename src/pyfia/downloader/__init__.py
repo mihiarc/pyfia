@@ -32,6 +32,7 @@ References
 import logging
 import tempfile
 from pathlib import Path
+from typing import List, Optional, Union
 
 from rich.console import Console
 
@@ -97,7 +98,7 @@ def _get_default_data_dir() -> Path:
 def _convert_csvs_to_duckdb(
     csv_dir: Path,
     output_path: Path,
-    state_code: int | None = None,
+    state_code: Optional[int] = None,
     show_progress: bool = True,
 ) -> Path:
     """
@@ -191,10 +192,10 @@ def _convert_csvs_to_duckdb(
 
 
 def download(
-    states: str | list[str],
-    dir: str | Path | None = None,
+    states: Union[str, List[str]],
+    dir: Optional[Union[str, Path]] = None,
     common: bool = True,
-    tables: list[str] | None = None,
+    tables: Optional[List[str]] = None,
     force: bool = False,
     show_progress: bool = True,
     use_cache: bool = True,
@@ -318,7 +319,7 @@ def _download_single_state(
     client: DataMartClient,
     cache: DownloadCache,
     common: bool,
-    tables: list[str] | None,
+    tables: Optional[List[str]],
     force: bool,
     show_progress: bool,
     use_cache: bool,
@@ -404,12 +405,12 @@ def _download_single_state(
 
 
 def _download_multi_state(
-    states: list[str],
+    states: List[str],
     data_dir: Path,
     client: DataMartClient,
     cache: DownloadCache,
     common: bool,
-    tables: list[str] | None,
+    tables: Optional[List[str]],
     force: bool,
     show_progress: bool,
     use_cache: bool,
@@ -547,8 +548,8 @@ def _download_multi_state(
 
 
 def clear_cache(
-    older_than_days: int | None = None,
-    state: str | None = None,
+    older_than_days: Optional[int] = None,
+    state: Optional[str] = None,
     delete_files: bool = False,
 ) -> int:
     """

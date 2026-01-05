@@ -10,9 +10,11 @@ References
 - rFIA common tables: https://doserlab.com/files/rfia/reference/getfia
 """
 
+from typing import Dict, List, Optional
+
 # Common tables required for pyFIA estimation functions
 # These match the rFIA "common=TRUE" default tables
-COMMON_TABLES: list[str] = [
+COMMON_TABLES: List[str] = [
     "COND",  # Condition data
     "COND_DWM_CALC",  # Down woody material calculations
     "INVASIVE_SUBPLOT_SPP",  # Invasive species subplot data
@@ -36,7 +38,7 @@ COMMON_TABLES: list[str] = [
 ]
 
 # Reference tables (state-independent)
-REFERENCE_TABLES: list[str] = [
+REFERENCE_TABLES: List[str] = [
     "REF_SPECIES",
     "REF_SPECIES_GROUP",
     "REF_FOREST_TYPE",
@@ -56,7 +58,7 @@ REFERENCE_TABLES: list[str] = [
 ]
 
 # All available FIA tables (comprehensive list)
-ALL_TABLES: list[str] = [
+ALL_TABLES: List[str] = [
     "BOUNDARY",
     "COND",
     "COND_DWM_CALC",
@@ -116,7 +118,7 @@ ALL_TABLES: list[str] = [
 ]
 
 # Valid US state/territory codes (2-letter abbreviations)
-VALID_STATE_CODES: dict[str, str] = {
+VALID_STATE_CODES: Dict[str, str] = {
     "AL": "Alabama",
     "AK": "Alaska",
     "AZ": "Arizona",
@@ -179,7 +181,7 @@ VALID_STATE_CODES: dict[str, str] = {
 }
 
 # State FIPS codes mapping
-STATE_FIPS_CODES: dict[str, int] = {
+STATE_FIPS_CODES: Dict[str, int] = {
     "AL": 1,
     "AK": 2,
     "AZ": 4,
@@ -297,8 +299,8 @@ def get_state_fips(state: str) -> int:
 
 
 def get_tables_for_download(
-    common: bool = True, tables: list[str] | None = None
-) -> list[str]:
+    common: bool = True, tables: Optional[List[str]] = None
+) -> List[str]:
     """
     Get the list of tables to download.
 

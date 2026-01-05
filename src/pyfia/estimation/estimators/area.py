@@ -5,7 +5,7 @@ Simple, straightforward implementation without unnecessary abstractions.
 """
 
 import re
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 import polars as pl
 
@@ -184,7 +184,7 @@ class AreaEstimator(BaseEstimator):
 
     def _select_variance_columns(
         self, available_cols: List[str]
-    ) -> tuple[List[Union[str, pl.Expr]], List[str]]:
+    ) -> Tuple[List[Union[str, pl.Expr]], List[str]]:
         """
         Select columns needed for variance calculation.
 

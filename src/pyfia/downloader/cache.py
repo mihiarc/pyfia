@@ -111,7 +111,9 @@ class DownloadCache:
         with open(self.metadata_file, "w") as f:
             json.dump(data, f, indent=2)
 
-    def get_cached(self, state: str, max_age_days: Optional[float] = None) -> Optional[Path]:
+    def get_cached(
+        self, state: str, max_age_days: Optional[float] = None
+    ) -> Optional[Path]:
         """
         Get the path to a cached DuckDB file if it exists and is valid.
 

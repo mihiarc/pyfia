@@ -49,7 +49,9 @@ class FIADataReader:
                 - For MotherDuck: motherduck_token
         """
         db_str = str(db_path)
-        self._is_motherduck = db_str.startswith("md:") or db_str.startswith("motherduck:")
+        self._is_motherduck = db_str.startswith("md:") or db_str.startswith(
+            "motherduck:"
+        )
 
         if self._is_motherduck:
             self.db_path = db_str  # type: ignore[assignment]
@@ -335,6 +337,7 @@ class FIADataReader:
         from .utils import batch_query_by_values
 
         if plot_cns:
+
             def query_plots(batch: List[str]) -> pl.LazyFrame:
                 cn_str = ", ".join(f"'{cn}'" for cn in batch)
                 return self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=True)

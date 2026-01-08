@@ -172,9 +172,7 @@ class AreaEstimator(BaseEstimator):
             data = data.with_columns(
                 [
                     pl.when(pl.col("DOMAIN_IND") == 1.0)
-                    .then(
-                        pl.when(area_domain_expr).then(1.0).otherwise(0.0)
-                    )
+                    .then(pl.when(area_domain_expr).then(1.0).otherwise(0.0))
                     .otherwise(0.0)
                     .alias("DOMAIN_IND")
                 ]

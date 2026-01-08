@@ -94,81 +94,114 @@ def calculate_grouped_domain_total_variance(
 
     if not valid_group_cols:
         # No grouping - fall back to scalar calculation
-        var_stats = calculate_domain_total_variance(plot_data, y_col, stratum_col, weight_col)
+        var_stats = calculate_domain_total_variance(
+            plot_data, y_col, stratum_col, weight_col
+        )
         # Calculate per-acre SE
-        total_x = (plot_data[weight_col] * plot_data[x_col]).sum() if x_col in plot_data.columns else 1.0
+        total_x = (
+            (plot_data[weight_col] * plot_data[x_col]).sum()
+            if x_col in plot_data.columns
+            else 1.0
+        )
         se_acre = var_stats["se_total"] / total_x if total_x > 0 else 0.0
-        return pl.DataFrame({
-            "se_acre": [se_acre],
-            "se_total": [var_stats["se_total"]],
-            "variance_acre": [se_acre ** 2],
-            "variance_total": [var_stats["variance_total"]],
-        })
+        return pl.DataFrame(
+            {
+                "se_acre": [se_acre],
+                "se_total": [var_stats["se_total"]],
+                "variance_acre": [se_acre**2],
+                "variance_total": [var_stats["variance_total"]],
+            }
+        )
 
     # Step 1: Calculate stratum-level statistics per group
     # Group by (group_cols + stratum) to get stratum stats within each group
     stratum_group_cols = valid_group_cols + [stratum_col]
 
-    strata_stats = plot_data.group_by(stratum_group_cols).agg([
-        pl.count("PLT_CN").alias("n_h"),
-        pl.mean(y_col).alias("ybar_h"),
-        pl.var(y_col, ddof=1).alias("s2_yh"),
-        pl.first(weight_col).cast(pl.Float64).alias("w_h"),
-        # For per-acre calculation, need total area
-        (pl.col(weight_col).first() * pl.col(x_col).sum()).alias("stratum_area") if x_col in plot_data.columns else pl.lit(0.0).alias("stratum_area"),
-    ])
+    strata_stats = plot_data.group_by(stratum_group_cols).agg(
+        [
+            pl.count("PLT_CN").alias("n_h"),
+            pl.mean(y_col).alias("ybar_h"),
+            pl.var(y_col, ddof=1).alias("s2_yh"),
+            pl.first(weight_col).cast(pl.Float64).alias("w_h"),
+            # For per-acre calculation, need total area
+            (pl.col(weight_col).first() * pl.col(x_col).sum()).alias("stratum_area")
+            if x_col in plot_data.columns
+            else pl.lit(0.0).alias("stratum_area"),
+        ]
+    )
 
     # Handle null variances (single observation or all same values)
-    strata_stats = strata_stats.with_columns([
-        pl.when(pl.col("s2_yh").is_null())
-        .then(0.0)
-        .otherwise(pl.col("s2_yh"))
-        .cast(pl.Float64)
-        .alias("s2_yh"),
-        pl.col("ybar_h").fill_null(0.0).cast(pl.Float64).alias("ybar_h"),
-    ])
+    strata_stats = strata_stats.with_columns(
+        [
+            pl.when(pl.col("s2_yh").is_null())
+            .then(0.0)
+            .otherwise(pl.col("s2_yh"))
+            .cast(pl.Float64)
+            .alias("s2_yh"),
+            pl.col("ybar_h").fill_null(0.0).cast(pl.Float64).alias("ybar_h"),
+        ]
+    )
 
     # Step 2: Calculate variance component per stratum (only for n_h > 1)
     # v_h = w_h² × s²_yh × n_h
-    strata_stats = strata_stats.with_columns([
-        pl.when(pl.col("n_h") > 1)
-        .then(pl.col("w_h") ** 2 * pl.col("s2_yh") * pl.col("n_h"))
-        .otherwise(0.0)
-        .alias("v_h"),
-        # Total Y contribution from this stratum
-        (pl.col("ybar_h") * pl.col("w_h") * pl.col("n_h")).alias("total_y_h"),
-    ])
+    strata_stats = strata_stats.with_columns(
+        [
+            pl.when(pl.col("n_h") > 1)
+            .then(pl.col("w_h") ** 2 * pl.col("s2_yh") * pl.col("n_h"))
+            .otherwise(0.0)
+            .alias("v_h"),
+            # Total Y contribution from this stratum
+            (pl.col("ybar_h") * pl.col("w_h") * pl.col("n_h")).alias("total_y_h"),
+        ]
+    )
 
     # Step 3: Aggregate variance components by group
-    variance_by_group = strata_stats.group_by(valid_group_cols).agg([
-        pl.sum("v_h").alias("variance_total"),
-        pl.sum("total_y_h").alias("total_y"),
-        pl.sum("stratum_area").alias("total_area"),
-        pl.sum("n_h").alias("n_plots"),
-    ])
+    variance_by_group = strata_stats.group_by(valid_group_cols).agg(
+        [
+            pl.sum("v_h").alias("variance_total"),
+            pl.sum("total_y_h").alias("total_y"),
+            pl.sum("stratum_area").alias("total_area"),
+            pl.sum("n_h").alias("n_plots"),
+        ]
+    )
 
     # Step 4: Calculate SE and per-acre variance
-    variance_by_group = variance_by_group.with_columns([
-        # Clamp negative variances to 0
-        pl.when(pl.col("variance_total") < 0)
-        .then(0.0)
-        .otherwise(pl.col("variance_total"))
-        .alias("variance_total"),
-    ]).with_columns([
-        # SE total = sqrt(variance_total)
-        pl.col("variance_total").sqrt().alias("se_total"),
-        # SE acre = SE_total / total_area
-        pl.when(pl.col("total_area") > 0)
-        .then(pl.col("variance_total").sqrt() / pl.col("total_area"))
-        .otherwise(0.0)
-        .alias("se_acre"),
-    ]).with_columns([
-        # Variance acre = SE_acre²
-        (pl.col("se_acre") ** 2).alias("variance_acre"),
-    ])
+    variance_by_group = (
+        variance_by_group.with_columns(
+            [
+                # Clamp negative variances to 0
+                pl.when(pl.col("variance_total") < 0)
+                .then(0.0)
+                .otherwise(pl.col("variance_total"))
+                .alias("variance_total"),
+            ]
+        )
+        .with_columns(
+            [
+                # SE total = sqrt(variance_total)
+                pl.col("variance_total").sqrt().alias("se_total"),
+                # SE acre = SE_total / total_area
+                pl.when(pl.col("total_area") > 0)
+                .then(pl.col("variance_total").sqrt() / pl.col("total_area"))
+                .otherwise(0.0)
+                .alias("se_acre"),
+            ]
+        )
+        .with_columns(
+            [
+                # Variance acre = SE_acre²
+                (pl.col("se_acre") ** 2).alias("variance_acre"),
+            ]
+        )
+    )
 
     # Select only the columns we need
-    result_cols = valid_group_cols + ["se_acre", "se_total", "variance_acre", "variance_total"]
+    result_cols = valid_group_cols + [
+        "se_acre",
+        "se_total",
+        "variance_acre",
+        "variance_total",
+    ]
     return variance_by_group.select(result_cols)
 
 

@@ -127,15 +127,17 @@ class AreaChangeEstimator(BaseEstimator):
             chng = chng.lazy()
 
         # Select needed columns from change matrix
-        data = chng.select([
-            "PLT_CN",
-            "CONDID",
-            "PREV_PLT_CN",
-            "PREVCOND",
-            "SUBP",
-            "SUBPTYP",
-            "SUBPTYP_PROP_CHNG",
-        ])
+        data = chng.select(
+            [
+                "PLT_CN",
+                "CONDID",
+                "PREV_PLT_CN",
+                "PREVCOND",
+                "SUBP",
+                "SUBPTYP",
+                "SUBPTYP_PROP_CHNG",
+            ]
+        )
 
         # Load COND table
         if "COND" not in self.db.tables:
@@ -176,11 +178,13 @@ class AreaChangeEstimator(BaseEstimator):
         )
 
         # Alias the status column for previous condition
-        cond_prev = cond_prev.select([
-            pl.col("PLT_CN"),
-            pl.col("CONDID"),
-            pl.col("COND_STATUS_CD").alias("PREV_COND_STATUS_CD"),
-        ])
+        cond_prev = cond_prev.select(
+            [
+                pl.col("PLT_CN"),
+                pl.col("CONDID"),
+                pl.col("COND_STATUS_CD").alias("PREV_COND_STATUS_CD"),
+            ]
+        )
 
         data = data.join(
             cond_prev,
@@ -208,9 +212,7 @@ class AreaChangeEstimator(BaseEstimator):
         )
 
         # Filter to plots with valid REMPER (remeasured plots only)
-        data = data.filter(
-            pl.col("REMPER").is_not_null() & (pl.col("REMPER") > 0)
-        )
+        data = data.filter(pl.col("REMPER").is_not_null() & (pl.col("REMPER") > 0))
 
         # Join stratification data for expansion factors
         strat_data = self._get_stratification_data()
@@ -258,19 +260,15 @@ class AreaChangeEstimator(BaseEstimator):
 
         if change_type == "gross_gain":
             # Only gains (positive values)
-            data = data.with_columns([
-                (gain_expr * prop_col).alias("CHANGE_VALUE")
-            ])
+            data = data.with_columns([(gain_expr * prop_col).alias("CHANGE_VALUE")])
         elif change_type == "gross_loss":
             # Only losses (as positive values for magnitude)
-            data = data.with_columns([
-                (loss_expr * prop_col).alias("CHANGE_VALUE")
-            ])
+            data = data.with_columns([(loss_expr * prop_col).alias("CHANGE_VALUE")])
         else:
             # Net change: gains - losses
-            data = data.with_columns([
-                ((gain_expr - loss_expr) * prop_col).alias("CHANGE_VALUE")
-            ])
+            data = data.with_columns(
+                [((gain_expr - loss_expr) * prop_col).alias("CHANGE_VALUE")]
+            )
 
         return data
 
@@ -282,14 +280,15 @@ class AreaChangeEstimator(BaseEstimator):
         """
         # Filter to valid transitions (both statuses must be known)
         data = data.filter(
-            pl.col("CURR_COND_STATUS_CD").is_not_null() &
-            pl.col("PREV_COND_STATUS_CD").is_not_null()
+            pl.col("CURR_COND_STATUS_CD").is_not_null()
+            & pl.col("PREV_COND_STATUS_CD").is_not_null()
         )
 
         # Apply any area domain filter if specified
         area_domain = self.config.get("area_domain")
         if area_domain:
             from ...filtering import apply_area_filters
+
             data = apply_area_filters(data, area_domain)
 
         return data
@@ -332,9 +331,9 @@ class AreaChangeEstimator(BaseEstimator):
 
         # Normalize by number of subplots (typically 4 per plot)
         # Each subplot represents 1/4 of the plot
-        data = data.with_columns([
-            (pl.col("PLOT_CHANGE_VALUE") / 4.0).alias("PLOT_CHANGE_NORM")
-        ])
+        data = data.with_columns(
+            [(pl.col("PLOT_CHANGE_VALUE") / 4.0).alias("PLOT_CHANGE_NORM")]
+        )
 
         return data
 
@@ -348,25 +347,27 @@ class AreaChangeEstimator(BaseEstimator):
         annual = self.config.get("annual", True)
 
         # Apply expansion factor
-        data = data.with_columns([
-            (pl.col("PLOT_CHANGE_NORM") * pl.col("EXPNS") * pl.col("ADJ_FACTOR_SUBP"))
-            .alias("CHANGE_EXPANDED")
-        ])
+        data = data.with_columns(
+            [
+                (
+                    pl.col("PLOT_CHANGE_NORM")
+                    * pl.col("EXPNS")
+                    * pl.col("ADJ_FACTOR_SUBP")
+                ).alias("CHANGE_EXPANDED")
+            ]
+        )
 
         # Annualize if requested
         if annual:
-            data = data.with_columns([
-                (pl.col("CHANGE_EXPANDED") / pl.col("REMPER"))
-                .alias("CHANGE_ANNUAL")
-            ])
+            data = data.with_columns(
+                [(pl.col("CHANGE_EXPANDED") / pl.col("REMPER")).alias("CHANGE_ANNUAL")]
+            )
             value_col = "CHANGE_ANNUAL"
         else:
             value_col = "CHANGE_EXPANDED"
 
         # Rename to standard column
-        data = data.with_columns([
-            pl.col(value_col).alias("AREA_CHANGE")
-        ])
+        data = data.with_columns([pl.col(value_col).alias("AREA_CHANGE")])
 
         return data
 
@@ -394,15 +395,19 @@ class AreaChangeEstimator(BaseEstimator):
 
         # Aggregate
         if group_cols:
-            result = self.plot_change_data.group_by(group_cols).agg([
-                pl.col("AREA_CHANGE").sum().alias("AREA_CHANGE_TOTAL"),
-                pl.col("PLT_CN").n_unique().alias("N_PLOTS"),
-            ])
+            result = self.plot_change_data.group_by(group_cols).agg(
+                [
+                    pl.col("AREA_CHANGE").sum().alias("AREA_CHANGE_TOTAL"),
+                    pl.col("PLT_CN").n_unique().alias("N_PLOTS"),
+                ]
+            )
         else:
-            result = self.plot_change_data.select([
-                pl.col("AREA_CHANGE").sum().alias("AREA_CHANGE_TOTAL"),
-                pl.col("PLT_CN").n_unique().alias("N_PLOTS"),
-            ])
+            result = self.plot_change_data.select(
+                [
+                    pl.col("AREA_CHANGE").sum().alias("AREA_CHANGE_TOTAL"),
+                    pl.col("PLT_CN").n_unique().alias("N_PLOTS"),
+                ]
+            )
 
         return result
 
@@ -442,10 +447,12 @@ class AreaChangeEstimator(BaseEstimator):
         else:
             # Single row result
             if len(var_result) > 0:
-                result = result.with_columns([
-                    pl.lit(var_result["VARIANCE"][0]).alias("VARIANCE"),
-                    pl.lit(var_result["SE"][0]).alias("SE"),
-                ])
+                result = result.with_columns(
+                    [
+                        pl.lit(var_result["VARIANCE"][0]).alias("VARIANCE"),
+                        pl.lit(var_result["SE"][0]).alias("SE"),
+                    ]
+                )
 
         return result
 

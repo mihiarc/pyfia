@@ -237,7 +237,9 @@ def sanitize_sql_path(path: Union[str, Path]) -> str:
 SQL_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 
 
-def validate_sql_identifier(identifier: str, identifier_type: str = "identifier") -> str:
+def validate_sql_identifier(
+    identifier: str, identifier_type: str = "identifier"
+) -> str:
     """
     Validate that a string is a safe SQL identifier (table name, column name).
 

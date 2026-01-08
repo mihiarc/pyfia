@@ -91,7 +91,9 @@ class FIA:
             Database engine ('duckdb', 'sqlite', or None for auto-detect).
         """
         db_str = str(db_path)
-        self._is_motherduck = db_str.startswith("md:") or db_str.startswith("motherduck:")
+        self._is_motherduck = db_str.startswith("md:") or db_str.startswith(
+            "motherduck:"
+        )
 
         if self._is_motherduck:
             self.db_path = db_str  # type: ignore[assignment]
@@ -1059,7 +1061,10 @@ class FIA:
         evalid_plot_cns = self._get_evalid_filtered_plot_cns()
         if evalid_plot_cns is not None:
             trees = self.tables["TREE"].join(
-                evalid_plot_cns.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
+                evalid_plot_cns.select("CN"),
+                left_on="PLT_CN",
+                right_on="CN",
+                how="inner",
             )
         else:
             trees = self.tables["TREE"]
@@ -1092,7 +1097,10 @@ class FIA:
         evalid_plot_cns = self._get_evalid_filtered_plot_cns()
         if evalid_plot_cns is not None:
             conds = self.tables["COND"].join(
-                evalid_plot_cns.select("CN"), left_on="PLT_CN", right_on="CN", how="inner"
+                evalid_plot_cns.select("CN"),
+                left_on="PLT_CN",
+                right_on="CN",
+                how="inner",
             )
         else:
             conds = self.tables["COND"]

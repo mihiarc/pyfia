@@ -14,10 +14,10 @@ from typing import Dict
 class EstimateType(IntEnum):
     """
     EVALIDator estimate types (snum values).
-    
+
     These values are used with the FIADB API fullreport endpoint to specify
     what type of forest inventory estimate to retrieve.
-    
+
     Categories:
     - AREA: Land area estimates (3)
     - AREA_CHANGE: Area change over time (10)
@@ -28,10 +28,10 @@ class EstimateType(IntEnum):
     - CARBON: Carbon storage estimates (38)
     - DOWN_WOODY: Down woody materials (1)
     - TREE_DYNAMICS: Mortality, removals, growth in trees (48)
-    
+
     Total: 752 estimate types
     """
-    
+
     # --- AREA (3 estimates) ---
     SNUM_2 = 2
     SNUM_3 = 3
@@ -1563,11 +1563,11 @@ SNUM_DESCRIPTIONS: Dict[int, str] = {
 # Common estimate types for convenience
 class CommonEstimates:
     """Commonly used estimate types for quick access."""
-    
+
     # Area
     FOREST_LAND_AREA = 2
     TIMBERLAND_AREA = 3
-    
+
     # Tree counts
     LIVE_TREES_FOREST = 4
     LIVE_TREES_TIMBERLAND = 7
@@ -1577,13 +1577,13 @@ class CommonEstimates:
     STANDING_DEAD_TREES_TIMBERLAND = 9
     SEEDLINGS_FOREST = 45
     SEEDLINGS_TIMBERLAND = 46
-    
+
     # Basal area
     BASAL_AREA_LIVE_FOREST = 1004
     BASAL_AREA_LIVE_TIMBERLAND = 1007
     BASAL_AREA_GROWING_STOCK_FOREST = 1005
     BASAL_AREA_GROWING_STOCK_TIMBERLAND = 1008
-    
+
     # Volume
     NET_VOLUME_GROWING_STOCK_FOREST = 15
     NET_VOLUME_GROWING_STOCK_TIMBERLAND = 18
@@ -1591,13 +1591,13 @@ class CommonEstimates:
     NET_SAWLOG_VOLUME_TIMBERLAND = 19
     NET_SAWLOG_BOARD_FEET_FOREST = 20
     NET_SAWLOG_BOARD_FEET_TIMBERLAND = 21
-    
+
     # Biomass
     ABOVEGROUND_BIOMASS_FOREST = 10
     ABOVEGROUND_BIOMASS_TIMBERLAND = 13
     BELOWGROUND_BIOMASS_FOREST = 59
     BELOWGROUND_BIOMASS_TIMBERLAND = 73
-    
+
     # Carbon
     TOTAL_CARBON_FOREST = 97
     CARBON_POOL_ABOVEGROUND = 98

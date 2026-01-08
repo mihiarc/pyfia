@@ -62,8 +62,14 @@ class BiomassEstimator(BaseEstimator):
             for col in grp_cols:
                 # Common TREE columns for grouping
                 if col not in cols and col in [
-                    "HT", "ACTUALHT", "CR", "CCLCD", "SPGRPCD", "SPCD",
-                    "TREECLCD", "DECAYCD"
+                    "HT",
+                    "ACTUALHT",
+                    "CR",
+                    "CCLCD",
+                    "SPGRPCD",
+                    "SPCD",
+                    "TREECLCD",
+                    "DECAYCD",
                 ]:
                     cols.append(col)
 
@@ -263,7 +269,9 @@ class BiomassEstimator(BaseEstimator):
             [
                 pl.sum("y_bio_ic").alias("y_bio_i"),  # Total biomass per plot
                 pl.sum("y_carb_ic").alias("y_carb_i"),  # Total carbon per plot
-                pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),  # Area proportion
+                pl.sum("CONDPROP_UNADJ")
+                .cast(pl.Float64)
+                .alias("x_i"),  # Area proportion
             ]
         )
 
@@ -364,7 +372,9 @@ class BiomassEstimator(BaseEstimator):
                 ]
             )
 
-            bio_stats = calculate_domain_total_variance(all_plots_with_values, "y_bio_i")
+            bio_stats = calculate_domain_total_variance(
+                all_plots_with_values, "y_bio_i"
+            )
             carb_stats = calculate_domain_total_variance(
                 all_plots_with_values, "y_carb_i"
             )

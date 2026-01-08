@@ -165,3 +165,7 @@ data/
 # Documentation build
 site/
 data/
+
+# JOSS paper (kept separate from repo)
+paper.md
+paper.bib

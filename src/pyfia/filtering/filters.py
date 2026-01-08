@@ -12,7 +12,13 @@ from typing import Optional, TypeVar
 import polars as pl
 
 from ..constants.plot_design import DiameterBreakpoints
-from ..constants.status_codes import LandStatus, ReserveStatus, SiteClass, TreeClass, TreeStatus
+from ..constants.status_codes import (
+    LandStatus,
+    ReserveStatus,
+    SiteClass,
+    TreeClass,
+    TreeStatus,
+)
 from .parser import DomainExpressionParser
 
 # Type variable for DataFrame/LazyFrame operations

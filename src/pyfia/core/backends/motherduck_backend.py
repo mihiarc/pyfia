@@ -86,7 +86,9 @@ class MotherDuckBackend(DatabaseBackend):
 
         try:
             # Connect to MotherDuck using md: protocol
-            connection_string = f"md:{self.database}?motherduck_token={self.motherduck_token}"
+            connection_string = (
+                f"md:{self.database}?motherduck_token={self.motherduck_token}"
+            )
             self._connection = duckdb.connect(connection_string)
             logger.info(f"Connected to MotherDuck database: {self.database}")
 
@@ -263,8 +265,8 @@ class MotherDuckBackend(DatabaseBackend):
             # For reference tables, check in the reference database
             if table_name in REFERENCE_TABLES:
                 result = self._connection.execute(  # type: ignore[union-attr]
-                    f"SELECT COUNT(*) FROM information_schema.tables "
-                    f"WHERE table_catalog = ? AND table_name = ?",
+                    "SELECT COUNT(*) FROM information_schema.tables "
+                    "WHERE table_catalog = ? AND table_name = ?",
                     [REFERENCE_DATABASE, table_name],
                 ).fetchone()
             else:

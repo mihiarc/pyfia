@@ -49,6 +49,7 @@ class ValidatedInputs:
     most_recent : bool
         Whether to use most recent evaluation
     """
+
     land_type: str
     grp_by: Optional[Union[str, List[str]]]
     area_domain: Optional[str]

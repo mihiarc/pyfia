@@ -23,7 +23,6 @@ from ..constants.status_codes import (
     SiteClass,
 )
 
-
 # =============================================================================
 # Column Validation
 # =============================================================================
@@ -620,8 +619,7 @@ def assign_forest_type_group(
     import warnings
 
     warnings.warn(
-        "assign_forest_type_group is deprecated. "
-        "Use add_forest_type_group instead.",
+        "assign_forest_type_group is deprecated. Use add_forest_type_group instead.",
         DeprecationWarning,
         stacklevel=2,
     )

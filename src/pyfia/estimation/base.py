@@ -217,7 +217,9 @@ class BaseEstimator(ABC):
             if not isinstance(plot_df, pl.LazyFrame):
                 plot_df = plot_df.lazy()
 
-            plot_df = apply_plot_filters(plot_df, plot_domain=self.config["plot_domain"])
+            plot_df = apply_plot_filters(
+                plot_df, plot_domain=self.config["plot_domain"]
+            )
             plot_filtered_plots = plot_df.select(pl.col("CN").alias("PLT_CN")).unique()
 
             # Combine with EVALID filter if both exist
@@ -358,7 +360,9 @@ class BaseEstimator(ABC):
         # Apply plot domain filter BEFORE joining with COND
         # This allows filtering by PLOT-level attributes like COUNTYCD
         if self.config.get("plot_domain"):
-            plot_df = apply_plot_filters(plot_df, plot_domain=self.config["plot_domain"])
+            plot_df = apply_plot_filters(
+                plot_df, plot_domain=self.config["plot_domain"]
+            )
 
         # Join condition and plot (all PLOT columns for grouping flexibility)
         data = cond_df.join(plot_df, left_on="PLT_CN", right_on="CN", how="inner")
@@ -914,9 +918,7 @@ class BaseEstimator(ABC):
         ):
             # Get column names from polygon attributes (excluding CN which is the join key)
             polygon_attr_cols = [
-                col
-                for col in self.db._polygon_attributes.columns
-                if col != "CN"
+                col for col in self.db._polygon_attributes.columns if col != "CN"
             ]
             # Add these columns to the selection if they exist in the plot schema
             plot_schema = plot.collect_schema().names()
@@ -1172,20 +1174,24 @@ class BaseEstimator(ABC):
                 plot_data.select(join_cols + [y_col_alias, "x_i"]),
                 on=join_cols,
                 how="left",
-            ).with_columns([
-                pl.col(y_col_alias).fill_null(0.0),
-                pl.col("x_i").fill_null(0.0),
-            ])
+            ).with_columns(
+                [
+                    pl.col(y_col_alias).fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
         else:
             # No grouping - just use all plots with plot_data
             all_plots_with_data = all_plots.join(
                 plot_data.select(["PLT_CN", y_col_alias, "x_i"]),
                 on="PLT_CN",
                 how="left",
-            ).with_columns([
-                pl.col(y_col_alias).fill_null(0.0),
-                pl.col("x_i").fill_null(0.0),
-            ])
+            ).with_columns(
+                [
+                    pl.col(y_col_alias).fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
 
         return all_plots_with_data, valid_group_cols
 
@@ -1213,12 +1219,14 @@ class BaseEstimator(ABC):
             total_se_col = se_col.replace("_ACRE_", "_TOTAL_")
             total_var_col = var_col.replace("_ACRE_", "_TOTAL_")
 
-            variance_df = variance_df.with_columns([
-                pl.col("se_acre").alias(se_col),
-                pl.col("variance_acre").alias(var_col),
-                pl.col("se_total").alias(total_se_col),
-                pl.col("variance_total").alias(total_var_col),
-            ])
+            variance_df = variance_df.with_columns(
+                [
+                    pl.col("se_acre").alias(se_col),
+                    pl.col("variance_acre").alias(var_col),
+                    pl.col("se_total").alias(total_se_col),
+                    pl.col("variance_total").alias(total_var_col),
+                ]
+            )
 
         # Drop the generic columns
         cols_to_drop = ["se_acre", "se_total", "variance_acre", "variance_total"]

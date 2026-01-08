@@ -6,7 +6,7 @@ and removals estimation using FIA's GRM tables.
 """
 
 import logging
-from typing import Dict, List, Literal, Optional
+from typing import List, Literal, Optional
 
 import polars as pl
 

@@ -9,8 +9,6 @@ This module provides all filtering functionality including:
 """
 
 # Core parsing functionality
-from .parser import DomainExpressionParser
-
 # Filtering functions
 from .filters import apply_area_filters, apply_plot_filters, apply_tree_filters
 
@@ -21,30 +19,25 @@ from .indicators import (
     classify_land_types,
     get_land_domain_indicator,
 )
+from .parser import DomainExpressionParser
 
 # Classification functions
+# Grouping functions
+# Validation functions
 from .utils import (
+    ColumnValidator,
+    add_forest_type_group,
+    add_ownership_group_name,
+    add_species_info,
     assign_forest_type_group,
     assign_size_class,
     assign_species_group,
     assign_tree_basis,
-)
-
-# Grouping functions
-from .utils import (
-    add_forest_type_group,
-    add_ownership_group_name,
-    add_species_info,
+    check_columns,
     create_size_class_expr,
+    ensure_columns,
     get_size_class_bounds,
     setup_grouping_columns,
-)
-
-# Validation functions
-from .utils import (
-    ColumnValidator,
-    check_columns,
-    ensure_columns,
     validate_columns,
 )
 

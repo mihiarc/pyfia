@@ -262,7 +262,9 @@ class NoEVALIDError(FilterError):
         Suggested action to resolve the issue.
     """
 
-    def __init__(self, operation: Optional[str] = None, suggestion: Optional[str] = None):
+    def __init__(
+        self, operation: Optional[str] = None, suggestion: Optional[str] = None
+    ):
         self.operation = operation
         self.suggestion = suggestion
         message = "No EVALID filter specified"

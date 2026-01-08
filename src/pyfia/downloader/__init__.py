@@ -493,9 +493,7 @@ def _download_multi_state(
                     try:
                         safe_table = validate_sql_identifier(table_name, "table name")
                     except ValueError as e:
-                        logger.warning(
-                            f"Skipping invalid table name {table_name}: {e}"
-                        )
+                        logger.warning(f"Skipping invalid table name {table_name}: {e}")
                         continue
 
                     # Sanitize CSV path for safe SQL interpolation

@@ -10,6 +10,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import polars as pl
 
 from ...core import FIA
+from ...filtering import get_land_domain_indicator
 from ..base import AggregationResult, BaseEstimator
 from ..tree_expansion import apply_area_adjustment_factors
 from ..utils import (
@@ -127,36 +128,16 @@ class AreaEstimator(BaseEstimator):
         This method operates entirely on LazyFrames to enable server-side
         execution on cloud backends like MotherDuck.
         """
-        # Create domain indicator based on land type
+        # Create domain indicator based on land type using centralized indicator function
+        # This replaces magic numbers with named constants from status_codes.py
         # All operations work on LazyFrame - no .collect() needed
         land_type = self.config.get("land_type", "forest")
-        if land_type == "forest":
-            # Create domain indicator for forest conditions
-            data = data.with_columns(
-                [
-                    pl.when(pl.col("COND_STATUS_CD") == 1)
-                    .then(1.0)
-                    .otherwise(0.0)
-                    .alias("DOMAIN_IND")
-                ]
-            )
-        elif land_type == "timber":
-            # Create domain indicator for timber conditions
-            data = data.with_columns(
-                [
-                    pl.when(
-                        (pl.col("COND_STATUS_CD") == 1)
-                        & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
-                        & (pl.col("RESERVCD") == 0)
-                    )
-                    .then(1.0)
-                    .otherwise(0.0)
-                    .alias("DOMAIN_IND")
-                ]
-            )
-        else:
-            # "all" means everything is in the domain
-            data = data.with_columns([pl.lit(1.0).alias("DOMAIN_IND")])
+
+        # Get the boolean expression for this land type and convert to 0/1 indicator
+        land_filter_expr = get_land_domain_indicator(land_type)
+        data = data.with_columns(
+            [pl.when(land_filter_expr).then(1.0).otherwise(0.0).alias("DOMAIN_IND")]
+        )
 
         # Apply area domain filter using centralized parser
         area_domain = self.config.get("area_domain")

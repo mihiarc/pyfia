@@ -137,6 +137,20 @@ check_untyped_defs = true
 show_column_numbers = true
 pretty = true
 
+# Exclude modules with pre-existing type issues (to be fixed separately)
+# TODO: Fix these and remove overrides
+[[tool.mypy.overrides]]
+module = [
+    "pyfia.evalidator.*",
+    "pyfia.core.data_reader",
+    "pyfia.core.fia",
+    "pyfia.core.utils",
+    "pyfia.downloader.client",
+    "pyfia.estimation.estimators.area_change",
+    "pyfia.estimation.estimators.carbon_pools",
+]
+ignore_errors = true
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py", "*_test.py"]

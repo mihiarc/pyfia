@@ -11,6 +11,7 @@ from typing import List, Literal, Optional
 import polars as pl
 
 from .base import AggregationResult, BaseEstimator
+from .columns import get_cond_columns as _get_cond_columns
 
 logger = logging.getLogger(__name__)
 
@@ -61,28 +62,16 @@ class GRMBaseEstimator(BaseEstimator):
         return get_grm_required_tables(self.component_type)
 
     def get_cond_columns(self) -> List[str]:
-        """Standard condition columns for GRM estimation."""
-        base_cols = [
-            "PLT_CN",
-            "CONDID",
-            "COND_STATUS_CD",
-            "CONDPROP_UNADJ",
-            "OWNGRPCD",
-            "FORTYPCD",
-            "SITECLCD",
-            "RESERVCD",
-        ]
+        """Standard condition columns for GRM estimation.
 
-        # Add grouping columns if they come from COND table
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                if col not in base_cols:
-                    base_cols.append(col)
-
-        return base_cols
+        Uses centralized column resolution from columns.py to reduce duplication.
+        GRM estimation needs timber land columns for filtering and grouping columns.
+        """
+        return _get_cond_columns(
+            land_type=self.config.get("land_type", "forest"),
+            grp_by=self.config.get("grp_by"),
+            include_prop_basis=False,
+        )
 
     def _resolve_grm_columns(self):
         """Resolve GRM column names based on config."""

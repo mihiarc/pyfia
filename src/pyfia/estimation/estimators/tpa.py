@@ -12,9 +12,9 @@ import polars as pl
 
 from ...validation import validate_boolean, validate_tree_type
 from ..base import AggregationResult, BaseEstimator
+from ..columns import get_cond_columns as _get_cond_columns
+from ..columns import get_tree_columns as _get_tree_columns
 from ..tree_expansion import apply_tree_adjustment_factors
-
-# Union is used in TYPE_CHECKING block for type annotations
 from ..utils import validate_estimator_inputs
 from ..variance import calculate_domain_total_variance
 
@@ -38,51 +38,29 @@ class TPAEstimator(BaseEstimator):
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
     def get_tree_columns(self) -> List[str]:
-        """Required tree columns for TPA estimation."""
-        cols = [
-            "CN",
-            "PLT_CN",
-            "CONDID",
-            "STATUSCD",
-            "SPCD",
-            "DIA",
-            "TPA_UNADJ",
-            "TREECLCD",
-        ]
+        """Required tree columns for TPA estimation.
 
-        # Add grouping columns if needed
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                # Common TREE columns for grouping
-                if col not in cols and col in [
-                    "HT",
-                    "ACTUALHT",
-                    "CR",
-                    "CCLCD",
-                    "SPGRPCD",
-                    "SPCD",
-                    "TREECLCD",
-                    "DECAYCD",
-                ]:
-                    cols.append(col)
-
-        return cols
+        Uses centralized column resolution from columns.py to reduce duplication.
+        TPA estimation needs only base tree columns (no estimator-specific columns
+        like VOLCFNET or DRYBIO_AG).
+        """
+        return _get_tree_columns(
+            estimator_cols=[],  # TPA needs no additional measurement columns
+            grp_by=self.config.get("grp_by"),
+        )
 
     def get_cond_columns(self) -> List[str]:
-        """Required condition columns."""
-        return [
-            "PLT_CN",
-            "CONDID",
-            "COND_STATUS_CD",
-            "CONDPROP_UNADJ",
-            "OWNGRPCD",
-            "FORTYPCD",
-            "SITECLCD",
-            "RESERVCD",
-        ]
+        """Required condition columns.
+
+        Uses centralized column resolution from columns.py to reduce duplication.
+        Dynamically includes timber land columns when land_type='timber' and
+        adds grouping columns as needed.
+        """
+        return _get_cond_columns(
+            land_type=self.config.get("land_type", "forest"),
+            grp_by=self.config.get("grp_by"),
+            include_prop_basis=False,  # TPA doesn't need PROP_BASIS
+        )
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """

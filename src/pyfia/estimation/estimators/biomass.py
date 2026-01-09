@@ -5,15 +5,14 @@ Simple implementation for calculating tree biomass and carbon
 without unnecessary abstractions.
 """
 
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
 from ..base import AggregationResult, BaseEstimator
-
-if TYPE_CHECKING:
-    pass
+from ..columns import get_cond_columns as _get_cond_columns
+from ..columns import get_tree_columns as _get_tree_columns
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..variance import calculate_domain_total_variance
 
@@ -34,60 +33,40 @@ class BiomassEstimator(BaseEstimator):
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
     def get_tree_columns(self) -> List[str]:
-        """Required tree columns for biomass estimation."""
-        cols = [
-            "CN",
-            "PLT_CN",
-            "CONDID",
-            "STATUSCD",
-            "SPCD",
-            "DIA",
-            "TPA_UNADJ",
-            "DRYBIO_AG",
-            "DRYBIO_BG",
-        ]
+        """Required tree columns for biomass estimation.
 
-        # Add component-specific columns
+        Uses centralized column resolution from columns.py to reduce duplication.
+        Biomass estimation always needs DRYBIO_AG and DRYBIO_BG, plus any
+        component-specific columns.
+        """
+        # Start with standard biomass columns
+        estimator_cols = ["DRYBIO_AG", "DRYBIO_BG"]
+
+        # Add component-specific columns if not standard
         component = self.config.get("component", "AG")
         if component not in ["AG", "BG", "TOTAL"]:
             # Specific components like STEM, BRANCH, etc.
             biomass_col = f"DRYBIO_{component}"
-            if biomass_col not in cols:
-                cols.append(biomass_col)
+            if biomass_col not in estimator_cols:
+                estimator_cols.append(biomass_col)
 
-        # Add grouping columns if needed
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                # Common TREE columns for grouping
-                if col not in cols and col in [
-                    "HT",
-                    "ACTUALHT",
-                    "CR",
-                    "CCLCD",
-                    "SPGRPCD",
-                    "SPCD",
-                    "TREECLCD",
-                    "DECAYCD",
-                ]:
-                    cols.append(col)
-
-        return cols
+        return _get_tree_columns(
+            estimator_cols=estimator_cols,
+            grp_by=self.config.get("grp_by"),
+        )
 
     def get_cond_columns(self) -> List[str]:
-        """Required condition columns."""
-        return [
-            "PLT_CN",
-            "CONDID",
-            "COND_STATUS_CD",
-            "CONDPROP_UNADJ",
-            "OWNGRPCD",
-            "FORTYPCD",
-            "SITECLCD",
-            "RESERVCD",
-        ]
+        """Required condition columns.
+
+        Uses centralized column resolution from columns.py to reduce duplication.
+        Dynamically includes timber land columns when land_type='timber' and
+        adds grouping columns as needed.
+        """
+        return _get_cond_columns(
+            land_type=self.config.get("land_type", "forest"),
+            grp_by=self.config.get("grp_by"),
+            include_prop_basis=False,  # Biomass doesn't need PROP_BASIS
+        )
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """

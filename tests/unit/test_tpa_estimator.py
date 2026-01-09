@@ -107,19 +107,43 @@ class TestGetCondColumns:
     """Tests for get_cond_columns method."""
 
     def test_standard_cond_columns(self):
-        """Test standard condition columns for TPA estimation."""
+        """Test standard condition columns for TPA estimation.
+
+        Base columns are always included. Timber land columns (SITECLCD, RESERVCD)
+        are only included when land_type='timber'. Grouping columns (OWNGRPCD, etc.)
+        are only included when specified in grp_by.
+        """
         config = {}
         estimator = TPAEstimator(MockDB(), config)
         cols = estimator.get_cond_columns()
 
+        # Base columns always included
         assert "PLT_CN" in cols
         assert "CONDID" in cols
         assert "COND_STATUS_CD" in cols
         assert "CONDPROP_UNADJ" in cols
-        assert "OWNGRPCD" in cols
-        assert "FORTYPCD" in cols
+
+        # Extra columns NOT included by default (only when needed)
+        assert "OWNGRPCD" not in cols  # Only when grp_by includes it
+        assert "FORTYPCD" not in cols  # Only when grp_by includes it
+
+    def test_timber_land_type_columns(self):
+        """Test that timber land type includes SITECLCD and RESERVCD."""
+        config = {"land_type": "timber"}
+        estimator = TPAEstimator(MockDB(), config)
+        cols = estimator.get_cond_columns()
+
         assert "SITECLCD" in cols
         assert "RESERVCD" in cols
+
+    def test_grp_by_cond_columns(self):
+        """Test that grp_by adds condition grouping columns."""
+        config = {"grp_by": ["OWNGRPCD", "FORTYPCD"]}
+        estimator = TPAEstimator(MockDB(), config)
+        cols = estimator.get_cond_columns()
+
+        assert "OWNGRPCD" in cols
+        assert "FORTYPCD" in cols
 
 
 class TestCalculateValues:
@@ -135,10 +159,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [6.018046, 24.072184, 12.036092],
-            "DIA": [10.0, 15.0, 20.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [6.018046, 24.072184, 12.036092],
+                "DIA": [10.0, 15.0, 20.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -154,10 +180,12 @@ class TestCalculateValues:
 
         # Test with known values
         # BAA = pi * (DIA/24)^2 * TPA_UNADJ
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0],
-            "DIA": [12.0],  # 12 inches = 0.5 feet radius
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0],
+                "DIA": [12.0],  # 12 inches = 0.5 feet radius
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -170,10 +198,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0, 1.0, 1.0],
-            "DIA": [6.0, 12.0, 24.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0, 1.0, 1.0],
+                "DIA": [6.0, 12.0, 24.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -195,10 +225,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0, 20.0],
-            "DIA": [12.0, 12.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0, 20.0],
+                "DIA": [12.0, 12.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -210,10 +242,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0, None, 10.0],
-            "DIA": [12.0, 12.0, 12.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0, None, 10.0],
+                "DIA": [12.0, 12.0, 12.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -226,10 +260,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0, 10.0],
-            "DIA": [12.0, None],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0, 10.0],
+                "DIA": [12.0, None],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -244,10 +280,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [0.0, 10.0],
-            "DIA": [12.0, 12.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [0.0, 10.0],
+                "DIA": [12.0, 12.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -259,10 +297,12 @@ class TestCalculateValues:
         config = {}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0],
-            "DIA": [0.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0],
+                "DIA": [0.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -275,10 +315,12 @@ class TestCalculateValues:
         estimator = TPAEstimator(mock_db, config)
 
         # Size classes are 2-inch classes: 0, 2, 4, 6, 8, ...
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0, 10.0, 10.0, 10.0, 10.0],
-            "DIA": [1.0, 2.5, 5.0, 10.5, 20.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0, 10.0, 10.0, 10.0, 10.0],
+                "DIA": [1.0, 2.5, 5.0, 10.5, 20.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -295,10 +337,12 @@ class TestCalculateValues:
         config = {"by_size_class": False}
         estimator = TPAEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0],
-            "DIA": [12.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0],
+                "DIA": [12.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -313,10 +357,12 @@ class TestEdgeCases:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [],
-            "DIA": [],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [],
+                "DIA": [],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert len(result) == 0
@@ -326,10 +372,12 @@ class TestEdgeCases:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0],
-            "DIA": [100.0],  # 100 inch diameter tree
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0],
+                "DIA": [100.0],  # 100 inch diameter tree
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -342,10 +390,12 @@ class TestEdgeCases:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [100.0],  # High TPA for small trees
-            "DIA": [1.0],  # 1 inch seedling
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [100.0],  # High TPA for small trees
+                "DIA": [1.0],  # 1 inch seedling
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -358,10 +408,12 @@ class TestEdgeCases:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [10.0],
-            "DIA": [10.5],  # Common FIA diameter
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [10.0],
+                "DIA": [10.5],  # Common FIA diameter
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -389,7 +441,6 @@ class TestConfigStorage:
         assert estimator.config["by_species"] is True
 
 
-
 class TestBAFormulaDerivation:
     """Tests to verify the BAA formula derivation is correct.
 
@@ -410,10 +461,12 @@ class TestBAFormulaDerivation:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0],
-            "DIA": [12.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0],
+                "DIA": [12.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -428,10 +481,12 @@ class TestBAFormulaDerivation:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0],
-            "DIA": [24.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0],
+                "DIA": [24.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -445,16 +500,18 @@ class TestBAFormulaDerivation:
         config = {}
         estimator = TPAEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0],
-            "DIA": [6.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0],
+                "DIA": [6.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
         # 6 inch diameter = 3 inch radius = 0.25 ft radius
         # BA = pi * 0.25^2 = pi * 0.0625 = 0.1963 sq ft
-        expected = math.pi * (0.25 ** 2)
+        expected = math.pi * (0.25**2)
         assert abs(result["BAA"][0] - expected) < 1e-6
 
 
@@ -467,10 +524,12 @@ class TestSizeClassBoundaries:
         estimator = TPAEstimator(MockDB(), config)
 
         # Test boundary cases
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1.0] * 6,
-            "DIA": [1.9, 2.0, 2.1, 3.9, 4.0, 4.1],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1.0] * 6,
+                "DIA": [1.9, 2.0, 2.1, 3.9, 4.0, 4.1],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 

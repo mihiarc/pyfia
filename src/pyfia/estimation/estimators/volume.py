@@ -12,6 +12,8 @@ import polars as pl
 from ...core import FIA
 from ...validation import validate_boolean, validate_tree_type, validate_vol_type
 from ..base import AggregationResult, BaseEstimator
+from ..columns import get_cond_columns as _get_cond_columns
+from ..columns import get_tree_columns as _get_tree_columns
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import (
     ensure_evalid_set,
@@ -38,79 +40,36 @@ class VolumeEstimator(BaseEstimator):
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
     def get_tree_columns(self) -> List[str]:
-        """Required tree columns for volume estimation."""
-        cols = [
-            "CN",
-            "PLT_CN",
-            "CONDID",
-            "STATUSCD",
-            "SPCD",
-            "DIA",
-            "TPA_UNADJ",
-            "TREECLCD",
-        ]
+        """Required tree columns for volume estimation.
 
-        # Add volume columns based on vol_type
+        Uses centralized column resolution from columns.py to reduce duplication.
+        Volume estimation requires volume columns based on vol_type configuration.
+        """
         vol_type = self.config.get("vol_type", "net")
-        if vol_type == "net":
-            cols.append("VOLCFNET")
-        elif vol_type == "gross":
-            cols.append("VOLCFGRS")
-        elif vol_type == "sound":
-            cols.append("VOLCFSND")
-        elif vol_type == "sawlog":
-            cols.extend(["VOLBFNET", "VOLBFGRS"])  # Board feet for sawlog
+        vol_cols_map = {
+            "net": ["VOLCFNET"],
+            "gross": ["VOLCFGRS"],
+            "sound": ["VOLCFSND"],
+            "sawlog": ["VOLBFNET", "VOLBFGRS"],
+        }
+        estimator_cols = vol_cols_map.get(vol_type, ["VOLCFNET"])
 
-        # Add grouping columns if needed
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                # Common TREE columns for grouping
-                if col not in cols and col in [
-                    "HT",
-                    "ACTUALHT",
-                    "CR",
-                    "CCLCD",
-                    "SPGRPCD",
-                    "SPCD",
-                    "TREECLCD",
-                    "DECAYCD",
-                ]:
-                    cols.append(col)
-
-        return cols
+        return _get_tree_columns(
+            estimator_cols=estimator_cols,
+            grp_by=self.config.get("grp_by"),
+        )
 
     def get_cond_columns(self) -> List[str]:
-        """Required condition columns."""
-        cols = [
-            "PLT_CN",
-            "CONDID",
-            "COND_STATUS_CD",
-            "CONDPROP_UNADJ",
-            "PROP_BASIS",  # Add PROP_BASIS for area adjustment
-        ]
+        """Required condition columns.
 
-        # Add optional columns for land_type filtering
-        land_type = self.config.get("land_type", "forest")
-        if land_type == "timber":
-            cols.extend(["SITECLCD", "RESERVCD"])
-
-        # Add grouping columns if they're from COND table
-        grp_by = self.config.get("grp_by")
-        if grp_by:
-            if isinstance(grp_by, str):
-                grp_by = [grp_by]
-            for col in grp_by:
-                # Common COND columns for grouping
-                if (
-                    col in ["OWNGRPCD", "FORTYPCD", "STDSZCD", "STDAGE", "STDORGCD"]
-                    and col not in cols
-                ):
-                    cols.append(col)
-
-        return cols
+        Uses centralized column resolution from columns.py to reduce duplication.
+        Volume estimation needs PROP_BASIS for area adjustment calculations.
+        """
+        return _get_cond_columns(
+            land_type=self.config.get("land_type", "forest"),
+            grp_by=self.config.get("grp_by"),
+            include_prop_basis=True,  # Volume needs PROP_BASIS for area adjustment
+        )
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """

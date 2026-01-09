@@ -128,19 +128,43 @@ class TestGetCondColumns:
     """Tests for get_cond_columns method."""
 
     def test_standard_cond_columns(self):
-        """Test standard condition columns for biomass estimation."""
+        """Test standard condition columns for biomass estimation.
+
+        Base columns are always included. Timber land columns (SITECLCD, RESERVCD)
+        are only included when land_type='timber'. Grouping columns (OWNGRPCD, etc.)
+        are only included when specified in grp_by.
+        """
         config = {"component": "AG"}
         estimator = BiomassEstimator(MockDB(), config)
         cols = estimator.get_cond_columns()
 
+        # Base columns always included
         assert "PLT_CN" in cols
         assert "CONDID" in cols
         assert "COND_STATUS_CD" in cols
         assert "CONDPROP_UNADJ" in cols
-        assert "OWNGRPCD" in cols
-        assert "FORTYPCD" in cols
+
+        # Extra columns NOT included by default (only when needed)
+        assert "OWNGRPCD" not in cols  # Only when grp_by includes it
+        assert "FORTYPCD" not in cols  # Only when grp_by includes it
+
+    def test_timber_land_type_columns(self):
+        """Test that timber land type includes SITECLCD and RESERVCD."""
+        config = {"component": "AG", "land_type": "timber"}
+        estimator = BiomassEstimator(MockDB(), config)
+        cols = estimator.get_cond_columns()
+
         assert "SITECLCD" in cols
         assert "RESERVCD" in cols
+
+    def test_grp_by_cond_columns(self):
+        """Test that grp_by adds condition grouping columns."""
+        config = {"component": "AG", "grp_by": ["OWNGRPCD", "FORTYPCD"]}
+        estimator = BiomassEstimator(MockDB(), config)
+        cols = estimator.get_cond_columns()
+
+        assert "OWNGRPCD" in cols
+        assert "FORTYPCD" in cols
 
 
 class TestCalculateValues:
@@ -158,11 +182,13 @@ class TestCalculateValues:
 
         # Create test data with known values
         # DRYBIO_AG is in pounds, result should be in tons (/ 2000)
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0, 4000.0, 3000.0],  # pounds per tree
-            "DRYBIO_BG": [500.0, 1000.0, 750.0],   # not used for AG
-            "TPA_UNADJ": [10.0, 10.0, 10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0, 4000.0, 3000.0],  # pounds per tree
+                "DRYBIO_BG": [500.0, 1000.0, 750.0],  # not used for AG
+                "TPA_UNADJ": [10.0, 10.0, 10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -181,11 +207,13 @@ class TestCalculateValues:
         config = {"component": "BG"}
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0],  # not used for BG
-            "DRYBIO_BG": [1000.0],  # pounds per tree
-            "TPA_UNADJ": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0],  # not used for BG
+                "DRYBIO_BG": [1000.0],  # pounds per tree
+                "TPA_UNADJ": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -198,11 +226,13 @@ class TestCalculateValues:
         config = {"component": "TOTAL"}
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0],
-            "DRYBIO_BG": [500.0],
-            "TPA_UNADJ": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0],
+                "DRYBIO_BG": [500.0],
+                "TPA_UNADJ": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -215,11 +245,13 @@ class TestCalculateValues:
         config = {"component": "AG"}
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [20000.0],  # 100 tons/acre when * 10 TPA / 2000
-            "DRYBIO_BG": [0.0],
-            "TPA_UNADJ": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [20000.0],  # 100 tons/acre when * 10 TPA / 2000
+                "DRYBIO_BG": [0.0],
+                "TPA_UNADJ": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -234,11 +266,13 @@ class TestCalculateValues:
         config = {"component": "AG"}
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0, None, 3000.0],
-            "DRYBIO_BG": [500.0, 500.0, 500.0],
-            "TPA_UNADJ": [10.0, 10.0, 10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0, None, 3000.0],
+                "DRYBIO_BG": [500.0, 500.0, 500.0],
+                "TPA_UNADJ": [10.0, 10.0, 10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -251,11 +285,13 @@ class TestCalculateValues:
         config = {"component": "AG"}
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0, 2000.0],
-            "DRYBIO_BG": [500.0, 500.0],
-            "TPA_UNADJ": [10.0, None],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0, 2000.0],
+                "DRYBIO_BG": [500.0, 500.0],
+                "TPA_UNADJ": [10.0, None],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -267,11 +303,13 @@ class TestCalculateValues:
         config = {"component": "AG"}
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [0.0, 2000.0],
-            "DRYBIO_BG": [0.0, 500.0],
-            "TPA_UNADJ": [10.0, 0.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [0.0, 2000.0],
+                "DRYBIO_BG": [0.0, 500.0],
+                "TPA_UNADJ": [10.0, 0.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -283,11 +321,13 @@ class TestCalculateValues:
         config = {}  # No component specified
         estimator = BiomassEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0],
-            "DRYBIO_BG": [500.0],
-            "TPA_UNADJ": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0],
+                "DRYBIO_BG": [500.0],
+                "TPA_UNADJ": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         # Should use AG, not total
@@ -302,11 +342,13 @@ class TestEdgeCases:
         config = {"component": "AG"}
         estimator = BiomassEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [],
-            "DRYBIO_BG": [],
-            "TPA_UNADJ": [],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [],
+                "DRYBIO_BG": [],
+                "TPA_UNADJ": [],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert len(result) == 0
@@ -316,11 +358,13 @@ class TestEdgeCases:
         config = {"component": "AG"}
         estimator = BiomassEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [1e10],  # 10 billion pounds
-            "DRYBIO_BG": [1e9],
-            "TPA_UNADJ": [100.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [1e10],  # 10 billion pounds
+                "DRYBIO_BG": [1e9],
+                "TPA_UNADJ": [100.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         # (1e10 * 100) / 2000 = 5e8 tons/acre
@@ -331,11 +375,13 @@ class TestEdgeCases:
         config = {"component": "AG"}
         estimator = BiomassEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [0.01],  # 0.01 pounds
-            "DRYBIO_BG": [0.001],
-            "TPA_UNADJ": [0.1],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [0.01],  # 0.01 pounds
+                "DRYBIO_BG": [0.001],
+                "TPA_UNADJ": [0.1],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         # (0.01 * 0.1) / 2000 = 5e-7
@@ -346,11 +392,13 @@ class TestEdgeCases:
         config = {"component": "TOTAL"}
         estimator = BiomassEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0],
-            "DRYBIO_BG": [None],  # Null belowground
-            "TPA_UNADJ": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0],
+                "DRYBIO_BG": [None],  # Null belowground
+                "TPA_UNADJ": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         # AG + null = null
@@ -375,7 +423,6 @@ class TestConfigStorage:
         assert estimator.config["land_type"] == "timber"
 
 
-
 class TestConversionFactors:
     """Tests for unit conversions and conversion factors."""
 
@@ -385,11 +432,13 @@ class TestConversionFactors:
         estimator = BiomassEstimator(MockDB(), config)
 
         # 2000 pounds per tree * 1 TPA = 2000 pounds/acre = 1 ton/acre
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0],
-            "DRYBIO_BG": [0.0],
-            "TPA_UNADJ": [1.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0],
+                "DRYBIO_BG": [0.0],
+                "TPA_UNADJ": [1.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["BIOMASS_ACRE"][0] == 1.0
@@ -400,11 +449,13 @@ class TestConversionFactors:
         estimator = BiomassEstimator(MockDB(), config)
 
         # 1 ton biomass * 0.47 = 0.47 tons carbon
-        data = pl.DataFrame({
-            "DRYBIO_AG": [2000.0],  # 1 ton/acre
-            "DRYBIO_BG": [0.0],
-            "TPA_UNADJ": [1.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "DRYBIO_AG": [2000.0],  # 1 ton/acre
+                "DRYBIO_BG": [0.0],
+                "TPA_UNADJ": [1.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["BIOMASS_ACRE"][0] == 1.0

@@ -27,8 +27,7 @@ variance calculations), import directly from submodules:
     - pyfia.estimation.estimators.*
     - pyfia.estimation.base
     - pyfia.estimation.columns
-    - pyfia.estimation.config
-    - pyfia.estimation.statistics
+    - pyfia.estimation.variance
 """
 
 # Import estimator functions - THE PUBLIC API

@@ -13,14 +13,12 @@ The tests verify:
 1. Stratified variance formula: V(Y) = sum_h(N_h^2 * s_h^2 / n_h)
 2. Single stratum variance with known hand-calculated values
 3. Multi-stratum variance aggregation
-4. Ratio-of-means variance for tree-based estimators
-5. Edge cases (single plot per stratum)
-6. Property tests for non-negativity
-7. Standard error percentage calculation
+4. Edge cases (single plot per stratum)
+5. Property tests for non-negativity
+6. Standard error percentage calculation
 """
 
-from typing import Dict, List, Optional
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import numpy as np
 import polars as pl
@@ -28,15 +26,12 @@ import pytest
 
 from pyfia.estimation.base import AggregationResult
 from pyfia.estimation.estimators.area import AreaEstimator
-from pyfia.estimation.statistics import (
-    calculate_ratio_of_means_variance,
-    calculate_cv,
+from pyfia.estimation.variance import (
     calculate_confidence_interval,
+    calculate_cv,
     safe_divide,
     safe_sqrt,
-    VarianceCalculator,
 )
-
 
 # =============================================================================
 # Test Fixtures for Variance Testing
@@ -77,13 +72,15 @@ def single_stratum_plot_data():
            = 1000^2 * 0.029166... * 4
            = 116,666.67
     """
-    return pl.DataFrame({
-        "PLT_CN": ["P1", "P2", "P3", "P4"],
-        "ESTN_UNIT": [1, 1, 1, 1],
-        "STRATUM": [1, 1, 1, 1],
-        "y_i": [0.8, 1.0, 0.6, 0.9],
-        "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-    })
+    return pl.DataFrame(
+        {
+            "PLT_CN": ["P1", "P2", "P3", "P4"],
+            "ESTN_UNIT": [1, 1, 1, 1],
+            "STRATUM": [1, 1, 1, 1],
+            "y_i": [0.8, 1.0, 0.6, 0.9],
+            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+        }
+    )
 
 
 @pytest.fixture
@@ -105,35 +102,15 @@ def multi_stratum_plot_data():
 
     Total variance = V_A + V_B = 120,000 + 360,000 = 480,000
     """
-    return pl.DataFrame({
-        "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
-        "ESTN_UNIT": [1, 1, 1, 1, 1],
-        "STRATUM": [1, 1, 1, 2, 2],
-        "y_i": [0.8, 1.0, 0.6, 0.5, 0.9],
-        "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0, 1500.0],
-    })
-
-
-@pytest.fixture
-def ratio_estimation_data():
-    """
-    Create test data for ratio-of-means variance calculation.
-
-    For ratio estimation R = sum(Y) / sum(X):
-    V(R) approximately equals (1/X_bar^2) * [s2_Y + R^2*s2_X - 2*R*s_YX]
-
-    This is used for per-acre estimates where:
-    - Y = tree attribute (volume, biomass, etc.)
-    - X = area (CONDPROP_UNADJ)
-    """
-    return pl.DataFrame({
-        "PLT_CN": ["P1", "P1", "P2", "P2", "P3", "P4"],
-        "CONDID": [1, 2, 1, 2, 1, 1],
-        "y_response": [100.0, 50.0, 120.0, 80.0, 90.0, 110.0],  # Tree attribute
-        "x_area": [1.0, 0.5, 1.0, 0.7, 0.8, 1.0],  # Condition proportion
-        "EXPNS": [1000.0, 1000.0, 1200.0, 1200.0, 1100.0, 1000.0],
-        "STRATUM_CN": ["S1", "S1", "S1", "S1", "S2", "S2"],
-    })
+    return pl.DataFrame(
+        {
+            "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+            "ESTN_UNIT": [1, 1, 1, 1, 1],
+            "STRATUM": [1, 1, 1, 2, 2],
+            "y_i": [0.8, 1.0, 0.6, 0.5, 0.9],
+            "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0, 1500.0],
+        }
+    )
 
 
 # =============================================================================
@@ -160,7 +137,7 @@ class TestStratifiedVarianceFormula:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Verify the method exists
-        assert hasattr(estimator, '_calculate_variance_for_group')
+        assert hasattr(estimator, "_calculate_variance_for_group")
         assert callable(estimator._calculate_variance_for_group)
 
     def test_single_stratum_formula_exact(
@@ -188,7 +165,7 @@ class TestStratifiedVarianceFormula:
         n_h = 4
         w_h = 1000.0
         s2_yh = np.var(y_values, ddof=1)  # Sample variance with Bessel's correction
-        expected_variance = (w_h ** 2) * s2_yh * n_h
+        expected_variance = (w_h**2) * s2_yh * n_h
 
         # Verify the result
         assert var_stats is not None
@@ -200,13 +177,15 @@ class TestStratifiedVarianceFormula:
     def test_formula_with_different_expns(self, mock_fia_database):
         """Test that different EXPNS values affect variance correctly."""
         # Create data with doubled EXPNS
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.8, 1.0, 0.6, 0.9],
-            "EXPNS": [2000.0, 2000.0, 2000.0, 2000.0],  # Doubled
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.8, 1.0, 0.6, 0.9],
+                "EXPNS": [2000.0, 2000.0, 2000.0, 2000.0],  # Doubled
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -217,7 +196,7 @@ class TestStratifiedVarianceFormula:
         # Calculate expected: doubling EXPNS should quadruple variance
         y_values = [0.8, 1.0, 0.6, 0.9]
         s2_yh = np.var(y_values, ddof=1)
-        expected_variance = (2000.0 ** 2) * s2_yh * 4  # w^2 effect
+        expected_variance = (2000.0**2) * s2_yh * 4  # w^2 effect
 
         assert abs(var_stats["variance"] - expected_variance) < 1e-6
 
@@ -229,22 +208,26 @@ class TestStratifiedVarianceFormula:
         through both the n_h multiplier and the s2_yh calculation.
         """
         # Small sample
-        small_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2"],
-            "ESTN_UNIT": [1, 1],
-            "STRATUM": [1, 1],
-            "y_i": [0.8, 1.0],
-            "EXPNS": [1000.0, 1000.0],
-        })
+        small_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2"],
+                "ESTN_UNIT": [1, 1],
+                "STRATUM": [1, 1],
+                "y_i": [0.8, 1.0],
+                "EXPNS": [1000.0, 1000.0],
+            }
+        )
 
         # Larger sample with same mean and similar variance
-        large_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
-            "ESTN_UNIT": [1, 1, 1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1, 1, 1],
-            "y_i": [0.8, 1.0, 0.8, 1.0, 0.8, 1.0],  # Same values repeated
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0],
-        })
+        large_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "ESTN_UNIT": [1, 1, 1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1, 1, 1],
+                "y_i": [0.8, 1.0, 0.8, 1.0, 0.8, 1.0],  # Same values repeated
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0, 1000.0, 1000.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -310,13 +293,15 @@ class TestSingleStratumVariance:
         - s2_yh = 0
         - V = w^2 * 0 * n = 0
         """
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.8, 0.8, 0.8, 0.8],  # All identical
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.8, 0.8, 0.8, 0.8],  # All identical
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -329,13 +314,15 @@ class TestSingleStratumVariance:
 
     def test_high_variability_data(self, mock_fia_database):
         """Test with high variability data."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.1, 0.9, 0.2, 0.8],  # High variability
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.1, 0.9, 0.2, 0.8],  # High variability
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -346,7 +333,7 @@ class TestSingleStratumVariance:
         # Calculate expected
         y_values = [0.1, 0.9, 0.2, 0.8]
         s2 = np.var(y_values, ddof=1)
-        expected_variance = (1000.0 ** 2) * s2 * 4
+        expected_variance = (1000.0**2) * s2 * 4
 
         assert abs(var_stats["variance"] - expected_variance) < 1e-6
         assert var_stats["variance"] > 0  # Non-zero for varied data
@@ -357,21 +344,25 @@ class TestSingleStratumVariance:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Create mock plot-condition data
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+            }
+        )
 
         # Create mock results
-        results = pl.DataFrame({
-            "AREA_TOTAL": [3300.0],  # Total area estimate
-            "N_PLOTS": [4],
-        })
+        results = pl.DataFrame(
+            {
+                "AREA_TOTAL": [3300.0],  # Total area estimate
+                "N_PLOTS": [4],
+            }
+        )
 
         # Create AggregationResult with explicit data passing
         agg_result = AggregationResult(
@@ -402,9 +393,7 @@ class TestMultiStratumVariance:
     Verify that variances sum correctly across strata.
     """
 
-    def test_two_strata_sum_correctly(
-        self, mock_fia_database, multi_stratum_plot_data
-    ):
+    def test_two_strata_sum_correctly(self, mock_fia_database, multi_stratum_plot_data):
         """
         Test with two strata with known values.
 
@@ -424,11 +413,11 @@ class TestMultiStratumVariance:
         # Calculate expected variances for each stratum
         y1 = [0.8, 1.0, 0.6]
         s2_1 = np.var(y1, ddof=1)
-        v1 = (1000.0 ** 2) * s2_1 * 3
+        v1 = (1000.0**2) * s2_1 * 3
 
         y2 = [0.5, 0.9]
         s2_2 = np.var(y2, ddof=1)
-        v2 = (1500.0 ** 2) * s2_2 * 2
+        v2 = (1500.0**2) * s2_2 * 2
 
         expected_total_variance = v1 + v2
 
@@ -436,13 +425,15 @@ class TestMultiStratumVariance:
 
     def test_three_strata_sum(self, mock_fia_database):
         """Test variance summation across three strata."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6", "P7"],
-            "ESTN_UNIT": [1, 1, 1, 1, 1, 1, 1],
-            "STRATUM": [1, 1, 2, 2, 2, 3, 3],
-            "y_i": [0.8, 0.6, 0.9, 0.7, 0.8, 0.5, 0.7],
-            "EXPNS": [1000.0, 1000.0, 1200.0, 1200.0, 1200.0, 800.0, 800.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6", "P7"],
+                "ESTN_UNIT": [1, 1, 1, 1, 1, 1, 1],
+                "STRATUM": [1, 1, 2, 2, 2, 3, 3],
+                "y_i": [0.8, 0.6, 0.9, 0.7, 0.8, 0.5, 0.7],
+                "EXPNS": [1000.0, 1000.0, 1200.0, 1200.0, 1200.0, 800.0, 800.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -453,15 +444,15 @@ class TestMultiStratumVariance:
         # Calculate expected variance for each stratum
         # Stratum 1: n=2, y=[0.8, 0.6], EXPNS=1000
         y1 = [0.8, 0.6]
-        v1 = (1000.0 ** 2) * np.var(y1, ddof=1) * 2
+        v1 = (1000.0**2) * np.var(y1, ddof=1) * 2
 
         # Stratum 2: n=3, y=[0.9, 0.7, 0.8], EXPNS=1200
         y2 = [0.9, 0.7, 0.8]
-        v2 = (1200.0 ** 2) * np.var(y2, ddof=1) * 3
+        v2 = (1200.0**2) * np.var(y2, ddof=1) * 3
 
         # Stratum 3: n=2, y=[0.5, 0.7], EXPNS=800
         y3 = [0.5, 0.7]
-        v3 = (800.0 ** 2) * np.var(y3, ddof=1) * 2
+        v3 = (800.0**2) * np.var(y3, ddof=1) * 2
 
         expected_total = v1 + v2 + v3
 
@@ -469,13 +460,15 @@ class TestMultiStratumVariance:
 
     def test_unequal_strata_sizes(self, mock_fia_database):
         """Test with very unequal strata sizes."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"],
-            "ESTN_UNIT": [1, 1, 1, 1, 1, 1, 1, 1, 2, 2],
-            "STRATUM": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            "y_i": [0.8, 0.7, 0.9, 0.6, 0.8, 0.7, 0.9, 0.8, 0.5, 0.6],
-            "EXPNS": [1000.0] * 8 + [2000.0] * 2,
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6", "P7", "P8", "P9", "P10"],
+                "ESTN_UNIT": [1, 1, 1, 1, 1, 1, 1, 1, 2, 2],
+                "STRATUM": [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+                "y_i": [0.8, 0.7, 0.9, 0.6, 0.8, 0.7, 0.9, 0.8, 0.5, 0.6],
+                "EXPNS": [1000.0] * 8 + [2000.0] * 2,
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -486,99 +479,6 @@ class TestMultiStratumVariance:
         # Variance should be positive
         assert var_stats["variance"] > 0
         assert var_stats["se_total"] > 0
-
-
-# =============================================================================
-# TestRatioOfMeansVariance
-# =============================================================================
-
-
-class TestRatioOfMeansVariance:
-    """
-    Test ratio-of-means variance calculation for tree-based estimators.
-
-    Formula: V(R) approximately equals (1/X_bar^2) * [s2_Y + R^2*s2_X - 2*R*s_YX]
-
-    where:
-    - R = sum(Y) / sum(X) is the ratio estimate
-    - X is the area denominator
-    - Y is the tree attribute numerator
-    - s_YX is the covariance
-    """
-
-    def test_ratio_variance_basic(self, ratio_estimation_data):
-        """Test basic ratio-of-means variance calculation."""
-        # Use the statistics module's function
-        result = calculate_ratio_of_means_variance(
-            ratio_estimation_data,
-            response_col="y_response",
-            area_col="x_area",
-            strata_col="STRATUM_CN",
-            plot_col="PLT_CN",
-            weight_col="EXPNS",
-        )
-
-        # Result should have expected columns
-        assert "ESTIMATE" in result.columns
-        assert "VARIANCE" in result.columns
-        assert "SE" in result.columns
-
-        # Values should be positive for non-trivial data
-        assert result["VARIANCE"][0] >= 0
-
-    def test_ratio_variance_perfect_correlation(self):
-        """
-        Test ratio variance when Y and X are perfectly correlated.
-
-        When Y = k * X (perfect correlation), the variance should be lower
-        because the covariance term reduces variance.
-        """
-        # Data where response is proportional to area
-        correlated_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "y_response": [100.0, 50.0, 80.0, 100.0],  # 100 * x_area
-            "x_area": [1.0, 0.5, 0.8, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "STRATUM_CN": ["S1", "S1", "S1", "S1"],
-        })
-
-        result = calculate_ratio_of_means_variance(
-            correlated_data,
-            response_col="y_response",
-            area_col="x_area",
-            strata_col="STRATUM_CN",
-            plot_col="PLT_CN",
-            weight_col="EXPNS",
-        )
-
-        # With perfect correlation, ratio R = 100 (constant)
-        # Variance should be zero or very small
-        assert result["ESTIMATE"][0] == pytest.approx(100.0, rel=0.01)
-        # Variance might not be exactly zero due to weighted calculations
-        assert result["VARIANCE"][0] >= 0
-
-    def test_ratio_variance_independence(self):
-        """Test ratio variance when Y and X are independent."""
-        # Create data where response has no relationship to area
-        independent_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "y_response": [120.0, 60.0, 100.0, 80.0],  # Independent of area
-            "x_area": [0.5, 1.0, 0.7, 0.9],  # Random areas
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "STRATUM_CN": ["S1", "S1", "S1", "S1"],
-        })
-
-        result = calculate_ratio_of_means_variance(
-            independent_data,
-            response_col="y_response",
-            area_col="x_area",
-            strata_col="STRATUM_CN",
-            plot_col="PLT_CN",
-            weight_col="EXPNS",
-        )
-
-        # Variance should be positive
-        assert result["VARIANCE"][0] > 0
 
 
 # =============================================================================
@@ -601,13 +501,15 @@ class TestSinglePlotPerStratum:
         When n_h = 1, s2_yh is undefined (NaN with ddof=1).
         The implementation converts this to 0.
         """
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1"],
-            "ESTN_UNIT": [1],
-            "STRATUM": [1],
-            "y_i": [0.8],
-            "EXPNS": [1000.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1"],
+                "ESTN_UNIT": [1],
+                "STRATUM": [1],
+                "y_i": [0.8],
+                "EXPNS": [1000.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -621,13 +523,15 @@ class TestSinglePlotPerStratum:
 
     def test_multiple_single_plot_strata(self, mock_fia_database):
         """Test with multiple strata each having only one plot."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3"],
-            "ESTN_UNIT": [1, 2, 3],  # Each unit has its own stratum
-            "STRATUM": [1, 1, 1],
-            "y_i": [0.8, 0.9, 0.7],
-            "EXPNS": [1000.0, 1200.0, 800.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3"],
+                "ESTN_UNIT": [1, 2, 3],  # Each unit has its own stratum
+                "STRATUM": [1, 1, 1],
+                "y_i": [0.8, 0.9, 0.7],
+                "EXPNS": [1000.0, 1200.0, 800.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -640,13 +544,15 @@ class TestSinglePlotPerStratum:
 
     def test_mixed_single_and_multiple_plots(self, mock_fia_database):
         """Test with mix of single-plot and multi-plot strata."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 2],  # Unit 1 has 3 plots, Unit 2 has 1
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.8, 1.0, 0.6, 0.9],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 2],  # Unit 1 has 3 plots, Unit 2 has 1
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.8, 1.0, 0.6, 0.9],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -656,7 +562,7 @@ class TestSinglePlotPerStratum:
 
         # Only Unit 1 contributes to variance (Unit 2 has single plot = 0 variance)
         y1 = [0.8, 1.0, 0.6]
-        expected_variance = (1000.0 ** 2) * np.var(y1, ddof=1) * 3
+        expected_variance = (1000.0**2) * np.var(y1, ddof=1) * 3
 
         assert abs(var_stats["variance"] - expected_variance) < 1e-6
 
@@ -679,13 +585,15 @@ class TestVarianceNonNegativity:
         np.random.seed(seed)
         n_plots = np.random.randint(2, 20)
 
-        plot_data = pl.DataFrame({
-            "PLT_CN": [f"P{i}" for i in range(n_plots)],
-            "ESTN_UNIT": [1] * n_plots,
-            "STRATUM": [1] * n_plots,
-            "y_i": np.random.uniform(0, 1, n_plots).tolist(),
-            "EXPNS": [np.random.uniform(500, 2000)] * n_plots,
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(n_plots)],
+                "ESTN_UNIT": [1] * n_plots,
+                "STRATUM": [1] * n_plots,
+                "y_i": np.random.uniform(0, 1, n_plots).tolist(),
+                "EXPNS": [np.random.uniform(500, 2000)] * n_plots,
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -693,7 +601,9 @@ class TestVarianceNonNegativity:
 
         var_stats = estimator._calculate_variance_for_group(plot_data, strat_cols)
 
-        assert var_stats["variance"] >= 0, f"Variance was negative: {var_stats['variance']}"
+        assert var_stats["variance"] >= 0, (
+            f"Variance was negative: {var_stats['variance']}"
+        )
         assert var_stats["se_total"] >= 0, f"SE was negative: {var_stats['se_total']}"
 
     @pytest.mark.parametrize("n_strata", [1, 2, 5, 10])
@@ -705,13 +615,15 @@ class TestVarianceNonNegativity:
         for s in range(n_strata):
             n_plots = np.random.randint(2, 8)
             for p in range(n_plots):
-                data_rows.append({
-                    "PLT_CN": f"P{s}_{p}",
-                    "ESTN_UNIT": 1,
-                    "STRATUM": s + 1,
-                    "y_i": np.random.uniform(0, 1),
-                    "EXPNS": np.random.uniform(500, 2000),
-                })
+                data_rows.append(
+                    {
+                        "PLT_CN": f"P{s}_{p}",
+                        "ESTN_UNIT": 1,
+                        "STRATUM": s + 1,
+                        "y_i": np.random.uniform(0, 1),
+                        "EXPNS": np.random.uniform(500, 2000),
+                    }
+                )
 
         plot_data = pl.DataFrame(data_rows)
 
@@ -741,13 +653,15 @@ class TestVarianceNonNegativity:
         strat_cols = ["ESTN_UNIT", "STRATUM"]
 
         for case in test_cases:
-            plot_data = pl.DataFrame({
-                "PLT_CN": ["P1", "P2", "P3", "P4"],
-                "ESTN_UNIT": [1, 1, 1, 1],
-                "STRATUM": [1, 1, 1, 1],
-                "y_i": case["y_i"],
-                "EXPNS": [case["EXPNS"]] * 4,
-            })
+            plot_data = pl.DataFrame(
+                {
+                    "PLT_CN": ["P1", "P2", "P3", "P4"],
+                    "ESTN_UNIT": [1, 1, 1, 1],
+                    "STRATUM": [1, 1, 1, 1],
+                    "y_i": case["y_i"],
+                    "EXPNS": [case["EXPNS"]] * 4,
+                }
+            )
 
             var_stats = estimator._calculate_variance_for_group(plot_data, strat_cols)
             assert var_stats["variance"] >= 0, f"Failed for case: {case}"
@@ -769,22 +683,26 @@ class TestSEPercentCalculation:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Create mock plot-condition data
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+            }
+        )
 
         # Create results with known total
         area_total = 3300.0
-        results = pl.DataFrame({
-            "AREA_TOTAL": [area_total],
-            "N_PLOTS": [4],
-        })
+        results = pl.DataFrame(
+            {
+                "AREA_TOTAL": [area_total],
+                "N_PLOTS": [4],
+            }
+        )
 
         # Create AggregationResult with explicit data passing
         agg_result = AggregationResult(
@@ -808,20 +726,24 @@ class TestSEPercentCalculation:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Create mock plot-condition data with zero values
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "AREA_VALUE": [0.0, 0.0, 0.0, 0.0],  # All zeros
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "AREA_VALUE": [0.0, 0.0, 0.0, 0.0],  # All zeros
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+            }
+        )
 
-        results = pl.DataFrame({
-            "AREA_TOTAL": [0.0],
-            "N_PLOTS": [4],
-        })
+        results = pl.DataFrame(
+            {
+                "AREA_TOTAL": [0.0],
+                "N_PLOTS": [4],
+            }
+        )
 
         # Create AggregationResult with explicit data passing
         agg_result = AggregationResult(
@@ -937,38 +859,6 @@ class TestSafetyFunctions:
 
 
 # =============================================================================
-# TestVarianceCalculatorClass
-# =============================================================================
-
-
-class TestVarianceCalculatorClass:
-    """Test the VarianceCalculator helper class."""
-
-    def test_calculator_initialization(self):
-        """Test VarianceCalculator initialization."""
-        calc = VarianceCalculator(method="ratio_of_means")
-        assert calc.method == "ratio_of_means"
-
-        calc_simple = VarianceCalculator(method="simple")
-        assert calc_simple.method == "simple"
-
-    def test_calculator_simple_method(self):
-        """Test simple variance calculation method."""
-        calc = VarianceCalculator(method="simple")
-
-        data = pl.DataFrame({
-            "response": [10.0, 12.0, 8.0, 11.0, 9.0],
-        })
-
-        result = calc._calculate_single_group(data, "response")
-
-        # Should have basic statistics
-        assert "ESTIMATE" in result.columns
-        assert "VARIANCE" in result.columns
-        assert "SE" in result.columns
-
-
-# =============================================================================
 # TestVarianceWithGrouping
 # =============================================================================
 
@@ -982,23 +872,27 @@ class TestVarianceWithGrouping:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Create mock plot-condition data with two groups
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
-            "CONDID": [1, 1, 1, 1, 1, 1],
-            "AREA_VALUE": [0.8, 1.0, 0.6, 0.5, 0.9, 0.7],
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0, 1500.0, 1500.0],
-            "ESTN_UNIT": [1, 1, 1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1, 1, 1],
-            "FORTYPCD": [161, 161, 161, 406, 406, 406],  # Two forest types
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "CONDID": [1, 1, 1, 1, 1, 1],
+                "AREA_VALUE": [0.8, 1.0, 0.6, 0.5, 0.9, 0.7],
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1500.0, 1500.0, 1500.0],
+                "ESTN_UNIT": [1, 1, 1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1, 1, 1],
+                "FORTYPCD": [161, 161, 161, 406, 406, 406],  # Two forest types
+            }
+        )
 
         # Create results for each group
-        results = pl.DataFrame({
-            "FORTYPCD": [161, 406],
-            "AREA_TOTAL": [2400.0, 3150.0],
-            "N_PLOTS": [3, 3],
-        })
+        results = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 406],
+                "AREA_TOTAL": [2400.0, 3150.0],
+                "N_PLOTS": [3, 3],
+            }
+        )
 
         # Create AggregationResult with explicit data passing
         agg_result = AggregationResult(
@@ -1027,25 +921,29 @@ class TestVarianceWithGrouping:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Create mock plot-condition data with multiple groups
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "FORTYPCD": [161, 161, 406, 406],
-            "OWNGRPCD": [10, 20, 10, 20],
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "FORTYPCD": [161, 161, 406, 406],
+                "OWNGRPCD": [10, 20, 10, 20],
+            }
+        )
 
         # Create results for each group combination
-        results = pl.DataFrame({
-            "FORTYPCD": [161, 161, 406, 406],
-            "OWNGRPCD": [10, 20, 10, 20],
-            "AREA_TOTAL": [800.0, 1000.0, 600.0, 900.0],
-            "N_PLOTS": [1, 1, 1, 1],
-        })
+        results = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 161, 406, 406],
+                "OWNGRPCD": [10, 20, 10, 20],
+                "AREA_TOTAL": [800.0, 1000.0, 600.0, 900.0],
+                "N_PLOTS": [1, 1, 1, 1],
+            }
+        )
 
         # Create AggregationResult with explicit data passing
         agg_result = AggregationResult(
@@ -1074,13 +972,22 @@ class TestEdgeCases:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Empty DataFrame
-        empty_data = pl.DataFrame({
-            "PLT_CN": [],
-            "ESTN_UNIT": [],
-            "STRATUM": [],
-            "y_i": [],
-            "EXPNS": [],
-        }).cast({"ESTN_UNIT": pl.Int64, "STRATUM": pl.Int64, "y_i": pl.Float64, "EXPNS": pl.Float64})
+        empty_data = pl.DataFrame(
+            {
+                "PLT_CN": [],
+                "ESTN_UNIT": [],
+                "STRATUM": [],
+                "y_i": [],
+                "EXPNS": [],
+            }
+        ).cast(
+            {
+                "ESTN_UNIT": pl.Int64,
+                "STRATUM": pl.Int64,
+                "y_i": pl.Float64,
+                "EXPNS": pl.Float64,
+            }
+        )
 
         strat_cols = ["ESTN_UNIT", "STRATUM"]
 
@@ -1091,13 +998,15 @@ class TestEdgeCases:
 
     def test_all_zero_values(self, mock_fia_database):
         """Test with all zero y_i values."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.0, 0.0, 0.0, 0.0],  # All zeros
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.0, 0.0, 0.0, 0.0],  # All zeros
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -1110,13 +1019,15 @@ class TestEdgeCases:
 
     def test_very_large_expns(self, mock_fia_database):
         """Test numerical stability with very large EXPNS values."""
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.8, 1.0, 0.6, 0.9],
-            "EXPNS": [1e9, 1e9, 1e9, 1e9],  # Very large
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.8, 1.0, 0.6, 0.9],
+                "EXPNS": [1e9, 1e9, 1e9, 1e9],  # Very large
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -1141,12 +1052,14 @@ class TestEdgeCases:
         This test verifies that behavior by simulating what calculate_variance does.
         """
         # Original data without stratification
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3"],
-            "y_i": [0.8, 1.0, 0.6],
-            "EXPNS": [1000.0, 1000.0, 1000.0],
-            # No ESTN_UNIT or STRATUM columns
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3"],
+                "y_i": [0.8, 1.0, 0.6],
+                "EXPNS": [1000.0, 1000.0, 1000.0],
+                # No ESTN_UNIT or STRATUM columns
+            }
+        )
 
         # Add default stratum column (as calculate_variance does internally)
         plot_data = plot_data.with_columns([pl.lit(1).alias("STRATUM")])
@@ -1160,7 +1073,7 @@ class TestEdgeCases:
         # Should calculate variance correctly using the default single stratum
         y_values = [0.8, 1.0, 0.6]
         s2 = np.var(y_values, ddof=1)
-        expected_variance = (1000.0 ** 2) * s2 * 3
+        expected_variance = (1000.0**2) * s2 * 3
 
         assert abs(var_stats["variance"] - expected_variance) < 1e-6
 
@@ -1199,15 +1112,17 @@ class TestFormulaDocumentation:
         s2 = np.var(y_values, ddof=1)
 
         # Formula: V = w^2 * s2 * n
-        expected_variance = (w ** 2) * s2 * n
+        expected_variance = (w**2) * s2 * n
 
-        plot_data = pl.DataFrame({
-            "PLT_CN": [f"P{i}" for i in range(n)],
-            "ESTN_UNIT": [1] * n,
-            "STRATUM": [1] * n,
-            "y_i": y_values,
-            "EXPNS": [w] * n,
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(n)],
+                "ESTN_UNIT": [1] * n,
+                "STRATUM": [1] * n,
+                "y_i": y_values,
+                "EXPNS": [w] * n,
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -1233,17 +1148,19 @@ class TestFormulaDocumentation:
         w1 = 1000.0
         w2 = 1500.0
 
-        v1 = (w1 ** 2) * np.var(y1, ddof=1) * len(y1)
-        v2 = (w2 ** 2) * np.var(y2, ddof=1) * len(y2)
+        v1 = (w1**2) * np.var(y1, ddof=1) * len(y1)
+        v2 = (w2**2) * np.var(y2, ddof=1) * len(y2)
         expected_total = v1 + v2
 
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
-            "ESTN_UNIT": [1, 1, 1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 2, 2, 2],
-            "y_i": y1 + y2,
-            "EXPNS": [w1, w1, w1, w2, w2, w2],
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "ESTN_UNIT": [1, 1, 1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 2, 2, 2],
+                "y_i": y1 + y2,
+                "EXPNS": [w1, w1, w1, w2, w2, w2],
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)

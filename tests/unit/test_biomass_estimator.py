@@ -374,19 +374,6 @@ class TestConfigStorage:
         assert estimator.config["component"] == "AG"
         assert estimator.config["land_type"] == "timber"
 
-    def test_plot_tree_data_initialized_none(self):
-        """Test that plot_tree_data is initialized as None."""
-        config = {}
-        estimator = BiomassEstimator(MockDB(), config)
-
-        assert estimator.plot_tree_data is None
-
-    def test_group_cols_initialized_none(self):
-        """Test that group_cols is initialized as None."""
-        config = {}
-        estimator = BiomassEstimator(MockDB(), config)
-
-        assert estimator.group_cols is None
 
 
 class TestConversionFactors:

@@ -11,7 +11,8 @@ from typing import List, Literal, Optional, Union
 import polars as pl
 
 from ...core import FIA
-from ..base import GRMBaseEstimator
+from ..base import AggregationResult
+from ..grm_base import GRMBaseEstimator
 
 
 class GrowthEstimator(GRMBaseEstimator):
@@ -362,8 +363,15 @@ class GrowthEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
-        """Aggregate growth with two-stage aggregation."""
+    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+        """Aggregate growth with two-stage aggregation.
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols for
+            explicit variance calculation.
+        """
         from ..grm import apply_grm_adjustment
 
         # Apply GRM-specific adjustment factors
@@ -378,10 +386,9 @@ class GrowthEstimator(GRMBaseEstimator):
         group_cols = self._setup_grouping()
         if self.config.get("by_species", False) and "SPCD" not in group_cols:
             group_cols.append("SPCD")
-        self.group_cols = group_cols
 
-        # Store plot-tree level data for variance calculation
-        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+        # Preserve plot-tree level data for variance calculation
+        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
             metric_cols=["GROWTH_ADJ"],
             group_cols=group_cols,
@@ -401,18 +408,36 @@ class GrowthEstimator(GRMBaseEstimator):
         if "N_TREES" in results.columns:
             results = results.rename({"N_TREES": "N_GROWTH_TREES"})
 
-        return results
+        # Return AggregationResult with explicit data passing
+        return AggregationResult(
+            results=results,
+            plot_tree_data=plot_tree_data,
+            group_cols=group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
         """Calculate variance for growth estimates using ratio-of-means formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation.
+
+        Parameters
+        ----------
+        agg_result : AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols from
+            aggregate_results().
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added.
         """
         results = self._calculate_grm_variance(
-            results,
+            agg_result.results,
             adjusted_col="GROWTH_ADJ",
             acre_se_col="GROWTH_ACRE_SE",
             total_se_col="GROWTH_TOTAL_SE",
+            plot_tree_data=agg_result.plot_tree_data,
+            group_cols=agg_result.group_cols,
         )
 
         # Add CV if requested

@@ -7,16 +7,56 @@ straightforward approach without unnecessary abstractions.
 
 import logging
 from abc import ABC, abstractmethod
-from functools import lru_cache
+from dataclasses import dataclass
 from typing import Dict, List, Optional, Tuple, Union
 
 import polars as pl
 
 from ..constants.defaults import EVALIDYearParsing
 from ..core import FIA
-from ..filtering import apply_area_filters, apply_plot_filters, apply_tree_filters
+from ..filtering import apply_area_filters, apply_tree_filters
+from .aggregation import (
+    aggregate_to_condition_level as _aggregate_to_condition_level_impl,
+)
+from .aggregation import (
+    aggregate_to_population_level as _aggregate_to_population_level_impl,
+)
+from .aggregation import (
+    apply_two_stage_aggregation as _apply_two_stage_aggregation_impl,
+)
+from .aggregation import (
+    compute_per_acre_values as _compute_per_acre_values_impl,
+)
+from .data_loading import DataLoader
 
 logger = logging.getLogger(__name__)
+
+
+@dataclass
+class AggregationResult:
+    """
+    Bundle of data produced by aggregate_results() for use in calculate_variance().
+
+    This dataclass explicitly passes the data needed for variance calculation,
+    replacing the previous pattern of setting instance state as side effects
+    (self.plot_tree_data, self.group_cols) which was fragile implicit coupling.
+
+    Attributes
+    ----------
+    results : pl.DataFrame
+        The aggregated estimation results (per-acre values, totals, counts).
+    plot_tree_data : pl.DataFrame
+        Plot-tree level data preserved for variance calculation. Contains
+        the individual measurements needed to compute variance following
+        Bechtold & Patterson (2005) methodology.
+    group_cols : List[str]
+        The grouping columns used in aggregation. Needed for grouped variance
+        calculation to ensure variance is computed for each group.
+    """
+
+    results: pl.DataFrame
+    plot_tree_data: pl.DataFrame
+    group_cols: List[str]
 
 
 class BaseEstimator(ABC):
@@ -50,6 +90,9 @@ class BaseEstimator(ABC):
         # Store config as simple dict
         self.config = config
 
+        # Initialize data loader for composition-based data loading
+        self.data_loader = DataLoader(self.db, self.config)
+
         # Simple caches for commonly used data
         self._ref_species_cache: Optional[pl.DataFrame] = None
         self._stratification_cache: Optional[pl.LazyFrame] = None
@@ -75,10 +118,11 @@ class BaseEstimator(ABC):
             data = self.calculate_values(data)
 
         # 4. Aggregate results with stratification
-        results = self.aggregate_results(data)
+        # Returns AggregationResult with results, plot_tree_data, and group_cols
+        agg_result = self.aggregate_results(data)
 
-        # 5. Calculate variance
-        results = self.calculate_variance(results)
+        # 5. Calculate variance using explicit AggregationResult
+        results = self.calculate_variance(agg_result)
 
         # 6. Format output
         return self.format_output(results)
@@ -87,346 +131,22 @@ class BaseEstimator(ABC):
         """
         Load and join required tables.
 
+        Delegates to DataLoader for actual data loading operations.
+
         Returns
         -------
         Optional[pl.LazyFrame]
             Joined data or None if no tree data needed
         """
         tables = self.get_required_tables()
+        tree_columns = self.get_tree_columns()
+        cond_columns = self.get_cond_columns()
 
-        # Handle area-only estimations (no tree data)
-        if "TREE" not in tables:
-            return self._load_area_data()
-
-        # Load tree and condition data
-        return self._load_tree_cond_data()
-
-    def _prepare_column_lists(
-        self,
-    ) -> Tuple[Optional[List[str]], Optional[List[str]]]:
-        """
-        Prepare column lists for TREE and COND tables including grouping columns.
-
-        Returns
-        -------
-        tuple[Optional[List[str]], Optional[List[str]]]
-            (tree_cols, cond_cols) with grouping columns added
-        """
-        tree_cols = self.get_tree_columns()
-        cond_cols = self.get_cond_columns()
-
-        # Get table schemas to determine where grp_by columns live
-        tree_schema = list(self.db._reader.get_table_schema("TREE").keys())
-        cond_schema = list(self.db._reader.get_table_schema("COND").keys())
-
-        # Add grouping columns from config if specified
-        grp_by = self.config.get("grp_by")
-        if grp_by:
-            if isinstance(grp_by, str):
-                grp_by = [grp_by]
-
-            for col in grp_by:
-                in_tree = col in tree_schema and (
-                    tree_cols is None or col not in tree_cols
-                )
-                in_cond = col in cond_schema and (
-                    cond_cols is None or col not in cond_cols
-                )
-                if tree_cols is not None and in_tree:
-                    tree_cols.append(col)
-                elif cond_cols is not None and in_cond:
-                    cond_cols.append(col)
-
-        return tree_cols, cond_cols
-
-    def _load_table_with_cache_check(
-        self,
-        table_name: str,
-        columns: Optional[List[str]],
-        where: Optional[str] = None,
-    ) -> pl.LazyFrame:
-        """
-        Load a table with cache invalidation if required columns are missing.
-
-        Parameters
-        ----------
-        table_name : str
-            Name of the table to load
-        columns : Optional[List[str]]
-            Required columns
-        where : Optional[str]
-            SQL WHERE clause
-
-        Returns
-        -------
-        pl.LazyFrame
-            Loaded table as LazyFrame
-        """
-        # Check if cached table has all required columns
-        if table_name in self.db.tables:
-            cached = self.db.tables[table_name]
-            cached_cols = set(
-                cached.collect_schema().names()
-                if isinstance(cached, pl.LazyFrame)
-                else cached.columns
-            )
-            required_cols = set(columns) if columns else set()
-            if not required_cols.issubset(cached_cols):
-                del self.db.tables[table_name]
-
-        if table_name not in self.db.tables:
-            self.db.load_table(table_name, columns=columns, where=where)
-
-        df = self.db.tables[table_name]
-        if not isinstance(df, pl.LazyFrame):
-            df = df.lazy()
-
-        return df
-
-    def _get_valid_plots_filter(self) -> Optional[pl.LazyFrame]:
-        """
-        Get valid plot CNs based on EVALID and plot_domain filters.
-
-        Returns
-        -------
-        Optional[pl.LazyFrame]
-            LazyFrame with valid PLT_CN values, or None if no filters
-        """
-        valid_plots = None
-
-        # Apply EVALID filtering
-        if self.db.evalid:
-            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
-                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
-
-            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
-            if not isinstance(ppsa, pl.LazyFrame):
-                ppsa = ppsa.lazy()
-
-            valid_plots = (
-                ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
-                .select("PLT_CN")
-                .unique()
-            )
-
-        # Apply plot domain filter if specified
-        if self.config.get("plot_domain"):
-            if "PLOT" not in self.db.tables:
-                self.db.load_table("PLOT")
-            plot_df = self.db.tables["PLOT"]
-            if not isinstance(plot_df, pl.LazyFrame):
-                plot_df = plot_df.lazy()
-
-            plot_df = apply_plot_filters(
-                plot_df, plot_domain=self.config["plot_domain"]
-            )
-            plot_filtered_plots = plot_df.select(pl.col("CN").alias("PLT_CN")).unique()
-
-            # Combine with EVALID filter if both exist
-            if valid_plots is not None:
-                valid_plots = valid_plots.join(
-                    plot_filtered_plots, on="PLT_CN", how="inner"
-                )
-            else:
-                valid_plots = plot_filtered_plots
-
-        return valid_plots
-
-    def _apply_plot_filter_and_select_columns(
-        self,
-        df: pl.LazyFrame,
-        valid_plots: Optional[pl.LazyFrame],
-        columns: Optional[List[str]],
-    ) -> pl.LazyFrame:
-        """
-        Apply plot filter and select required columns from a dataframe.
-
-        Parameters
-        ----------
-        df : pl.LazyFrame
-            Input dataframe
-        valid_plots : Optional[pl.LazyFrame]
-            Valid plot CNs to filter by
-        columns : Optional[List[str]]
-            Columns to select
-
-        Returns
-        -------
-        pl.LazyFrame
-            Filtered and projected dataframe
-        """
-        # Apply plot filter if set
-        if valid_plots is not None:
-            df = df.join(valid_plots, on="PLT_CN", how="inner")
-
-        # Select only needed columns
-        if columns:
-            schema_names = df.collect_schema().names()
-            available_cols = [c for c in columns if c in schema_names]
-            df = df.select(available_cols)
-
-        return df
-
-    def _load_tree_cond_data(self) -> pl.LazyFrame:
-        """Load and join tree and condition data.
-
-        Memory optimization:
-        1. Column projection: Load only required columns at SQL level
-        2. Database-side filtering: Push tree_type and land_type filters to SQL
-
-        This reduces memory footprint by 60-80% for large TREE tables.
-        """
-        # Prepare column lists with grouping columns
-        tree_cols, cond_cols = self._prepare_column_lists()
-
-        # Build SQL WHERE clauses for database-side filtering
-        tree_where = self._build_tree_sql_filter()
-        cond_where = self._build_cond_sql_filter()
-
-        # Load tables with cache invalidation
-        tree_df = self._load_table_with_cache_check("TREE", tree_cols, tree_where)
-        cond_df = self._load_table_with_cache_check("COND", cond_cols, cond_where)
-
-        # Get valid plots based on EVALID and plot_domain filters
-        valid_plots = self._get_valid_plots_filter()
-
-        # Apply filters and column selection
-        tree_df = self._apply_plot_filter_and_select_columns(
-            tree_df, valid_plots, tree_cols
+        return self.data_loader.load_data(
+            required_tables=tables,
+            tree_columns=tree_columns,
+            cond_columns=cond_columns,
         )
-        cond_df = self._apply_plot_filter_and_select_columns(
-            cond_df, valid_plots, cond_cols
-        )
-
-        # Join tree and condition
-        return tree_df.join(cond_df, on=["PLT_CN", "CONDID"], how="inner")
-
-    def _load_area_data(self) -> pl.LazyFrame:
-        """Load condition and plot data for area estimation."""
-        # Get required columns for area estimation
-        cond_cols = self.get_cond_columns()
-
-        # Load COND table with cache invalidation
-        # Check if cached table has all required columns
-        if "COND" in self.db.tables:
-            cached = self.db.tables["COND"]
-            cached_cols = set(
-                cached.collect_schema().names()
-                if isinstance(cached, pl.LazyFrame)
-                else cached.columns
-            )
-            required_cols = set(cond_cols) if cond_cols else set()
-            if not required_cols.issubset(cached_cols):
-                # Reload with all required columns
-                del self.db.tables["COND"]
-        if "COND" not in self.db.tables:
-            self.db.load_table("COND", columns=cond_cols)
-        cond_df = self.db.tables["COND"]
-
-        # Load PLOT table
-        if "PLOT" not in self.db.tables:
-            self.db.load_table("PLOT")
-        plot_df = self.db.tables["PLOT"]
-
-        # Ensure LazyFrames
-        if not isinstance(cond_df, pl.LazyFrame):
-            cond_df = cond_df.lazy()
-        if not isinstance(plot_df, pl.LazyFrame):
-            plot_df = plot_df.lazy()
-
-        # Apply EVALID filtering through POP_PLOT_STRATUM_ASSGN
-        if self.db.evalid:
-            # Load POP_PLOT_STRATUM_ASSGN to get plots for the EVALID
-            if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
-                self.db.load_table("POP_PLOT_STRATUM_ASSGN")
-
-            ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
-            if not isinstance(ppsa, pl.LazyFrame):
-                ppsa = ppsa.lazy()
-
-            # Filter to get PLT_CNs for the specified EVALID(s)
-            valid_plots = (
-                ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
-                .select("PLT_CN")
-                .unique()
-            )
-
-            # Filter cond and plot to only include these plots
-            cond_df = cond_df.join(valid_plots, on="PLT_CN", how="inner")
-            # For plot table, join on CN not PLT_CN
-            valid_plot_cns = valid_plots.rename({"PLT_CN": "CN"})
-            plot_df = plot_df.join(valid_plot_cns, on="CN", how="inner")
-
-        # Apply plot domain filter BEFORE joining with COND
-        # This allows filtering by PLOT-level attributes like COUNTYCD
-        if self.config.get("plot_domain"):
-            plot_df = apply_plot_filters(
-                plot_df, plot_domain=self.config["plot_domain"]
-            )
-
-        # Join condition and plot (all PLOT columns for grouping flexibility)
-        data = cond_df.join(plot_df, left_on="PLT_CN", right_on="CN", how="inner")
-
-        return data
-
-    def _build_tree_sql_filter(self) -> Optional[str]:
-        """Build SQL WHERE clause for TREE table based on config.
-
-        This pushes common filters to the database level to reduce memory usage.
-
-        Returns
-        -------
-        Optional[str]
-            SQL WHERE clause (without WHERE keyword) or None if no filters
-        """
-        filters = []
-
-        # Tree type filter (most common optimization)
-        tree_type = self.config.get("tree_type", "live")
-        if tree_type == "live":
-            filters.append("STATUSCD = 1")
-        elif tree_type == "dead":
-            filters.append("STATUSCD = 2")
-        elif tree_type == "gs":
-            # Growing stock: live trees with valid tree class
-            # Note: TREECLCD filter applied in Polars since it's conditional
-            filters.append("STATUSCD = 1")
-        # "all" means no STATUSCD filter
-
-        # Basic validity filters (these are always applied in apply_tree_filters)
-        filters.append("DIA IS NOT NULL")
-        filters.append("TPA_UNADJ > 0")
-
-        if filters:
-            return " AND ".join(filters)
-        return None
-
-    def _build_cond_sql_filter(self) -> Optional[str]:
-        """Build SQL WHERE clause for COND table based on config.
-
-        This pushes land type filters to the database level to reduce memory usage.
-
-        Returns
-        -------
-        Optional[str]
-            SQL WHERE clause (without WHERE keyword) or None if no filters
-        """
-        filters = []
-
-        # Land type filter
-        land_type = self.config.get("land_type", "forest")
-        if land_type == "forest":
-            filters.append("COND_STATUS_CD = 1")
-        elif land_type == "timber":
-            # Timberland: forest, productive, not reserved
-            filters.append("COND_STATUS_CD = 1")
-            filters.append("SITECLCD IN (1, 2, 3, 4, 5, 6)")
-            filters.append("RESERVCD = 0")
-        # "all" means no COND_STATUS_CD filter
-
-        if filters:
-            return " AND ".join(filters)
-        return None
 
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -487,9 +207,15 @@ class BaseEstimator(ABC):
 
         return data
 
-    def aggregate_results(self, data: Optional[pl.LazyFrame]) -> pl.DataFrame:
+    def aggregate_results(
+        self, data: Optional[pl.LazyFrame]
+    ) -> Union[AggregationResult, pl.DataFrame]:
         """
         Aggregate results with stratification.
+
+        Subclasses should override this to return AggregationResult for proper
+        variance calculation. The base implementation returns a DataFrame for
+        backward compatibility.
 
         Parameters
         ----------
@@ -498,8 +224,9 @@ class BaseEstimator(ABC):
 
         Returns
         -------
-        pl.DataFrame
-            Aggregated results
+        Union[AggregationResult, pl.DataFrame]
+            AggregationResult with results, plot_tree_data, and group_cols,
+            or DataFrame for backward compatibility
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -536,12 +263,23 @@ class BaseEstimator(ABC):
 
         return results
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(
+        self, agg_result: Union[AggregationResult, pl.DataFrame]
+    ) -> pl.DataFrame:
         """
         Calculate variance for estimates.
 
-        Subclasses must override this method to implement proper variance
-        calculation following Bechtold & Patterson (2005) methodology.
+        Parameters
+        ----------
+        agg_result : Union[AggregationResult, pl.DataFrame]
+            Either an AggregationResult containing results, plot_tree_data,
+            and group_cols for explicit data passing, or a DataFrame for
+            backward compatibility with subclasses that haven't been updated.
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added
 
         Raises
         ------
@@ -616,6 +354,8 @@ class BaseEstimator(ABC):
         Each condition's area proportion (CONDPROP_UNADJ) is counted exactly once.
         Trees within a condition are summed together.
 
+        Delegates to the pure function in aggregation module.
+
         Parameters
         ----------
         data_with_strat : pl.LazyFrame
@@ -632,32 +372,9 @@ class BaseEstimator(ABC):
         tuple[pl.LazyFrame, List[str]]
             Condition-level aggregated data and the grouping columns used
         """
-        # Define condition-level grouping columns (always needed)
-        condition_group_cols = [
-            "PLT_CN",
-            "CONDID",
-            "STRATUM_CN",
-            "EXPNS",
-            "CONDPROP_UNADJ",
-        ]
-
-        # Add user-specified grouping columns if they exist at condition level
-        if group_cols:
-            for col in group_cols:
-                if col in available_cols and col not in condition_group_cols:
-                    condition_group_cols.append(col)
-
-        # Build aggregation expressions
-        agg_exprs = []
-        for adj_col, cond_col in metric_mappings.items():
-            agg_exprs.append(pl.col(adj_col).sum().alias(cond_col))
-        # Add tree count for diagnostics
-        agg_exprs.append(pl.len().alias("TREES_PER_CONDITION"))
-
-        # Aggregate at condition level
-        condition_agg = data_with_strat.group_by(condition_group_cols).agg(agg_exprs)
-
-        return condition_agg, condition_group_cols
+        return _aggregate_to_condition_level_impl(
+            data_with_strat, metric_mappings, group_cols, available_cols
+        )
 
     def _aggregate_to_population_level(
         self,
@@ -670,6 +387,8 @@ class BaseEstimator(ABC):
         Stage 2: Apply expansion factors and calculate population estimates.
 
         Condition-level values are expanded using stratification factors (EXPNS).
+
+        Delegates to the pure function in aggregation module.
 
         Parameters
         ----------
@@ -687,52 +406,9 @@ class BaseEstimator(ABC):
         pl.LazyFrame
             Population-level aggregated results
         """
-        # Build final aggregation expressions
-        final_agg_exprs = []
-
-        # For each metric, create numerator and total calculations
-        for adj_col, cond_col in metric_mappings.items():
-            metric_name = cond_col.replace("CONDITION_", "")
-
-            # Numerator: sum(metric × EXPNS)
-            final_agg_exprs.append(
-                (pl.col(cond_col) * pl.col("EXPNS")).sum().alias(f"{metric_name}_NUM")
-            )
-
-            # Total: sum(metric × EXPNS) - same as numerator but kept for clarity
-            final_agg_exprs.append(
-                (pl.col(cond_col) * pl.col("EXPNS")).sum().alias(f"{metric_name}_TOTAL")
-            )
-
-        # Denominator: sum(CONDPROP_UNADJ × EXPNS) - shared across all metrics
-        final_agg_exprs.append(
-            (pl.col("CONDPROP_UNADJ") * pl.col("EXPNS")).sum().alias("AREA_TOTAL")
+        return _aggregate_to_population_level_impl(
+            condition_agg, metric_mappings, group_cols, condition_group_cols
         )
-
-        # Diagnostic counts
-        final_agg_exprs.extend(
-            [
-                pl.n_unique("PLT_CN").alias("N_PLOTS"),
-                pl.col("TREES_PER_CONDITION").sum().alias("N_TREES"),
-                pl.len().alias("N_CONDITIONS"),
-            ]
-        )
-
-        # Apply final aggregation based on grouping
-        if group_cols:
-            # Filter to valid grouping columns at condition level
-            final_group_cols = [
-                col for col in group_cols if col in condition_group_cols
-            ]
-
-            if final_group_cols:
-                return condition_agg.group_by(final_group_cols).agg(final_agg_exprs)
-            else:
-                # No valid grouping columns, aggregate all
-                return condition_agg.select(final_agg_exprs)
-        else:
-            # No grouping specified, aggregate all
-            return condition_agg.select(final_agg_exprs)
 
     def _compute_per_acre_values(
         self,
@@ -742,7 +418,9 @@ class BaseEstimator(ABC):
         """
         Calculate per-acre values using ratio-of-means and clean up intermediate columns.
 
-        Per-acre estimates = sum(metric × EXPNS) / sum(CONDPROP_UNADJ × EXPNS)
+        Per-acre estimates = sum(metric x EXPNS) / sum(CONDPROP_UNADJ x EXPNS)
+
+        Delegates to the pure function in aggregation module.
 
         Parameters
         ----------
@@ -756,33 +434,7 @@ class BaseEstimator(ABC):
         pl.DataFrame
             Results with per-acre values calculated and intermediate columns removed
         """
-        # Calculate per-acre values
-        per_acre_exprs = []
-        for adj_col, cond_col in metric_mappings.items():
-            metric_name = cond_col.replace("CONDITION_", "")
-
-            # Per-acre = numerator / denominator with division-by-zero protection
-            per_acre_exprs.append(
-                pl.when(pl.col("AREA_TOTAL") > 0)
-                .then(pl.col(f"{metric_name}_NUM") / pl.col("AREA_TOTAL"))
-                .otherwise(0.0)
-                .alias(f"{metric_name}_ACRE")
-            )
-
-        results_df = results_df.with_columns(per_acre_exprs)
-
-        # Clean up intermediate columns (keep totals and per-acre values)
-        cols_to_drop = ["N_CONDITIONS", "AREA_TOTAL"]
-        for adj_col, cond_col in metric_mappings.items():
-            metric_name = cond_col.replace("CONDITION_", "")
-            cols_to_drop.append(f"{metric_name}_NUM")
-
-        # Only drop columns that exist
-        cols_to_drop = [col for col in cols_to_drop if col in results_df.columns]
-        if cols_to_drop:
-            results_df = results_df.drop(cols_to_drop)
-
-        return results_df
+        return _compute_per_acre_values_impl(results_df, metric_mappings)
 
     def _apply_two_stage_aggregation(
         self,
@@ -797,6 +449,8 @@ class BaseEstimator(ABC):
         This shared method implements the critical two-stage aggregation pattern that
         is required for all FIA per-acre estimates. It eliminates ~400-600 lines of
         duplicated code across 6 estimators while ensuring consistent, correct results.
+
+        Delegates to the pure function in aggregation module.
 
         Parameters
         ----------
@@ -825,118 +479,24 @@ class BaseEstimator(ABC):
 
         Stage 2: Apply expansion factors and calculate ratio-of-means
         - Condition-level values are expanded using stratification factors (EXPNS)
-        - Per-acre estimates = sum(metric × EXPNS) / sum(CONDPROP_UNADJ × EXPNS)
+        - Per-acre estimates = sum(metric x EXPNS) / sum(CONDPROP_UNADJ x EXPNS)
         """
-        # Cache schema once at the beginning to avoid repeated collection
-        available_cols = data_with_strat.collect_schema().names()
-
-        # Stage 1: Aggregate to condition level
-        condition_agg, condition_group_cols = self._aggregate_to_condition_level(
-            data_with_strat, metric_mappings, group_cols, available_cols
+        return _apply_two_stage_aggregation_impl(
+            data_with_strat, metric_mappings, group_cols, use_grm_adjustment
         )
 
-        # Stage 2: Aggregate to population level
-        results = self._aggregate_to_population_level(
-            condition_agg, metric_mappings, group_cols, condition_group_cols
-        )
-
-        # Collect and compute per-acre values
-        results_df: pl.DataFrame = results.collect()
-        results_df = self._compute_per_acre_values(results_df, metric_mappings)
-
-        return results_df
-
-    @lru_cache(maxsize=1)
     def _get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with simple caching.
+
+        Delegates to DataLoader for actual data loading operations.
 
         Returns
         -------
         pl.LazyFrame
             Joined PPSA, POP_STRATUM, and PLOT data including MACRO_BREAKPOINT_DIA
         """
-        # Load PPSA
-        if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
-            self.db.load_table("POP_PLOT_STRATUM_ASSGN")
-        ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
-
-        # Load POP_STRATUM
-        if "POP_STRATUM" not in self.db.tables:
-            self.db.load_table("POP_STRATUM")
-        pop_stratum = self.db.tables["POP_STRATUM"]
-
-        # Load PLOT table for MACRO_BREAKPOINT_DIA
-        if "PLOT" not in self.db.tables:
-            self.db.load_table("PLOT")
-        plot = self.db.tables["PLOT"]
-
-        # Ensure LazyFrames
-        if not isinstance(ppsa, pl.LazyFrame):
-            ppsa = ppsa.lazy()
-        if not isinstance(pop_stratum, pl.LazyFrame):
-            pop_stratum = pop_stratum.lazy()
-        if not isinstance(plot, pl.LazyFrame):
-            plot = plot.lazy()
-
-        # Apply EVALID filter
-        if self.db.evalid:
-            ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
-            pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
-
-        # CRITICAL: Remove duplicates from both tables
-        # Texas has duplicate rows in both POP_PLOT_STRATUM_ASSGN and POP_STRATUM
-        # Each plot-stratum pair and each stratum appears exactly twice
-        ppsa_unique = ppsa.unique(subset=["PLT_CN", "STRATUM_CN"])
-        pop_stratum_unique = pop_stratum.unique(subset=["CN"])
-
-        # Select only necessary columns from PPSA to avoid duplicate columns
-        # when joining with other tables that also have STATECD, INVYR, etc.
-        ppsa_selected = ppsa_unique.select(["PLT_CN", "STRATUM_CN"])
-
-        # Select necessary columns from POP_STRATUM
-        pop_stratum_selected = pop_stratum_unique.select(
-            [
-                pl.col("CN").alias("STRATUM_CN"),
-                "EXPNS",
-                "ADJ_FACTOR_MICR",
-                "ADJ_FACTOR_SUBP",
-                "ADJ_FACTOR_MACR",
-            ]
-        )
-
-        # Select MACRO_BREAKPOINT_DIA from PLOT table
-        # This is CRITICAL for correct adjustment factor selection in states with macroplots
-        plot_cols = [pl.col("CN").alias("PLT_CN"), "MACRO_BREAKPOINT_DIA"]
-
-        # Include polygon attributes if they exist (from intersect_polygons)
-        # This allows grp_by to use polygon attribute columns
-        if (
-            hasattr(self.db, "_polygon_attributes")
-            and self.db._polygon_attributes is not None
-            and isinstance(self.db._polygon_attributes, pl.DataFrame)
-        ):
-            # Get column names from polygon attributes (excluding CN which is the join key)
-            polygon_attr_cols = [
-                col for col in self.db._polygon_attributes.columns if col != "CN"
-            ]
-            # Add these columns to the selection if they exist in the plot schema
-            plot_schema = plot.collect_schema().names()
-            for col in polygon_attr_cols:
-                if col in plot_schema:
-                    plot_cols.append(col)
-
-        plot_selected = plot.select(plot_cols)
-
-        # Join PPSA with POP_STRATUM
-        strat_data = ppsa_selected.join(
-            pop_stratum_selected, on="STRATUM_CN", how="inner"
-        )
-
-        # Join with PLOT to get MACRO_BREAKPOINT_DIA
-        strat_data = strat_data.join(plot_selected, on="PLT_CN", how="left")
-
-        return strat_data
+        return self.data_loader.get_stratification_data()
 
     def _aggregate_area_only(self, strat_data: pl.LazyFrame) -> pl.DataFrame:
         """Handle area-only aggregation without tree data."""
@@ -1368,4 +928,4 @@ class BaseEstimator(ABC):
 # Backward compatibility: re-export GRMBaseEstimator from its new location
 from .grm_base import GRMBaseEstimator
 
-__all__ = ["BaseEstimator", "GRMBaseEstimator"]
+__all__ = ["AggregationResult", "BaseEstimator", "GRMBaseEstimator"]

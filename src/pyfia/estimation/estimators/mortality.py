@@ -10,7 +10,8 @@ from typing import List, Literal, Optional, Union
 import polars as pl
 
 from ...core import FIA
-from ..base import GRMBaseEstimator
+from ..base import AggregationResult
+from ..grm_base import GRMBaseEstimator
 
 
 class MortalityEstimator(GRMBaseEstimator):
@@ -132,16 +133,24 @@ class MortalityEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
-        """Aggregate mortality with two-stage aggregation."""
-        # Use shared GRM aggregation
-        results = self._aggregate_grm_results(
+    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+        """Aggregate mortality with two-stage aggregation.
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols for
+            explicit variance calculation.
+        """
+        # Use shared GRM aggregation - returns AggregationResult
+        agg_result = self._aggregate_grm_results(
             data,
             value_col="MORT_ANNUAL",
             adjusted_col="MORT_ADJ",
         )
 
         # Rename columns to mortality-specific names
+        results = agg_result.results
         rename_map = {"MORT_ACRE": "MORT_ACRE", "MORT_TOTAL": "MORT_TOTAL"}
         for old, new in rename_map.items():
             if old in results.columns:
@@ -154,20 +163,38 @@ class MortalityEstimator(GRMBaseEstimator):
         if self.config.get("as_rate", False):
             results = results.with_columns([pl.col("MORT_ACRE").alias("MORT_RATE")])
 
-        return results
+        # Return updated AggregationResult
+        return AggregationResult(
+            results=results,
+            plot_tree_data=agg_result.plot_tree_data,
+            group_cols=agg_result.group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
         """Calculate variance for mortality estimates using ratio-of-means formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation.
         MORT_RATE uses the same variance as MORT_ACRE since they represent the
         same per-acre estimate (MORT_RATE = mortality per acre, not mortality/growing_stock).
+
+        Parameters
+        ----------
+        agg_result : AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols from
+            aggregate_results().
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added.
         """
         results = self._calculate_grm_variance(
-            results,
+            agg_result.results,
             adjusted_col="MORT_ADJ",
             acre_se_col="MORT_ACRE_SE",
             total_se_col="MORT_TOTAL_SE",
+            plot_tree_data=agg_result.plot_tree_data,
+            group_cols=agg_result.group_cols,
         )
 
         # MORT_RATE is an alias for MORT_ACRE (per-acre mortality)

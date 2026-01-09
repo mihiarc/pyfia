@@ -383,16 +383,3 @@ class TestConfigStorage:
         assert estimator.config["land_type"] == "timber"
         assert estimator.config["grp_by"] == ["SPCD", "FORTYPCD"]
 
-    def test_plot_tree_data_initialized_none(self):
-        """Test that plot_tree_data is initialized as None."""
-        config = {}
-        estimator = VolumeEstimator(MockDB(), config)
-
-        assert estimator.plot_tree_data is None
-
-    def test_group_cols_initialized_none(self):
-        """Test that group_cols is initialized as None."""
-        config = {}
-        estimator = VolumeEstimator(MockDB(), config)
-
-        assert estimator.group_cols is None

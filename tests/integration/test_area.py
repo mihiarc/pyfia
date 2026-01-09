@@ -339,6 +339,7 @@ class TestVarianceCalculation:
 
     def test_variance_with_grouping(self, mock_fia_database):
         """Test variance calculation with grouping variables."""
+        from pyfia.estimation.base import AggregationResult
         from pyfia.estimation.estimators.area import AreaEstimator
 
         # Create test data with multiple groups
@@ -346,7 +347,7 @@ class TestVarianceCalculation:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Mock plot-condition data
-        estimator.plot_condition_data = pl.DataFrame({
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3", "P4"],
             "AREA_VALUE": [1.0, 0.8, 1.0, 0.6],
             "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
@@ -355,7 +356,7 @@ class TestVarianceCalculation:
             "STRATUM": [1, 1, 1, 1],
             "FORTYPCD": [161, 161, 406, 406]  # Two forest types
         })
-        estimator.group_cols = ["FORTYPCD"]
+        group_cols = ["FORTYPCD"]
 
         # Mock main results for each group
         results = pl.DataFrame({
@@ -364,7 +365,14 @@ class TestVarianceCalculation:
             "N_PLOTS": [2, 2]
         })
 
-        variance_results = estimator.calculate_variance(results)
+        # Create AggregationResult bundle
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=group_cols
+        )
+
+        variance_results = estimator.calculate_variance(agg_result)
 
         # Should have variance columns
         assert "AREA_SE" in variance_results.columns
@@ -380,13 +388,14 @@ class TestVarianceCalculation:
 
     def test_variance_no_grouping(self, mock_fia_database):
         """Test variance calculation without grouping variables."""
+        from pyfia.estimation.base import AggregationResult
         from pyfia.estimation.estimators.area import AreaEstimator
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Mock plot-condition data
-        estimator.plot_condition_data = pl.DataFrame({
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3"],
             "AREA_VALUE": [1.0, 0.8, 1.0],
             "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0],
@@ -394,7 +403,7 @@ class TestVarianceCalculation:
             "ESTN_UNIT": [1, 1, 1],
             "STRATUM": [1, 1, 1]
         })
-        estimator.group_cols = []
+        group_cols = []
 
         # Mock main results
         results = pl.DataFrame({
@@ -402,7 +411,14 @@ class TestVarianceCalculation:
             "N_PLOTS": [3]
         })
 
-        variance_results = estimator.calculate_variance(results)
+        # Create AggregationResult bundle
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=group_cols
+        )
+
+        variance_results = estimator.calculate_variance(agg_result)
 
         # Should add variance columns to single result row
         assert "AREA_SE" in variance_results.columns

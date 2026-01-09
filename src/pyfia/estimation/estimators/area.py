@@ -10,7 +10,7 @@ from typing import Dict, List, Optional, Tuple, Union
 import polars as pl
 
 from ...core import FIA
-from ..base import BaseEstimator
+from ..base import AggregationResult, BaseEstimator
 from ..tree_expansion import apply_area_adjustment_factors
 from ..utils import (
     ensure_evalid_set,
@@ -29,9 +29,8 @@ class AreaEstimator(BaseEstimator):
     """
 
     def __init__(self, db: Union[str, FIA], config: dict) -> None:
-        """Initialize with storage for variance calculation."""
+        """Initialize the area estimator."""
         super().__init__(db, config)
-        self.plot_condition_data = None  # Store for variance calculation
 
     def get_required_tables(self) -> List[str]:
         """Area estimation requires COND, PLOT, and stratification tables."""
@@ -162,7 +161,7 @@ class AreaEstimator(BaseEstimator):
         # Apply area domain filter using centralized parser
         area_domain = self.config.get("area_domain")
         if area_domain:
-            from ...filtering.core.parser import DomainExpressionParser
+            from ...filtering.parser import DomainExpressionParser
 
             # For area estimation with domain indicators, we need to incorporate
             # the area_domain into the DOMAIN_IND rather than filtering rows.
@@ -241,8 +240,15 @@ class AreaEstimator(BaseEstimator):
 
         return cols_to_select, group_cols
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
-        """Aggregate area with stratification, preserving data for variance calculation."""
+    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+        """Aggregate area with stratification, preserving data for variance calculation.
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_condition_data (as plot_tree_data field),
+            and group_cols for explicit variance calculation.
+        """
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -254,16 +260,14 @@ class AreaEstimator(BaseEstimator):
             data_with_strat, prop_basis_col="PROP_BASIS", output_col="ADJ_FACTOR_AREA"
         )
 
-        # CRITICAL: Store plot-condition level data for variance calculation
-        # Need to check which columns are available
+        # Need to check which columns are available for variance calculation
         available_cols = data_with_strat.collect_schema().names()
 
         # Use helper method to select columns for variance calculation
         cols_to_select, group_cols = self._select_variance_columns(available_cols)
 
-        # Store the plot-condition data
-        self.plot_condition_data = data_with_strat.select(cols_to_select).collect()
-        self.group_cols = group_cols  # Store for use in variance calculation
+        # Store the plot-condition data for variance calculation
+        plot_condition_data = data_with_strat.select(cols_to_select).collect()
 
         # Calculate area totals with proper FIA expansion logic
         # Area = CONDPROP_UNADJ * ADJ_FACTOR_AREA * EXPNS
@@ -309,28 +313,40 @@ class AreaEstimator(BaseEstimator):
                 ]
             )
 
-        return results_df
+        # Return AggregationResult with explicit data passing
+        # Note: We use plot_tree_data field for plot_condition_data
+        return AggregationResult(
+            results=results_df,
+            plot_tree_data=plot_condition_data,
+            group_cols=group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
         """Calculate variance for area estimates using domain total estimation formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation
         for domain totals.
 
-        Raises
-        ------
-        ValueError
-            If plot_condition_data is not available for variance calculation.
+        Parameters
+        ----------
+        agg_result : AggregationResult
+            Bundle containing results, plot_condition_data (as plot_tree_data field),
+            and group_cols from aggregate_results().
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added.
         """
-        if self.plot_condition_data is None:
-            raise ValueError(
-                "Plot-condition data is required for area variance calculation. "
-                "Cannot compute statistically valid standard errors without "
-                "condition-level data. Ensure both COND and PLOT tables are available."
-            )
+        # Extract data from AggregationResult
+        results = agg_result.results
+        plot_condition_data = (
+            agg_result.plot_tree_data
+        )  # Note: uses plot_tree_data field
+        group_cols = agg_result.group_cols
 
         # Step 1: Calculate condition-level areas
-        cond_data = self.plot_condition_data.with_columns(
+        cond_data = plot_condition_data.with_columns(
             [
                 (
                     pl.col("AREA_VALUE").cast(pl.Float64)
@@ -358,9 +374,9 @@ class AreaEstimator(BaseEstimator):
         # Step 2: Aggregate to plot level (sum conditions within plot)
         # Include grouping columns so they're preserved for variance calculation by group
         plot_group_cols = ["PLT_CN"] + strat_cols + ["EXPNS"]
-        if self.group_cols:
+        if group_cols:
             # Add any grouping columns that exist in the condition data
-            for col in self.group_cols:
+            for col in group_cols:
                 if col in cond_data.columns and col not in plot_group_cols:
                     plot_group_cols.append(col)
 
@@ -371,7 +387,7 @@ class AreaEstimator(BaseEstimator):
         )
 
         # If we have grouping variables, calculate variance for each group
-        if self.group_cols:
+        if group_cols:
             # Calculate variance for each group separately
             variance_results = []
 
@@ -380,7 +396,7 @@ class AreaEstimator(BaseEstimator):
                 group_filter = pl.lit(True)
                 group_dict = {}
 
-                for i, col in enumerate(self.group_cols):
+                for i, col in enumerate(group_cols):
                     if col in plot_data.columns:
                         val = group_vals[results.columns.index(col)]
                         group_dict[col] = val
@@ -408,7 +424,7 @@ class AreaEstimator(BaseEstimator):
             # Join variance results back to main results
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=self.group_cols, how="left")
+                results = results.join(var_df, on=group_cols, how="left")
         else:
             # No grouping, calculate overall variance
             var_stats = self._calculate_variance_for_group(plot_data, strat_cols)

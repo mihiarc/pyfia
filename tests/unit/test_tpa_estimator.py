@@ -388,19 +388,6 @@ class TestConfigStorage:
         assert estimator.config["tree_type"] == "live"
         assert estimator.config["by_species"] is True
 
-    def test_plot_tree_data_initialized_none(self):
-        """Test that plot_tree_data is initialized as None."""
-        config = {}
-        estimator = TPAEstimator(MockDB(), config)
-
-        assert estimator.plot_tree_data is None
-
-    def test_group_cols_initialized_none(self):
-        """Test that group_cols is initialized as None."""
-        config = {}
-        estimator = TPAEstimator(MockDB(), config)
-
-        assert estimator.group_cols is None
 
 
 class TestBAFormulaDerivation:

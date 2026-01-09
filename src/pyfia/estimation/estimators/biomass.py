@@ -5,12 +5,15 @@ Simple implementation for calculating tree biomass and carbon
 without unnecessary abstractions.
 """
 
-from typing import List, Optional, Union
+from typing import TYPE_CHECKING, List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
-from ..base import BaseEstimator
+from ..base import AggregationResult, BaseEstimator
+
+if TYPE_CHECKING:
+    pass
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..variance import calculate_domain_total_variance
 
@@ -23,10 +26,8 @@ class BiomassEstimator(BaseEstimator):
     """
 
     def __init__(self, db: Union[str, FIA], config: dict) -> None:
-        """Initialize with storage for variance calculation."""
+        """Initialize the biomass estimator."""
         super().__init__(db, config)
-        self.plot_tree_data = None  # Store for variance calculation
-        self.group_cols = None  # Store grouping columns
 
     def get_required_tables(self) -> List[str]:
         """Biomass requires tree, condition, and stratification tables."""
@@ -132,7 +133,7 @@ class BiomassEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
         """Aggregate biomass with two-stage aggregation for correct per-acre estimates.
 
         CRITICAL FIX: This method implements two-stage aggregation following FIA
@@ -141,6 +142,12 @@ class BiomassEstimator(BaseEstimator):
 
         Stage 1: Aggregate trees to plot-condition level
         Stage 2: Apply expansion factors and calculate ratio-of-means
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols for
+            explicit variance calculation.
         """
         # Validate required columns exist
         data_schema = data.collect_schema()
@@ -170,10 +177,9 @@ class BiomassEstimator(BaseEstimator):
 
         # Setup grouping
         group_cols = self._setup_grouping()
-        self.group_cols = group_cols  # Store for variance calculation
 
-        # CRITICAL: Store plot-tree level data for variance calculation
-        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+        # Preserve plot-tree level data for variance calculation
+        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
             metric_cols=["BIOMASS_ADJ", "CARBON_ADJ"],
             group_cols=group_cols,
@@ -210,9 +216,16 @@ class BiomassEstimator(BaseEstimator):
             if cols_to_drop:
                 results = results.drop(cols_to_drop)
 
-        return results
+        # Return AggregationResult with explicit data passing
+        return AggregationResult(
+            results=results,
+            plot_tree_data=plot_tree_data,
+            group_cols=group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(
+        self, agg_result: "Union[AggregationResult, pl.DataFrame]"
+    ) -> pl.DataFrame:
         """Calculate variance for biomass estimates using domain total variance formula.
 
         Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
@@ -225,7 +238,18 @@ class BiomassEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        if self.plot_tree_data is None:
+        # Extract data from AggregationResult or use DataFrame directly
+        if isinstance(agg_result, AggregationResult):
+            results = agg_result.results
+            plot_tree_data = agg_result.plot_tree_data
+            group_cols = agg_result.group_cols
+        else:
+            # Backward compatibility: DataFrame passed directly
+            results = agg_result
+            plot_tree_data = None
+            group_cols = []
+
+        if plot_tree_data is None:
             raise ValueError(
                 "Plot-tree data is required for biomass/carbon variance calculation. "
                 "Cannot compute statistically valid standard errors without tree-level "
@@ -236,15 +260,15 @@ class BiomassEstimator(BaseEstimator):
         # Step 1: Aggregate to plot-condition level
         # Sum biomass within each condition (trees are already adjusted)
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
-        if "STRATUM_CN" in self.plot_tree_data.columns:
+        if "STRATUM_CN" in plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
-        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+        if "CONDPROP_UNADJ" in plot_tree_data.columns:
             plot_group_cols.append("CONDPROP_UNADJ")
 
         # Add grouping columns
-        if self.group_cols:
-            for col in self.group_cols:
-                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+        if group_cols:
+            for col in group_cols:
+                if col in plot_tree_data.columns and col not in plot_group_cols:
                     plot_group_cols.append(col)
 
         plot_cond_agg = [
@@ -252,17 +276,15 @@ class BiomassEstimator(BaseEstimator):
             pl.sum("CARBON_ADJ").alias("y_carb_ic"),  # Carbon per condition
         ]
 
-        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
-            plot_cond_agg
-        )
+        plot_cond_data = plot_tree_data.group_by(plot_group_cols).agg(plot_cond_agg)
 
         # Step 2: Aggregate to plot level
         plot_level_cols = ["PLT_CN", "EXPNS"]
         if "STRATUM_CN" in plot_cond_data.columns:
             plot_level_cols.insert(1, "STRATUM_CN")
-        if self.group_cols:
+        if group_cols:
             plot_level_cols.extend(
-                [c for c in self.group_cols if c in plot_cond_data.columns]
+                [c for c in group_cols if c in plot_cond_data.columns]
             )
 
         plot_data = plot_cond_data.group_by(plot_level_cols).agg(
@@ -282,7 +304,7 @@ class BiomassEstimator(BaseEstimator):
         )
 
         # Step 4: Calculate variance for each group or overall
-        if self.group_cols:
+        if group_cols:
             # Calculate variance for each group separately
             variance_results = []
 
@@ -291,7 +313,7 @@ class BiomassEstimator(BaseEstimator):
                 group_filter = pl.lit(True)
                 group_dict = {}
 
-                for i, col in enumerate(self.group_cols):
+                for i, col in enumerate(group_cols):
                     if col in plot_data.columns:
                         group_dict[col] = group_vals[results.columns.index(col)]
                         group_filter = group_filter & (
@@ -357,7 +379,7 @@ class BiomassEstimator(BaseEstimator):
             # Join variance results back to main results
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=self.group_cols, how="left")
+                results = results.join(var_df, on=group_cols, how="left")
         else:
             # No grouping, calculate overall variance with ALL plots
             all_plots_with_values = all_plots.join(

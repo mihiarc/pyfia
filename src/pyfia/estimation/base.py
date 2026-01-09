@@ -14,7 +14,11 @@ import polars as pl
 
 from ..constants.defaults import EVALIDYearParsing
 from ..core import FIA
-from ..filtering import apply_area_filters, apply_tree_filters
+from ..filtering import (
+    apply_area_filters,
+    apply_tree_filters,
+    get_land_domain_indicator,
+)
 from .aggregation import (
     aggregate_to_condition_level as _aggregate_to_condition_level_impl,
 )
@@ -193,17 +197,11 @@ class BaseEstimator(ABC):
                 data = data.filter(gs_filter)
             # "all" means no filter
 
-        # Apply land type filter
+        # Apply land type filter using centralized indicator function
+        # This replaces magic numbers with named constants from status_codes.py
         land_type = self.config.get("land_type", "forest")
-        if land_type and "COND_STATUS_CD" in columns:
-            if land_type == "forest":
-                data = data.filter(pl.col("COND_STATUS_CD") == 1)
-            elif land_type == "timber":
-                data = data.filter(
-                    (pl.col("COND_STATUS_CD") == 1)
-                    & (pl.col("SITECLCD").is_in([1, 2, 3, 4, 5, 6]))
-                    & (pl.col("RESERVCD") == 0)
-                )
+        if land_type and land_type != "all" and "COND_STATUS_CD" in columns:
+            data = data.filter(get_land_domain_indicator(land_type))
 
         return data
 

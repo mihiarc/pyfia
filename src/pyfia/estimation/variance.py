@@ -37,7 +37,7 @@ Reference:
     Station. 85 p. https://doi.org/10.2737/SRS-GTR-80
 """
 
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import polars as pl
 
@@ -332,3 +332,133 @@ def calculate_domain_total_variance(
         "n_strata": len(strata_stats),
         "n_plots": int(strata_stats["n_h"].sum()),
     }
+
+
+# =============================================================================
+# Utility functions salvaged from statistics.py
+# =============================================================================
+
+
+def safe_divide(
+    numerator: pl.Expr, denominator: pl.Expr, default: float = 0.0
+) -> pl.Expr:
+    """
+    Safe division that handles zero denominators.
+
+    Parameters
+    ----------
+    numerator : pl.Expr
+        Numerator expression
+    denominator : pl.Expr
+        Denominator expression
+    default : float
+        Default value when denominator is zero
+
+    Returns
+    -------
+    pl.Expr
+        Safe division expression
+    """
+    return pl.when(denominator != 0).then(numerator / denominator).otherwise(default)
+
+
+def safe_sqrt(expr: pl.Expr, default: float = 0.0) -> pl.Expr:
+    """
+    Safe square root that handles negative values.
+
+    Parameters
+    ----------
+    expr : pl.Expr
+        Expression to take square root of
+    default : float
+        Default value for negative inputs
+
+    Returns
+    -------
+    pl.Expr
+        Safe square root expression
+    """
+    return pl.when(expr >= 0).then(expr.sqrt()).otherwise(default)
+
+
+def calculate_confidence_interval(
+    estimate: float, se: float, confidence: float = 0.95
+) -> Tuple[float, float]:
+    """
+    Calculate confidence interval using normal approximation.
+
+    Parameters
+    ----------
+    estimate : float
+        Point estimate
+    se : float
+        Standard error
+    confidence : float
+        Confidence level (default 0.95 for 95% CI)
+
+    Returns
+    -------
+    Tuple[float, float]
+        Lower and upper bounds of confidence interval
+    """
+    if confidence == 0.95:
+        z = 1.96
+    elif confidence == 0.90:
+        z = 1.645
+    elif confidence == 0.99:
+        z = 2.576
+    else:
+        # For other confidence levels, would need scipy.stats
+        z = 1.96  # Default to 95%
+
+    lower = estimate - z * se
+    upper = estimate + z * se
+
+    return lower, upper
+
+
+def calculate_cv(estimate: float, se: float) -> float:
+    """
+    Calculate coefficient of variation as percentage.
+
+    Parameters
+    ----------
+    estimate : float
+        Point estimate
+    se : float
+        Standard error
+
+    Returns
+    -------
+    float
+        Coefficient of variation as percentage
+    """
+    if estimate != 0:
+        return 100 * se / abs(estimate)
+    return 0.0
+
+
+def apply_finite_population_correction(
+    variance: float, n_sampled: int, n_total: int
+) -> float:
+    """
+    Apply finite population correction factor.
+
+    Parameters
+    ----------
+    variance : float
+        Uncorrected variance
+    n_sampled : int
+        Number of sampled units
+    n_total : int
+        Total population size
+
+    Returns
+    -------
+    float
+        Corrected variance
+    """
+    if n_total > n_sampled:
+        fpc = (n_total - n_sampled) / n_total
+        return variance * fpc
+    return variance

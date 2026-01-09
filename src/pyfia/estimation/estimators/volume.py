@@ -11,7 +11,7 @@ import polars as pl
 
 from ...core import FIA
 from ...validation import validate_boolean, validate_tree_type, validate_vol_type
-from ..base import BaseEstimator
+from ..base import AggregationResult, BaseEstimator
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import (
     ensure_evalid_set,
@@ -30,10 +30,8 @@ class VolumeEstimator(BaseEstimator):
     """
 
     def __init__(self, db: Union[str, FIA], config: dict) -> None:
-        """Initialize with storage for variance calculation."""
+        """Initialize the volume estimator."""
         super().__init__(db, config)
-        self.plot_tree_data = None  # Store for variance calculation
-        self.group_cols = None  # Store grouping columns
 
     def get_required_tables(self) -> List[str]:
         """Volume estimation requires tree, condition, and stratification tables."""
@@ -147,7 +145,7 @@ class VolumeEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
         """Aggregate volume with two-stage aggregation for correct per-acre estimates.
 
         CRITICAL FIX: This method implements two-stage aggregation following FIA
@@ -156,6 +154,12 @@ class VolumeEstimator(BaseEstimator):
 
         Stage 1: Aggregate trees to plot-condition level
         Stage 2: Apply expansion factors and calculate ratio-of-means
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols for
+            explicit variance calculation.
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -175,10 +179,9 @@ class VolumeEstimator(BaseEstimator):
 
         # Setup grouping
         group_cols = self._setup_grouping()
-        self.group_cols = group_cols  # Store for variance calculation
 
-        # CRITICAL: Store plot-tree level data for variance calculation
-        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+        # Preserve plot-tree level data for variance calculation
+        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat, metric_cols=["VOLUME_ADJ"], group_cols=group_cols
         )
 
@@ -192,43 +195,36 @@ class VolumeEstimator(BaseEstimator):
             use_grm_adjustment=False,
         )
 
-        # Rename columns to match expected output
-        # The shared method returns VOLUME_ACRE and VOLUME_TOTAL
-        # which are already the names we want
-
         # Recalculate N_PLOTS to count only non-zero volume plots
         # This matches EVALIDator's "non-zero plots" metric
-        if self.plot_tree_data is not None:
-            # Calculate plot-level volume sums
-            plot_volumes = self.plot_tree_data.group_by(
-                ["PLT_CN"] + (group_cols if group_cols else [])
-            ).agg([pl.sum("VOLUME_ADJ").alias("PLOT_VOLUME")])
+        # Calculate plot-level volume sums
+        plot_volumes = plot_tree_data.group_by(
+            ["PLT_CN"] + (group_cols if group_cols else [])
+        ).agg([pl.sum("VOLUME_ADJ").alias("PLOT_VOLUME")])
 
-            # Count plots with non-zero volume
-            if group_cols:
-                non_zero_counts = (
-                    plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)
-                    .group_by(group_cols)
-                    .agg([pl.n_unique("PLT_CN").alias("N_PLOTS_NONZERO")])
-                )
+        # Count plots with non-zero volume
+        if group_cols:
+            non_zero_counts = (
+                plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)
+                .group_by(group_cols)
+                .agg([pl.n_unique("PLT_CN").alias("N_PLOTS_NONZERO")])
+            )
 
-                # Update results with correct plot count
-                results = (
-                    results.drop("N_PLOTS")
-                    .join(non_zero_counts, on=group_cols, how="left")
-                    .rename({"N_PLOTS_NONZERO": "N_PLOTS"})
-                )
-            else:
-                non_zero_count = (
-                    plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)
-                    .select(pl.n_unique("PLT_CN"))
-                    .item()
-                )
+            # Update results with correct plot count
+            results = (
+                results.drop("N_PLOTS")
+                .join(non_zero_counts, on=group_cols, how="left")
+                .rename({"N_PLOTS_NONZERO": "N_PLOTS"})
+            )
+        else:
+            non_zero_count = (
+                plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)
+                .select(pl.n_unique("PLT_CN"))
+                .item()
+            )
 
-                # Update the N_PLOTS value
-                results = results.with_columns(
-                    [pl.lit(non_zero_count).alias("N_PLOTS")]
-                )
+            # Update the N_PLOTS value
+            results = results.with_columns([pl.lit(non_zero_count).alias("N_PLOTS")])
 
         # Handle totals based on config
         if not self.config.get("totals", True):
@@ -236,9 +232,16 @@ class VolumeEstimator(BaseEstimator):
             if "VOLUME_TOTAL" in results.columns:
                 results = results.drop(["VOLUME_TOTAL"])
 
-        return results
+        # Return AggregationResult with explicit data passing
+        return AggregationResult(
+            results=results,
+            plot_tree_data=plot_tree_data,
+            group_cols=group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(
+        self, agg_result: Union[AggregationResult, pl.DataFrame]
+    ) -> pl.DataFrame:
         """Calculate variance for volume estimates using domain total variance formula.
 
         Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
@@ -253,7 +256,18 @@ class VolumeEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        if self.plot_tree_data is None:
+        # Extract data from AggregationResult or use DataFrame directly
+        if isinstance(agg_result, AggregationResult):
+            results = agg_result.results
+            plot_tree_data = agg_result.plot_tree_data
+            group_cols = agg_result.group_cols
+        else:
+            # Backward compatibility: DataFrame passed directly
+            results = agg_result
+            plot_tree_data = None
+            group_cols = []
+
+        if plot_tree_data is None:
             raise ValueError(
                 "Plot-tree data is required for volume variance calculation. "
                 "Cannot compute statistically valid standard errors without tree-level "
@@ -262,22 +276,18 @@ class VolumeEstimator(BaseEstimator):
             )
 
         # Calculate variance for each group or overall
-        if self.group_cols:
+        if group_cols:
             # Use shared helper for grouped variance calculation
-            # Pass use_domain_total_variance=True to match EVALIDator
             metric_mappings = {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
             results = self._calculate_grouped_variance(
-                self.plot_tree_data,
+                plot_tree_data,
                 results,
-                self.group_cols,
+                group_cols,
                 metric_mappings,
-                use_domain_total_variance=True,
             )
         else:
             # No grouping, calculate overall variance using domain total formula
-            plot_data = self.plot_tree_data.group_by(
-                ["PLT_CN", "STRATUM_CN", "EXPNS"]
-            ).agg(
+            plot_data = plot_tree_data.group_by(["PLT_CN", "STRATUM_CN", "EXPNS"]).agg(
                 [
                     pl.sum("VOLUME_ADJ").alias("y_i"),
                     pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),

@@ -10,7 +10,8 @@ from typing import List, Literal, Optional, Union
 import polars as pl
 
 from ...core import FIA
-from ..base import GRMBaseEstimator
+from ..base import AggregationResult
+from ..grm_base import GRMBaseEstimator
 
 
 class RemovalsEstimator(GRMBaseEstimator):
@@ -83,16 +84,24 @@ class RemovalsEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
-        """Aggregate removals with two-stage aggregation."""
-        # Use shared GRM aggregation
-        results = self._aggregate_grm_results(
+    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+        """Aggregate removals with two-stage aggregation.
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols for
+            explicit variance calculation.
+        """
+        # Use shared GRM aggregation - returns AggregationResult
+        agg_result = self._aggregate_grm_results(
             data,
             value_col="REMV_ANNUAL",
             adjusted_col="REMV_ADJ",
         )
 
         # Rename columns to removals-specific names
+        results = agg_result.results
         rename_map = {"REMV_ACRE": "REMV_ACRE", "REMV_TOTAL": "REMV_TOTAL"}
         for old, new in rename_map.items():
             if old in results.columns:
@@ -101,18 +110,36 @@ class RemovalsEstimator(GRMBaseEstimator):
         if "N_TREES" in results.columns:
             results = results.rename({"N_TREES": "N_REMOVED_TREES"})
 
-        return results
+        # Return updated AggregationResult
+        return AggregationResult(
+            results=results,
+            plot_tree_data=agg_result.plot_tree_data,
+            group_cols=agg_result.group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
         """Calculate variance for removals estimates using ratio-of-means formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation.
+
+        Parameters
+        ----------
+        agg_result : AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols from
+            aggregate_results().
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added.
         """
         results = self._calculate_grm_variance(
-            results,
+            agg_result.results,
             adjusted_col="REMV_ADJ",
             acre_se_col="REMV_ACRE_SE",
             total_se_col="REMV_TOTAL_SE",
+            plot_tree_data=agg_result.plot_tree_data,
+            group_cols=agg_result.group_cols,
         )
 
         # Add coefficient of variation

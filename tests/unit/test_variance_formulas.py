@@ -26,6 +26,7 @@ import numpy as np
 import polars as pl
 import pytest
 
+from pyfia.estimation.base import AggregationResult
 from pyfia.estimation.estimators.area import AreaEstimator
 from pyfia.estimation.statistics import (
     calculate_ratio_of_means_variance,
@@ -355,8 +356,8 @@ class TestSingleStratumVariance:
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
 
-        # Set up mock plot-condition data
-        estimator.plot_condition_data = pl.DataFrame({
+        # Create mock plot-condition data
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3", "P4"],
             "CONDID": [1, 1, 1, 1],
             "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
@@ -365,7 +366,6 @@ class TestSingleStratumVariance:
             "ESTN_UNIT": [1, 1, 1, 1],
             "STRATUM": [1, 1, 1, 1],
         })
-        estimator.group_cols = []
 
         # Create mock results
         results = pl.DataFrame({
@@ -373,8 +373,15 @@ class TestSingleStratumVariance:
             "N_PLOTS": [4],
         })
 
+        # Create AggregationResult with explicit data passing
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=[],
+        )
+
         # Calculate variance
-        variance_results = estimator.calculate_variance(results)
+        variance_results = estimator.calculate_variance(agg_result)
 
         # Should have variance columns
         assert "AREA_SE" in variance_results.columns
@@ -761,8 +768,8 @@ class TestSEPercentCalculation:
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
 
-        # Set up mock data
-        estimator.plot_condition_data = pl.DataFrame({
+        # Create mock plot-condition data
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3", "P4"],
             "CONDID": [1, 1, 1, 1],
             "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
@@ -771,7 +778,6 @@ class TestSEPercentCalculation:
             "ESTN_UNIT": [1, 1, 1, 1],
             "STRATUM": [1, 1, 1, 1],
         })
-        estimator.group_cols = []
 
         # Create results with known total
         area_total = 3300.0
@@ -780,7 +786,14 @@ class TestSEPercentCalculation:
             "N_PLOTS": [4],
         })
 
-        variance_results = estimator.calculate_variance(results)
+        # Create AggregationResult with explicit data passing
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=[],
+        )
+
+        variance_results = estimator.calculate_variance(agg_result)
 
         # Verify SE% calculation: SE% = (SE / estimate) * 100
         se = variance_results["AREA_SE"][0]
@@ -794,8 +807,8 @@ class TestSEPercentCalculation:
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
 
-        # Set up mock data with zero values
-        estimator.plot_condition_data = pl.DataFrame({
+        # Create mock plot-condition data with zero values
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3", "P4"],
             "CONDID": [1, 1, 1, 1],
             "AREA_VALUE": [0.0, 0.0, 0.0, 0.0],  # All zeros
@@ -804,14 +817,20 @@ class TestSEPercentCalculation:
             "ESTN_UNIT": [1, 1, 1, 1],
             "STRATUM": [1, 1, 1, 1],
         })
-        estimator.group_cols = []
 
         results = pl.DataFrame({
             "AREA_TOTAL": [0.0],
             "N_PLOTS": [4],
         })
 
-        variance_results = estimator.calculate_variance(results)
+        # Create AggregationResult with explicit data passing
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=[],
+        )
+
+        variance_results = estimator.calculate_variance(agg_result)
 
         # SE% should be 0 when estimate is 0 (to avoid division by zero)
         assert variance_results["AREA_SE_PERCENT"][0] == 0
@@ -962,8 +981,8 @@ class TestVarianceWithGrouping:
         config = {"grp_by": "FORTYPCD"}
         estimator = AreaEstimator(mock_fia_database, config)
 
-        # Set up mock plot-condition data with two groups
-        estimator.plot_condition_data = pl.DataFrame({
+        # Create mock plot-condition data with two groups
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
             "CONDID": [1, 1, 1, 1, 1, 1],
             "AREA_VALUE": [0.8, 1.0, 0.6, 0.5, 0.9, 0.7],
@@ -973,7 +992,6 @@ class TestVarianceWithGrouping:
             "STRATUM": [1, 1, 1, 1, 1, 1],
             "FORTYPCD": [161, 161, 161, 406, 406, 406],  # Two forest types
         })
-        estimator.group_cols = ["FORTYPCD"]
 
         # Create results for each group
         results = pl.DataFrame({
@@ -982,7 +1000,14 @@ class TestVarianceWithGrouping:
             "N_PLOTS": [3, 3],
         })
 
-        variance_results = estimator.calculate_variance(results)
+        # Create AggregationResult with explicit data passing
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=["FORTYPCD"],
+        )
+
+        variance_results = estimator.calculate_variance(agg_result)
 
         # Should have two rows (one per group)
         assert len(variance_results) == 2
@@ -1001,8 +1026,8 @@ class TestVarianceWithGrouping:
         config = {"grp_by": ["FORTYPCD", "OWNGRPCD"]}
         estimator = AreaEstimator(mock_fia_database, config)
 
-        # Set up mock data with multiple groups
-        estimator.plot_condition_data = pl.DataFrame({
+        # Create mock plot-condition data with multiple groups
+        plot_condition_data = pl.DataFrame({
             "PLT_CN": ["P1", "P2", "P3", "P4"],
             "CONDID": [1, 1, 1, 1],
             "AREA_VALUE": [0.8, 1.0, 0.6, 0.9],
@@ -1013,7 +1038,6 @@ class TestVarianceWithGrouping:
             "FORTYPCD": [161, 161, 406, 406],
             "OWNGRPCD": [10, 20, 10, 20],
         })
-        estimator.group_cols = ["FORTYPCD", "OWNGRPCD"]
 
         # Create results for each group combination
         results = pl.DataFrame({
@@ -1023,7 +1047,14 @@ class TestVarianceWithGrouping:
             "N_PLOTS": [1, 1, 1, 1],
         })
 
-        variance_results = estimator.calculate_variance(results)
+        # Create AggregationResult with explicit data passing
+        agg_result = AggregationResult(
+            results=results,
+            plot_tree_data=plot_condition_data,
+            group_cols=["FORTYPCD", "OWNGRPCD"],
+        )
+
+        variance_results = estimator.calculate_variance(agg_result)
 
         # Should have 4 rows (one per group combination)
         assert len(variance_results) == 4

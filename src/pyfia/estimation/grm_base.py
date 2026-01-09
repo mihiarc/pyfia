@@ -10,7 +10,7 @@ from typing import List, Literal, Optional
 
 import polars as pl
 
-from .base import BaseEstimator
+from .base import AggregationResult, BaseEstimator
 
 logger = logging.getLogger(__name__)
 
@@ -29,10 +29,8 @@ class GRMBaseEstimator(BaseEstimator):
     """
 
     def __init__(self, db, config):
-        """Initialize with GRM-specific attributes."""
+        """Initialize the GRM base estimator."""
         super().__init__(db, config)
-        self.plot_tree_data: Optional[pl.DataFrame] = None
-        self.group_cols: Optional[List[str]] = None
         self._grm_columns = None
 
     @property
@@ -229,7 +227,7 @@ class GRMBaseEstimator(BaseEstimator):
         data: pl.LazyFrame,
         value_col: str,
         adjusted_col: str,
-    ) -> pl.DataFrame:
+    ) -> AggregationResult:
         """
         Aggregate GRM results with two-stage aggregation.
 
@@ -239,6 +237,12 @@ class GRMBaseEstimator(BaseEstimator):
         3. Setup grouping
         4. Preserve plot-tree data for variance
         5. Apply two-stage aggregation
+
+        Returns
+        -------
+        AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols for
+            explicit variance calculation.
         """
         from .grm import apply_grm_adjustment
 
@@ -260,10 +264,9 @@ class GRMBaseEstimator(BaseEstimator):
         group_cols = self._setup_grouping()
         if self.config.get("by_species", False) and "SPCD" not in group_cols:
             group_cols.append("SPCD")
-        self.group_cols = group_cols
 
-        # Store plot-tree level data for variance calculation
-        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+        # Preserve plot-tree level data for variance calculation
+        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
             metric_cols=[adjusted_col],
             group_cols=group_cols,
@@ -280,7 +283,12 @@ class GRMBaseEstimator(BaseEstimator):
             use_grm_adjustment=True,
         )
 
-        return results
+        # Return AggregationResult with explicit data passing
+        return AggregationResult(
+            results=results,
+            plot_tree_data=plot_tree_data,
+            group_cols=group_cols,
+        )
 
     def _calculate_grm_variance(
         self,
@@ -288,6 +296,8 @@ class GRMBaseEstimator(BaseEstimator):
         adjusted_col: str,
         acre_se_col: str,
         total_se_col: str,
+        plot_tree_data: Optional[pl.DataFrame] = None,
+        group_cols: Optional[List[str]] = None,
     ) -> pl.DataFrame:
         """
         Calculate variance for GRM estimates using domain total variance formula.
@@ -307,6 +317,10 @@ class GRMBaseEstimator(BaseEstimator):
             Name for the per-acre standard error column.
         total_se_col : str
             Name for the total standard error column.
+        plot_tree_data : pl.DataFrame, optional
+            Plot-tree level data for variance calculation.
+        group_cols : List[str], optional
+            Grouping columns used in aggregation.
 
         Returns
         -------
@@ -320,7 +334,7 @@ class GRMBaseEstimator(BaseEstimator):
         """
         from .variance import calculate_domain_total_variance
 
-        if self.plot_tree_data is None:
+        if plot_tree_data is None:
             raise ValueError(
                 f"Plot-tree data is required for {self.__class__.__name__} variance "
                 "calculation. Cannot compute statistically valid standard errors "
@@ -328,19 +342,22 @@ class GRMBaseEstimator(BaseEstimator):
                 "correctly in the estimation pipeline."
             )
 
+        if group_cols is None:
+            group_cols = []
+
         # Aggregate to plot-condition level
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
-        if "STRATUM_CN" in self.plot_tree_data.columns:
+        if "STRATUM_CN" in plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
-        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+        if "CONDPROP_UNADJ" in plot_tree_data.columns:
             plot_group_cols.append("CONDPROP_UNADJ")
 
-        if self.group_cols:
-            for col in self.group_cols:
-                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+        if group_cols:
+            for col in group_cols:
+                if col in plot_tree_data.columns and col not in plot_group_cols:
                     plot_group_cols.append(col)
 
-        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
+        plot_cond_data = plot_tree_data.group_by(plot_group_cols).agg(
             [pl.sum(adjusted_col).alias("y_ic")]
         )
 
@@ -348,9 +365,9 @@ class GRMBaseEstimator(BaseEstimator):
         plot_level_cols = ["PLT_CN", "EXPNS"]
         if "STRATUM_CN" in plot_cond_data.columns:
             plot_level_cols.insert(1, "STRATUM_CN")
-        if self.group_cols:
+        if group_cols:
             plot_level_cols.extend(
-                [c for c in self.group_cols if c in plot_cond_data.columns]
+                [c for c in group_cols if c in plot_cond_data.columns]
             )
 
         # Include CONDPROP_UNADJ for area calculation
@@ -372,14 +389,14 @@ class GRMBaseEstimator(BaseEstimator):
         )
 
         # Calculate variance
-        if self.group_cols:
+        if group_cols:
             variance_results = []
 
             for group_vals in results.iter_rows():
                 group_filter = pl.lit(True)
                 group_dict = {}
 
-                for i, col in enumerate(self.group_cols):
+                for i, col in enumerate(group_cols):
                     if col in plot_data.columns:
                         val = group_vals[results.columns.index(col)]
                         group_dict[col] = val
@@ -431,7 +448,7 @@ class GRMBaseEstimator(BaseEstimator):
 
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=self.group_cols, how="left")
+                results = results.join(var_df, on=group_cols, how="left")
         else:
             # No grouping, calculate overall variance with ALL plots
             all_plots_with_values = all_plots.join(

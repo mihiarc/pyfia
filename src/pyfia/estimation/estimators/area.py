@@ -4,7 +4,6 @@ Area estimation for FIA data.
 Simple, straightforward implementation without unnecessary abstractions.
 """
 
-import re
 from typing import Dict, List, Optional, Tuple, Union
 
 import polars as pl
@@ -57,25 +56,12 @@ class AreaEstimator(BaseEstimator):
         # Add columns needed for area_domain filtering
         area_domain = self.config.get("area_domain")
         if area_domain:
-            # Parse domain string to extract column names
-            # Simple extraction - could be enhanced with proper parser
-            # Exclude SQL keywords and operators
-            sql_keywords = {
-                "AND",
-                "OR",
-                "NOT",
-                "IN",
-                "IS",
-                "NULL",
-                "BETWEEN",
-                "LIKE",
-                "AS",
-            }
-            col_pattern = r"\b([A-Z][A-Z0-9_]*)\b"
-            potential_cols = re.findall(col_pattern, area_domain.upper())
-            # Filter to valid COND columns (simplified check)
-            for col in potential_cols:
-                if col not in sql_keywords and col not in core_cols and len(col) > 2:
+            from ...filtering.parser import DomainExpressionParser
+
+            # Extract column names using centralized parser
+            domain_cols = DomainExpressionParser.extract_columns(area_domain)
+            for col in domain_cols:
+                if col not in core_cols:
                     filter_cols.add(col)
 
         # Add grouping columns if specified

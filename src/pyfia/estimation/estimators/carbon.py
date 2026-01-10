@@ -172,9 +172,8 @@ def carbon(
     Raises
     ------
     ValueError
-        If an invalid pool is specified.
-    NotImplementedError
-        If 'litter' or 'soil' pools are requested.
+        If an invalid pool is specified, or if 'litter' or 'soil' pools are
+        requested (not yet implemented).
     """
     pool = pool.lower()
     valid_pools = ["ag", "bg", "live", "dead", "litter", "soil", "total"]
@@ -182,6 +181,20 @@ def carbon(
     if pool not in valid_pools:
         raise ValueError(
             f"Invalid pool '{pool}'. Must be one of: {', '.join(valid_pools)}"
+        )
+
+    # Validate unsupported pools early with clear error messages
+    if pool == "litter":
+        raise ValueError(
+            "Litter carbon pool estimation is not yet implemented. "
+            "Requires COND_DWM_CALC table with EXPDWM evaluation type. "
+            "Supported pools: 'ag', 'bg', 'live', 'dead', 'total'."
+        )
+    if pool == "soil":
+        raise ValueError(
+            "Soil organic carbon estimation is not yet implemented. "
+            "Requires SUBP_SOIL_SAMPLE_LOC table (Phase 3 data). "
+            "Supported pools: 'ag', 'bg', 'live', 'dead', 'total'."
         )
 
     # Route to appropriate estimator based on pool
@@ -215,7 +228,7 @@ def carbon(
             variance=variance,
             most_recent=most_recent,
         )
-    elif pool == "dead":
+    else:  # pool == "dead"
         return _estimate_dead_carbon(
             db=db,
             grp_by=grp_by,
@@ -227,18 +240,6 @@ def carbon(
             variance=variance,
             most_recent=most_recent,
         )
-    elif pool == "litter":
-        raise NotImplementedError(
-            "Litter carbon pool estimation not yet implemented. "
-            "Requires COND_DWM_CALC table with EXPDWM evaluation type."
-        )
-    elif pool == "soil":
-        raise NotImplementedError(
-            "Soil organic carbon estimation not yet implemented. "
-            "Requires SUBP_SOIL_SAMPLE_LOC table (Phase 3 data)."
-        )
-
-    raise ValueError(f"Unhandled pool type: {pool}")
 
 
 def _estimate_dead_carbon(

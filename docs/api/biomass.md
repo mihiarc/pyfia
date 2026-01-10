@@ -4,7 +4,8 @@ Estimate tree biomass (dry weight) and carbon content.
 
 ## Overview
 
-The `biomass()` function calculates biomass estimates by component.
+The `biomass()` function calculates biomass estimates by component. Both biomass and carbon
+(biomass × 0.47) are always returned.
 
 ```python
 import pyfia
@@ -12,11 +13,11 @@ import pyfia
 db = pyfia.FIA("georgia.duckdb")
 db.clip_by_state("GA")
 
-# Above-ground biomass
+# Above-ground biomass (returns BIO_ACRE, CARB_ACRE, etc.)
 result = pyfia.biomass(db, component="AG")
 
-# Total biomass as carbon
-carbon = pyfia.biomass(db, component="TOTAL", as_carbon=True)
+# Total biomass
+total = pyfia.biomass(db, component="TOTAL")
 ```
 
 ## Function Reference
@@ -40,7 +41,8 @@ carbon = pyfia.biomass(db, component="TOTAL", as_carbon=True)
 
 ## Carbon Conversion
 
-When `as_carbon=True`, biomass is multiplied by 0.47 (standard carbon fraction).
+Carbon is always calculated as biomass × 0.47 (standard carbon fraction) and returned
+in the `CARB_ACRE` and `CARB_TOTAL` columns alongside the biomass columns.
 
 ## Examples
 
@@ -49,7 +51,7 @@ When `as_carbon=True`, biomass is multiplied by 0.47 (standard carbon fraction).
 ```python
 result = pyfia.biomass(db, component="AG", grp_by="SPCD")
 result = pyfia.join_species_names(result, db)
-print(result.sort("estimate", descending=True).head(10))
+print(result.sort("BIO_ACRE", descending=True).head(10))
 ```
 
 ### Total Carbon Stock
@@ -58,10 +60,10 @@ print(result.sort("estimate", descending=True).head(10))
 result = pyfia.biomass(
     db,
     component="TOTAL",
-    as_carbon=True,
-    land_type="forest"
+    land_type="forest",
+    totals=True
 )
-print(f"Carbon: {result['estimate'][0]:,.0f} tons")
+print(f"Carbon: {result['CARB_TOTAL'][0]:,.0f} tons")
 ```
 
 ### Biomass on Timberland

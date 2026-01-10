@@ -915,12 +915,14 @@ class FIA:
 
         # Build the spatial join query
         # Use DISTINCT ON equivalent to get first match for each plot
+        # When a plot intersects multiple polygons, select the smallest one
+        # (smallest area is typically the most specific, e.g., city vs. state)
         query = f"""
             WITH ranked AS (
                 SELECT
                     CAST(p.CN AS VARCHAR) as CN,
                     {attr_select},
-                    ROW_NUMBER() OVER (PARTITION BY p.CN ORDER BY p.CN) as rn
+                    ROW_NUMBER() OVER (PARTITION BY p.CN ORDER BY ST_Area(poly.geom) ASC) as rn
                 FROM PLOT p
                 JOIN ST_Read('{safe_path}') poly
                 ON ST_Intersects(ST_Point(p.LON, p.LAT), poly.geom)

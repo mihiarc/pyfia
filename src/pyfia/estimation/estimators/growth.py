@@ -6,9 +6,12 @@ annual tree growth using TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and
 TREE_GRM_BEGIN tables following EVALIDator approach.
 """
 
+import logging
 from typing import List, Literal, Optional, Union
 
 import polars as pl
+
+logger = logging.getLogger(__name__)
 
 from ...core import FIA
 from ..base import AggregationResult
@@ -209,12 +212,14 @@ class GrowthEstimator(GRMBaseEstimator):
         if "BEGINEND" not in self.db.tables:
             try:
                 self.db.load_table("BEGINEND")
-            except (KeyError, ValueError):
+            except (KeyError, ValueError) as e:
                 # BEGINEND may not exist in some databases (e.g., MotherDuck)
                 # KeyError: table not found in database
                 # ValueError: table loading validation error
                 # Create it dynamically - it's just a 2-row reference table
-                pass
+                logger.debug(
+                    "BEGINEND table not found in database, creating dynamically: %s", e
+                )
 
         if "BEGINEND" in self.db.tables:
             beginend = self.db.tables["BEGINEND"]
@@ -257,9 +262,13 @@ class GrowthEstimator(GRMBaseEstimator):
             try:
                 if "DIA_MIDPT >= 5.0" in tree_domain:
                     data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
-            except pl.exceptions.ColumnNotFoundError:
+            except pl.exceptions.ColumnNotFoundError as e:
                 # DIA_MIDPT column may not exist in some data configurations
-                pass
+                logger.warning(
+                    "Could not apply tree_domain filter '%s': column not found - %s",
+                    tree_domain,
+                    e,
+                )
 
         # Filter to records with non-null TPA_UNADJ
         data = data.filter(pl.col("TPA_UNADJ").is_not_null())

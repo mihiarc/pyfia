@@ -588,25 +588,46 @@ class BaseEstimator(ABC):
         # Primary source: EVALID encodes the evaluation reference year
         # EVALIDs are 6-digit codes: SSYYTT where YY is the evaluation year
         if hasattr(self.db, "evalids") and self.db.evalids:
-            try:
-                evalid = self.db.evalids[0]  # Use first EVALID
-                year_part = int(str(evalid)[2:4])  # Extract YY portion
+            evalid = self.db.evalids[0]  # Use first EVALID
+            evalid_str = str(evalid)
 
-                # Handle century using Y2K windowing
-                # Years >= 90 are 1990s, years < 90 are 2000s
-                if year_part >= EVALIDYearParsing.LEGACY_THRESHOLD:
-                    year = EVALIDYearParsing.CENTURY_1900 + year_part
-                else:
-                    year = EVALIDYearParsing.CENTURY_2000 + year_part
+            # Validate EVALID format: must be exactly 6 digits (SSYYTT)
+            if len(evalid_str) != 6:
+                logger.debug(
+                    f"Invalid EVALID format: '{evalid_str}' has {len(evalid_str)} "
+                    f"characters, expected 6 (SSYYTT format)"
+                )
+            elif not evalid_str.isdigit():
+                logger.debug(
+                    f"Invalid EVALID format: '{evalid_str}' contains non-digit "
+                    f"characters, expected 6 digits (SSYYTT format)"
+                )
+            else:
+                try:
+                    year_part = int(evalid_str[2:4])  # Extract YY portion
 
-                # Validate year is within reasonable range
-                if (
-                    year < EVALIDYearParsing.MIN_VALID_YEAR
-                    or year > EVALIDYearParsing.MAX_VALID_YEAR
-                ):
-                    year = None  # Fall back to other methods
-            except (IndexError, ValueError, TypeError) as e:
-                logger.debug(f"Could not parse year from EVALID: {e}")
+                    # Handle century using Y2K windowing
+                    # Years >= 90 are 1990s, years < 90 are 2000s
+                    if year_part >= EVALIDYearParsing.LEGACY_THRESHOLD:
+                        year = EVALIDYearParsing.CENTURY_1900 + year_part
+                    else:
+                        year = EVALIDYearParsing.CENTURY_2000 + year_part
+
+                    # Validate year is within reasonable range
+                    if (
+                        year < EVALIDYearParsing.MIN_VALID_YEAR
+                        or year > EVALIDYearParsing.MAX_VALID_YEAR
+                    ):
+                        logger.debug(
+                            f"EVALID year {year} outside valid range "
+                            f"({EVALIDYearParsing.MIN_VALID_YEAR}-"
+                            f"{EVALIDYearParsing.MAX_VALID_YEAR}), using fallback"
+                        )
+                        year = None  # Fall back to other methods
+                except ValueError as e:
+                    logger.debug(
+                        f"Could not parse year from EVALID '{evalid_str}': {e}"
+                    )
 
         # Fallback: If no EVALID, use most recent INVYR as approximation
         if year is None and "PLOT" in self.db.tables:

@@ -193,24 +193,93 @@ class DomainExpressionParser:
             return False, str(e)
 
         # If column list provided, check if referenced columns exist
-        # Note: This is a basic check - full validation would require
-        # parsing the expression to extract column references
         if available_columns is not None:
-            # Basic heuristic: check for common column references
-            import re
-
-            # Find potential column names (alphanumeric with underscores)
-            potential_cols = re.findall(r"\b[A-Z][A-Z0-9_]*\b", domain_expr)
+            extracted_cols = DomainExpressionParser.extract_columns(domain_expr)
             missing_cols = [
-                col
-                for col in potential_cols
-                if col not in available_columns
-                and col not in ["AND", "OR", "NOT", "IN", "IS", "NULL"]
+                col for col in extracted_cols if col not in available_columns
             ]
             if missing_cols:
                 return False, f"Referenced columns not available: {missing_cols}"
 
         return True, None
+
+    # SQL keywords to exclude when extracting column names
+    SQL_KEYWORDS = frozenset(
+        {
+            "AND",
+            "OR",
+            "NOT",
+            "IN",
+            "IS",
+            "NULL",
+            "BETWEEN",
+            "LIKE",
+            "AS",
+            "TRUE",
+            "FALSE",
+            "ASC",
+            "DESC",
+            "LIMIT",
+            "OFFSET",
+            "WHERE",
+            "SELECT",
+            "FROM",
+            "JOIN",
+            "ON",
+            "GROUP",
+            "BY",
+            "ORDER",
+            "HAVING",
+            "UNION",
+        }
+    )
+
+    @staticmethod
+    def extract_columns(domain_expr: str) -> List[str]:
+        """
+        Extract column names referenced in a domain expression.
+
+        Uses pattern matching to find uppercase identifiers that look like
+        FIA column names (uppercase letters and numbers with underscores).
+        Filters out SQL keywords.
+
+        Parameters
+        ----------
+        domain_expr : str
+            SQL-like expression string (e.g., "DIA >= 10.0 AND STATUSCD == 1")
+
+        Returns
+        -------
+        List[str]
+            List of unique column names found in the expression
+
+        Examples
+        --------
+        >>> cols = DomainExpressionParser.extract_columns("STDAGE > 50 AND FORTYPCD IN (161, 162)")
+        >>> print(cols)  # ['STDAGE', 'FORTYPCD']
+        """
+        import re
+
+        if not domain_expr:
+            return []
+
+        # Find potential column names (uppercase identifiers with underscores)
+        col_pattern = r"\b([A-Z][A-Z0-9_]*)\b"
+        potential_cols = re.findall(col_pattern, domain_expr.upper())
+
+        # Filter out SQL keywords and short tokens, preserve order
+        seen = set()
+        result = []
+        for col in potential_cols:
+            if (
+                col not in DomainExpressionParser.SQL_KEYWORDS
+                and col not in seen
+                and len(col) > 2
+            ):
+                seen.add(col)
+                result.append(col)
+
+        return result
 
     @staticmethod
     def combine_expressions(

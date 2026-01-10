@@ -545,8 +545,9 @@ class FIA:
             evalid = [evalid]
 
         self.evalid = evalid
-        # Clear plot CN cache when EVALID changes
+        # Clear plot CN caches when EVALID changes
         self._valid_plot_cns = None
+        self._spatial_plot_cns = None
         # Clear loaded tables to ensure they use the new filter
         self.tables.clear()
         return self
@@ -1360,15 +1361,24 @@ class MotherDuckFIA(FIA):
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         """Context manager exit."""
-        self._backend.disconnect()
+        self.close()
+
+    def close(self):
+        """Close MotherDuck connection."""
+        if hasattr(self, "_backend") and self._backend:
+            self._backend.disconnect()
 
     def __del__(self):
         """Clean up MotherDuck connection."""
         try:
             if hasattr(self, "_backend") and self._backend:
                 self._backend.disconnect()
-        except Exception:
+        except (AttributeError, RuntimeError):
+            # AttributeError: backend may not be fully initialized
+            # RuntimeError: can occur during interpreter shutdown
             pass
+        except Exception as e:
+            logger.debug("Error during MotherDuckFIA cleanup: %s", e)
 
 
 class _MotherDuckReaderWrapper:
@@ -1407,3 +1417,14 @@ class _MotherDuckReaderWrapper:
         if lazy:
             return df.lazy()
         return df
+
+    def supports_spatial(self) -> bool:
+        """
+        Check if the backend supports spatial operations.
+
+        Returns
+        -------
+        bool
+            Always False for MotherDuck - spatial operations not supported.
+        """
+        return False

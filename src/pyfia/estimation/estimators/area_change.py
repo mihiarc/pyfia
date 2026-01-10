@@ -153,7 +153,8 @@ class AreaChangeEstimator(BaseEstimator):
         try:
             available_cols = cond.collect_schema().names()
             cond_select = [c for c in cond_cols if c in available_cols]
-        except Exception:
+        except pl.exceptions.ComputeError:
+            # Schema unavailable (e.g., invalid query); fall back to all requested columns
             cond_select = cond_cols
 
         # Join current condition

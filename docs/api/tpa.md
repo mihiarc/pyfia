@@ -28,14 +28,16 @@ by_size = pyfia.tpa(db, by_size_class=True)
 
 ## Output Columns
 
-The `tpa()` function returns additional columns:
+The `tpa()` function returns these columns:
 
 | Column | Description |
 |--------|-------------|
-| `tpa_estimate` | Trees per acre estimate |
-| `baa_estimate` | Basal area (sq ft/acre) estimate |
-| `tpa_se` | TPA standard error |
-| `baa_se` | BAA standard error |
+| `TPA` | Trees per acre estimate |
+| `BAA` | Basal area (sq ft/acre) estimate |
+| `TPA_SE` | TPA standard error |
+| `BAA_SE` | BAA standard error |
+| `TPA_TOTAL` | Total trees (if `totals=True`) |
+| `BAA_TOTAL` | Total basal area (if `totals=True`) |
 
 ## Formulas
 
@@ -51,8 +53,8 @@ $$BAA = \pi \times (DIA/24)^2 \times TPA\_UNADJ \times ADJ\_FACTOR$$
 
 ```python
 result = pyfia.tpa(db, land_type="forest")
-print(f"TPA: {result['tpa_estimate'][0]:.1f} trees/acre")
-print(f"BAA: {result['baa_estimate'][0]:.1f} sq ft/acre")
+print(f"TPA: {result['TPA'][0]:.1f} trees/acre")
+print(f"BAA: {result['BAA'][0]:.1f} sq ft/acre")
 ```
 
 ### TPA by 2-Inch Diameter Classes
@@ -67,7 +69,7 @@ print(result)
 ```python
 result = pyfia.tpa(db, grp_by="SPCD")
 result = pyfia.join_species_names(result, db)
-print(result.sort("tpa_estimate", descending=True).head(10))
+print(result.sort("TPA", descending=True).head(10))
 ```
 
 ### Large Trees Only

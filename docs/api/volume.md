@@ -42,7 +42,7 @@ by_species = pyfia.volume(db, grp_by="SPCD")
 ```python
 result = pyfia.volume(db, vol_type="net", grp_by="SPCD")
 result = pyfia.join_species_names(result, db)
-print(result.sort("estimate", descending=True).head(10))
+print(result.sort("VOLUME_ACRE", descending=True).head(10))
 ```
 
 ### Sawlog Volume on Timberland
@@ -52,9 +52,10 @@ result = pyfia.volume(
     db,
     vol_type="sawlog",
     land_type="timber",
-    tree_type="sl"  # Sawtimber only
+    tree_type="sl",  # Sawtimber only
+    totals=True
 )
-print(f"Sawlog Volume: {result['estimate'][0]:,.0f} board feet")
+print(f"Sawlog Volume: {result['VOLUME_TOTAL'][0]:,.0f} board feet")
 ```
 
 ### Volume by Diameter Class

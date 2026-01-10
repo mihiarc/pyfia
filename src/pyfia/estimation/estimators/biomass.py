@@ -13,6 +13,7 @@ from ...core import FIA
 from ..base import AggregationResult, BaseEstimator
 from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
+from ..constants import CARBON_FRACTION, LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..variance import calculate_domain_total_variance
 
@@ -92,20 +93,20 @@ class BiomassEstimator(BaseEstimator):
             biomass_col = f"DRYBIO_{component}"
             data = data.with_columns([pl.col(biomass_col).alias("DRYBIO")])
 
-        # Calculate biomass per acre (convert pounds to tons)
+        # Calculate biomass per acre (convert pounds to short tons)
         data = data.with_columns(
             [
                 (
                     pl.col("DRYBIO").cast(pl.Float64)
                     * pl.col("TPA_UNADJ").cast(pl.Float64)
-                    / 2000.0
+                    * LBS_TO_SHORT_TONS
                 ).alias("BIOMASS_ACRE"),
-                # Carbon is 47% of biomass
+                # Carbon is ~47% of biomass (IPCC standard)
                 (
                     pl.col("DRYBIO").cast(pl.Float64)
                     * pl.col("TPA_UNADJ").cast(pl.Float64)
-                    / 2000.0
-                    * 0.47
+                    * LBS_TO_SHORT_TONS
+                    * CARBON_FRACTION
                 ).alias("CARBON_ACRE"),
             ]
         )

@@ -41,6 +41,8 @@ from typing import Dict, List, Tuple
 
 import polars as pl
 
+from .constants import Z_SCORE_90, Z_SCORE_95, Z_SCORE_99
+
 
 def calculate_grouped_domain_total_variance(
     plot_data: pl.DataFrame,
@@ -402,14 +404,14 @@ def calculate_confidence_interval(
         Lower and upper bounds of confidence interval
     """
     if confidence == 0.95:
-        z = 1.96
+        z = Z_SCORE_95
     elif confidence == 0.90:
-        z = 1.645
+        z = Z_SCORE_90
     elif confidence == 0.99:
-        z = 2.576
+        z = Z_SCORE_99
     else:
         # For other confidence levels, would need scipy.stats
-        z = 1.96  # Default to 95%
+        z = Z_SCORE_95  # Default to 95%
 
     lower = estimate - z * se
     upper = estimate + z * se

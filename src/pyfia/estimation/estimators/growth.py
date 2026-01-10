@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 from ...core import FIA
 from ..base import AggregationResult
+from ..constants import LBS_TO_SHORT_TONS
 from ..grm_base import GRMBaseEstimator
 
 
@@ -357,8 +358,8 @@ class GrowthEstimator(GRMBaseEstimator):
             ]
         )
 
-        # Convert biomass from pounds to tons
-        conversion_factor = 1.0 / 2000.0 if measure == "biomass" else 1.0
+        # Convert biomass from pounds to short tons
+        conversion_factor = LBS_TO_SHORT_TONS if measure == "biomass" else 1.0
 
         data = data.with_columns(
             [

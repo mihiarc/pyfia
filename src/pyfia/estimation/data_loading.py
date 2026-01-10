@@ -59,6 +59,87 @@ class DataLoader:
         self.db = db
         self.config = config
 
+        # Validate grp_by columns early during initialization
+        self._validate_grp_by_columns()
+
+    def _validate_grp_by_columns(self) -> None:
+        """
+        Validate that grp_by columns exist in available table schemas.
+
+        This method checks grp_by columns against TREE, COND, and PLOT schemas
+        to catch invalid column names early before query execution.
+
+        Raises
+        ------
+        ValueError
+            If any grp_by column does not exist in TREE, COND, or PLOT tables.
+        """
+        grp_by = self.config.get("grp_by")
+        if not grp_by:
+            return
+
+        if isinstance(grp_by, str):
+            grp_by = [grp_by]
+
+        # Try to get table schemas; skip validation if not available (e.g., in tests)
+        try:
+            tree_schema_result = self.db._reader.get_table_schema("TREE")
+            cond_schema_result = self.db._reader.get_table_schema("COND")
+            plot_schema_result = self.db._reader.get_table_schema("PLOT")
+
+            # Handle case where schema returns are not proper dicts (e.g., Mock objects)
+            if not isinstance(tree_schema_result, dict):
+                return
+            if not isinstance(cond_schema_result, dict):
+                return
+            if not isinstance(plot_schema_result, dict):
+                return
+
+            tree_schema = list(tree_schema_result.keys())
+            cond_schema = list(cond_schema_result.keys())
+            plot_schema = list(plot_schema_result.keys())
+        except (AttributeError, TypeError):
+            # Skip validation if schema access fails (e.g., mock db in tests)
+            return
+
+        # Check for polygon attributes if they exist
+        polygon_attr_cols: List[str] = []
+        if (
+            hasattr(self.db, "_polygon_attributes")
+            and self.db._polygon_attributes is not None
+        ):
+            try:
+                polygon_attr_cols = list(self.db._polygon_attributes.columns)
+            except (AttributeError, TypeError):
+                pass
+
+        # Combine all available columns
+        all_available_cols = (
+            set(tree_schema)
+            | set(cond_schema)
+            | set(plot_schema)
+            | set(polygon_attr_cols)
+        )
+
+        # Find invalid columns
+        invalid_cols = [col for col in grp_by if col not in all_available_cols]
+
+        if invalid_cols:
+            # Build helpful error message with common grouping options
+            from .columns import (
+                COND_GROUPING_COLUMNS,
+                TREE_GROUPING_COLUMNS,
+            )
+
+            common_grouping_cols = sorted(
+                set(TREE_GROUPING_COLUMNS) | set(COND_GROUPING_COLUMNS)
+            )
+            raise ValueError(
+                f"Invalid grp_by column(s): {invalid_cols}. "
+                f"Column(s) not found in TREE, COND, or PLOT tables. "
+                f"Common grouping columns include: {common_grouping_cols}"
+            )
+
     def load_data(
         self,
         required_tables: List[str],
@@ -108,6 +189,11 @@ class DataLoader:
         -------
         tuple[Optional[List[str]], Optional[List[str]]]
             (tree_cols, cond_cols) with grouping columns added
+
+        Raises
+        ------
+        ValueError
+            If any grp_by column does not exist in TREE, COND, or PLOT tables.
         """
         # Make copies to avoid modifying original lists
         tree_cols = list(tree_columns) if tree_columns else None
@@ -118,6 +204,7 @@ class DataLoader:
         cond_schema = list(self.db._reader.get_table_schema("COND").keys())
 
         # Add grouping columns from config if specified
+        # Note: Validation is done in __init__ via _validate_grp_by_columns()
         grp_by = self.config.get("grp_by")
         if grp_by:
             if isinstance(grp_by, str):

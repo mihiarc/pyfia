@@ -15,13 +15,11 @@ from typing import Any, Dict, List, Optional, Union
 import polars as pl
 
 from ...core import FIA
+from ..constants import CARBON_FRACTION
 from .area import area
 from .growth import growth
 from .mortality import mortality
 from .removals import removals
-
-# IPCC standard carbon fraction of dry biomass
-CARBON_FRACTION = 0.47
 
 
 def carbon_flux(

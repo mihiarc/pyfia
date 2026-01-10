@@ -11,6 +11,7 @@ import polars as pl
 
 from ...core import FIA
 from ..base import AggregationResult
+from ..constants import LBS_TO_SHORT_TONS
 from ..grm_base import GRMBaseEstimator
 
 
@@ -73,7 +74,7 @@ class RemovalsEstimator(GRMBaseEstimator):
                         * (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(
                             pl.Float64
                         )
-                        / 2000.0  # Convert pounds to tons
+                        * LBS_TO_SHORT_TONS  # Convert pounds to short tons
                     ).alias("REMV_ANNUAL")
                 ]
             )

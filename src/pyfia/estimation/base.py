@@ -5,10 +5,11 @@ This module provides the base class for all FIA estimators using a simple,
 straightforward approach without unnecessary abstractions.
 """
 
+from __future__ import annotations
+
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, List, Optional, Tuple, Union
 
 import polars as pl
 
@@ -60,7 +61,7 @@ class AggregationResult:
 
     results: pl.DataFrame
     plot_tree_data: pl.DataFrame
-    group_cols: List[str]
+    group_cols: list[str]
 
 
 class BaseEstimator(ABC):
@@ -72,7 +73,7 @@ class BaseEstimator(ABC):
     deep inheritance hierarchies.
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict):
+    def __init__(self, db: str | FIA, config: dict):
         """
         Initialize the estimator.
 
@@ -98,8 +99,8 @@ class BaseEstimator(ABC):
         self.data_loader = DataLoader(self.db, self.config)
 
         # Simple caches for commonly used data
-        self._ref_species_cache: Optional[pl.DataFrame] = None
-        self._stratification_cache: Optional[pl.LazyFrame] = None
+        self._ref_species_cache: pl.DataFrame | None = None
+        self._stratification_cache: pl.LazyFrame | None = None
 
     def estimate(self) -> pl.DataFrame:
         """
@@ -131,7 +132,7 @@ class BaseEstimator(ABC):
         # 6. Format output
         return self.format_output(results)
 
-    def load_data(self) -> Optional[pl.LazyFrame]:
+    def load_data(self) -> pl.LazyFrame | None:
         """
         Load and join required tables.
 
@@ -206,8 +207,8 @@ class BaseEstimator(ABC):
         return data
 
     def aggregate_results(
-        self, data: Optional[pl.LazyFrame]
-    ) -> Union[AggregationResult, pl.DataFrame]:
+        self, data: pl.LazyFrame | None
+    ) -> AggregationResult | pl.DataFrame:
         """
         Aggregate results with stratification.
 
@@ -262,7 +263,7 @@ class BaseEstimator(ABC):
         return results
 
     def calculate_variance(
-        self, agg_result: Union[AggregationResult, pl.DataFrame]
+        self, agg_result: AggregationResult | pl.DataFrame
     ) -> pl.DataFrame:
         """
         Calculate variance for estimates.
@@ -318,7 +319,7 @@ class BaseEstimator(ABC):
 
         return results
 
-    def _setup_grouping(self) -> List[str]:
+    def _setup_grouping(self) -> list[str]:
         """Setup grouping columns based on config."""
         group_cols = []
 
@@ -342,10 +343,10 @@ class BaseEstimator(ABC):
     def _aggregate_to_condition_level(
         self,
         data_with_strat: pl.LazyFrame,
-        metric_mappings: Dict[str, str],
-        group_cols: List[str],
-        available_cols: List[str],
-    ) -> Tuple[pl.LazyFrame, List[str]]:
+        metric_mappings: dict[str, str],
+        group_cols: list[str],
+        available_cols: list[str],
+    ) -> tuple[pl.LazyFrame, list[str]]:
         """
         Stage 1: Aggregate metrics to plot-condition level.
 
@@ -377,9 +378,9 @@ class BaseEstimator(ABC):
     def _aggregate_to_population_level(
         self,
         condition_agg: pl.LazyFrame,
-        metric_mappings: Dict[str, str],
-        group_cols: List[str],
-        condition_group_cols: List[str],
+        metric_mappings: dict[str, str],
+        group_cols: list[str],
+        condition_group_cols: list[str],
     ) -> pl.LazyFrame:
         """
         Stage 2: Apply expansion factors and calculate population estimates.
@@ -411,7 +412,7 @@ class BaseEstimator(ABC):
     def _compute_per_acre_values(
         self,
         results_df: pl.DataFrame,
-        metric_mappings: Dict[str, str],
+        metric_mappings: dict[str, str],
     ) -> pl.DataFrame:
         """
         Calculate per-acre values using ratio-of-means and clean up intermediate columns.
@@ -437,8 +438,8 @@ class BaseEstimator(ABC):
     def _apply_two_stage_aggregation(
         self,
         data_with_strat: pl.LazyFrame,
-        metric_mappings: Dict[str, str],
-        group_cols: List[str],
+        metric_mappings: dict[str, str],
+        group_cols: list[str],
         use_grm_adjustment: bool = False,
     ) -> pl.DataFrame:
         """
@@ -504,9 +505,9 @@ class BaseEstimator(ABC):
     def _preserve_plot_tree_data(
         self,
         data_with_strat: pl.LazyFrame,
-        metric_cols: List[str],
-        group_cols: Optional[List[str]] = None,
-    ) -> Tuple[pl.DataFrame, pl.LazyFrame]:
+        metric_cols: list[str],
+        group_cols: list[str] | None = None,
+    ) -> tuple[pl.DataFrame, pl.LazyFrame]:
         """
         Preserve plot-tree level data for variance calculation.
 
@@ -657,7 +658,7 @@ class BaseEstimator(ABC):
         self,
         plot_tree_data: pl.DataFrame,
         metric_col: str,
-        group_cols: List[str],
+        group_cols: list[str],
         y_col_alias: str,
     ) -> pl.DataFrame:
         """
@@ -710,9 +711,9 @@ class BaseEstimator(ABC):
         self,
         plot_data: pl.DataFrame,
         results: pl.DataFrame,
-        group_cols: List[str],
+        group_cols: list[str],
         y_col_alias: str,
-    ) -> Tuple[pl.DataFrame, List[str]]:
+    ) -> tuple[pl.DataFrame, list[str]]:
         """
         Expand plot data to include all plots with zeros for missing groups.
 
@@ -777,7 +778,7 @@ class BaseEstimator(ABC):
     def _rename_variance_columns(
         self,
         variance_df: pl.DataFrame,
-        metric_mappings: Dict[str, tuple[str, str]],
+        metric_mappings: dict[str, tuple[str, str]],
     ) -> pl.DataFrame:
         """
         Rename generic variance columns to metric-specific names.
@@ -819,7 +820,7 @@ class BaseEstimator(ABC):
         self,
         results: pl.DataFrame,
         variance_df: pl.DataFrame,
-        valid_group_cols: List[str],
+        valid_group_cols: list[str],
     ) -> pl.DataFrame:
         """
         Join variance results back to main results.
@@ -853,8 +854,8 @@ class BaseEstimator(ABC):
         self,
         plot_tree_data: pl.DataFrame,
         results: pl.DataFrame,
-        group_cols: List[str],
-        metric_mappings: Dict[str, tuple[str, str]],
+        group_cols: list[str],
+        metric_mappings: dict[str, tuple[str, str]],
         y_col_alias: str = "y_i",
     ) -> pl.DataFrame:
         """
@@ -920,7 +921,7 @@ class BaseEstimator(ABC):
     # === Abstract Methods ===
 
     @abstractmethod
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Return list of required database tables."""
         pass
 
@@ -929,15 +930,15 @@ class BaseEstimator(ABC):
         """Calculate estimation values."""
         pass
 
-    def get_tree_columns(self) -> Optional[List[str]]:
+    def get_tree_columns(self) -> list[str] | None:
         """Return list of required tree columns."""
         return None
 
-    def get_cond_columns(self) -> Optional[List[str]]:
+    def get_cond_columns(self) -> list[str] | None:
         """Return list of required condition columns."""
         return None
 
-    def __del__(self):
+    def __del__(self) -> None:
         """Clean up database connection if owned."""
         if hasattr(self, "_owns_db") and self._owns_db:
             if hasattr(self.db, "close"):

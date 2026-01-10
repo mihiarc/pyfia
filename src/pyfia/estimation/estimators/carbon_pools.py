@@ -19,14 +19,9 @@ import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
+from ..constants import LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..variance import calculate_domain_total_variance
-
-# Unit conversion constant
-# CARBON_AG and CARBON_BG are stored in pounds in the FIA database
-# EVALIDator and FIA standard reporting use short tons (2000 lbs per ton)
-# Using short tons for consistency with EVALIDator validation
-LBS_TO_SHORT_TONS = 1.0 / 2000.0
 
 
 class CarbonPoolEstimator(BaseEstimator):

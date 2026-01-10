@@ -5,10 +5,11 @@ This module provides the main FIA class that handles database connections,
 EVALID-based filtering, and common FIA data operations.
 """
 
+from __future__ import annotations
+
 import logging
 import warnings
 from pathlib import Path
-from typing import Dict, List, Optional, Union
 
 import polars as pl
 
@@ -77,7 +78,7 @@ class FIA:
         Whether to use most recent evaluations.
     """
 
-    def __init__(self, db_path: Union[str, Path], engine: Optional[str] = None):
+    def __init__(self, db_path: str | Path, engine: str | None = None):
         """
         Initialize FIA database connection.
 
@@ -103,20 +104,16 @@ class FIA:
                 raise FileNotFoundError(f"Database not found: {db_path}")
 
         # Initialize with appropriate engine
-        self.tables: Dict[str, pl.LazyFrame] = {}
-        self.evalid: Optional[List[int]] = None
+        self.tables: dict[str, pl.LazyFrame] = {}
+        self.evalid: list[int] | None = None
         self.most_recent: bool = False
-        self.state_filter: Optional[List[int]] = None  # Add state filter
-        self._valid_plot_cns: Optional[List[str]] = (
-            None  # Cache for EVALID plot filtering
-        )
+        self.state_filter: list[int] | None = None  # Add state filter
+        self._valid_plot_cns: list[str] | None = None  # Cache for EVALID plot filtering
         # Spatial filter attributes
-        self._spatial_plot_cns: Optional[List[str]] = (
-            None  # Cache for spatial filtering
-        )
-        self._polygon_path: Optional[str] = None  # Path to polygon file
+        self._spatial_plot_cns: list[str] | None = None  # Cache for spatial filtering
+        self._polygon_path: str | None = None  # Path to polygon file
         # Polygon attribute join (for grp_by support)
-        self._polygon_attributes: Optional[pl.DataFrame] = (
+        self._polygon_attributes: pl.DataFrame | None = (
             None  # CN → polygon attributes mapping
         )
         # Connection managed by FIADataReader
@@ -125,13 +122,13 @@ class FIA:
     @classmethod
     def from_download(
         cls,
-        states: Union[str, List[str]],
-        dir: Optional[Union[str, Path]] = None,
+        states: str | list[str],
+        dir: str | Path | None = None,
         common: bool = True,
-        tables: Optional[List[str]] = None,
+        tables: list[str] | None = None,
         force: bool = False,
         show_progress: bool = True,
-    ) -> "FIA":
+    ) -> FIA:
         """
         Download FIA data and return a connected FIA instance.
 
@@ -194,7 +191,7 @@ class FIA:
 
     # Connection management moved to FIADataReader with backend support
 
-    def _get_valid_plot_cns(self) -> Optional[List[str]]:
+    def _get_valid_plot_cns(self) -> list[str] | None:
         """
         Get plot CNs valid for the current EVALID filter.
 
@@ -247,7 +244,7 @@ class FIA:
             return df.filter(pl.col("PLT_CN").is_in(self._spatial_plot_cns))
         return df
 
-    def _get_evalid_filtered_plot_cns(self) -> Optional[pl.LazyFrame]:
+    def _get_evalid_filtered_plot_cns(self) -> pl.LazyFrame | None:
         """
         Get plot CNs filtered by current EVALID, or None if no EVALID filter.
 
@@ -276,8 +273,8 @@ class FIA:
     def load_table(
         self,
         table_name: str,
-        columns: Optional[List[str]] = None,
-        where: Optional[str] = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
     ) -> pl.LazyFrame:
         """
         Load a table from the FIA database as a lazy frame.
@@ -373,10 +370,10 @@ class FIA:
     def find_evalid(
         self,
         most_recent: bool = True,
-        state: Optional[Union[int, List[int]]] = None,
-        year: Optional[Union[int, List[int]]] = None,
-        eval_type: Optional[str] = None,
-    ) -> List[int]:
+        state: int | list[int] | None = None,
+        year: int | list[int] | None = None,
+        eval_type: str | None = None,
+    ) -> list[int]:
         """
         Find EVALID values matching criteria.
 
@@ -524,7 +521,7 @@ class FIA:
 
         return evalids
 
-    def clip_by_evalid(self, evalid: Union[int, List[int]]) -> "FIA":
+    def clip_by_evalid(self, evalid: int | list[int]) -> FIA:
         """
         Filter FIA data by EVALID (evaluation ID).
 
@@ -554,10 +551,10 @@ class FIA:
 
     def clip_by_state(
         self,
-        state: Union[int, List[int]],
+        state: int | list[int],
         most_recent: bool = True,
-        eval_type: Optional[str] = "ALL",
-    ) -> "FIA":
+        eval_type: str | None = "ALL",
+    ) -> FIA:
         """
         Filter FIA data by state code(s).
 
@@ -603,7 +600,7 @@ class FIA:
 
         return self
 
-    def clip_most_recent(self, eval_type: str = "VOL") -> "FIA":
+    def clip_most_recent(self, eval_type: str = "VOL") -> FIA:
         """
         Filter to most recent evaluation of specified type.
 
@@ -640,9 +637,9 @@ class FIA:
 
     def clip_by_polygon(
         self,
-        polygon: Union[str, Path],
+        polygon: str | Path,
         predicate: str = "intersects",
-    ) -> "FIA":
+    ) -> FIA:
         """
         Filter FIA plots to those within or intersecting a polygon boundary.
 
@@ -794,7 +791,7 @@ class FIA:
         self.tables.clear()
         return self
 
-    def _get_spatial_plot_cns(self) -> Optional[List[str]]:
+    def _get_spatial_plot_cns(self) -> list[str] | None:
         """
         Get plot CNs that match the spatial filter.
 
@@ -808,9 +805,9 @@ class FIA:
 
     def intersect_polygons(
         self,
-        polygon: Union[str, Path],
-        attributes: List[str],
-    ) -> "FIA":
+        polygon: str | Path,
+        attributes: list[str],
+    ) -> FIA:
         """
         Perform spatial join between plots and polygons, adding polygon
         attributes to plots for use in grp_by.
@@ -986,7 +983,7 @@ class FIA:
         self.tables.clear()
         return self
 
-    def get_plots(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
+    def get_plots(self, columns: list[str] | None = None) -> pl.DataFrame:
         """
         Get PLOT table filtered by current EVALID, state, and spatial settings.
 
@@ -1042,7 +1039,7 @@ class FIA:
 
         return plots_df
 
-    def get_trees(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
+    def get_trees(self, columns: list[str] | None = None) -> pl.DataFrame:
         """
         Get TREE table filtered by current EVALID and state settings.
 
@@ -1078,7 +1075,7 @@ class FIA:
 
         return trees.collect()
 
-    def get_conditions(self, columns: Optional[List[str]] = None) -> pl.DataFrame:
+    def get_conditions(self, columns: list[str] | None = None) -> pl.DataFrame:
         """
         Get COND table filtered by current EVALID and state settings.
 
@@ -1116,7 +1113,7 @@ class FIA:
 
     def prepare_estimation_data(
         self, include_trees: bool = True
-    ) -> Dict[str, pl.DataFrame]:
+    ) -> dict[str, pl.DataFrame]:
         """
         Prepare standard set of tables for estimation functions.
 
@@ -1323,7 +1320,7 @@ class MotherDuckFIA(FIA):
     ...     print(db.area())
     """
 
-    def __init__(self, database: str, motherduck_token: Optional[str] = None):
+    def __init__(self, database: str, motherduck_token: str | None = None):
         """
         Initialize MotherDuck FIA connection.
 
@@ -1331,7 +1328,7 @@ class MotherDuckFIA(FIA):
         ----------
         database : str
             Name of the MotherDuck database (e.g., 'fia_ga', 'fia_nc')
-        motherduck_token : Optional[str]
+        motherduck_token : str | None
             MotherDuck authentication token. If not provided, uses
             MOTHERDUCK_TOKEN environment variable.
         """
@@ -1341,14 +1338,14 @@ class MotherDuckFIA(FIA):
         self.motherduck_token = motherduck_token
 
         # Initialize attributes that FIA.__init__ would set
-        self.tables: Dict[str, pl.LazyFrame] = {}
-        self.evalid: Optional[List[int]] = None
+        self.tables: dict[str, pl.LazyFrame] = {}
+        self.evalid: list[int] | None = None
         self.most_recent: bool = False
-        self.state_filter: Optional[List[int]] = None
-        self._valid_plot_cns: Optional[List[str]] = None
-        self._spatial_plot_cns: Optional[List[str]] = None
-        self._polygon_path: Optional[str] = None
-        self._polygon_attributes: Optional[pl.DataFrame] = None
+        self.state_filter: list[int] | None = None
+        self._valid_plot_cns: list[str] | None = None
+        self._spatial_plot_cns: list[str] | None = None
+        self._polygon_path: str | None = None
+        self._polygon_attributes: pl.DataFrame | None = None
 
         # Create MotherDuck backend directly
         self._backend = MotherDuckBackend(database, motherduck_token=motherduck_token)
@@ -1391,20 +1388,20 @@ class _MotherDuckReaderWrapper:
     without requiring a full FIADataReader instance.
     """
 
-    def __init__(self, backend):
+    def __init__(self, backend) -> None:
         self._backend = backend
 
-    def get_table_schema(self, table_name: str) -> Dict[str, str]:
+    def get_table_schema(self, table_name: str) -> dict[str, str]:
         """Get schema for a table from the MotherDuck database."""
         return self._backend.get_table_schema(table_name)
 
     def read_table(
         self,
         table_name: str,
-        columns: Optional[List[str]] = None,
-        where: Optional[str] = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
         lazy: bool = True,
-    ):
+    ) -> pl.DataFrame | pl.LazyFrame:
         """Read a table from the MotherDuck database."""
         select_clause = self._backend.build_select_clause(table_name, columns)
         # Use qualified table name for reference tables (cross-database query)

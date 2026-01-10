@@ -11,6 +11,7 @@ import polars as pl
 
 from ...core import FIA
 from ..base import AggregationResult
+from ..constants import BASAL_AREA_FACTOR, LBS_TO_SHORT_TONS
 from ..grm_base import GRMBaseEstimator
 
 
@@ -110,7 +111,7 @@ class MortalityEstimator(GRMBaseEstimator):
                         * (pl.col("DRYBIO_BOLE") + pl.col("DRYBIO_BRANCH")).cast(
                             pl.Float64
                         )
-                        / 2000.0
+                        * LBS_TO_SHORT_TONS
                     ).alias("MORT_VALUE")
                 ]
             )
@@ -119,7 +120,7 @@ class MortalityEstimator(GRMBaseEstimator):
                 [
                     (
                         pl.col("TPA_UNADJ").cast(pl.Float64)
-                        * (pl.col("DIA").cast(pl.Float64) ** 2 * 0.005454154)
+                        * (pl.col("DIA").cast(pl.Float64) ** 2 * BASAL_AREA_FACTOR)
                     ).alias("MORT_VALUE")
                 ]
             )

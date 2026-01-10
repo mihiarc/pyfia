@@ -111,7 +111,6 @@ sequenceDiagram
 ### 2. Performance Optimized
 - **DuckDB** for fast analytical queries
 - **Polars** for efficient data manipulation
-- Lazy evaluation where possible
 
 ### 3. FIA Standards Compliance
 - **Function signatures** follow FIA methodology
@@ -134,11 +133,11 @@ sequenceDiagram
 src/pyfia/
 ├── core/           # Database connection, EVALID management
 ├── estimation/     # Statistical estimation functions
-├── filters/        # Data filtering and processing
-├── cli/           # Command-line interface
-├── database/      # Database utilities and schema
-├── models/        # Data models (Pydantic)
-└── locations/     # Geographic parsing utilities
+├── filtering/      # Domain filtering and data processing
+├── downloader/     # FIA data download utilities
+├── evalidator/     # EVALIDator validation tools
+├── constants/      # FIA code mappings and constants
+└── utils/          # General utilities
 ```
 
 ## Key Concepts

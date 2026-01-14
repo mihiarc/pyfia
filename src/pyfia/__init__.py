@@ -55,6 +55,7 @@ from pyfia.estimation.estimators.area_change import area_change
 from pyfia.estimation.estimators.biomass import biomass
 from pyfia.estimation.estimators.growth import growth
 from pyfia.estimation.estimators.mortality import mortality
+from pyfia.estimation.estimators.panel import panel
 from pyfia.estimation.estimators.removals import removals
 from pyfia.estimation.estimators.tpa import tpa
 from pyfia.estimation.estimators.volume import volume
@@ -112,6 +113,7 @@ __all__ = [
     "tpa",
     "mortality",
     "growth",
+    "panel",
     "removals",
     # Reference table utilities
     "join_forest_type_names",

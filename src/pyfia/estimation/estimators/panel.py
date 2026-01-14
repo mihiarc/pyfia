@@ -54,35 +54,71 @@ class PanelBuilder:
         If True, return only records where harvest was detected
     """
 
+    # Default columns for plot-level data (used in both condition and tree panels)
+    DEFAULT_PLOT_COLUMNS = [
+        "LAT",
+        "LON",
+        "ELEV",
+    ]
+
     # Default columns for condition-level panels
     DEFAULT_COND_COLUMNS = [
+        # Identification & Status
         "COND_STATUS_CD",
-        "OWNGRPCD",
+        # Ownership
+        "OWNCD",  # Detailed ownership (11-46)
+        "OWNGRPCD",  # Ownership group (10-40)
+        "RESERVCD",
+        # Stand characteristics
         "FORTYPCD",
         "STDAGE",
-        "SICOND",
-        "SITECLCD",
         "STDSZCD",
+        "SICOND",  # Site index
+        "SITECLCD",  # Site productivity class
+        "BALIVE",  # Basal area of live trees
+        # Topography
         "SLOPE",
         "ASPECT",
-        "RESERVCD",
+        "PHYSCLCD",  # Physiographic class
+        # Treatment codes (for harvest detection)
         "TRTCD1",
         "TRTCD2",
         "TRTCD3",
+        "TRTYR1",
+        # Disturbance codes
+        "DSTRBCD1",
+        "DSTRBCD2",
+        "DSTRBCD3",
+        "DSTRBYR1",
     ]
 
     # Default columns for tree-level panels
     DEFAULT_TREE_COLUMNS = [
+        # Status & Species
         "STATUSCD",
         "SPCD",
+        "SPGRPCD",
+        "TREECLCD",  # Tree class (growing stock)
+        # Size & Growth
         "DIA",
         "HT",
         "ACTUALHT",
-        "VOLCFNET",
-        "VOLCFGRS",
+        "CR",  # Crown ratio
+        "CCLCD",  # Crown class
+        # Quality & Defect
+        "CULL",
+        # Volume estimates
+        "VOLCFNET",  # Net cubic foot volume
+        "VOLCFGRS",  # Gross cubic foot volume
+        "VOLCFSND",  # Sound cubic foot volume
+        "VOLBFNET",  # Net board foot volume (sawlog)
+        "SAWHT",  # Sawlog height
+        # Biomass
         "DRYBIO_AG",
+        "DRYBIO_BOLE",
+        # Expansion factors
         "TPA_UNADJ",
-        "TREECLCD",
+        "TPAREMV_UNADJ",
     ]
 
     # Treatment codes indicating harvest
@@ -121,9 +157,13 @@ class PanelBuilder:
 
         if expand_chains:
             # Load full PLOT table without EVALID filter
+            # Include location data (LAT, LON, ELEV) for spatial analysis
+            plot_cols_to_load = [
+                "CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"
+            ] + self.DEFAULT_PLOT_COLUMNS
             plot = self.db._reader.read_table(
                 "PLOT",
-                columns=["CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"],
+                columns=plot_cols_to_load,
                 lazy=True,
             )
         else:
@@ -142,7 +182,9 @@ class PanelBuilder:
                 cond = cond.lazy()
 
         # Get plot columns for current measurement (t2)
-        plot_cols = ["CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"]
+        plot_cols = [
+            "CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"
+        ] + self.DEFAULT_PLOT_COLUMNS
         plot_schema = plot.collect_schema().names()
         plot_cols = [c for c in plot_cols if c in plot_schema]
 
@@ -270,8 +312,10 @@ class PanelBuilder:
         if not isinstance(tree, pl.LazyFrame):
             tree = tree.lazy()
 
-        # Get plot columns
-        plot_cols = ["CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"]
+        # Get plot columns (including location data for spatial analysis)
+        plot_cols = [
+            "CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"
+        ] + self.DEFAULT_PLOT_COLUMNS
         plot_schema = plot.collect_schema().names()
         plot_cols = [c for c in plot_cols if c in plot_schema]
 
@@ -713,6 +757,10 @@ class PanelBuilder:
             "REMPER",
             "CYCLE",
             "HARVEST",
+            # Location data
+            "LAT",
+            "LON",
+            "ELEV",
         ]
 
         # Get t1 and t2 columns
@@ -771,6 +819,10 @@ class PanelBuilder:
             "REMPER",
             "CYCLE",
             "TREE_FATE",
+            # Location data
+            "LAT",
+            "LON",
+            "ELEV",
         ]
 
         # Get t1 and t2 columns

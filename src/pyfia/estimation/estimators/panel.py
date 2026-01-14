@@ -374,6 +374,11 @@ class PanelBuilder:
             how="left",
         )
 
+        # Infer cut trees from condition-level harvest detection
+        # This reclassifies mortality on harvested conditions as 'cut'
+        if self.config.get("infer_cut", True):
+            data = self._infer_cut_from_harvest(data)
+
         # Apply tree type filter
         data = self._apply_tree_type_filter(data)
 
@@ -602,6 +607,63 @@ class PanelBuilder:
 
         return data
 
+    def _infer_cut_from_harvest(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """
+        Reclassify tree mortality on harvested conditions as 'cut'.
+
+        Some states record cut trees as dead (STATUSCD=2) rather than removed
+        (STATUSCD=3). This method uses condition-level harvest detection to
+        identify trees that died on harvested conditions and relabels them.
+
+        Logic:
+        - Get harvest status for each condition from TRTCD codes
+        - Join with tree data
+        - Reclassify: mortality + harvested condition -> 'cut'
+        """
+        # Load COND table to get harvest info
+        self._ensure_tables_loaded(["COND"])
+
+        cond = self.db._reader.read_table(
+            "COND",
+            columns=["PLT_CN", "CONDID", "TRTCD1", "TRTCD2", "TRTCD3"],
+            lazy=True,
+        )
+
+        # Detect harvest from treatment codes
+        cond_harvest = cond.with_columns([
+            (
+                pl.col("TRTCD1").is_in([10, 20]).fill_null(False) |
+                pl.col("TRTCD2").is_in([10, 20]).fill_null(False) |
+                pl.col("TRTCD3").is_in([10, 20]).fill_null(False)
+            ).cast(pl.Int8).alias("COND_HARVEST")
+        ]).select(["PLT_CN", "CONDID", "COND_HARVEST"])
+
+        # Join harvest info to tree data
+        data = data.join(
+            cond_harvest,
+            on=["PLT_CN", "CONDID"],
+            how="left",
+        )
+
+        # Fill null harvest status with 0
+        data = data.with_columns([
+            pl.col("COND_HARVEST").fill_null(0)
+        ])
+
+        # Reclassify: mortality on harvested condition -> 'cut'
+        data = data.with_columns([
+            pl.when(
+                (pl.col("TREE_FATE") == "mortality") & (pl.col("COND_HARVEST") == 1)
+            ).then(pl.lit("cut"))
+            .otherwise(pl.col("TREE_FATE"))
+            .alias("TREE_FATE")
+        ])
+
+        # Drop the temporary column
+        data = data.drop("COND_HARVEST")
+
+        return data
+
     def _expand_condition_chains(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
         Expand multi-remeasurement chains into all pairs.
@@ -757,6 +819,7 @@ def panel(
     max_remper: Optional[float] = None,
     min_invyr: int = 2000,
     harvest_only: bool = False,
+    infer_cut: bool = True,
 ) -> pl.DataFrame:
     """
     Create a t1/t2 remeasurement panel from FIA data.
@@ -819,6 +882,12 @@ def panel(
         If True, return only records where harvest was detected.
         For condition-level: uses TRTCD treatment codes.
         For tree-level: returns only cut trees (TREE_FATE = 'cut').
+    infer_cut : bool, default True
+        If True, reclassify tree mortality on harvested conditions as 'cut'.
+        Some states record cut trees as dead (STATUSCD=2) rather than removed
+        (STATUSCD=3). This option uses condition-level harvest detection
+        (TRTCD codes) to identify trees that died on harvested conditions
+        and relabels them as 'cut'. Only applies to tree-level panels.
 
     Returns
     -------
@@ -932,6 +1001,7 @@ def panel(
     area_domain = validate_domain_expression(area_domain, "area_domain")
     expand_chains = validate_boolean(expand_chains, "expand_chains")
     harvest_only = validate_boolean(harvest_only, "harvest_only")
+    infer_cut = validate_boolean(infer_cut, "infer_cut")
 
     if min_remper < 0:
         raise ValueError(f"min_remper must be non-negative, got {min_remper}")
@@ -959,6 +1029,7 @@ def panel(
         "max_remper": max_remper,
         "min_invyr": min_invyr,
         "harvest_only": harvest_only,
+        "infer_cut": infer_cut,
     }
 
     try:

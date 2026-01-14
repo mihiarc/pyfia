@@ -104,6 +104,53 @@ print(f"Growth: {growth['estimate'][0]:,.0f} cu ft/year")
 print(f"Removals: {removals['estimate'][0]:,.0f} cu ft/year")
 ```
 
+## Harvest Panel Analysis
+
+Create remeasurement panels for harvest probability modeling:
+
+```python
+import polars as pl
+
+# Condition-level panel for harvest rates
+cond_panel = pyfia.panel(db, level="condition", land_type="timber")
+
+# Harvest rate analysis
+harvest_rate = cond_panel["HARVEST"].mean()
+avg_remper = cond_panel["REMPER"].mean()
+annual_rate = 1 - (1 - harvest_rate) ** (1 / avg_remper)
+
+print(f"Period harvest rate: {harvest_rate:.1%}")
+print(f"Annualized rate: {annual_rate:.2%}/year")
+
+# Harvest by ownership
+harvest_by_owner = (
+    cond_panel
+    .group_by("t2_OWNGRPCD")
+    .agg([pl.len().alias("n"), pl.col("HARVEST").mean().alias("rate")])
+)
+print(harvest_by_owner)
+```
+
+Tree-level panel for individual tree fate tracking:
+
+```python
+# Tree panel with automatic cut inference
+tree_panel = pyfia.panel(db, level="tree", tree_type="all")
+
+# Tree fate distribution
+fate_dist = tree_panel.group_by("TREE_FATE").len()
+print(fate_dist)
+# TREE_FATE | len
+# survivor  | 83,498
+# mortality | 12,823
+# cut       | 11,445
+# ingrowth  | 23,111
+
+# Get cut trees only
+cut_trees = pyfia.panel(db, level="tree", harvest_only=True)
+print(f"Cut trees: {len(cut_trees):,}")
+```
+
 ## Biomass and Carbon
 
 ```python
@@ -194,6 +241,7 @@ Additional example scripts are available in the repository:
 - [`examples/california_volume.py`](https://github.com/mihiarc/pyfia/tree/main/examples) - Volume by diameter class
 - [`examples/minnesota_area.py`](https://github.com/mihiarc/pyfia/tree/main/examples) - Forest area analysis
 - [`examples/georgia_mortality.py`](https://github.com/mihiarc/pyfia/tree/main/examples) - Mortality rate calculation
+- [`examples/harvest_panel_analysis.py`](https://github.com/mihiarc/pyfia/tree/main/examples) - Harvest panel and tree fate analysis
 
 Clone the repository to run these examples:
 

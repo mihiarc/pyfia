@@ -28,6 +28,7 @@ result = estimator(db, **options)  # Returns pl.DataFrame
 | [`mortality()`](mortality.md) | Annual tree mortality |
 | [`growth()`](growth.md) | Annual tree growth |
 | [`removals()`](removals.md) | Timber removals |
+| [`panel()`](panel.md) | Remeasurement panels for harvest/change analysis |
 
 ## Data Download
 

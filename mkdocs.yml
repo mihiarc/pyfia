@@ -124,6 +124,7 @@ nav:
       - Mortality: api/mortality.md
       - Growth: api/growth.md
       - Removals: api/removals.md
+      - Panel: api/panel.md
     - Utilities:
       - Reference Tables: api/reference_tables.md
       - EVALIDator: api/evalidator.md

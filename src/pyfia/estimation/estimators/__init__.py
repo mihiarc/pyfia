@@ -12,6 +12,7 @@ from .carbon_flux import carbon_flux
 from .carbon_pools import CarbonPoolEstimator, carbon_pool
 from .growth import GrowthEstimator, growth
 from .mortality import MortalityEstimator, mortality
+from .panel import PanelBuilder, panel
 from .removals import RemovalsEstimator, removals
 from .tpa import TPAEstimator, tpa
 from .volume import VolumeEstimator, volume
@@ -26,6 +27,7 @@ __all__ = [
     "carbon_pool",
     "growth",
     "mortality",
+    "panel",
     "removals",
     "tpa",
     "volume",
@@ -36,6 +38,7 @@ __all__ = [
     "CarbonPoolEstimator",
     "GrowthEstimator",
     "MortalityEstimator",
+    "PanelBuilder",
     "RemovalsEstimator",
     "TPAEstimator",
     "VolumeEstimator",

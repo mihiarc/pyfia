@@ -17,6 +17,11 @@ from typing import List, Literal, Optional, Union
 import polars as pl
 
 from ...core import FIA
+from ...validation import (
+    validate_boolean,
+    validate_domain_expression,
+    validate_land_type,
+)
 
 
 class PanelBuilder:
@@ -144,7 +149,9 @@ class PanelBuilder:
         elif self.level == "tree":
             return self._build_tree_panel()
         else:
-            raise ValueError(f"Invalid level: {self.level}. Must be 'condition' or 'tree'")
+            raise ValueError(
+                f"Invalid level: {self.level}. Must be 'condition' or 'tree'"
+            )
 
     def _build_condition_panel(self) -> pl.DataFrame:
         """Build condition-level remeasurement panel."""
@@ -159,7 +166,13 @@ class PanelBuilder:
             # Load full PLOT table without EVALID filter
             # Include location data (LAT, LON, ELEV) for spatial analysis
             plot_cols_to_load = [
-                "CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"
+                "CN",
+                "STATECD",
+                "COUNTYCD",
+                "INVYR",
+                "PREV_PLT_CN",
+                "REMPER",
+                "CYCLE",
             ] + self.DEFAULT_PLOT_COLUMNS
             plot = self.db._reader.read_table(
                 "PLOT",
@@ -183,7 +196,13 @@ class PanelBuilder:
 
         # Get plot columns for current measurement (t2)
         plot_cols = [
-            "CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"
+            "CN",
+            "STATECD",
+            "COUNTYCD",
+            "INVYR",
+            "PREV_PLT_CN",
+            "REMPER",
+            "CYCLE",
         ] + self.DEFAULT_PLOT_COLUMNS
         plot_schema = plot.collect_schema().names()
         plot_cols = [c for c in plot_cols if c in plot_schema]
@@ -252,11 +271,11 @@ class PanelBuilder:
         # Join to get t1 data
         # Need PREVCOND from current COND to link properly
         if "PREVCOND" in cond.collect_schema().names():
-            # Get PREVCOND mapping
+            # Get PREVCOND mapping - select only PREVCOND to avoid duplicate columns
             prevcond_map = cond.select(["PLT_CN", "CONDID", "PREVCOND"])
             data = data.join(
                 prevcond_map,
-                left_on=["CN", "CONDID"],
+                left_on=["PLT_CN", "CONDID"],  # CN was renamed to PLT_CN at line 233
                 right_on=["PLT_CN", "CONDID"],
                 how="left",
             )
@@ -289,9 +308,9 @@ class PanelBuilder:
         if self.config.get("harvest_only", False):
             data = data.filter(pl.col("HARVEST") == 1)
 
-        # Expand chains if requested
-        if self.config.get("expand_chains", True):
-            data = self._expand_condition_chains(data)
+        # Note: Chain expansion is handled earlier by loading ALL plots with
+        # remeasurement data (when expand_chains=True), not just current EVALID.
+        # This ensures all measurement pairs (t1,t2), (t2,t3), etc. are captured.
 
         # Clean up and format output
         result = data.collect()
@@ -314,7 +333,13 @@ class PanelBuilder:
 
         # Get plot columns (including location data for spatial analysis)
         plot_cols = [
-            "CN", "STATECD", "COUNTYCD", "INVYR", "PREV_PLT_CN", "REMPER", "CYCLE"
+            "CN",
+            "STATECD",
+            "COUNTYCD",
+            "INVYR",
+            "PREV_PLT_CN",
+            "REMPER",
+            "CYCLE",
         ] + self.DEFAULT_PLOT_COLUMNS
         plot_schema = plot.collect_schema().names()
         plot_cols = [c for c in plot_cols if c in plot_schema]
@@ -360,15 +385,23 @@ class PanelBuilder:
 
         # Cast PREV_TRE_CN to match CN type for joining
         if "PREV_TRE_CN" in tree_t2.collect_schema().names():
-            tree_t2 = tree_t2.with_columns([
-                pl.col("PREV_TRE_CN").cast(pl.Int64, strict=False).alias("PREV_TRE_CN")
-            ])
+            tree_t2 = tree_t2.with_columns(
+                [
+                    pl.col("PREV_TRE_CN")
+                    .cast(pl.Int64, strict=False)
+                    .alias("PREV_TRE_CN")
+                ]
+            )
 
         # Cast PREV_STATUS_CD if present
         if "PREV_STATUS_CD" in tree_t2.collect_schema().names():
-            tree_t2 = tree_t2.with_columns([
-                pl.col("PREV_STATUS_CD").cast(pl.Int64, strict=False).alias("PREV_STATUS_CD")
-            ])
+            tree_t2 = tree_t2.with_columns(
+                [
+                    pl.col("PREV_STATUS_CD")
+                    .cast(pl.Int64, strict=False)
+                    .alias("PREV_STATUS_CD")
+                ]
+            )
 
         # Join plot and tree for t2
         data = plot_t2.join(
@@ -399,9 +432,9 @@ class PanelBuilder:
         tree_prev = self.db._reader.read_table("TREE", columns=tree_cols, lazy=True)
 
         # Cast CN to Int64 to match PREV_TRE_CN
-        tree_prev = tree_prev.with_columns([
-            pl.col("CN").cast(pl.Int64, strict=False).alias("CN")
-        ])
+        tree_prev = tree_prev.with_columns(
+            [pl.col("CN").cast(pl.Int64, strict=False).alias("CN")]
+        )
 
         # Rename t1 columns
         t1_rename = {"PLT_CN": "t1_PLT_CN", "CN": "t1_TRE_CN", "CONDID": "t1_CONDID"}
@@ -433,9 +466,9 @@ class PanelBuilder:
         if self.config.get("harvest_only", False):
             data = data.filter(pl.col("TREE_FATE") == "cut")
 
-        # Expand chains if requested
-        if self.config.get("expand_chains", True):
-            data = self._expand_tree_chains(data)
+        # Note: Tree-level chain expansion follows PREV_TRE_CN links.
+        # Currently, tree panels include all trees with valid PREV_TRE_CN.
+        # Full chain expansion (t1->t2->t3) is handled at the plot level.
 
         # Clean up and format output
         result = data.collect()
@@ -569,26 +602,26 @@ class PanelBuilder:
         schema = data.collect_schema().names()
 
         # Primary method: Treatment codes
-        trtcd_cols = [f"t2_{c}" for c in ["TRTCD1", "TRTCD2", "TRTCD3"] if f"t2_{c}" in schema]
+        trtcd_cols = [
+            f"t2_{c}" for c in ["TRTCD1", "TRTCD2", "TRTCD3"] if f"t2_{c}" in schema
+        ]
 
         if trtcd_cols:
             # Check if any treatment code indicates harvest
             harvest_exprs = []
             for col in trtcd_cols:
-                harvest_exprs.append(pl.col(col).is_in([10, 20]))
+                harvest_exprs.append(pl.col(col).is_in(list(self.HARVEST_TRTCD)))
 
             # Combine with OR
             trtcd_harvest = harvest_exprs[0]
             for expr in harvest_exprs[1:]:
                 trtcd_harvest = trtcd_harvest | expr
 
-            data = data.with_columns([
-                trtcd_harvest.fill_null(False).alias("HARVEST_TRTCD")
-            ])
+            data = data.with_columns(
+                [trtcd_harvest.fill_null(False).alias("HARVEST_TRTCD")]
+            )
         else:
-            data = data.with_columns([
-                pl.lit(False).alias("HARVEST_TRTCD")
-            ])
+            data = data.with_columns([pl.lit(False).alias("HARVEST_TRTCD")])
 
         # Secondary method: Volume reduction > 25%
         # This would require aggregating tree-level volume, which we don't have here
@@ -596,9 +629,9 @@ class PanelBuilder:
         # TODO: Add volume-based detection when tree data is joined
 
         # Final harvest indicator
-        data = data.with_columns([
-            pl.col("HARVEST_TRTCD").cast(pl.Int8).alias("HARVEST")
-        ])
+        data = data.with_columns(
+            [pl.col("HARVEST_TRTCD").cast(pl.Int8).alias("HARVEST")]
+        )
 
         # Calculate harvest intensity if we have treatment data
         # TRTCD 10 = cutting (partial or clearcut)
@@ -624,30 +657,38 @@ class PanelBuilder:
         has_prev_tre = "PREV_TRE_CN" in schema
 
         if has_t2_status and has_prev_status:
-            data = data.with_columns([
-                pl.when(pl.col("PREV_TRE_CN").is_null())
-                .then(pl.lit("ingrowth"))
-                .when((pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 1))
-                .then(pl.lit("survivor"))
-                .when((pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 2))
-                .then(pl.lit("mortality"))
-                .when((pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 3))
-                .then(pl.lit("cut"))
-                .otherwise(pl.lit("other"))
-                .alias("TREE_FATE")
-            ])
+            data = data.with_columns(
+                [
+                    pl.when(pl.col("PREV_TRE_CN").is_null())
+                    .then(pl.lit("ingrowth"))
+                    .when(
+                        (pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 1)
+                    )
+                    .then(pl.lit("survivor"))
+                    .when(
+                        (pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 2)
+                    )
+                    .then(pl.lit("mortality"))
+                    .when(
+                        (pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 3)
+                    )
+                    .then(pl.lit("cut"))
+                    .otherwise(pl.lit("other"))
+                    .alias("TREE_FATE")
+                ]
+            )
         elif has_prev_tre:
             # Simplified fate based on whether tree was tracked
-            data = data.with_columns([
-                pl.when(pl.col("PREV_TRE_CN").is_null())
-                .then(pl.lit("ingrowth"))
-                .otherwise(pl.lit("tracked"))
-                .alias("TREE_FATE")
-            ])
+            data = data.with_columns(
+                [
+                    pl.when(pl.col("PREV_TRE_CN").is_null())
+                    .then(pl.lit("ingrowth"))
+                    .otherwise(pl.lit("tracked"))
+                    .alias("TREE_FATE")
+                ]
+            )
         else:
-            data = data.with_columns([
-                pl.lit("unknown").alias("TREE_FATE")
-            ])
+            data = data.with_columns([pl.lit("unknown").alias("TREE_FATE")])
 
         return data
 
@@ -674,13 +715,18 @@ class PanelBuilder:
         )
 
         # Detect harvest from treatment codes
-        cond_harvest = cond.with_columns([
-            (
-                pl.col("TRTCD1").is_in([10, 20]).fill_null(False) |
-                pl.col("TRTCD2").is_in([10, 20]).fill_null(False) |
-                pl.col("TRTCD3").is_in([10, 20]).fill_null(False)
-            ).cast(pl.Int8).alias("COND_HARVEST")
-        ]).select(["PLT_CN", "CONDID", "COND_HARVEST"])
+        harvest_codes = list(self.HARVEST_TRTCD)
+        cond_harvest = cond.with_columns(
+            [
+                (
+                    pl.col("TRTCD1").is_in(harvest_codes).fill_null(False)
+                    | pl.col("TRTCD2").is_in(harvest_codes).fill_null(False)
+                    | pl.col("TRTCD3").is_in(harvest_codes).fill_null(False)
+                )
+                .cast(pl.Int8)
+                .alias("COND_HARVEST")
+            ]
+        ).select(["PLT_CN", "CONDID", "COND_HARVEST"])
 
         # Join harvest info to tree data
         data = data.join(
@@ -690,57 +736,31 @@ class PanelBuilder:
         )
 
         # Fill null harvest status with 0
-        data = data.with_columns([
-            pl.col("COND_HARVEST").fill_null(0)
-        ])
+        data = data.with_columns([pl.col("COND_HARVEST").fill_null(0)])
 
         # Reclassify: mortality on harvested condition -> 'cut'
-        data = data.with_columns([
-            pl.when(
-                (pl.col("TREE_FATE") == "mortality") & (pl.col("COND_HARVEST") == 1)
-            ).then(pl.lit("cut"))
-            .otherwise(pl.col("TREE_FATE"))
-            .alias("TREE_FATE")
-        ])
+        data = data.with_columns(
+            [
+                pl.when(
+                    (pl.col("TREE_FATE") == "mortality") & (pl.col("COND_HARVEST") == 1)
+                )
+                .then(pl.lit("cut"))
+                .otherwise(pl.col("TREE_FATE"))
+                .alias("TREE_FATE")
+            ]
+        )
 
         # Drop the temporary column
         data = data.drop("COND_HARVEST")
 
         return data
 
-    def _expand_condition_chains(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """
-        Expand multi-remeasurement chains into all pairs.
-
-        If a condition has measurements at t1, t2, t3, this creates
-        pairs (t1,t2) and (t2,t3) instead of just (t2,t3).
-
-        The current data already has the most recent pairs.
-        To get earlier pairs, we need to find plots where PLT_CN
-        also appears as someone else's PREV_PLT_CN (making it a t2
-        that should also be treated as a t1 for an earlier pair).
-
-        This is handled by loading ALL plots with PREV_PLT_CN, not
-        just those in the current evaluation.
-        """
-        # Chain expansion is now handled in _build_condition_panel
-        # by loading all plots with remeasurement data
-        return data
-
-    def _expand_tree_chains(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """
-        Expand multi-remeasurement chains for trees.
-
-        Similar to condition chains but following PREV_TRE_CN links.
-        """
-        # TODO: Implement full chain expansion for trees
-        return data
-
     def _format_condition_output(self, result: pl.DataFrame) -> pl.DataFrame:
         """Format condition panel output with clean column ordering."""
         # Drop internal/temporary columns
         drop_cols = [
-            c for c in result.columns
+            c
+            for c in result.columns
             if c.endswith("_right") or c in ("HARVEST_TRTCD", "PREVCOND", "t1_COND_CN")
         ]
         if drop_cols:
@@ -799,7 +819,8 @@ class PanelBuilder:
         """Format tree panel output with clean column ordering."""
         # Drop internal/temporary columns
         drop_cols = [
-            c for c in result.columns
+            c
+            for c in result.columns
             if c.endswith("_right") or c in ("t1_TRE_CN", "t1_PLT_CN", "t1_CONDID")
         ]
         if drop_cols:
@@ -1034,12 +1055,6 @@ def panel(
     Bechtold & Patterson (2005), "The Enhanced Forest Inventory and
     Analysis Program", Chapter 4: Change Estimation.
     """
-    from ...validation import (
-        validate_boolean,
-        validate_domain_expression,
-        validate_land_type,
-    )
-
     # Validate inputs
     if level not in ("condition", "tree"):
         raise ValueError(f"Invalid level '{level}'. Must be 'condition' or 'tree'")
@@ -1047,7 +1062,9 @@ def panel(
     land_type = validate_land_type(land_type)
 
     if tree_type not in ("all", "live", "gs"):
-        raise ValueError(f"Invalid tree_type '{tree_type}'. Must be 'all', 'live', or 'gs'")
+        raise ValueError(
+            f"Invalid tree_type '{tree_type}'. Must be 'all', 'live', or 'gs'"
+        )
 
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")
     area_domain = validate_domain_expression(area_domain, "area_domain")
@@ -1058,15 +1075,15 @@ def panel(
     if min_remper < 0:
         raise ValueError(f"min_remper must be non-negative, got {min_remper}")
     if max_remper is not None and max_remper < min_remper:
-        raise ValueError(f"max_remper ({max_remper}) must be >= min_remper ({min_remper})")
+        raise ValueError(
+            f"max_remper ({max_remper}) must be >= min_remper ({min_remper})"
+        )
     if min_invyr is not None and min_invyr < 0:
         raise ValueError(f"min_invyr must be non-negative, got {min_invyr}")
 
-    # Handle database connection
-    owns_db = False
+    # Handle database connection - convert path string to FIA instance
     if isinstance(db, str):
         db = FIA(db)
-        owns_db = True
 
     # Build config
     config = {
@@ -1084,9 +1101,5 @@ def panel(
         "infer_cut": infer_cut,
     }
 
-    try:
-        builder = PanelBuilder(db, config)
-        return builder.build()
-    finally:
-        # FIA uses context manager, no explicit close needed
-        pass
+    builder = PanelBuilder(db, config)
+    return builder.build()

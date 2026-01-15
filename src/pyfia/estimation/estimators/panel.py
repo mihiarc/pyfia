@@ -5,11 +5,15 @@ Creates t1/t2 (time 1/time 2) linked panel datasets from FIA remeasurement data.
 Supports both condition-level and tree-level panels for harvest analysis,
 growth tracking, and change detection.
 
+Tree-level panels use GRM (Growth-Removal-Mortality) tables for authoritative
+tree fate classification. This provides consistent definitions aligned with
+FIA's official GRM estimation methodology.
+
 References
 ----------
 Bechtold & Patterson (2005), Chapter 4: Change Estimation
 FIA Database User Guide, PLOT and TREE table documentation
-Dennis (1989), Singh (2010): Harvest identification methodology
+FIA GRM methodology documentation
 """
 
 from typing import List, Literal, Optional, Union
@@ -22,6 +26,7 @@ from ...validation import (
     validate_domain_expression,
     validate_land_type,
 )
+from ..grm import resolve_grm_columns, normalize_tree_type, normalize_land_type
 
 
 class PanelBuilder:
@@ -97,37 +102,42 @@ class PanelBuilder:
         "DSTRBYR1",
     ]
 
-    # Default columns for tree-level panels
+    # Default columns for tree-level panels (from GRM tables)
+    # Note: GRM-specific columns like DIA_BEGIN, DIA_MIDPT come from TREE_GRM_COMPONENT
     DEFAULT_TREE_COLUMNS = [
-        # Status & Species
-        "STATUSCD",
+        # Species
         "SPCD",
         "SPGRPCD",
-        "TREECLCD",  # Tree class (growing stock)
-        # Size & Growth
-        "DIA",
-        "HT",
-        "ACTUALHT",
-        "CR",  # Crown ratio
-        "CCLCD",  # Crown class
-        # Quality & Defect
-        "CULL",
-        # Volume estimates
+        # Size (from GRM - beginning/midpoint/end measurements)
+        "DIA_BEGIN",
+        "DIA_MIDPT",
+        "DIA_END",
+        # Volume estimates (from TREE_GRM_MIDPT)
         "VOLCFNET",  # Net cubic foot volume
-        "VOLCFGRS",  # Gross cubic foot volume
-        "VOLCFSND",  # Sound cubic foot volume
-        "VOLBFNET",  # Net board foot volume (sawlog)
-        "SAWHT",  # Sawlog height
-        # Biomass
+        # Biomass (from TREE_GRM_MIDPT)
         "DRYBIO_AG",
         "DRYBIO_BOLE",
-        # Expansion factors
+        # Expansion factors (computed from GRM)
         "TPA_UNADJ",
-        "TPAREMV_UNADJ",
+        # Status (from TREE_GRM_MIDPT)
+        "STATUSCD",
     ]
 
-    # Treatment codes indicating harvest
+    # Treatment codes indicating harvest (used for condition-level panels only)
     HARVEST_TRTCD = {10, 20}  # 10=Cutting, 20=Site preparation
+
+    # GRM component to tree fate mapping
+    # These are the authoritative classifications from TREE_GRM_COMPONENT
+    GRM_FATE_MAPPING = {
+        "SURVIVOR": "survivor",
+        "MORTALITY1": "mortality",
+        "MORTALITY2": "mortality",
+        "CUT1": "cut",
+        "CUT2": "cut",
+        "DIVERSION1": "diversion",
+        "DIVERSION2": "diversion",
+        "INGROWTH": "ingrowth",
+    }
 
     def __init__(self, db: FIA, config: dict):
         """Initialize panel builder with database and configuration."""
@@ -319,19 +329,100 @@ class PanelBuilder:
         return result
 
     def _build_tree_panel(self) -> pl.DataFrame:
-        """Build tree-level remeasurement panel."""
-        # Load required tables
-        self._ensure_tables_loaded(["PLOT", "TREE", "COND"])
+        """
+        Build tree-level remeasurement panel using GRM tables.
 
+        Uses TREE_GRM_COMPONENT for authoritative tree fate classification,
+        providing consistent definitions aligned with FIA's official
+        GRM estimation methodology.
+
+        The GRM component classification includes:
+        - SURVIVOR: Tree alive at both t1 and t2
+        - MORTALITY1/2: Tree died naturally
+        - CUT1/2: Tree removed by harvest
+        - DIVERSION1/2: Tree removed due to land use change
+        - INGROWTH: New tree crossing size threshold
+        """
+        # Load required GRM tables
+        self._ensure_tables_loaded(
+            ["PLOT", "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "COND"]
+        )
+
+        # Resolve GRM column names based on tree_type and land_type
+        tree_type = self.config.get("tree_type", "gs")
+        land_type = self.config.get("land_type", "forest")
+
+        # Default to "gs" for GRM (more restrictive, matches removals behavior)
+        if tree_type == "all":
+            tree_type = "gs"
+        elif tree_type == "live":
+            tree_type = "al"  # All live = AL in GRM terminology
+
+        grm_cols = resolve_grm_columns("removals", tree_type, land_type)
+
+        # Load TREE_GRM_COMPONENT
+        grm_component = self.db.tables["TREE_GRM_COMPONENT"]
+        if not isinstance(grm_component, pl.LazyFrame):
+            grm_component = grm_component.lazy()
+
+        # Select columns from GRM_COMPONENT
+        component_cols = [
+            "TRE_CN",
+            "PLT_CN",
+            "DIA_BEGIN",
+            "DIA_MIDPT",
+            "DIA_END",
+        ]
+
+        # Add the resolved component and TPA columns
+        grm_schema = grm_component.collect_schema().names()
+        if grm_cols.component in grm_schema:
+            component_cols.append(grm_cols.component)
+        if grm_cols.tpa in grm_schema:
+            component_cols.append(grm_cols.tpa)
+        if grm_cols.subptyp in grm_schema:
+            component_cols.append(grm_cols.subptyp)
+
+        # Filter to valid columns
+        component_cols = [c for c in component_cols if c in grm_schema]
+        grm_data = grm_component.select(component_cols)
+
+        # Rename component column to standard COMPONENT
+        if grm_cols.component in grm_data.collect_schema().names():
+            grm_data = grm_data.rename({grm_cols.component: "COMPONENT"})
+        if grm_cols.tpa in grm_data.collect_schema().names():
+            grm_data = grm_data.rename({grm_cols.tpa: "TPA_UNADJ"})
+        if grm_cols.subptyp in grm_data.collect_schema().names():
+            grm_data = grm_data.rename({grm_cols.subptyp: "SUBPTYP_GRM"})
+
+        # Load TREE_GRM_MIDPT for additional tree attributes
+        grm_midpt = self.db.tables["TREE_GRM_MIDPT"]
+        if not isinstance(grm_midpt, pl.LazyFrame):
+            grm_midpt = grm_midpt.lazy()
+
+        midpt_cols = ["TRE_CN", "DIA", "SPCD", "STATUSCD", "VOLCFNET"]
+        midpt_schema = grm_midpt.collect_schema().names()
+
+        # Add biomass columns if available
+        for col in ["DRYBIO_AG", "DRYBIO_BOLE", "SPGRPCD"]:
+            if col in midpt_schema:
+                midpt_cols.append(col)
+
+        midpt_cols = [c for c in midpt_cols if c in midpt_schema]
+        grm_midpt = grm_midpt.select(midpt_cols)
+
+        # Join GRM_COMPONENT with GRM_MIDPT
+        data = grm_data.join(
+            grm_midpt,
+            on="TRE_CN",
+            how="left",
+        )
+
+        # Load PLOT for remeasurement metadata
         plot = self.db.tables["PLOT"]
-        tree = self.db.tables["TREE"]
-
         if not isinstance(plot, pl.LazyFrame):
             plot = plot.lazy()
-        if not isinstance(tree, pl.LazyFrame):
-            tree = tree.lazy()
 
-        # Get plot columns (including location data for spatial analysis)
         plot_cols = [
             "CN",
             "STATECD",
@@ -344,131 +435,63 @@ class PanelBuilder:
         plot_schema = plot.collect_schema().names()
         plot_cols = [c for c in plot_cols if c in plot_schema]
 
-        # Filter to plots with previous measurements
-        plot_t2 = plot.select(plot_cols).filter(
-            pl.col("PREV_PLT_CN").is_not_null() & (pl.col("REMPER") > 0)
-        )
+        plot = plot.select(plot_cols)
 
         # Apply REMPER filters
         min_remper = self.config.get("min_remper", 0)
         max_remper = self.config.get("max_remper")
 
         if min_remper > 0:
-            plot_t2 = plot_t2.filter(pl.col("REMPER") >= min_remper)
+            plot = plot.filter(pl.col("REMPER") >= min_remper)
         if max_remper is not None:
-            plot_t2 = plot_t2.filter(pl.col("REMPER") <= max_remper)
+            plot = plot.filter(pl.col("REMPER") <= max_remper)
 
-        # Apply min_invyr filter (default 2000 for post-annual inventory methodology)
+        # Apply min_invyr filter
         min_invyr = self.config.get("min_invyr", 2000)
         if min_invyr is not None and min_invyr > 0:
-            plot_t2 = plot_t2.filter(pl.col("INVYR") >= min_invyr)
+            plot = plot.filter(pl.col("INVYR") >= min_invyr)
 
-        # Get tree columns
-        tree_cols = self._get_tree_columns()
-        tree_schema = tree.collect_schema().names()
-        tree_cols = [c for c in tree_cols if c in tree_schema]
-
-        # Ensure required columns
-        required = ["CN", "PLT_CN", "CONDID", "PREV_TRE_CN"]
-        for col in required:
-            if col not in tree_cols and col in tree_schema:
-                tree_cols.append(col)
-
-        # Also get previous status columns if available
-        prev_cols = ["PREV_STATUS_CD", "PREVDIA", "PREVCOND"]
-        for col in prev_cols:
-            if col in tree_schema and col not in tree_cols:
-                tree_cols.append(col)
-
-        # Get current trees (t2)
-        tree_t2 = tree.select(tree_cols)
-
-        # Cast PREV_TRE_CN to match CN type for joining
-        if "PREV_TRE_CN" in tree_t2.collect_schema().names():
-            tree_t2 = tree_t2.with_columns(
-                [
-                    pl.col("PREV_TRE_CN")
-                    .cast(pl.Int64, strict=False)
-                    .alias("PREV_TRE_CN")
-                ]
-            )
-
-        # Cast PREV_STATUS_CD if present
-        if "PREV_STATUS_CD" in tree_t2.collect_schema().names():
-            tree_t2 = tree_t2.with_columns(
-                [
-                    pl.col("PREV_STATUS_CD")
-                    .cast(pl.Int64, strict=False)
-                    .alias("PREV_STATUS_CD")
-                ]
-            )
-
-        # Join plot and tree for t2
-        data = plot_t2.join(
-            tree_t2,
-            left_on="CN",
-            right_on="PLT_CN",
+        # Join with PLOT data
+        data = data.join(
+            plot,
+            left_on="PLT_CN",
+            right_on="CN",
             how="inner",
         )
 
-        # Rename CN to PLT_CN for clarity
-        data = data.rename({"CN": "PLT_CN"})
-
-        # Rename tree CN to TRE_CN
-        schema = data.collect_schema().names()
-        t2_rename = {}
-        if "CN_right" in schema:
-            t2_rename["CN_right"] = "TRE_CN"
-        for col in self.DEFAULT_TREE_COLUMNS:
-            if col in data.collect_schema().names():
-                t2_rename[col] = f"t2_{col}"
-        if t2_rename:
-            data = data.rename(t2_rename)
-
-        # Calculate tree fate based on status codes
+        # Calculate tree fate from GRM component
         data = self._calculate_tree_fate(data)
 
-        # Load previous trees (t1) for additional attributes
-        tree_prev = self.db._reader.read_table("TREE", columns=tree_cols, lazy=True)
+        # Rename columns with t2_ prefix for consistency
+        # (GRM MIDPT values are midpoint estimates between t1 and t2)
+        data = data.rename({
+            "DIA": "t2_DIA",
+            "STATUSCD": "t2_STATUSCD",
+            "VOLCFNET": "t2_VOLCFNET",
+        })
 
-        # Cast CN to Int64 to match PREV_TRE_CN
-        tree_prev = tree_prev.with_columns(
-            [pl.col("CN").cast(pl.Int64, strict=False).alias("CN")]
-        )
+        # Rename biomass columns if present
+        schema = data.collect_schema().names()
+        rename_map = {}
+        for col in ["DRYBIO_AG", "DRYBIO_BOLE"]:
+            if col in schema:
+                rename_map[col] = f"t2_{col}"
+        if rename_map:
+            data = data.rename(rename_map)
 
-        # Rename t1 columns
-        t1_rename = {"PLT_CN": "t1_PLT_CN", "CN": "t1_TRE_CN", "CONDID": "t1_CONDID"}
-        for col in self.DEFAULT_TREE_COLUMNS:
-            if col in tree_prev.collect_schema().names():
-                t1_rename[col] = f"t1_{col}"
-        tree_prev = tree_prev.rename(t1_rename)
-
-        # Join to get full t1 data
-        data = data.join(
-            tree_prev,
-            left_on="PREV_TRE_CN",
-            right_on="t1_TRE_CN",
-            how="left",
-        )
-
-        # Infer cut trees from condition-level harvest detection
-        # This reclassifies mortality on harvested conditions as 'cut'
-        if self.config.get("infer_cut", True):
-            data = self._infer_cut_from_harvest(data)
-
-        # Apply tree type filter
-        data = self._apply_tree_type_filter(data)
+        # Create t1_ columns from DIA_BEGIN
+        if "DIA_BEGIN" in data.collect_schema().names():
+            data = data.with_columns([
+                pl.col("DIA_BEGIN").alias("t1_DIA"),
+            ])
 
         # Apply tree domain filter
         data = self._apply_tree_domain_filter(data)
 
-        # Filter to harvest only if requested (trees that were cut)
+        # Filter to harvest only if requested
+        # Include both cut AND diversion for comprehensive removal analysis
         if self.config.get("harvest_only", False):
-            data = data.filter(pl.col("TREE_FATE") == "cut")
-
-        # Note: Tree-level chain expansion follows PREV_TRE_CN links.
-        # Currently, tree panels include all trees with valid PREV_TRE_CN.
-        # Full chain expansion (t1->t2->t3) is handled at the plot level.
+            data = data.filter(pl.col("TREE_FATE").is_in(["cut", "diversion"]))
 
         # Clean up and format output
         result = data.collect()
@@ -641,119 +664,42 @@ class PanelBuilder:
 
     def _calculate_tree_fate(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
-        Calculate tree fate (survivor, mortality, cut, ingrowth).
+        Calculate tree fate from GRM COMPONENT classification.
 
-        Uses STATUSCD at t1 and t2 to determine fate:
-        - survivor: live at t1 and t2
-        - mortality: live at t1, dead at t2
-        - cut: live at t1, removed at t2 (STATUSCD=3)
-        - ingrowth: no previous measurement (new tree)
+        Maps GRM component types to tree fate categories:
+        - survivor: SURVIVOR component
+        - mortality: MORTALITY1, MORTALITY2 components
+        - cut: CUT1, CUT2 components (harvest)
+        - diversion: DIVERSION1, DIVERSION2 components (land use change)
+        - ingrowth: INGROWTH component
+        - other: Any unrecognized component
         """
         schema = data.collect_schema().names()
 
-        # Check what status columns we have
-        has_t2_status = "t2_STATUSCD" in schema
-        has_prev_status = "PREV_STATUS_CD" in schema
-        has_prev_tre = "PREV_TRE_CN" in schema
+        if "COMPONENT" not in schema:
+            # Fall back to unknown if no component column
+            return data.with_columns([pl.lit("unknown").alias("TREE_FATE")])
 
-        if has_t2_status and has_prev_status:
-            data = data.with_columns(
-                [
-                    pl.when(pl.col("PREV_TRE_CN").is_null())
-                    .then(pl.lit("ingrowth"))
-                    .when(
-                        (pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 1)
-                    )
-                    .then(pl.lit("survivor"))
-                    .when(
-                        (pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 2)
-                    )
-                    .then(pl.lit("mortality"))
-                    .when(
-                        (pl.col("PREV_STATUS_CD") == 1) & (pl.col("t2_STATUSCD") == 3)
-                    )
-                    .then(pl.lit("cut"))
-                    .otherwise(pl.lit("other"))
-                    .alias("TREE_FATE")
-                ]
-            )
-        elif has_prev_tre:
-            # Simplified fate based on whether tree was tracked
-            data = data.with_columns(
-                [
-                    pl.when(pl.col("PREV_TRE_CN").is_null())
-                    .then(pl.lit("ingrowth"))
-                    .otherwise(pl.lit("tracked"))
-                    .alias("TREE_FATE")
-                ]
-            )
-        else:
-            data = data.with_columns([pl.lit("unknown").alias("TREE_FATE")])
+        # Map GRM components to tree fates
+        # Use str.starts_with for flexibility with component naming
+        return data.with_columns([
+            pl.when(pl.col("COMPONENT") == "SURVIVOR")
+            .then(pl.lit("survivor"))
+            .when(pl.col("COMPONENT").str.starts_with("MORTALITY"))
+            .then(pl.lit("mortality"))
+            .when(pl.col("COMPONENT").str.starts_with("CUT"))
+            .then(pl.lit("cut"))
+            .when(pl.col("COMPONENT").str.starts_with("DIVERSION"))
+            .then(pl.lit("diversion"))
+            .when(pl.col("COMPONENT") == "INGROWTH")
+            .then(pl.lit("ingrowth"))
+            .otherwise(pl.lit("other"))
+            .alias("TREE_FATE")
+        ])
 
-        return data
-
-    def _infer_cut_from_harvest(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """
-        Reclassify tree mortality on harvested conditions as 'cut'.
-
-        Some states record cut trees as dead (STATUSCD=2) rather than removed
-        (STATUSCD=3). This method uses condition-level harvest detection to
-        identify trees that died on harvested conditions and relabels them.
-
-        Logic:
-        - Get harvest status for each condition from TRTCD codes
-        - Join with tree data
-        - Reclassify: mortality + harvested condition -> 'cut'
-        """
-        # Load COND table to get harvest info
-        self._ensure_tables_loaded(["COND"])
-
-        cond = self.db._reader.read_table(
-            "COND",
-            columns=["PLT_CN", "CONDID", "TRTCD1", "TRTCD2", "TRTCD3"],
-            lazy=True,
-        )
-
-        # Detect harvest from treatment codes
-        harvest_codes = list(self.HARVEST_TRTCD)
-        cond_harvest = cond.with_columns(
-            [
-                (
-                    pl.col("TRTCD1").is_in(harvest_codes).fill_null(False)
-                    | pl.col("TRTCD2").is_in(harvest_codes).fill_null(False)
-                    | pl.col("TRTCD3").is_in(harvest_codes).fill_null(False)
-                )
-                .cast(pl.Int8)
-                .alias("COND_HARVEST")
-            ]
-        ).select(["PLT_CN", "CONDID", "COND_HARVEST"])
-
-        # Join harvest info to tree data
-        data = data.join(
-            cond_harvest,
-            on=["PLT_CN", "CONDID"],
-            how="left",
-        )
-
-        # Fill null harvest status with 0
-        data = data.with_columns([pl.col("COND_HARVEST").fill_null(0)])
-
-        # Reclassify: mortality on harvested condition -> 'cut'
-        data = data.with_columns(
-            [
-                pl.when(
-                    (pl.col("TREE_FATE") == "mortality") & (pl.col("COND_HARVEST") == 1)
-                )
-                .then(pl.lit("cut"))
-                .otherwise(pl.col("TREE_FATE"))
-                .alias("TREE_FATE")
-            ]
-        )
-
-        # Drop the temporary column
-        data = data.drop("COND_HARVEST")
-
-        return data
+    # Note: _infer_cut_from_harvest() has been removed.
+    # Tree fate classification is now handled entirely by GRM COMPONENT,
+    # which provides authoritative cut/mortality/diversion classification.
 
     def _format_condition_output(self, result: pl.DataFrame) -> pl.DataFrame:
         """Format condition panel output with clean column ordering."""
@@ -884,7 +830,7 @@ def panel(
     level: Literal["condition", "tree"] = "condition",
     columns: Optional[List[str]] = None,
     land_type: str = "forest",
-    tree_type: str = "all",
+    tree_type: str = "gs",
     tree_domain: Optional[str] = None,
     area_domain: Optional[str] = None,
     expand_chains: bool = True,
@@ -892,7 +838,6 @@ def panel(
     max_remper: Optional[float] = None,
     min_invyr: int = 2000,
     harvest_only: bool = False,
-    infer_cut: bool = True,
 ) -> pl.DataFrame:
     """
     Create a t1/t2 remeasurement panel from FIA data.
@@ -907,6 +852,10 @@ def panel(
     - Growth and mortality analysis
     - Land use transition studies
 
+    Tree-level panels use GRM (Growth-Removal-Mortality) tables for
+    authoritative tree fate classification, providing consistent
+    definitions aligned with FIA's official estimation methodology.
+
     Parameters
     ----------
     db : Union[str, FIA]
@@ -916,7 +865,7 @@ def panel(
         - 'condition': Condition-level panel for area/harvest analysis.
           Each row is a condition measured at two time points.
         - 'tree': Tree-level panel for individual tree tracking.
-          Each row is a tree measured at two time points.
+          Each row is a tree with GRM component classification.
     columns : list of str, optional
         Additional columns to include beyond defaults. Useful for adding
         specific attributes needed for analysis.
@@ -925,11 +874,11 @@ def panel(
         - 'forest': All forest land (COND_STATUS_CD = 1)
         - 'timber': Timberland (productive, unreserved forest)
         - 'all': No land type filtering
-    tree_type : {'all', 'live', 'gs'}, default 'all'
-        Tree type filter (tree-level only):
-        - 'all': All trees
-        - 'live': Living trees only (STATUSCD = 1)
-        - 'gs': Growing stock (merchantable trees)
+    tree_type : {'all', 'live', 'gs'}, default 'gs'
+        Tree type filter (tree-level only). Maps to GRM column suffixes:
+        - 'gs': Growing stock (merchantable trees) - uses GS columns
+        - 'all': All trees - uses GS columns (default GRM behavior)
+        - 'live': All live trees - uses AL columns
     tree_domain : str, optional
         SQL-like filter expression for tree-level filtering.
         Example: "SPCD == 131" (loblolly pine only)
@@ -954,13 +903,7 @@ def panel(
     harvest_only : bool, default False
         If True, return only records where harvest was detected.
         For condition-level: uses TRTCD treatment codes.
-        For tree-level: returns only cut trees (TREE_FATE = 'cut').
-    infer_cut : bool, default True
-        If True, reclassify tree mortality on harvested conditions as 'cut'.
-        Some states record cut trees as dead (STATUSCD=2) rather than removed
-        (STATUSCD=3). This option uses condition-level harvest detection
-        (TRTCD codes) to identify trees that died on harvested conditions
-        and relabels them as 'cut'. Only applies to tree-level panels.
+        For tree-level: returns trees with TREE_FATE in ['cut', 'diversion'].
 
     Returns
     -------
@@ -978,17 +921,25 @@ def panel(
         - t1_*/t2_*: Attributes at time 1 and time 2
 
         For tree-level:
-        - PLT_CN, PREV_PLT_CN: Plot control numbers
-        - TRE_CN, PREV_TRE_CN: Tree control numbers
-        - TREE_FATE: Tree fate (survivor/mortality/cut/ingrowth)
+        - PLT_CN: Plot control number
+        - TRE_CN: Tree control number
+        - TREE_FATE: Tree fate from GRM classification:
+          - 'survivor': Tree alive at both measurements
+          - 'mortality': Tree died naturally
+          - 'cut': Tree removed by harvest
+          - 'diversion': Tree removed due to land use change
+          - 'ingrowth': New tree crossing size threshold
+        - COMPONENT: Raw GRM component (SURVIVOR, CUT1, etc.)
+        - DIA_BEGIN, DIA_MIDPT, DIA_END: Diameter measurements
+        - TPA_UNADJ: Trees per acre expansion factor
         - t1_*/t2_*: Tree attributes at time 1 and time 2
 
     See Also
     --------
-    area_change : Estimate forest area change
+    removals : Estimate harvest removals (uses same GRM methodology)
     mortality : Estimate tree mortality
-    removals : Estimate harvest removals
     growth : Estimate forest growth
+    area_change : Estimate forest area change
 
     Examples
     --------
@@ -1001,21 +952,20 @@ def panel(
     ...     print(f"Panel has {len(data)} condition pairs")
     ...     print(f"Harvest rate: {data['HARVEST'].mean():.1%}")
 
-    Tree-level panel for mortality analysis:
+    Tree-level panel with GRM-based fate classification:
 
     >>> with FIA("path/to/db.duckdb") as db:
     ...     db.clip_by_state(37)
-    ...     trees = panel(db, level="tree", tree_type="live")
-    ...     mortality_rate = (trees["TREE_FATE"] == "mortality").mean()
-    ...     print(f"Mortality rate: {mortality_rate:.1%}")
+    ...     trees = panel(db, level="tree", tree_type="gs")
+    ...     fate_counts = trees.group_by("TREE_FATE").len()
+    ...     print(fate_counts)
 
-    Filter to harvested conditions on private land:
+    Get all removals (cut + diversion):
 
     >>> data = panel(
     ...     db,
-    ...     level="condition",
-    ...     area_domain="OWNGRPCD == 40",
-    ...     harvest_only=True,
+    ...     level="tree",
+    ...     harvest_only=True,  # Returns cut and diversion trees
     ... )
 
     Filter remeasurement period to 4-8 years:
@@ -1029,15 +979,22 @@ def panel(
 
     Notes
     -----
-    Harvest detection methods:
+    Tree-level panels use GRM (Growth-Removal-Mortality) tables:
 
-    1. **Primary (Treatment Codes)**: TRTCD1, TRTCD2, or TRTCD3 in {10, 20}
-       - 10 = Cutting (harvest)
-       - 20 = Site preparation (implies prior harvest)
+    Tree fate is determined from TREE_GRM_COMPONENT, which provides
+    authoritative classification pre-computed by FIA. This ensures
+    consistency with the `removals()` function and EVALIDator.
 
-    2. **Secondary (Volume Change)**: For plots without treatment codes,
-       harvest can be inferred from volume reduction > 25%
-       (following Dennis 1989, Singh 2010).
+    GRM component types:
+    - SURVIVOR: Tree alive at beginning and end of period
+    - MORTALITY1/2: Tree died during measurement period
+    - CUT1/2: Tree harvested during measurement period
+    - DIVERSION1/2: Tree removed due to land use change
+    - INGROWTH: New tree crossing 5" DBH threshold
+
+    Condition-level harvest detection uses treatment codes (TRTCD):
+    - 10 = Cutting (harvest)
+    - 20 = Site preparation (implies prior harvest)
 
     Remeasurement availability varies by region:
     - Southern states typically have 5-7 year remeasurement cycles
@@ -1046,14 +1003,10 @@ def panel(
 
     References
     ----------
-    Dennis, D.F. 1989. An economic analysis of harvest behavior.
-    Forest Science 35(4): 1088-1104.
-
-    Singh, N. 2010. Econometric Analysis of Timber Harvest Behavior.
-    MS Thesis, North Carolina State University.
-
     Bechtold & Patterson (2005), "The Enhanced Forest Inventory and
     Analysis Program", Chapter 4: Change Estimation.
+
+    FIA Database User Guide, TREE_GRM_COMPONENT table documentation.
     """
     # Validate inputs
     if level not in ("condition", "tree"):
@@ -1070,7 +1023,6 @@ def panel(
     area_domain = validate_domain_expression(area_domain, "area_domain")
     expand_chains = validate_boolean(expand_chains, "expand_chains")
     harvest_only = validate_boolean(harvest_only, "harvest_only")
-    infer_cut = validate_boolean(infer_cut, "infer_cut")
 
     if min_remper < 0:
         raise ValueError(f"min_remper must be non-negative, got {min_remper}")
@@ -1098,7 +1050,6 @@ def panel(
         "max_remper": max_remper,
         "min_invyr": min_invyr,
         "harvest_only": harvest_only,
-        "infer_cut": infer_cut,
     }
 
     builder = PanelBuilder(db, config)

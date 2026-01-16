@@ -150,3 +150,36 @@ class TestDSTRBCDMapping:
     def test_hurricane_code_recognized(self, weather_dstrbcd_codes):
         """Hurricane/wind damage (DSTRBCD=52) should be in weather codes."""
         assert 52 in weather_dstrbcd_codes
+
+
+class TestPlotGroupingColumns:
+    """Test that plot-level grouping columns are properly supported."""
+
+    def test_unitcd_in_plot_grouping_columns(self):
+        """UNITCD should be available for plot-level grouping."""
+        from pyfia.estimation.columns import PLOT_GROUPING_COLUMNS
+
+        assert "UNITCD" in PLOT_GROUPING_COLUMNS, (
+            "UNITCD must be in PLOT_GROUPING_COLUMNS to enable "
+            "grouping by FIA survey unit"
+        )
+
+    def test_statecd_in_plot_grouping_columns(self):
+        """STATECD should be available for plot-level grouping."""
+        from pyfia.estimation.columns import PLOT_GROUPING_COLUMNS
+
+        assert "STATECD" in PLOT_GROUPING_COLUMNS
+
+    def test_countycd_in_plot_grouping_columns(self):
+        """COUNTYCD should be available for plot-level grouping."""
+        from pyfia.estimation.columns import PLOT_GROUPING_COLUMNS
+
+        assert "COUNTYCD" in PLOT_GROUPING_COLUMNS
+
+    def test_plot_grouping_columns_complete(self):
+        """PLOT_GROUPING_COLUMNS should include all common geographic identifiers."""
+        from pyfia.estimation.columns import PLOT_GROUPING_COLUMNS
+
+        expected = ["STATECD", "COUNTYCD", "UNITCD", "INVYR"]
+        for col in expected:
+            assert col in PLOT_GROUPING_COLUMNS, f"{col} should be in PLOT_GROUPING_COLUMNS"

@@ -136,6 +136,37 @@ print(result.columns)
 # [..., 'FORTYPCD', 'FOREST_TYPE_GROUP', 'OWNGRPCD', 'OWNERSHIP_GROUP', ...]
 ```
 
+## Geographic and Administrative Groupings
+
+PyFIA supports grouping by geographic and administrative units from the PLOT table:
+
+```python
+from pyfia import volume, mortality
+
+# Group by FIA survey unit
+result = volume(db, grp_by="UNITCD")
+
+# Group by county
+result = volume(db, grp_by="COUNTYCD")
+
+# Group by state and county
+result = volume(db, grp_by=["STATECD", "COUNTYCD"])
+
+# Group by state and survey unit (common for regional analysis)
+result = mortality(db, grp_by=["STATECD", "UNITCD"])
+```
+
+### Available Plot-Level Columns
+
+| Column | Description |
+|--------|-------------|
+| `STATECD` | FIPS state code |
+| `COUNTYCD` | FIPS county code |
+| `UNITCD` | FIA survey unit code |
+| `INVYR` | Inventory year |
+| `CYCLE` | Inventory cycle number |
+| `SUBCYCLE` | Inventory subcycle number |
+
 ## Mortality-Specific Groupings
 
 For mortality estimation, you can group by cause of death:
@@ -153,17 +184,23 @@ result = mortality(db, grp_by="DSTRBCD1")
 
 # Combined grouping for detailed analysis
 result = mortality(db, grp_by=["AGENTCD", "SPCD"])
+
+# Combine mortality cause with geographic grouping
+result = mortality(db, grp_by=["STATECD", "UNITCD", "AGENTCD"], variance=True)
 ```
 
 This is useful for timber casualty loss analysis where losses must be classified by cause for tax purposes.
 
 ## Summary
 
-| Column | Auto-Enhanced? | Manual Function |
-|--------|----------------|-----------------|
-| `FORTYPCD` | Yes | `join_forest_type_names()` |
-| `OWNGRPCD` | Yes | N/A |
-| `SPCD` | No | `join_species_names()` |
-| `STATECD` | No | `join_state_names()` |
-| `AGENTCD` | No | N/A (mortality only) |
-| `DSTRBCD1` | No | N/A (mortality only) |
+| Column | Auto-Enhanced? | Manual Function | Source Table |
+|--------|----------------|-----------------|--------------|
+| `FORTYPCD` | Yes | `join_forest_type_names()` | COND |
+| `OWNGRPCD` | Yes | N/A | COND |
+| `SPCD` | No | `join_species_names()` | TREE |
+| `STATECD` | No | `join_state_names()` | PLOT |
+| `COUNTYCD` | No | N/A | PLOT |
+| `UNITCD` | No | N/A | PLOT |
+| `INVYR` | No | N/A | PLOT |
+| `AGENTCD` | No | N/A | TREE (mortality only) |
+| `DSTRBCD1` | No | N/A | COND (mortality only) |

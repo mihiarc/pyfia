@@ -59,7 +59,7 @@ result = pyfia.mortality(
 print(f"Annual Mortality: {result['estimate'][0]:,.0f} cu ft/year")
 ```
 
-### Mortality by Agent
+### Mortality by Agent (Tree-Level)
 
 ```python
 result = pyfia.mortality(
@@ -67,7 +67,19 @@ result = pyfia.mortality(
     measure="volume",
     grp_by="AGENTCD"
 )
-# AGENTCD: 10=Insect, 20=Disease, 30=Fire, etc.
+# AGENTCD: 10=Insect, 20=Disease, 30=Fire, 50=Weather, etc.
+print(result)
+```
+
+### Mortality by Disturbance (Condition-Level)
+
+```python
+result = pyfia.mortality(
+    db,
+    measure="volume",
+    grp_by="DSTRBCD1"
+)
+# DSTRBCD1: 30=Fire, 52=Hurricane/wind, 54=Drought, etc.
 print(result)
 ```
 

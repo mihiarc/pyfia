@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **AGENTCD grouping in mortality()** - Group mortality estimates by cause of death (tree-level)
+- **DSTRBCD grouping in mortality()** - Group mortality estimates by disturbance code (condition-level)
+- Example script `examples/mortality_by_cause.py` for timber casualty loss analysis
+
 ## [1.1.0b1] - 2025-12-23
 
 ### Added

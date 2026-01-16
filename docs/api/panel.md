@@ -79,13 +79,14 @@ Each row represents an individual tree measured at two time points. Best for:
 
 **Tree Fate Values:**
 
-| Fate | Description |
-|------|-------------|
-| `survivor` | Live at t1 and t2 |
-| `mortality` | Live at t1, dead at t2 (natural causes) |
-| `cut` | Live at t1, removed/harvested at t2 |
-| `ingrowth` | New tree (no previous measurement) |
-| `other` | Other status transitions |
+| Fate | Description | GRM Component |
+|------|-------------|---------------|
+| `survivor` | Live at t1 and t2 | SURVIVOR |
+| `mortality` | Live at t1, dead at t2 (natural causes) | MORTALITY1, MORTALITY2 |
+| `cut` | Live at t1, removed/harvested at t2 | CUT1, CUT2 |
+| `diversion` | Removed due to land use change | DIVERSION1, DIVERSION2 |
+| `ingrowth` | New tree crossing 5" DBH threshold | INGROWTH |
+| `other` | Unrecognized component type | - |
 
 ## Harvest Detection
 
@@ -102,18 +103,20 @@ harvested = pyfia.panel(db, level="condition", harvest_only=True)
 print(f"Harvested conditions: {len(harvested)}")
 ```
 
-### Tree-Level Detection (`infer_cut`)
+### Tree-Level Detection (GRM-Based)
 
-Some states record cut trees as dead (STATUSCD=2) rather than removed (STATUSCD=3). The `infer_cut` parameter (default `True`) uses condition-level harvest detection to reclassify these trees:
+Tree-level panels use FIA's GRM (Growth-Removal-Mortality) tables for authoritative fate classification. The `TREE_GRM_COMPONENT` table provides pre-computed classifications that align with FIA's official estimation methodology:
 
 ```python
-# With infer_cut=True (default): mortality on harvested conditions -> 'cut'
+# Tree fate comes directly from GRM COMPONENT classification
 tree_panel = pyfia.panel(db, level="tree")
 cut_trees = tree_panel.filter(pl.col("TREE_FATE") == "cut")
 
-# Without inference: cut trees may appear as 'mortality'
-tree_panel_raw = pyfia.panel(db, level="tree", infer_cut=False)
+# Get all removals (cut + diversion)
+removals = pyfia.panel(db, level="tree", harvest_only=True)
 ```
+
+This ensures consistency with the `removals()` function and EVALIDator results.
 
 ## Examples
 
@@ -232,6 +235,69 @@ chain_lengths = (
 print("Plots by chain length:")
 print(chain_lengths)
 ```
+
+## Expansion to Per-Acre Estimates
+
+Tree-level panels can be expanded to produce per-acre estimates comparable to `removals()`. This applies the same three-layer expansion methodology:
+
+1. **TPA_UNADJ**: Base trees-per-acre from plot design
+2. **ADJ_FACTOR**: Plot-type adjustment (subplot/microplot/macroplot)
+3. **EXPNS**: Stratum expansion to total acres
+
+### Basic Expansion
+
+```python
+# Get per-acre removals estimates (comparable to removals())
+expanded = pyfia.panel(
+    db,
+    level="tree",
+    harvest_only=True,
+    expand=True,
+    measure="tpa"  # Trees per acre
+)
+print(f"Total removals: {expanded['PANEL_TOTAL'][0]:,.0f} trees/year")
+print(f"Per acre: {expanded['PANEL_ACRE'][0]:,.1f} trees/acre/year")
+```
+
+### Expansion by Species
+
+```python
+# Removals by species
+by_species = pyfia.panel(
+    db,
+    level="tree",
+    harvest_only=True,
+    expand=True,
+    measure="volume",
+    grp_by=["SPCD"]
+)
+print(by_species.sort("PANEL_TOTAL", descending=True).head(10))
+```
+
+### Expansion by Tree Fate
+
+```python
+# Compare survivor, mortality, cut volumes
+by_fate = pyfia.panel(
+    db,
+    level="tree",
+    expand=True,
+    measure="volume",
+    by_fate=True  # Groups by TREE_FATE automatically
+)
+print(by_fate)
+```
+
+### Expansion Parameters
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `expand` | bool | False | Apply expansion factors for per-acre estimates |
+| `measure` | str | "tpa" | Measure to expand: "tpa" or "volume" |
+| `grp_by` | list | None | Grouping columns (e.g., ["SPCD"]) |
+| `by_fate` | bool | False | Include TREE_FATE in grouping |
+
+**Note:** `expand=True` requires `level="tree"` and returns aggregated estimates instead of tree-level data.
 
 ### Harvest Transition Analysis
 

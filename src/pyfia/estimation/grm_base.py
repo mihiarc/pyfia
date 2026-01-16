@@ -131,6 +131,40 @@ class GRMBaseEstimator(BaseEstimator):
         # Join component with midpt
         data = grm_component.join(grm_midpt, on="TRE_CN", how="inner")
 
+        # Check if AGENTCD is requested for grouping - need to join with TREE table
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            if isinstance(grp_by, str):
+                grp_by = [grp_by]
+            if "AGENTCD" in grp_by:
+                # Load TREE table with AGENTCD
+                if "TREE" not in self.db.tables:
+                    self.db.load_table("TREE", columns=["CN", "AGENTCD"])
+                else:
+                    # Check if AGENTCD is in the cached TREE table
+                    tree = self.db.tables["TREE"]
+                    tree_cols = (
+                        tree.collect_schema().names()
+                        if isinstance(tree, pl.LazyFrame)
+                        else tree.columns
+                    )
+                    if "AGENTCD" not in tree_cols:
+                        # Reload with AGENTCD
+                        del self.db.tables["TREE"]
+                        self.db.load_table("TREE", columns=["CN", "AGENTCD"])
+
+                tree = self.db.tables["TREE"]
+                if not isinstance(tree, pl.LazyFrame):
+                    tree = tree.lazy()
+
+                # Join on TRE_CN = CN to get AGENTCD
+                data = data.join(
+                    tree.select(["CN", "AGENTCD"]),
+                    left_on="TRE_CN",
+                    right_on="CN",
+                    how="left",
+                )
+
         # Apply EVALID filtering
         data = filter_by_evalid(data, self.db)
 

@@ -77,6 +77,77 @@ def grm_mortality_component_data():
 
 
 @pytest.fixture
+def grm_mortality_with_agentcd_data():
+    """Create GRM mortality component data with AGENTCD for cause-of-death grouping tests."""
+    return pl.DataFrame({
+        "TRE_CN": ["MORT_A1", "MORT_A2", "MORT_A3", "MORT_A4", "MORT_A5", "MORT_A6"],
+        "PLT_CN": ["P1", "P1", "P2", "P2", "P3", "P3"],
+        "DIA_BEGIN": [12.0, 8.5, 15.0, 10.2, 18.5, 14.0],
+        "DIA_MIDPT": [12.0, 8.5, 15.0, 10.2, 18.5, 14.0],
+        "DIA_END": [12.0, 8.5, 15.0, 10.2, 18.5, 14.0],
+        "SUBP_COMPONENT_GS_FOREST": ["MORTALITY1", "MORTALITY2", "MORTALITY1", "MORTALITY1", "MORTALITY2", "MORTALITY1"],
+        "SUBP_TPAMORT_UNADJ_GS_FOREST": [2.2, 1.8, 3.5, 2.1, 4.2, 2.5],
+        "SUBP_SUBPTYP_GRM_GS_FOREST": [1, 2, 1, 1, 3, 1],
+    })
+
+
+@pytest.fixture
+def tree_data_with_agentcd():
+    """Create TREE table data with AGENTCD for mortality cause analysis.
+
+    AGENTCD codes:
+    - 10: Insect
+    - 20: Disease
+    - 30: Fire
+    - 40: Animal
+    - 50: Weather
+    - 60: Vegetation (competition)
+    - 70: Unknown/other
+    - 80: Silvicultural/land clearing
+    """
+    return pl.DataFrame({
+        "CN": ["MORT_A1", "MORT_A2", "MORT_A3", "MORT_A4", "MORT_A5", "MORT_A6"],
+        "PLT_CN": ["P1", "P1", "P2", "P2", "P3", "P3"],
+        "AGENTCD": [30, 10, 50, 20, 30, 10],  # Fire, Insect, Weather, Disease, Fire, Insect
+    })
+
+
+@pytest.fixture
+def condition_data_with_dstrbcd():
+    """Create condition data with DSTRBCD (disturbance codes) for grouping tests.
+
+    DSTRBCD codes (primary):
+    - 0: No disturbance
+    - 10: Insect damage
+    - 20: Disease damage
+    - 30: Fire damage
+    - 40: Animal damage
+    - 50: Weather damage (includes 52=hurricane/wind)
+    - 54: Drought
+    - 60: Vegetation (competition)
+    - 70: Unknown
+    - 80: Human (includes harvest, clearing)
+    """
+    return pl.DataFrame({
+        "CN": ["C1", "C2", "C3", "C4", "C5"],
+        "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+        "CONDID": [1, 1, 1, 1, 1],
+        "COND_STATUS_CD": [1, 1, 1, 1, 1],
+        "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0, 1.0],
+        "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "MACR", "SUBP"],
+        "SITECLCD": [3, 2, 1, 3, 2],
+        "RESERVCD": [0, 0, 0, 0, 1],
+        "OWNGRPCD": [40, 40, 10, 20, 30],
+        "FORTYPCD": [161, 406, 703, 161, 621],
+        "STDSZCD": [1, 2, 3, 1, 2],
+        "ALSTKCD": [1, 2, 3, 4, 5],
+        "DSTRBCD1": [30, 10, 52, 0, 54],  # Fire, Insect, Hurricane, None, Drought
+        "DSTRBCD2": [0, 0, 0, 0, 0],
+        "DSTRBCD3": [0, 0, 0, 0, 0],
+    })
+
+
+@pytest.fixture
 def grm_removal_component_data():
     """Create GRM component data specifically for removal testing."""
     return pl.DataFrame({

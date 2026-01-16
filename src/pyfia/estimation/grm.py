@@ -366,7 +366,16 @@ def aggregate_cond_to_plot(cond: pl.LazyFrame) -> pl.LazyFrame:
     ]
 
     # Add optional columns if available
-    optional_cols = ["OWNGRPCD", "FORTYPCD", "SITECLCD", "RESERVCD", "ALSTKCD"]
+    optional_cols = [
+        "OWNGRPCD",
+        "FORTYPCD",
+        "SITECLCD",
+        "RESERVCD",
+        "ALSTKCD",
+        "DSTRBCD1",  # Primary disturbance code
+        "DSTRBCD2",  # Secondary disturbance code
+        "DSTRBCD3",  # Tertiary disturbance code
+    ]
     for col in optional_cols:
         if col in available_cols:
             agg_exprs.append(pl.col(col).first().alias(col))

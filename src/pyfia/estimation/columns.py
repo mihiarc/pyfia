@@ -33,6 +33,7 @@ TREE_GROUPING_COLUMNS = [
     "SPCD",
     "TREECLCD",
     "DECAYCD",
+    "AGENTCD",  # Mortality agent code (cause of death)
 ]
 
 # Base condition columns
@@ -56,6 +57,9 @@ COND_GROUPING_COLUMNS = [
     "SITECLCD",
     "RESERVCD",
     "PROP_BASIS",
+    "DSTRBCD1",  # Primary disturbance code
+    "DSTRBCD2",  # Secondary disturbance code
+    "DSTRBCD3",  # Tertiary disturbance code
 ]
 
 

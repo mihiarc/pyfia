@@ -70,6 +70,7 @@ def compare_panel_to_removals(
     measure: Literal["tpa", "volume"] = "tpa",
     min_invyr: int = 2000,
     verbose: bool = True,
+    expand: bool = False,
 ) -> pl.DataFrame:
     """
     Compare panel-identified removals to removals() estimates.
@@ -97,6 +98,10 @@ def compare_panel_to_removals(
         Minimum inventory year for panel data (default 2000, post-annual methodology)
     verbose : bool
         Print detailed comparison table using rich
+    expand : bool
+        If True, use proper per-acre expansion (ADJ_FACTOR × EXPNS) from panel().
+        This should produce results closely matching removals() (ratio ~1.0).
+        If False (default), use raw TPA_UNADJ values without expansion.
 
     Returns
     -------
@@ -128,167 +133,221 @@ def compare_panel_to_removals(
     # Panel now uses GRM tables directly, matching the tree_type/land_type
     # to the correct GRM column suffixes
     with FIA(db) as fia_db:
-        # Get panel with GRM-based tree fate classification
-        panel_data = panel(
-            fia_db,
-            level="tree",
-            harvest_only=False,  # Get all trees to filter ourselves
-            land_type=land_type,
-            tree_type=tree_type,  # GRM handles this correctly now
-            min_invyr=min_invyr,
-        )
+        # === Method depends on expand flag ===
+        if expand:
+            # Use proper per-acre expansion from panel()
+            # This uses ADJ_FACTOR × EXPNS for stratified estimation
+            panel_expanded = panel(
+                fia_db,
+                level="tree",
+                harvest_only=True,  # Only cut/diversion trees
+                land_type=land_type,
+                tree_type=tree_type,
+                min_invyr=min_invyr,
+                expand=True,  # Enable proper expansion
+                measure=measure,
+                grp_by=group_cols if group_cols else None,
+            )
 
-        # Filter to removal trees (cut + diversion = total removals)
-        # This matches what removals() counts from TREE_GRM_COMPONENT
-        cut_trees = panel_data.filter(
-            pl.col("TREE_FATE").is_in(["cut", "diversion"])
-        )
+            # Also get raw tree counts for comparison table
+            panel_raw = panel(
+                fia_db,
+                level="tree",
+                harvest_only=True,
+                land_type=land_type,
+                tree_type=tree_type,
+                min_invyr=min_invyr,
+                expand=False,
+            )
 
-        # === Aggregate panel results to per-acre basis ===
-        # Panel data has TPA_UNADJ (trees per acre unadjusted) for each tree
-        # TPA_UNADJ is already a per-acre expansion factor from the GRM tables
-        tpa_col = "TPA_UNADJ"  # From GRM COMPONENT
-        has_tpa = tpa_col in cut_trees.columns
-
-        # Get total number of unique plots in the GRM sample
-        # This should be all plots with GRM data (same as removals() uses)
-        n_plots = panel_data["PLT_CN"].n_unique()
-
-        # For a proper comparison with removals:
-        # - removals() uses stratified estimation to get total TPA per acre per year
-        # - Panel has raw TPA_UNADJ values that sum to total expansion
-        # - To compare: panel_total = sum(TPA_UNADJ) / REMPER
-        #               panel_per_acre = panel_total / n_plots
-        # This gives average TPA per sample plot per year
-        # Since each FIA plot represents ~1 acre, this should approximate per-acre rate
-
-        if measure == "tpa":
-            if has_tpa:
-                # Calculate sum of TPA_UNADJ and average REMPER
-                if group_cols:
-                    available_group_cols = [c for c in group_cols if c in cut_trees.columns]
-                    if not available_group_cols:
-                        raise ValueError(
-                            f"None of the grouping columns {group_cols} found in panel data. "
-                            f"Available columns: {cut_trees.columns[:20]}..."
-                        )
-                    panel_agg = cut_trees.group_by(available_group_cols).agg(
-                        [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            pl.col(tpa_col).sum().alias("PANEL_TPA_SUM"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
-                        ]
-                    )
-                else:
-                    panel_agg = cut_trees.select(
-                        [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            pl.col(tpa_col).sum().alias("PANEL_TPA_SUM"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
-                        ]
-                    )
-                # Per-acre per-year estimate:
-                # sum(TPA_UNADJ) gives total expansion
-                # Divide by REMPER for annualization
-                # Divide by n_plots for per-plot (≈per-acre) average
-                panel_agg = panel_agg.with_columns(
-                    [
-                        (pl.col("PANEL_TPA_SUM") / pl.col("AVG_REMPER") / n_plots).alias(
-                            "PANEL_ANNUALIZED"
-                        )
-                    ]
-                )
+            # Build aggregation with expanded per-acre estimate
+            if "PANEL_ACRE" in panel_expanded.columns:
+                panel_estimate = panel_expanded["PANEL_ACRE"][0]
+            elif "PER_ACRE" in panel_expanded.columns:
+                panel_estimate = panel_expanded["PER_ACRE"][0]
             else:
-                # Fallback to raw counts if no TPA column
-                if group_cols:
-                    available_group_cols = [c for c in group_cols if c in cut_trees.columns]
-                    panel_agg = cut_trees.group_by(available_group_cols).agg(
-                        [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
-                        ]
-                    )
+                # Try to find the per-acre column
+                per_acre_cols = [c for c in panel_expanded.columns if "ACRE" in c.upper()]
+                if per_acre_cols:
+                    panel_estimate = panel_expanded[per_acre_cols[0]][0]
                 else:
-                    panel_agg = cut_trees.select(
-                        [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
-                        ]
+                    raise ValueError(
+                        f"Could not find per-acre column in expanded panel. "
+                        f"Available: {panel_expanded.columns}"
                     )
-                panel_agg = panel_agg.with_columns(
-                    [
-                        (pl.col("PANEL_CUT_TREES") / pl.col("AVG_REMPER")).alias(
-                            "PANEL_ANNUALIZED"
-                        )
-                    ]
-                )
-        else:  # volume
-            # GRM-based panel uses t2_VOLCFNET (from TREE_GRM_MIDPT)
-            if "t2_VOLCFNET" in cut_trees.columns:
-                vol_col = "t2_VOLCFNET"
-            elif "t1_VOLCFNET" in cut_trees.columns:
-                vol_col = "t1_VOLCFNET"
-            elif "VOLCFNET" in cut_trees.columns:
-                vol_col = "VOLCFNET"
-            else:
-                raise ValueError(
-                    "Volume column not found in panel data. "
-                    "Expected t2_VOLCFNET, t1_VOLCFNET, or VOLCFNET. "
-                    "Make sure 'columns' parameter includes VOLCFNET."
-                )
 
-            if has_tpa:
-                # Proper volume per acre: TPA * volume
-                if group_cols:
-                    available_group_cols = [c for c in group_cols if c in cut_trees.columns]
-                    panel_agg = cut_trees.group_by(available_group_cols).agg(
+            panel_cut_trees = panel_raw.height
+            avg_remper = panel_raw["REMPER"].mean() if "REMPER" in panel_raw.columns else 5.0
+
+            panel_agg = pl.DataFrame({
+                "PANEL_CUT_TREES": [panel_cut_trees],
+                "PANEL_ANNUALIZED": [panel_estimate],
+                "AVG_REMPER": [avg_remper],
+            })
+
+        else:
+            # Original method: raw TPA_UNADJ without proper expansion
+            # Get panel with GRM-based tree fate classification
+            panel_data = panel(
+                fia_db,
+                level="tree",
+                harvest_only=False,  # Get all trees to filter ourselves
+                land_type=land_type,
+                tree_type=tree_type,  # GRM handles this correctly now
+                min_invyr=min_invyr,
+            )
+
+            # Filter to removal trees (cut + diversion = total removals)
+            # This matches what removals() counts from TREE_GRM_COMPONENT
+            cut_trees = panel_data.filter(
+                pl.col("TREE_FATE").is_in(["cut", "diversion"])
+            )
+
+            # === Aggregate panel results to per-acre basis ===
+            # Panel data has TPA_UNADJ (trees per acre unadjusted) for each tree
+            # TPA_UNADJ is already a per-acre expansion factor from the GRM tables
+            tpa_col = "TPA_UNADJ"  # From GRM COMPONENT
+            has_tpa = tpa_col in cut_trees.columns
+
+            # Get total number of unique plots in the GRM sample
+            # This should be all plots with GRM data (same as removals() uses)
+            n_plots = panel_data["PLT_CN"].n_unique()
+
+            # For a proper comparison with removals:
+            # - removals() uses stratified estimation to get total TPA per acre per year
+            # - Panel has raw TPA_UNADJ values that sum to total expansion
+            # - To compare: panel_total = sum(TPA_UNADJ) / REMPER
+            #               panel_per_acre = panel_total / n_plots
+            # This gives average TPA per sample plot per year
+            # Since each FIA plot represents ~1 acre, this should approximate per-acre rate
+
+            if measure == "tpa":
+                if has_tpa:
+                    # Calculate sum of TPA_UNADJ and average REMPER
+                    if group_cols:
+                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        if not available_group_cols:
+                            raise ValueError(
+                                f"None of the grouping columns {group_cols} found in panel data. "
+                                f"Available columns: {cut_trees.columns[:20]}..."
+                            )
+                        panel_agg = cut_trees.group_by(available_group_cols).agg(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                pl.col(tpa_col).sum().alias("PANEL_TPA_SUM"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    else:
+                        panel_agg = cut_trees.select(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                pl.col(tpa_col).sum().alias("PANEL_TPA_SUM"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    # Per-acre per-year estimate:
+                    # sum(TPA_UNADJ) gives total expansion
+                    # Divide by REMPER for annualization
+                    # Divide by n_plots for per-plot (≈per-acre) average
+                    panel_agg = panel_agg.with_columns(
                         [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            (pl.col(tpa_col) * pl.col(vol_col)).sum().alias("PANEL_VOL_SUM"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            (pl.col("PANEL_TPA_SUM") / pl.col("AVG_REMPER") / n_plots).alias(
+                                "PANEL_ANNUALIZED"
+                            )
                         ]
                     )
                 else:
-                    panel_agg = cut_trees.select(
+                    # Fallback to raw counts if no TPA column
+                    if group_cols:
+                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        panel_agg = cut_trees.group_by(available_group_cols).agg(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    else:
+                        panel_agg = cut_trees.select(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    panel_agg = panel_agg.with_columns(
                         [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            (pl.col(tpa_col) * pl.col(vol_col)).sum().alias("PANEL_VOL_SUM"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            (pl.col("PANEL_CUT_TREES") / pl.col("AVG_REMPER")).alias(
+                                "PANEL_ANNUALIZED"
+                            )
                         ]
                     )
-                panel_agg = panel_agg.with_columns(
-                    [
-                        (pl.col("PANEL_VOL_SUM") / pl.col("AVG_REMPER")).alias(
-                            "PANEL_ANNUALIZED"
+            else:  # volume
+                # GRM-based panel uses t2_VOLCFNET (from TREE_GRM_MIDPT)
+                if "t2_VOLCFNET" in cut_trees.columns:
+                    vol_col = "t2_VOLCFNET"
+                elif "t1_VOLCFNET" in cut_trees.columns:
+                    vol_col = "t1_VOLCFNET"
+                elif "VOLCFNET" in cut_trees.columns:
+                    vol_col = "VOLCFNET"
+                else:
+                    raise ValueError(
+                        "Volume column not found in panel data. "
+                        "Expected t2_VOLCFNET, t1_VOLCFNET, or VOLCFNET. "
+                        "Make sure 'columns' parameter includes VOLCFNET."
+                    )
+
+                if has_tpa:
+                    # Proper volume per acre: TPA * volume
+                    if group_cols:
+                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        panel_agg = cut_trees.group_by(available_group_cols).agg(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                (pl.col(tpa_col) * pl.col(vol_col)).sum().alias("PANEL_VOL_SUM"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
                         )
-                    ]
-                )
-            else:
-                # Fallback without TPA
-                if group_cols:
-                    available_group_cols = [c for c in group_cols if c in cut_trees.columns]
-                    panel_agg = cut_trees.group_by(available_group_cols).agg(
+                    else:
+                        panel_agg = cut_trees.select(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                (pl.col(tpa_col) * pl.col(vol_col)).sum().alias("PANEL_VOL_SUM"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    panel_agg = panel_agg.with_columns(
                         [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            pl.col(vol_col).sum().alias("PANEL_VOL_SUM"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            (pl.col("PANEL_VOL_SUM") / pl.col("AVG_REMPER")).alias(
+                                "PANEL_ANNUALIZED"
+                            )
                         ]
                     )
                 else:
-                    panel_agg = cut_trees.select(
+                    # Fallback without TPA
+                    if group_cols:
+                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        panel_agg = cut_trees.group_by(available_group_cols).agg(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                pl.col(vol_col).sum().alias("PANEL_VOL_SUM"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    else:
+                        panel_agg = cut_trees.select(
+                            [
+                                pl.len().alias("PANEL_CUT_TREES"),
+                                pl.col(vol_col).sum().alias("PANEL_VOL_SUM"),
+                                pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            ]
+                        )
+                    panel_agg = panel_agg.with_columns(
                         [
-                            pl.len().alias("PANEL_CUT_TREES"),
-                            pl.col(vol_col).sum().alias("PANEL_VOL_SUM"),
-                            pl.col("REMPER").mean().alias("AVG_REMPER"),
+                            (pl.col("PANEL_VOL_SUM") / pl.col("AVG_REMPER")).alias(
+                                "PANEL_ANNUALIZED"
+                            )
                         ]
                     )
-                panel_agg = panel_agg.with_columns(
-                    [
-                        (pl.col("PANEL_VOL_SUM") / pl.col("AVG_REMPER")).alias(
-                            "PANEL_ANNUALIZED"
-                        )
-                    ]
-                )
 
         # === Load removals data (per-acre estimates) ===
         removals_data = removals(
@@ -596,6 +655,7 @@ def validate_panel_harvest(
     db: Union[str, FIA],
     tolerance_ratio: float = 0.8,
     verbose: bool = True,
+    expand: bool = False,
 ) -> bool:
     """
     Validate that panel harvest detection is consistent with removals.
@@ -611,6 +671,10 @@ def validate_panel_harvest(
         Default 0.8 allows panel to find up to 20% fewer trees than removals
     verbose : bool
         Print validation details
+    expand : bool
+        If True, use proper per-acre expansion from panel().
+        This should produce a ratio close to 1.0.
+        If False (default), use raw TPA_UNADJ values.
 
     Returns
     -------
@@ -622,6 +686,7 @@ def validate_panel_harvest(
         measure="tpa",
         tree_type="gs",
         verbose=verbose,
+        expand=expand,
     )
 
     # Check if ratio is acceptable

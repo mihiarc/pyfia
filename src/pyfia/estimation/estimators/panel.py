@@ -26,7 +26,8 @@ from ...validation import (
     validate_domain_expression,
     validate_land_type,
 )
-from ..grm import resolve_grm_columns, normalize_tree_type, normalize_land_type
+from ..grm import resolve_grm_columns, normalize_tree_type, normalize_land_type, apply_grm_adjustment
+from ..aggregation import apply_two_stage_aggregation
 
 
 class PanelBuilder:
@@ -343,10 +344,14 @@ class PanelBuilder:
         - DIVERSION1/2: Tree removed due to land use change
         - INGROWTH: New tree crossing size threshold
         """
+        # Determine if we need stratification data for expansion
+        expand = self.config.get("expand", False)
+
         # Load required GRM tables
-        self._ensure_tables_loaded(
-            ["PLOT", "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "COND"]
-        )
+        required_tables = ["PLOT", "TREE_GRM_COMPONENT", "TREE_GRM_MIDPT", "COND"]
+        if expand:
+            required_tables.extend(["POP_STRATUM", "POP_PLOT_STRATUM_ASSGN"])
+        self._ensure_tables_loaded(required_tables)
 
         # Resolve GRM column names based on tree_type and land_type
         tree_type = self.config.get("tree_type", "gs")
@@ -459,6 +464,10 @@ class PanelBuilder:
             how="inner",
         )
 
+        # Join with stratification data if expansion is requested
+        if expand:
+            data = self._join_stratification_data(data)
+
         # Calculate tree fate from GRM component
         data = self._calculate_tree_fate(data)
 
@@ -493,7 +502,11 @@ class PanelBuilder:
         if self.config.get("harvest_only", False):
             data = data.filter(pl.col("TREE_FATE").is_in(["cut", "diversion"]))
 
-        # Clean up and format output
+        # Apply expansion if requested
+        if expand:
+            return self._apply_expansion(data)
+
+        # Clean up and format output (non-expanded)
         result = data.collect()
         result = self._format_tree_output(result)
 
@@ -504,6 +517,153 @@ class PanelBuilder:
         for table in tables:
             if table not in self.db.tables:
                 self.db.load_table(table)
+
+    def _join_stratification_data(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """
+        Join stratification data for expansion factors.
+
+        Loads and joins:
+        - POP_STRATUM: EXPNS, ADJ_FACTOR_SUBP/MICR/MACR
+        - POP_PLOT_STRATUM_ASSGN: Maps plots to strata
+        - COND: CONDPROP_UNADJ for ratio-of-means denominator
+        """
+        # Load POP_PLOT_STRATUM_ASSGN
+        ppsa = self.db.tables["POP_PLOT_STRATUM_ASSGN"]
+        if not isinstance(ppsa, pl.LazyFrame):
+            ppsa = ppsa.lazy()
+
+        ppsa = ppsa.select(["PLT_CN", "STRATUM_CN"])
+
+        # Load POP_STRATUM
+        pop_stratum = self.db.tables["POP_STRATUM"]
+        if not isinstance(pop_stratum, pl.LazyFrame):
+            pop_stratum = pop_stratum.lazy()
+
+        strat_cols = [
+            "CN",
+            "EXPNS",
+            "ADJ_FACTOR_SUBP",
+            "ADJ_FACTOR_MICR",
+            "ADJ_FACTOR_MACR",
+        ]
+        strat_schema = pop_stratum.collect_schema().names()
+        strat_cols = [c for c in strat_cols if c in strat_schema]
+        pop_stratum = pop_stratum.select(strat_cols)
+
+        # Join PPSA with POP_STRATUM
+        strat_data = ppsa.join(
+            pop_stratum,
+            left_on="STRATUM_CN",
+            right_on="CN",
+            how="inner",
+        )
+
+        # Join with main data
+        data = data.join(strat_data, on="PLT_CN", how="inner")
+
+        # Load COND for CONDPROP_UNADJ (aggregate to plot level)
+        cond = self.db.tables["COND"]
+        if not isinstance(cond, pl.LazyFrame):
+            cond = cond.lazy()
+
+        # Aggregate CONDPROP to plot level (sum of all condition proportions)
+        cond_agg = cond.group_by("PLT_CN").agg([
+            pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
+        ])
+
+        data = data.join(cond_agg, on="PLT_CN", how="left")
+
+        # Fill null CONDPROP with 1.0 (assume full plot if missing)
+        data = data.with_columns([
+            pl.col("CONDPROP_UNADJ").fill_null(1.0).alias("CONDPROP_UNADJ"),
+        ])
+
+        return data
+
+    def _apply_expansion(self, data: pl.LazyFrame) -> pl.DataFrame:
+        """
+        Apply expansion factors to produce per-acre estimates.
+
+        Uses the same methodology as removals():
+        1. Apply GRM adjustment based on SUBPTYP_GRM
+        2. Calculate adjusted TPA: TPA_UNADJ × ADJ_FACTOR
+        3. Apply two-stage aggregation with EXPNS
+
+        Returns
+        -------
+        pl.DataFrame
+            Expanded estimates with per-acre and total values
+        """
+        # Add dummy CONDID (GRM data is plot-level, not condition-level)
+        # The aggregation functions expect CONDID for condition-level grouping
+        data = data.with_columns([pl.lit(1).alias("CONDID")])
+
+        # Apply GRM-specific adjustment factors
+        data = apply_grm_adjustment(data)
+
+        # Calculate adjusted TPA and volume
+        measure = self.config.get("measure", "tpa")
+
+        if measure == "volume":
+            value_col = "t2_VOLCFNET"
+            # Check if volume column exists
+            schema = data.collect_schema().names()
+            if value_col not in schema:
+                value_col = "VOLCFNET" if "VOLCFNET" in schema else None
+            if value_col:
+                data = data.with_columns([
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * pl.col(value_col).cast(pl.Float64)
+                        * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                    ).alias("VALUE_ADJ")
+                ])
+            else:
+                # Fall back to TPA if no volume available
+                data = data.with_columns([
+                    (
+                        pl.col("TPA_UNADJ").cast(pl.Float64)
+                        * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                    ).alias("VALUE_ADJ")
+                ])
+        else:  # TPA
+            data = data.with_columns([
+                (
+                    pl.col("TPA_UNADJ").cast(pl.Float64)
+                    * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                ).alias("VALUE_ADJ")
+            ])
+
+        # Apply two-stage aggregation
+        metric_mappings = {"VALUE_ADJ": "CONDITION_VALUE"}
+
+        # Get grouping columns from config
+        grp_by = self.config.get("grp_by", [])
+        if isinstance(grp_by, str):
+            grp_by = [grp_by]
+
+        # Add TREE_FATE to grouping if requested
+        if self.config.get("by_fate", False):
+            if "TREE_FATE" not in grp_by:
+                grp_by.append("TREE_FATE")
+
+        results = apply_two_stage_aggregation(
+            data_with_strat=data,
+            metric_mappings=metric_mappings,
+            group_cols=grp_by,
+            use_grm_adjustment=True,
+        )
+
+        # Rename columns for clarity
+        rename_map = {
+            "VALUE_ACRE": "PANEL_ACRE",
+            "VALUE_TOTAL": "PANEL_TOTAL",
+        }
+        for old, new in rename_map.items():
+            if old in results.columns:
+                results = results.rename({old: new})
+
+        return results
 
     def _get_condition_columns(self) -> List[str]:
         """Get columns to include for condition panel."""
@@ -838,6 +998,10 @@ def panel(
     max_remper: Optional[float] = None,
     min_invyr: int = 2000,
     harvest_only: bool = False,
+    expand: bool = False,
+    measure: Literal["tpa", "volume"] = "tpa",
+    grp_by: Optional[List[str]] = None,
+    by_fate: bool = False,
 ) -> pl.DataFrame:
     """
     Create a t1/t2 remeasurement panel from FIA data.
@@ -904,6 +1068,25 @@ def panel(
         If True, return only records where harvest was detected.
         For condition-level: uses TRTCD treatment codes.
         For tree-level: returns trees with TREE_FATE in ['cut', 'diversion'].
+    expand : bool, default False
+        If True, apply expansion factors to produce per-acre estimates
+        comparable to removals(). Requires level='tree'.
+        Uses three-layer expansion:
+        - TPA_UNADJ: Base trees-per-acre
+        - ADJ_FACTOR: Plot-type adjustment (subplot/microplot/macroplot)
+        - EXPNS: Stratum expansion to total acres
+        When expand=True, returns aggregated per-acre estimates instead of
+        tree-level data.
+    measure : {'tpa', 'volume'}, default 'tpa'
+        Measure to expand (only used when expand=True):
+        - 'tpa': Trees per acre
+        - 'volume': Cubic foot volume per acre
+    grp_by : list of str, optional
+        Grouping columns for expanded estimates (only used when expand=True).
+        Example: ['SPCD'] for by-species estimates.
+    by_fate : bool, default False
+        If True and expand=True, include TREE_FATE in grouping columns
+        to get separate estimates for survivors, mortality, cut, etc.
 
     Returns
     -------
@@ -1023,6 +1206,14 @@ def panel(
     area_domain = validate_domain_expression(area_domain, "area_domain")
     expand_chains = validate_boolean(expand_chains, "expand_chains")
     harvest_only = validate_boolean(harvest_only, "harvest_only")
+    expand = validate_boolean(expand, "expand")
+    by_fate = validate_boolean(by_fate, "by_fate")
+
+    if expand and level != "tree":
+        raise ValueError("expand=True requires level='tree'")
+
+    if measure not in ("tpa", "volume"):
+        raise ValueError(f"Invalid measure '{measure}'. Must be 'tpa' or 'volume'")
 
     if min_remper < 0:
         raise ValueError(f"min_remper must be non-negative, got {min_remper}")
@@ -1050,6 +1241,10 @@ def panel(
         "max_remper": max_remper,
         "min_invyr": min_invyr,
         "harvest_only": harvest_only,
+        "expand": expand,
+        "measure": measure,
+        "grp_by": grp_by or [],
+        "by_fate": by_fate,
     }
 
     builder = PanelBuilder(db, config)

@@ -172,6 +172,44 @@ class TestPanelRemovalsConsistency:
 
         assert result, "Panel harvest validation failed"
 
+    def test_expanded_panel_matches_removals(self, fia_db):
+        """
+        Panel with expand=True should match removals closely.
+
+        When using proper per-acre expansion (ADJ_FACTOR × EXPNS), panel
+        should produce estimates very close to removals() since both use
+        the same underlying GRM data and stratified estimation.
+        """
+        comparison = compare_panel_to_removals(
+            fia_db,
+            measure="tpa",
+            tree_type="gs",
+            land_type="forest",
+            expand=True,  # Enable proper expansion
+            verbose=True,
+        )
+
+        panel_estimate = comparison["PANEL_ANNUALIZED"][0]
+        removals_estimate = comparison["REMOVALS_ESTIMATE"][0]
+        ratio = comparison["RATIO"][0]
+
+        # Both estimates should be positive
+        assert panel_estimate > 0, f"Panel estimate is zero or negative: {panel_estimate}"
+        assert removals_estimate > 0, f"Removals estimate is zero or negative: {removals_estimate}"
+
+        # With expansion, ratio should be close to 1.0 (within 20%)
+        assert 0.8 <= ratio <= 1.2, (
+            f"Expected ratio ~1.0 with expansion, got {ratio:.2f}. "
+            f"Panel: {panel_estimate:.2f}, Removals: {removals_estimate:.2f}"
+        )
+
+        print(
+            f"\nExpanded panel matches removals:"
+            f"\n  Panel (expanded): {panel_estimate:.2f} TPA per acre"
+            f"\n  Removals: {removals_estimate:.2f} TPA per acre"
+            f"\n  Ratio: {ratio:.2f}"
+        )
+
     def test_diagnose_provides_useful_info(self, fia_db):
         """Ensure diagnostic function runs and provides tree fate breakdown."""
         fate_counts = diagnose_panel_removals_diff(

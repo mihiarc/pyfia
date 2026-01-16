@@ -65,13 +65,22 @@ class GRMBaseEstimator(BaseEstimator):
         """Standard condition columns for GRM estimation.
 
         Uses centralized column resolution from columns.py to reduce duplication.
-        GRM estimation needs timber land columns for filtering and grouping columns.
+        GRM estimation needs additional columns for filtering and grouping.
         """
-        return _get_cond_columns(
+        base_cols = _get_cond_columns(
             land_type=self.config.get("land_type", "forest"),
             grp_by=self.config.get("grp_by"),
             include_prop_basis=False,
         )
+
+        # GRM estimation needs these columns for aggregate_cond_to_plot()
+        # and filtering by forest type, ownership, etc.
+        grm_cols = ["OWNGRPCD", "FORTYPCD", "SITECLCD", "RESERVCD", "ALSTKCD"]
+        for col in grm_cols:
+            if col not in base_cols:
+                base_cols.append(col)
+
+        return base_cols
 
     def _resolve_grm_columns(self):
         """Resolve GRM column names based on config."""

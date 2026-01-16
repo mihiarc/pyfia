@@ -136,6 +136,27 @@ print(result.columns)
 # [..., 'FORTYPCD', 'FOREST_TYPE_GROUP', 'OWNGRPCD', 'OWNERSHIP_GROUP', ...]
 ```
 
+## Mortality-Specific Groupings
+
+For mortality estimation, you can group by cause of death:
+
+```python
+from pyfia import mortality
+
+# Group by mortality agent (tree-level cause of death)
+result = mortality(db, grp_by="AGENTCD")
+# AGENTCD: 10=Insect, 20=Disease, 30=Fire, 50=Weather, etc.
+
+# Group by disturbance code (condition-level)
+result = mortality(db, grp_by="DSTRBCD1")
+# DSTRBCD1: 30=Fire, 52=Hurricane/wind, 54=Drought, etc.
+
+# Combined grouping for detailed analysis
+result = mortality(db, grp_by=["AGENTCD", "SPCD"])
+```
+
+This is useful for timber casualty loss analysis where losses must be classified by cause for tax purposes.
+
 ## Summary
 
 | Column | Auto-Enhanced? | Manual Function |
@@ -144,3 +165,5 @@ print(result.columns)
 | `OWNGRPCD` | Yes | N/A |
 | `SPCD` | No | `join_species_names()` |
 | `STATECD` | No | `join_state_names()` |
+| `AGENTCD` | No | N/A (mortality only) |
+| `DSTRBCD1` | No | N/A (mortality only) |

@@ -34,8 +34,11 @@ class EstimateType(IntEnum):
 
     # --- AREA (3 estimates) ---
     SNUM_2 = 2
+    AREA_FOREST = 2  # alias
     SNUM_3 = 3
+    AREA_TIMBERLAND = 3  # alias
     SNUM_79 = 79
+    AREA_SAMPLED = 79  # alias
 
     # --- AREA CHANGE (10 estimates) ---
     SNUM_126 = 126
@@ -45,16 +48,21 @@ class EstimateType(IntEnum):
     SNUM_130 = 130
     SNUM_135 = 135
     SNUM_136 = 136
+    AREA_CHANGE_ANNUAL_FOREST_BOTH = 136  # alias
     SNUM_137 = 137
     SNUM_138 = 138
     SNUM_139 = 139
 
     # --- TREE COUNT (10 estimates) ---
     SNUM_4 = 4
+    TREE_COUNT_1INCH_FOREST = 4  # alias
     SNUM_5 = 5
+    TREE_COUNT_5INCH_FOREST = 5  # alias
     SNUM_6 = 6
     SNUM_7 = 7
+    TREE_COUNT_1INCH_TIMBER = 7  # alias
     SNUM_8 = 8
+    TREE_COUNT_5INCH_TIMBER = 8  # alias
     SNUM_9 = 9
     SNUM_45 = 45
     SNUM_46 = 46
@@ -69,6 +77,7 @@ class EstimateType(IntEnum):
 
     # --- VOLUME (311 estimates) ---
     SNUM_15 = 15
+    VOLUME_NET_GROWINGSTOCK = 15  # alias
     SNUM_16 = 16
     SNUM_18 = 18
     SNUM_19 = 19
@@ -85,6 +94,7 @@ class EstimateType(IntEnum):
     SNUM_131 = 131
     SNUM_132 = 132
     SNUM_202 = 202
+    GROWTH_NET_VOLUME = 202  # alias
     SNUM_203 = 203
     SNUM_204 = 204
     SNUM_205 = 205
@@ -95,6 +105,7 @@ class EstimateType(IntEnum):
     SNUM_211 = 211
     SNUM_212 = 212
     SNUM_214 = 214
+    MORTALITY_VOLUME = 214  # alias
     SNUM_215 = 215
     SNUM_216 = 216
     SNUM_217 = 217
@@ -105,6 +116,7 @@ class EstimateType(IntEnum):
     SNUM_223 = 223
     SNUM_224 = 224
     SNUM_226 = 226
+    REMOVALS_VOLUME = 226  # alias
     SNUM_227 = 227
     SNUM_228 = 228
     SNUM_229 = 229
@@ -382,6 +394,7 @@ class EstimateType(IntEnum):
 
     # --- BIOMASS (327 estimates) ---
     SNUM_10 = 10
+    BIOMASS_AG_LIVE = 10  # alias
     SNUM_13 = 13
     SNUM_59 = 59
     SNUM_73 = 73
@@ -741,6 +754,7 @@ class EstimateType(IntEnum):
     SNUM_47000 = 47000
     SNUM_47001 = 47001
     SNUM_53000 = 53000
+    CARBON_AG_LIVE = 53000  # alias
     SNUM_54000 = 54000
     SNUM_55000 = 55000
     SNUM_61000 = 61000

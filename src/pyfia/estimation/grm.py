@@ -352,20 +352,26 @@ def aggregate_cond_to_plot(cond: pl.LazyFrame) -> pl.LazyFrame:
         - PLT_CN
         - COND_STATUS_CD (from first/dominant condition)
         - CONDPROP_UNADJ (sum of all condition proportions)
-        - OWNGRPCD, FORTYPCD, SITECLCD, RESERVCD (from first condition)
+        - OWNGRPCD, FORTYPCD, SITECLCD, RESERVCD (from first condition, if present)
         - CONDID (dummy value of 1)
     """
-    return cond.group_by("PLT_CN").agg(
-        [
-            pl.col("COND_STATUS_CD").first().alias("COND_STATUS_CD"),
-            pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
-            pl.col("OWNGRPCD").first().alias("OWNGRPCD"),
-            pl.col("FORTYPCD").first().alias("FORTYPCD"),
-            pl.col("SITECLCD").first().alias("SITECLCD"),
-            pl.col("RESERVCD").first().alias("RESERVCD"),
-            pl.lit(1).alias("CONDID"),
-        ]
-    )
+    # Get available columns
+    available_cols = cond.collect_schema().names()
+
+    # Build aggregation list dynamically
+    agg_exprs = [
+        pl.col("COND_STATUS_CD").first().alias("COND_STATUS_CD"),
+        pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
+        pl.lit(1).alias("CONDID"),
+    ]
+
+    # Add optional columns if available
+    optional_cols = ["OWNGRPCD", "FORTYPCD", "SITECLCD", "RESERVCD", "ALSTKCD"]
+    for col in optional_cols:
+        if col in available_cols:
+            agg_exprs.append(pl.col(col).first().alias(col))
+
+    return cond.group_by("PLT_CN").agg(agg_exprs)
 
 
 def filter_by_evalid(

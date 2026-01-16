@@ -50,6 +50,7 @@ class EstimateType(IntEnum):
     SNUM_136 = 136
     AREA_CHANGE_ANNUAL_FOREST_BOTH = 136  # alias
     SNUM_137 = 137
+    AREA_CHANGE_ANNUAL_FOREST_EITHER = 137  # alias
     SNUM_138 = 138
     SNUM_139 = 139
 
@@ -82,6 +83,7 @@ class EstimateType(IntEnum):
     SNUM_18 = 18
     SNUM_19 = 19
     SNUM_20 = 20
+    VOLUME_SAWLOG_INTERNATIONAL = 20  # alias
     SNUM_21 = 21
     SNUM_22 = 22
     SNUM_104 = 104
@@ -397,6 +399,7 @@ class EstimateType(IntEnum):
     BIOMASS_AG_LIVE = 10  # alias
     SNUM_13 = 13
     SNUM_59 = 59
+    BIOMASS_BG_LIVE = 59  # alias
     SNUM_73 = 73
     SNUM_96 = 96
     SNUM_105 = 105
@@ -740,6 +743,7 @@ class EstimateType(IntEnum):
     SNUM_101 = 101
     SNUM_102 = 102
     SNUM_103 = 103
+    CARBON_POOL_TOTAL = 103  # alias
     SNUM_106 = 106
     SNUM_109 = 109
     SNUM_112 = 112
@@ -757,6 +761,7 @@ class EstimateType(IntEnum):
     CARBON_AG_LIVE = 53000  # alias
     SNUM_54000 = 54000
     SNUM_55000 = 55000
+    CARBON_TOTAL_LIVE = 55000  # alias
     SNUM_61000 = 61000
     SNUM_61001 = 61001
     SNUM_67000 = 67000

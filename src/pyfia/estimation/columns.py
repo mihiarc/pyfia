@@ -62,6 +62,16 @@ COND_GROUPING_COLUMNS = [
     "DSTRBCD3",  # Tertiary disturbance code
 ]
 
+# Plot-level grouping columns
+PLOT_GROUPING_COLUMNS = [
+    "STATECD",
+    "COUNTYCD",
+    "UNITCD",  # FIA survey unit code
+    "INVYR",
+    "CYCLE",
+    "SUBCYCLE",
+]
+
 
 def get_tree_columns(
     estimator_cols: List[str],

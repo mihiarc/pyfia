@@ -156,6 +156,8 @@ class GrowthEstimator(GRMBaseEstimator):
             data = data.join(ptree, left_on="PREV_TRE_CN", right_on="CN", how="left")
 
         # Join PLOT
+        from ..columns import PLOT_GROUPING_COLUMNS
+
         if "PLOT" not in self.db.tables:
             self.db.load_table("PLOT")
 
@@ -163,9 +165,20 @@ class GrowthEstimator(GRMBaseEstimator):
         if not isinstance(plot, pl.LazyFrame):
             plot = plot.lazy()
 
-        plot = plot.select(
-            ["CN", "STATECD", "INVYR", "PREV_PLT_CN", "MACRO_BREAKPOINT_DIA", "REMPER"]
-        )
+        # Base plot columns always needed
+        plot_cols = ["CN", "STATECD", "INVYR", "PREV_PLT_CN", "MACRO_BREAKPOINT_DIA", "REMPER"]
+
+        # Add any plot-level grouping columns from grp_by
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            if isinstance(grp_by, str):
+                grp_by = [grp_by]
+            plot_schema = plot.collect_schema().names()
+            for col in grp_by:
+                if col in PLOT_GROUPING_COLUMNS and col in plot_schema and col not in plot_cols:
+                    plot_cols.append(col)
+
+        plot = plot.select(plot_cols)
 
         data = data.join(plot, left_on="PLT_CN", right_on="CN", how="inner")
 

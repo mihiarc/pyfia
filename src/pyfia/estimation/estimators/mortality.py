@@ -34,6 +34,8 @@ class MortalityEstimator(GRMBaseEstimator):
 
     def load_data(self) -> Optional[pl.LazyFrame]:
         """Load GRM data for mortality estimation."""
+        from ..columns import PLOT_GROUPING_COLUMNS
+
         # Use the simple GRM data loading pattern
         data = self._load_simple_grm_data()
         if data is None:
@@ -47,7 +49,20 @@ class MortalityEstimator(GRMBaseEstimator):
         if not isinstance(plot, pl.LazyFrame):
             plot = plot.lazy()
 
-        plot = plot.select(["CN", "STATECD", "INVYR", "MACRO_BREAKPOINT_DIA"])
+        # Base plot columns always needed
+        plot_cols = ["CN", "STATECD", "INVYR", "MACRO_BREAKPOINT_DIA"]
+
+        # Add any plot-level grouping columns from grp_by
+        grp_by = self.config.get("grp_by")
+        if grp_by:
+            if isinstance(grp_by, str):
+                grp_by = [grp_by]
+            plot_schema = plot.collect_schema().names()
+            for col in grp_by:
+                if col in PLOT_GROUPING_COLUMNS and col in plot_schema and col not in plot_cols:
+                    plot_cols.append(col)
+
+        plot = plot.select(plot_cols)
         data = data.join(plot, left_on="PLT_CN", right_on="CN", how="left")
 
         return data

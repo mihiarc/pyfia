@@ -283,7 +283,7 @@ def mortality(
         Type of size class grouping to use (only applies when by_size_class=True):
         - "standard": FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
         - "descriptive": Text labels (Saplings, Small, Medium, Large)
-        - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
+        - "market": Timber market categories (Pre-merchantable, Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'timber'
         Land type to include in estimation.
     tree_type : {'gs', 'al', 'sawtimber', 'live'}, default 'gs'
@@ -326,12 +326,36 @@ def mortality(
 
     Mortality by species (tree count):
 
-    >>> results = mortality(db, by_species=True, measure="count")
+    >>> results = mortality(db, by_species=True, measure="tpa")
+
+    Pre-merchantable tree mortality (trees < 5" DBH):
+
+    >>> results = mortality(
+    ...     db,
+    ...     tree_type="live",  # Include all live trees, not just growing stock
+    ...     by_size_class=True,
+    ...     size_class_type="market",  # Returns Pre-merchantable, Pulpwood, etc.
+    ...     measure="tpa",  # TPA recommended for small trees (no volume calculated)
+    ... )
+    >>> # Filter to pre-merchantable only:
+    >>> premerch = results.filter(pl.col("SIZE_CLASS") == "Pre-merchantable")
 
     Notes
     -----
     This function uses FIA's GRM tables which contain pre-calculated annual
     mortality values. The TPA_UNADJ fields are already annualized.
+
+    **Pre-merchantable Tree Support:**
+    By default (``tree_type="gs"``), only growing stock trees (≥5" DBH) are
+    included. To include pre-merchantable trees (1.0"-4.9" DBH), use
+    ``tree_type="live"`` or ``tree_type="al"``. When using market size classes,
+    pre-merchantable trees are automatically categorized as "Pre-merchantable".
+
+    Note that FIA does not calculate volume for trees < 5" DBH, so
+    ``measure="tpa"`` is recommended for pre-merchantable mortality analysis.
+    For economic valuation of pre-merchantable mortality, consider the
+    "discount timber price" method (Bruck et al.) which values small trees
+    based on their future merchantable potential.
     """
     from ...validation import (
         validate_boolean,

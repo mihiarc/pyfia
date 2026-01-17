@@ -43,6 +43,38 @@ class TestCreateSizeClassExpr:
         expected = ["Saplings", "Small", "Medium", "Large"]
         assert result["SIZE_CLASS"].to_list() == expected
 
+    def test_market_size_class_premerchantable_pine(self):
+        """Test pre-merchantable classification for pine/softwood (SPCD < 300)."""
+        data = pl.DataFrame(
+            {
+                "DIA_MIDPT": [1.0, 2.5, 3.0, 4.0, 4.9],
+                "SPCD": [131, 131, 131, 131, 131],  # Loblolly pine
+            }
+        )
+
+        expr = create_size_class_expr(dia_col="DIA_MIDPT", size_class_type="market")
+        result = data.with_columns(expr)
+
+        # All trees < 5.0" should be Pre-merchantable
+        expected = ["Pre-merchantable"] * 5
+        assert result["SIZE_CLASS"].to_list() == expected
+
+    def test_market_size_class_premerchantable_hardwood(self):
+        """Test pre-merchantable classification for hardwood (SPCD >= 300)."""
+        data = pl.DataFrame(
+            {
+                "DIA_MIDPT": [1.5, 3.0, 4.5],
+                "SPCD": [802, 802, 802],  # White oak
+            }
+        )
+
+        expr = create_size_class_expr(dia_col="DIA_MIDPT", size_class_type="market")
+        result = data.with_columns(expr)
+
+        # All trees < 5.0" should be Pre-merchantable regardless of species
+        expected = ["Pre-merchantable"] * 3
+        assert result["SIZE_CLASS"].to_list() == expected
+
     def test_market_size_class_pine(self):
         """Test market size classes for pine/softwood (SPCD < 300)."""
         data = pl.DataFrame(
@@ -103,6 +135,49 @@ class TestCreateSizeClassExpr:
             "Pulpwood",  # Oak 10.0: 10.0 < 11.0
             "Sawtimber",  # Pine 12.0: >= 12.0
             "Sawtimber",  # Oak 12.0: >= 11.0
+        ]
+        assert result["SIZE_CLASS"].to_list() == expected
+
+    def test_market_size_class_full_range(self):
+        """Test all market size classes including pre-merchantable."""
+        data = pl.DataFrame(
+            {
+                "DIA_MIDPT": [3.0, 3.0, 7.0, 7.0, 10.0, 10.0, 15.0, 15.0],
+                "SPCD": [131, 802, 131, 802, 131, 802, 131, 802],
+            }
+        )
+
+        expr = create_size_class_expr(dia_col="DIA_MIDPT", size_class_type="market")
+        result = data.with_columns(expr)
+
+        expected = [
+            "Pre-merchantable",  # Pine 3.0: < 5.0
+            "Pre-merchantable",  # Oak 3.0: < 5.0
+            "Pulpwood",  # Pine 7.0: 5.0 <= 7.0 < 9.0
+            "Pulpwood",  # Oak 7.0: 5.0 <= 7.0 < 11.0
+            "Chip-n-Saw",  # Pine 10.0: 9.0 <= 10.0 < 12.0
+            "Pulpwood",  # Oak 10.0: 5.0 <= 10.0 < 11.0
+            "Sawtimber",  # Pine 15.0: >= 12.0
+            "Sawtimber",  # Oak 15.0: >= 11.0
+        ]
+        assert result["SIZE_CLASS"].to_list() == expected
+
+    def test_market_size_class_boundary_at_5_inches(self):
+        """Test exact boundary at 5.0 inches (edge case)."""
+        data = pl.DataFrame(
+            {
+                "DIA_MIDPT": [4.99, 5.0, 5.01],
+                "SPCD": [131, 131, 131],  # Pine
+            }
+        )
+
+        expr = create_size_class_expr(dia_col="DIA_MIDPT", size_class_type="market")
+        result = data.with_columns(expr)
+
+        expected = [
+            "Pre-merchantable",  # 4.99 < 5.0
+            "Pulpwood",  # 5.0 >= 5.0
+            "Pulpwood",  # 5.01 >= 5.0
         ]
         assert result["SIZE_CLASS"].to_list() == expected
 

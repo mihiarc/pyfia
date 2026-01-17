@@ -870,6 +870,9 @@ def create_size_class_expr(
     -----
     Market size classes are based on TimberMart-South categories:
 
+    **Pre-merchantable (all species):**
+    - Pre-merchantable: 1.0" to 4.9" DBH
+
     **Pine/Softwood (SPCD < 300):**
     - Pulpwood: 5.0" to 8.9" DBH
     - Chip-n-Saw: 9.0" to 11.9" DBH
@@ -878,6 +881,10 @@ def create_size_class_expr(
     **Hardwood (SPCD >= 300):**
     - Pulpwood: 5.0" to 10.9" DBH
     - Sawtimber: 11.0"+ DBH (no Chip-n-Saw category)
+
+    To include pre-merchantable trees in mortality estimation, use
+    ``tree_type="live"`` or ``tree_type="al"`` (all live trees) instead
+    of the default ``tree_type="gs"`` (growing stock, which excludes < 5" DBH).
     """
     if size_class_type == "standard":
         return (
@@ -904,11 +911,14 @@ def create_size_class_expr(
             .alias("SIZE_CLASS")
         )
     elif size_class_type == "market":
-        # Species-aware timber market size classes
-        # Pine/Softwood (SPCD < 300): Pulpwood, Chip-n-Saw, Sawtimber
-        # Hardwood (SPCD >= 300): Pulpwood, Sawtimber (no CNS)
+        # Species-aware timber market size classes with pre-merchantable support
+        # Pre-merchantable: < 5.0" DBH (both softwood and hardwood)
+        # Pine/Softwood (SPCD < 300): Pulpwood (5-8.9"), Chip-n-Saw (9-11.9"), Sawtimber (12"+)
+        # Hardwood (SPCD >= 300): Pulpwood (5-10.9"), Sawtimber (11"+) (no CNS)
         return (
-            pl.when(pl.col(spcd_col) < 300)  # Pine/Softwood
+            pl.when(pl.col(dia_col) < 5.0)
+            .then(pl.lit("Pre-merchantable"))
+            .when(pl.col(spcd_col) < 300)  # Pine/Softwood
             .then(
                 pl.when(pl.col(dia_col) < 9.0)
                 .then(pl.lit("Pulpwood"))

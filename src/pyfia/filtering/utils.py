@@ -842,7 +842,8 @@ def setup_grouping_columns(
 
 def create_size_class_expr(
     dia_col: str = "DIA",
-    size_class_type: Literal["standard", "descriptive"] = "standard",
+    size_class_type: Literal["standard", "descriptive", "market"] = "standard",
+    spcd_col: str = "SPCD",
 ) -> pl.Expr:
     """
     Create a Polars expression for diameter size classes.
@@ -851,15 +852,32 @@ def create_size_class_expr(
     ----------
     dia_col : str, default "DIA"
         Name of diameter column
-    size_class_type : {"standard", "descriptive"}, default "standard"
+    size_class_type : {"standard", "descriptive", "market"}, default "standard"
         Type of size class labels to use:
         - "standard": Numeric ranges (1.0-4.9, 5.0-9.9, etc.)
         - "descriptive": Text labels (Saplings, Small, etc.)
+        - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
+    spcd_col : str, default "SPCD"
+        Name of species code column. Used for "market" type to differentiate
+        pine/softwood (SPCD < 300) from hardwood (SPCD >= 300).
 
     Returns
     -------
     pl.Expr
-        Expression that creates 'sizeClass' column based on diameter
+        Expression that creates 'SIZE_CLASS' column based on diameter
+
+    Notes
+    -----
+    Market size classes are based on TimberMart-South categories:
+
+    **Pine/Softwood (SPCD < 300):**
+    - Pulpwood: 5.0" to 8.9" DBH
+    - Chip-n-Saw: 9.0" to 11.9" DBH
+    - Sawtimber: 12.0"+ DBH
+
+    **Hardwood (SPCD >= 300):**
+    - Pulpwood: 5.0" to 10.9" DBH
+    - Sawtimber: 11.0"+ DBH (no Chip-n-Saw category)
     """
     if size_class_type == "standard":
         return (
@@ -883,6 +901,26 @@ def create_size_class_expr(
             .when(pl.col(dia_col) < 20.0)
             .then(pl.lit("Medium"))
             .otherwise(pl.lit("Large"))
+            .alias("SIZE_CLASS")
+        )
+    elif size_class_type == "market":
+        # Species-aware timber market size classes
+        # Pine/Softwood (SPCD < 300): Pulpwood, Chip-n-Saw, Sawtimber
+        # Hardwood (SPCD >= 300): Pulpwood, Sawtimber (no CNS)
+        return (
+            pl.when(pl.col(spcd_col) < 300)  # Pine/Softwood
+            .then(
+                pl.when(pl.col(dia_col) < 9.0)
+                .then(pl.lit("Pulpwood"))
+                .when(pl.col(dia_col) < 12.0)
+                .then(pl.lit("Chip-n-Saw"))
+                .otherwise(pl.lit("Sawtimber"))
+            )
+            .otherwise(  # Hardwood
+                pl.when(pl.col(dia_col) < 11.0)
+                .then(pl.lit("Pulpwood"))
+                .otherwise(pl.lit("Sawtimber"))
+            )
             .alias("SIZE_CLASS")
         )
     else:

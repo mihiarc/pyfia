@@ -189,6 +189,7 @@ def removals(
     grp_by: Optional[Union[str, List[str]]] = None,
     by_species: bool = False,
     by_size_class: bool = False,
+    size_class_type: str = "standard",
     land_type: str = "forest",
     tree_type: str = "gs",
     measure: str = "volume",
@@ -215,6 +216,11 @@ def removals(
         Group by species code
     by_size_class : bool
         Group by diameter size classes
+    size_class_type : {'standard', 'descriptive', 'market'}, default 'standard'
+        Type of size class grouping to use (only applies when by_size_class=True):
+        - "standard": FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
+        - "descriptive": Text labels (Saplings, Small, Medium, Large)
+        - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : str
         Land type: "forest", "timber", or "all"
     tree_type : str
@@ -298,10 +304,17 @@ def removals(
     most_recent = validate_boolean(most_recent, "most_recent")
     remeasure_period = validate_positive_number(remeasure_period, "remeasure_period")
 
+    valid_size_class_types = ("standard", "descriptive", "market")
+    if size_class_type not in valid_size_class_types:
+        raise ValueError(
+            f"size_class_type must be one of {valid_size_class_types}, got {size_class_type!r}"
+        )
+
     config = {
         "grp_by": grp_by,
         "by_species": by_species,
         "by_size_class": by_size_class,
+        "size_class_type": size_class_type,
         "land_type": land_type,
         "tree_type": tree_type,
         "measure": measure,

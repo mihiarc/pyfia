@@ -119,9 +119,35 @@ Some estimators support convenience flags for common groupings:
 # Group by species
 result = volume(db, by_species=True)
 
-# Group by size class
+# Group by size class (available for tpa, volume, biomass, mortality, growth, removals)
 result = tpa(db, by_size_class=True)
+result = mortality(db, by_size_class=True)
+result = growth(db, by_size_class=True)
+result = removals(db, by_size_class=True)
 ```
+
+### Size Class Types
+
+For estimators that support `by_size_class`, you can choose the classification system:
+
+```python
+from pyfia import mortality, growth, removals
+
+# Standard FIA size classes (default)
+# Categories: 1.0-4.9, 5.0-9.9, 10.0-19.9, 20.0-29.9, 30.0+
+result = mortality(db, by_size_class=True, size_class_type="standard")
+
+# Descriptive labels
+# Categories: Saplings, Small, Medium, Large
+result = mortality(db, by_size_class=True, size_class_type="descriptive")
+
+# Timber market categories (TimberMart-South style)
+# Pine: Pulpwood, Chip-n-Saw, Sawtimber
+# Hardwood: Pulpwood, Sawtimber
+result = removals(db, by_size_class=True, size_class_type="market")
+```
+
+The `"market"` size class type uses species-aware thresholds that align with timber pricing reports.
 
 ## Combining Groupings
 

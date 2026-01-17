@@ -92,6 +92,23 @@ result = pyfia.removals(
 print(f"Annual Biomass Removals: {result['estimate'][0]:,.0f} tons/year")
 ```
 
+### Removals by Size Class
+
+Group removals by diameter size classes:
+
+```python
+# Standard FIA size classes (1.0-4.9, 5.0-9.9, 10.0-19.9, etc.)
+result = pyfia.removals(db, by_size_class=True)
+print(result)
+
+# Timber market classes for valuation
+# Aligns with TimberMart-South price reporting
+result = pyfia.removals(db, by_size_class=True, size_class_type="market")
+print(result)
+```
+
+See [Mortality - Size Class Types](mortality.md#size-class-types) for details on size class options.
+
 ### Growth-Drain Analysis
 
 ```python

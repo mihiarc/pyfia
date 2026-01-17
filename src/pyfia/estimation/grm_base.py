@@ -13,6 +13,7 @@ import polars as pl
 
 from .base import AggregationResult, BaseEstimator
 from .columns import get_cond_columns as _get_cond_columns
+from ..filtering.utils import create_size_class_expr
 
 logger = logging.getLogger(__name__)
 
@@ -331,6 +332,19 @@ class GRMBaseEstimator(BaseEstimator):
         group_cols = self._setup_grouping()
         if self.config.get("by_species", False) and "SPCD" not in group_cols:
             group_cols.append("SPCD")
+
+        # Add size class grouping if requested
+        if self.config.get("by_size_class", False):
+            schema = data_with_strat.collect_schema().names()
+            if "DIA_MIDPT" in schema:
+                size_class_type = self.config.get("size_class_type", "standard")
+                size_class_expr = create_size_class_expr(
+                    dia_col="DIA_MIDPT",
+                    size_class_type=size_class_type,
+                )
+                data_with_strat = data_with_strat.with_columns(size_class_expr)
+                if "SIZE_CLASS" not in group_cols:
+                    group_cols.append("SIZE_CLASS")
 
         # Preserve plot-tree level data for variance calculation
         plot_tree_data, data_with_strat = self._preserve_plot_tree_data(

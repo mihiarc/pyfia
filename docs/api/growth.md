@@ -92,3 +92,23 @@ result = pyfia.growth(
 )
 print(f"Annual Biomass Growth: {result['estimate'][0]:,.0f} tons/year")
 ```
+
+### Growth by Size Class
+
+Group growth by diameter size classes:
+
+```python
+# Standard FIA size classes (1.0-4.9, 5.0-9.9, 10.0-19.9, etc.)
+result = pyfia.growth(db, by_size_class=True)
+print(result)
+
+# Descriptive labels (Saplings, Small, Medium, Large)
+result = pyfia.growth(db, by_size_class=True, size_class_type="descriptive")
+print(result)
+
+# Timber market classes (Pulpwood, Chip-n-Saw, Sawtimber)
+result = pyfia.growth(db, by_size_class=True, size_class_type="market")
+print(result)
+```
+
+See [Mortality - Size Class Types](mortality.md#size-class-types) for details on size class options.

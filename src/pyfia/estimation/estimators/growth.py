@@ -14,6 +14,7 @@ import polars as pl
 logger = logging.getLogger(__name__)
 
 from ...core import FIA
+from ...filtering.utils import create_size_class_expr
 from ..base import AggregationResult
 from ..constants import LBS_TO_SHORT_TONS
 from ..grm_base import GRMBaseEstimator
@@ -410,6 +411,19 @@ class GrowthEstimator(GRMBaseEstimator):
         if self.config.get("by_species", False) and "SPCD" not in group_cols:
             group_cols.append("SPCD")
 
+        # Add size class grouping if requested
+        if self.config.get("by_size_class", False):
+            schema = data_with_strat.collect_schema().names()
+            if "DIA_MIDPT" in schema:
+                size_class_type = self.config.get("size_class_type", "standard")
+                size_class_expr = create_size_class_expr(
+                    dia_col="DIA_MIDPT",
+                    size_class_type=size_class_type,
+                )
+                data_with_strat = data_with_strat.with_columns(size_class_expr)
+                if "SIZE_CLASS" not in group_cols:
+                    group_cols.append("SIZE_CLASS")
+
         # Preserve plot-tree level data for variance calculation
         plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
@@ -494,6 +508,7 @@ def growth(
     grp_by: Optional[Union[str, List[str]]] = None,
     by_species: bool = False,
     by_size_class: bool = False,
+    size_class_type: str = "standard",
     land_type: str = "forest",
     tree_type: str = "gs",
     measure: str = "volume",
@@ -520,6 +535,11 @@ def growth(
         If True, group results by species code (SPCD).
     by_size_class : bool, default False
         If True, group results by diameter size classes.
+    size_class_type : {'standard', 'descriptive', 'market'}, default 'standard'
+        Type of size class grouping to use (only applies when by_size_class=True):
+        - "standard": FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
+        - "descriptive": Text labels (Saplings, Small, Medium, Large)
+        - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'forest'
         Land type to include in estimation.
     tree_type : {'gs', 'al', 'sl'}, default 'gs'
@@ -588,10 +608,17 @@ def growth(
     variance = validate_boolean(variance, "variance")
     most_recent = validate_boolean(most_recent, "most_recent")
 
+    valid_size_class_types = ("standard", "descriptive", "market")
+    if size_class_type not in valid_size_class_types:
+        raise ValueError(
+            f"size_class_type must be one of {valid_size_class_types}, got {size_class_type!r}"
+        )
+
     config = {
         "grp_by": grp_by,
         "by_species": by_species,
         "by_size_class": by_size_class,
+        "size_class_type": size_class_type,
         "land_type": land_type,
         "tree_type": tree_type,
         "measure": measure,

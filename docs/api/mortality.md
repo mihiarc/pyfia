@@ -116,3 +116,36 @@ result = pyfia.mortality(
 )
 print(f"Annual Biomass Mortality: {result['estimate'][0]:,.0f} tons/year")
 ```
+
+### Mortality by Size Class
+
+Group mortality by diameter size classes:
+
+```python
+# Standard FIA size classes (1.0-4.9, 5.0-9.9, 10.0-19.9, etc.)
+result = pyfia.mortality(db, by_size_class=True)
+print(result)
+
+# Descriptive labels (Saplings, Small, Medium, Large)
+result = pyfia.mortality(db, by_size_class=True, size_class_type="descriptive")
+print(result)
+
+# Timber market classes (Pulpwood, Chip-n-Saw, Sawtimber)
+# Based on TimberMart-South categories
+result = pyfia.mortality(db, by_size_class=True, size_class_type="market")
+print(result)
+```
+
+### Size Class Types
+
+| Type | Description | Categories |
+|------|-------------|------------|
+| `"standard"` | FIA numeric ranges | 1.0-4.9, 5.0-9.9, 10.0-19.9, 20.0-29.9, 30.0+ |
+| `"descriptive"` | Text labels | Saplings, Small, Medium, Large |
+| `"market"` | Timber market categories | Pulpwood, Chip-n-Saw (pine only), Sawtimber |
+
+!!! note "Market Size Classes"
+    Market size classes use species-aware thresholds based on TimberMart-South:
+
+    - **Pine/Softwood (SPCD < 300)**: Pulpwood (5-8.9"), Chip-n-Saw (9-11.9"), Sawtimber (12"+)
+    - **Hardwood (SPCD >= 300)**: Pulpwood (5-10.9"), Sawtimber (11"+)

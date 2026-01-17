@@ -67,3 +67,17 @@ DESCRIPTIVE_SIZE_CLASSES: Dict[str, Tuple[float, float]] = {
     "Medium": (10.0, 20.0),
     "Large": (20.0, float("inf")),
 }
+
+# Timber market size classes (based on TimberMart-South categories)
+# Pine/Softwood (SPCD < 300)
+MARKET_SIZE_CLASSES_PINE: Dict[str, Tuple[float, float]] = {
+    "Pulpwood": (5.0, 9.0),
+    "Chip-n-Saw": (9.0, 12.0),
+    "Sawtimber": (12.0, float("inf")),
+}
+
+# Hardwood (SPCD >= 300) - no Chip-n-Saw category
+MARKET_SIZE_CLASSES_HARDWOOD: Dict[str, Tuple[float, float]] = {
+    "Pulpwood": (5.0, 11.0),
+    "Sawtimber": (11.0, float("inf")),
+}

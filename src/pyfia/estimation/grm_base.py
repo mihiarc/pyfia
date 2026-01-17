@@ -6,6 +6,7 @@ and removals estimation using FIA's GRM tables.
 """
 
 import logging
+import warnings
 from typing import List, Literal, Optional
 
 import polars as pl
@@ -33,6 +34,40 @@ class GRMBaseEstimator(BaseEstimator):
         """Initialize the GRM base estimator."""
         super().__init__(db, config)
         self._grm_columns = None
+        # Ensure EVALID filter is set for GRM estimation
+        self._ensure_grm_evalid_filter()
+
+    def _ensure_grm_evalid_filter(self) -> None:
+        """
+        Ensure an EVALID filter is set for GRM estimation.
+
+        GRM estimates (growth, mortality, removals) require filtering to a specific
+        EVALID to avoid counting trees multiple times across different evaluations.
+        If no EVALID is set, this method auto-filters to the most recent GRM
+        evaluation and warns the user.
+
+        Without this filter, totals (e.g., MORT_TOTAL) can be ~60x too high because
+        the same trees appear in multiple EVALIDs across different annual evaluations.
+        Per-acre values remain correct because the inflation cancels in the ratio.
+        """
+        if self.db.evalid is None:
+            warnings.warn(
+                f"No EVALID filter set for {self.component_type} estimation. "
+                "Auto-filtering to most recent GRM evaluation (EXPGROW/EXPMORT/EXPREMV). "
+                "To avoid this warning, call db.clip_by_evalid(evalid) or "
+                "db.clip_most_recent(eval_type='GRM') before calling estimation functions.",
+                UserWarning,
+                stacklevel=4,  # Point to user's code calling mortality()/growth()/removals()
+            )
+            try:
+                self.db.clip_most_recent(eval_type="GRM")
+            except Exception as e:
+                # If auto-filter fails, raise a clear error
+                raise ValueError(
+                    f"Could not auto-filter to GRM evaluation for {self.component_type} "
+                    f"estimation: {e}. Please set an EVALID explicitly using "
+                    "db.clip_by_evalid(evalid) or db.clip_most_recent(eval_type='GRM')."
+                ) from e
 
     @property
     def component_type(self) -> Literal["growth", "mortality", "removals"]:

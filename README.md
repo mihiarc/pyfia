@@ -1,23 +1,14 @@
 <div align="center">
-  <a href="https://fiatools.org"><img src="https://fiatools.org/logos/pyfia_logo.png" alt="pyFIA" width="400"></a>
+  <h1>pyFIA</h1>
 
   <p><strong>The Python API for forest inventory data</strong></p>
 
   <p>
-    <a href="https://fiatools.org"><img src="https://img.shields.io/badge/FIAtools-Ecosystem-2E7D32" alt="FIAtools Ecosystem"></a>
     <a href="https://pypi.org/project/pyfia/"><img src="https://img.shields.io/pypi/v/pyfia?color=006D6D&label=PyPI" alt="PyPI"></a>
     <a href="https://pypi.org/project/pyfia/"><img src="https://img.shields.io/pypi/dm/pyfia?color=006D6D&label=Downloads" alt="PyPI Downloads"></a>
-    <a href="https://pyfia.fiatools.org/"><img src="https://img.shields.io/badge/docs-pyfia.fiatools.org-006D6D" alt="Documentation"></a>
+    <a href="https://mihiarc.github.io/pyfia/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-006D6D" alt="Documentation"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-006D6D" alt="License: MIT"></a>
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-006D6D" alt="Python 3.11+"></a>
-  </p>
-
-  <p>
-    <strong>Part of the <a href="https://fiatools.org">FIAtools Python Ecosystem</a></strong><br>
-    <a href="https://fiatools.org/tools/pyfia/">pyFIA</a> ·
-    <a href="https://fiatools.org/tools/gridfia/">gridFIA</a> ·
-    <a href="https://fiatools.org/tools/pyfvs/">pyFVS</a> ·
-    <a href="https://fiatools.org/tools/askfia/">askFIA</a>
   </p>
 </div>
 
@@ -91,36 +82,7 @@ cd pyfia && pip install -e .[dev]
 
 ## Documentation
 
-📖 **Full docs:** [pyfia.fiatools.org](https://pyfia.fiatools.org/)
-
-## Integration with FIAtools
-
-pyFIA works seamlessly with other tools in the ecosystem:
-
-```python
-# Use pyFIA data with gridFIA for spatial analysis
-from pyfia import FIA
-from gridfia import GridFIA
-
-with FIA("database.duckdb") as db:
-    species_list = db.get_species_codes()
-
-api = GridFIA()
-api.download_species(state="NC", species_codes=species_list)
-```
-
-## The FIAtools Ecosystem
-
-PyFIA is part of the [FIAtools Python ecosystem](https://fiatools.org) - a unified suite of open-source tools for forest inventory applications:
-
-| Tool | Purpose | Key Features |
-|------|---------|--------------|
-| [**pyFIA**](https://fiatools.org) | Survey & plot data | DuckDB backend, 10-100x faster than EVALIDator |
-| [**gridFIA**](https://fiatools.org) | Spatial raster analysis | 327 species at 30m resolution, Zarr storage |
-| [**pyFVS**](https://fiatools.org) | Growth simulation | Chapman-Richards curves, yield projections |
-| [**askFIA**](https://fiatools.org) | AI interface | Natural language queries for forest data |
-
-**[Explore the full ecosystem at fiatools.org](https://fiatools.org)**
+Full documentation: [mihiarc.github.io/pyfia](https://mihiarc.github.io/pyfia/)
 
 ## Citation
 
@@ -129,7 +91,7 @@ PyFIA is part of the [FIAtools Python ecosystem](https://fiatools.org) - a unifi
   title = {pyFIA: A Python Library for Forest Inventory Applications},
   author = {Mihiar, Christopher},
   year = {2025},
-  url = {https://fiatools.org}
+  url = {https://github.com/mihiarc/pyfia}
 }
 ```
 
@@ -142,6 +104,5 @@ Developed in collaboration with USDA Forest Service Research & Development. pyFI
 ---
 
 <div align="center">
-  <a href="https://fiatools.org"><strong>fiatools.org</strong></a> · Python Ecosystem for Forest Inventory Applications<br>
-  <sub>Built by <a href="https://github.com/mihiarc">Chris Mihiar</a> · USDA Forest Service Southern Research Station</sub>
+  <sub>Built by <a href="https://github.com/mihiarc">Chris Mihiar</a></sub>
 </div>

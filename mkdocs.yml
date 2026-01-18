@@ -1,16 +1,13 @@
 site_name: PyFIA - Python API for Forest Inventory Applications
 site_description: High-performance Python library for USDA Forest Inventory and Analysis (FIA) data. Built on DuckDB and Polars for 10-100x faster analysis than EVALIDator.
 site_author: Christopher Mihiar
-site_url: https://pyfia.fiatools.org/
+site_url: https://mihiarc.github.io/pyfia/
 
 repo_url: https://github.com/mihiarc/pyfia
 repo_name: mihiarc/pyfia
 
 extra:
   social:
-    - icon: fontawesome/solid/globe
-      link: https://fiatools.org
-      name: FIAtools Ecosystem
     - icon: fontawesome/brands/github
       link: https://github.com/mihiarc/pyfia
     - icon: fontawesome/brands/python
@@ -19,7 +16,7 @@ extra:
     - name: keywords
       content: pyfia, python, fia, forest inventory, usda, forestry, duckdb, polars, biomass, carbon, timber, evalidator, forest analysis
     - name: author
-      content: Christopher Mihiar, USDA Forest Service
+      content: Christopher Mihiar
     - property: og:title
       content: PyFIA - Python API for Forest Inventory Applications
     - property: og:description
@@ -27,9 +24,7 @@ extra:
     - property: og:type
       content: website
     - property: og:url
-      content: https://pyfia.fiatools.org/
-    - property: og:image
-      content: https://fiatools.org/logos/pyfia_logo.png
+      content: https://mihiarc.github.io/pyfia/
     - property: og:site_name
       content: PyFIA Documentation
     - name: twitter:card

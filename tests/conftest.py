@@ -39,7 +39,8 @@ def georgia_db_path():
     """Path to the Georgia DuckDB database for testing.
 
     Uses PYFIA_DATABASE_PATH env var if set, otherwise looks for
-    data/georgia.duckdb relative to project root.
+    data/georgia.duckdb relative to project root. Falls back to MotherDuck
+    if MOTHERDUCK_TOKEN is set.
     """
     # Check environment variable first
     env_path = os.getenv("PYFIA_DATABASE_PATH")
@@ -57,13 +58,19 @@ def georgia_db_path():
         if path.exists():
             return path
 
+    # Check for MotherDuck token - return special marker for MotherDuck
+    if os.getenv("MOTHERDUCK_TOKEN"):
+        return "md:fia_ga_eval2023"
+
     pytest.skip("No FIA database found for testing")
 
 
 @pytest.fixture(scope="session")
 def georgia_db(georgia_db_path):
     """Session-scoped FIA database connection for Georgia data."""
-    db = FIA(str(georgia_db_path))
+    # Handle both Path objects and MotherDuck connection strings
+    db_path = georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    db = FIA(db_path)
     yield db
     db.close()
 
@@ -71,7 +78,8 @@ def georgia_db(georgia_db_path):
 @pytest.fixture
 def fia_db(georgia_db_path):
     """Function-scoped FIA database for tests that modify state."""
-    db = FIA(str(georgia_db_path))
+    db_path = georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    db = FIA(db_path)
     yield db
     db.close()
 
@@ -79,7 +87,8 @@ def fia_db(georgia_db_path):
 @pytest.fixture
 def georgia_fia(georgia_db_path):
     """FIA instance clipped to Georgia most recent evaluation."""
-    db = FIA(str(georgia_db_path))
+    db_path = georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    db = FIA(db_path)
     db.clip_by_state(13, most_recent=True)
     yield db
     db.close()

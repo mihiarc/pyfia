@@ -583,6 +583,10 @@ class TestAreaChangeIntegration:
         if default_path.exists():
             return str(default_path)
 
+        # Fall back to MotherDuck if token available
+        if os.getenv("MOTHERDUCK_TOKEN"):
+            return "md:fia_ga_eval2023"
+
         pytest.skip("No FIA database found")
 
     def test_area_change_basic(self, fia_db):
@@ -748,6 +752,10 @@ class TestAreaChangeEdgeCases:
         default_path = Path("data/georgia.duckdb")
         if default_path.exists():
             return str(default_path)
+
+        # Fall back to MotherDuck if token available
+        if os.getenv("MOTHERDUCK_TOKEN"):
+            return "md:fia_ga_eval2023"
 
         pytest.skip("No FIA database found")
 

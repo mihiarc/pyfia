@@ -132,7 +132,10 @@ def compare_panel_to_removals(
     # === Load panel data ===
     # Panel now uses GRM tables directly, matching the tree_type/land_type
     # to the correct GRM column suffixes
-    with FIA(db) as fia_db:
+    # Get path from FIA instance if needed
+    db_path = db.db_path if isinstance(db, FIA) else db
+
+    with FIA(db_path) as fia_db:
         # === Method depends on expand flag ===
         if expand:
             # Use proper per-acre expansion from panel()
@@ -576,7 +579,10 @@ def diagnose_panel_removals_diff(
     pl.DataFrame
         Tree fate counts showing distribution of fates
     """
-    with FIA(db) as fia_db:
+    # Get path from FIA instance if needed
+    db_path = db.db_path if isinstance(db, FIA) else db
+
+    with FIA(db_path) as fia_db:
         # Get panel data with tree fate from GRM
         panel_data = panel(
             fia_db,

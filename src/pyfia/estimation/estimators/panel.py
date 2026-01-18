@@ -605,12 +605,12 @@ class PanelBuilder:
         measure = self.config.get("measure", "tpa")
 
         if measure == "volume":
-            value_col = "t2_VOLCFNET"
+            value_col: str | None = "t2_VOLCFNET"
             # Check if volume column exists
             schema = data.collect_schema().names()
             if value_col not in schema:
                 value_col = "VOLCFNET" if "VOLCFNET" in schema else None
-            if value_col:
+            if value_col is not None:
                 data = data.with_columns([
                     (
                         pl.col("TPA_UNADJ").cast(pl.Float64)

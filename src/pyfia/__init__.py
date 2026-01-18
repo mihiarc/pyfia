@@ -57,6 +57,7 @@ from pyfia.estimation.estimators.growth import growth
 from pyfia.estimation.estimators.mortality import mortality
 from pyfia.estimation.estimators.panel import panel
 from pyfia.estimation.estimators.removals import removals
+from pyfia.estimation.estimators.site_index import site_index
 from pyfia.estimation.estimators.tpa import tpa
 from pyfia.estimation.estimators.volume import volume
 
@@ -115,6 +116,7 @@ __all__ = [
     "growth",
     "panel",
     "removals",
+    "site_index",
     # Reference table utilities
     "join_forest_type_names",
     "join_species_names",

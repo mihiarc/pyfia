@@ -14,6 +14,7 @@ Public API Functions:
     growth(): Estimate tree growth
     mortality(): Estimate tree mortality
     removals(): Estimate tree removals
+    site_index(): Estimate area-weighted mean site index
     tpa(): Estimate trees per acre and basal area
     volume(): Estimate tree volume
 
@@ -41,6 +42,7 @@ from .estimators import (
     growth,
     mortality,
     removals,
+    site_index,
     tpa,
     volume,
 )
@@ -58,6 +60,7 @@ __all__ = [
     "growth",
     "mortality",
     "removals",
+    "site_index",
     "tpa",
     "volume",
 ]

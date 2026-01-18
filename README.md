@@ -54,6 +54,7 @@ with FIA("path/to/FIA_database.duckdb") as db:
 | `biomass()` | Above/belowground biomass | `biomass(db, by_species=True)` |
 | `volume()` | Merchantable volume (ft³) | `volume(db, land_type="timber")` |
 | `area()` | Forest land area | `area(db, grp_by="FORTYPCD")` |
+| `site_index()` | Site productivity index | `site_index(db, grp_by="COUNTYCD")` |
 | `mortality()` | Annual mortality rates | `mortality(db)` |
 | `growth()` | Net growth estimation | `growth(db)` |
 

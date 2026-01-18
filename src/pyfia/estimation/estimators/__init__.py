@@ -20,6 +20,7 @@ from .panel_validation import (
     validate_panel_harvest,
 )
 from .removals import RemovalsEstimator, removals
+from .site_index import SiteIndexEstimator, site_index
 from .tpa import TPAEstimator, tpa
 from .volume import VolumeEstimator, volume
 
@@ -35,6 +36,7 @@ __all__ = [
     "mortality",
     "panel",
     "removals",
+    "site_index",
     "tpa",
     "volume",
     # Panel validation functions
@@ -51,6 +53,7 @@ __all__ = [
     "MortalityEstimator",
     "PanelBuilder",
     "RemovalsEstimator",
+    "SiteIndexEstimator",
     "TPAEstimator",
     "VolumeEstimator",
 ]

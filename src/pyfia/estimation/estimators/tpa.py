@@ -15,7 +15,7 @@ from ..base import AggregationResult, BaseEstimator
 from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import validate_estimator_inputs
+from ..utils import ensure_evalid_set, validate_estimator_inputs
 
 if TYPE_CHECKING:
     from ...core import FIA
@@ -369,8 +369,8 @@ def tpa(
     Parameters
     ----------
     db : FIA
-        FIA database connection object. Must have EVALID set to prevent
-        overcounting from multiple evaluations.
+        FIA database connection object. If EVALID is not set, the function
+        automatically selects the most recent EXPVOL evaluation with a warning.
     grp_by : str or list of str, optional
         Column name(s) to group results by. Can be any column from the
         TREE, PLOT, and COND tables. Common grouping columns include:
@@ -541,10 +541,10 @@ def tpa(
     that can be orders of magnitude wrong. This is a core requirement of FIA's
     design-based estimation methodology, not an implementation choice.
 
-    **EVALID Requirements:**
-    The FIA database must have EVALID set before calling this function.
-    Use db.clip_by_evalid() or db.clip_most_recent() to select appropriate
-    evaluations and prevent overcounting from multiple evaluations.
+    **EVALID Handling:**
+    If no EVALID is specified, the function automatically selects the most
+    recent EXPVOL evaluation to prevent overcounting from multiple evaluations.
+    For explicit control, use db.clip_by_evalid() before calling tpa().
 
     **Plot Size Adjustments:**
     FIA uses different plot sizes for different tree sizes:
@@ -588,8 +588,7 @@ def tpa(
     >>> from pyfia import FIA, tpa
     >>> db = FIA("path/to/fia.duckdb")
     >>> db.clip_by_state(37)  # North Carolina
-    >>> db.clip_most_recent(eval_type="VOL")  # Required: select EVALID
-    >>> results = tpa(db, land_type="forest")
+    >>> results = tpa(db, land_type="forest")  # Auto-selects EVALID
     >>> print(f"TPA: {results['TPA'][0]:.1f} trees/acre")
     >>> print(f"BAA: {results['BAA'][0]:.1f} sq ft/acre")
 
@@ -671,12 +670,9 @@ def tpa(
     by_species = validate_boolean(by_species, "by_species")
     by_size_class = validate_boolean(by_size_class, "by_size_class")
 
-    # Validate EVALID is set (tpa requires explicit EVALID, no auto-selection)
-    if db.evalid is None:
-        raise ValueError(
-            "EVALID must be set before calling tpa(). "
-            "Use db.clip_by_evalid() or db.clip_most_recent() to select evaluations."
-        )
+    # Ensure EVALID is set using shared utility
+    # Use "VOL" for TPA/BAA estimation (EXPVOL evaluations)
+    ensure_evalid_set(db, eval_type="VOL", estimator_name="tpa")
 
     # Create config using validated inputs
     config = {

@@ -101,7 +101,8 @@ class TestPanelTreeLevel:
             assert len(result) > 0
 
             # Check required columns exist
-            required_cols = ["PLT_CN", "PREV_PLT_CN", "PREV_TRE_CN", "TREE_FATE"]
+            # Note: GRM-based panels use TRE_CN, not PREV_TRE_CN
+            required_cols = ["PLT_CN", "PREV_PLT_CN", "TRE_CN", "TREE_FATE"]
             for col in required_cols:
                 assert col in result.columns, f"Missing column: {col}"
 

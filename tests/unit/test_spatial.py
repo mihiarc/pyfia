@@ -33,13 +33,23 @@ def _get_test_db_path() -> str | Path | None:
     if default_path.exists():
         return default_path
 
+    # Fall back to MotherDuck if token available
+    if os.getenv("MOTHERDUCK_TOKEN"):
+        return "md:fia_ga_eval2023"
+
     return None
 
 
 def _is_motherduck() -> bool:
     """Check if tests are running against MotherDuck."""
     env_path = os.getenv("PYFIA_DATABASE_PATH", "")
-    return env_path.startswith("md:") or env_path.startswith("motherduck:")
+    if env_path.startswith("md:") or env_path.startswith("motherduck:"):
+        return True
+    # Also check if falling back to MotherDuck (no local DB but token available)
+    db_path = _get_test_db_path()
+    if isinstance(db_path, str) and (db_path.startswith("md:") or db_path.startswith("motherduck:")):
+        return True
+    return False
 
 
 # Skip marker for tests that require local DuckDB with spatial extension

@@ -432,6 +432,10 @@ class TestCarbonFluxIntegration:
         if default_path.exists():
             return str(default_path)
 
+        # Fall back to MotherDuck if token available
+        if os.getenv("MOTHERDUCK_TOKEN"):
+            return "md:fia_ga_eval2023"
+
         pytest.skip("No FIA database found")
 
     def test_carbon_flux_basic(self, fia_db):

@@ -34,6 +34,10 @@ def _find_database() -> Path | str | None:
         if path.exists():
             return path
 
+    # Fall back to MotherDuck if token available
+    if os.getenv("MOTHERDUCK_TOKEN"):
+        return "md:fia_ga_eval2023"
+
     return None
 
 

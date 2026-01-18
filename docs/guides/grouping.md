@@ -142,12 +142,21 @@ result = mortality(db, by_size_class=True, size_class_type="standard")
 result = mortality(db, by_size_class=True, size_class_type="descriptive")
 
 # Timber market categories (TimberMart-South style)
-# Pine: Pulpwood, Chip-n-Saw, Sawtimber
-# Hardwood: Pulpwood, Sawtimber
+# All species: Pre-merchantable (< 5" DBH)
+# Pine: Pulpwood (5-8.9"), Chip-n-Saw (9-11.9"), Sawtimber (12"+)
+# Hardwood: Pulpwood (5-10.9"), Sawtimber (11"+)
 result = removals(db, by_size_class=True, size_class_type="market")
+
+# Include pre-merchantable trees (requires tree_type="live")
+result = mortality(
+    db,
+    tree_type="live",  # Include all live trees, not just growing stock
+    by_size_class=True,
+    size_class_type="market"
+)
 ```
 
-The `"market"` size class type uses species-aware thresholds that align with timber pricing reports.
+The `"market"` size class type uses species-aware thresholds that align with timber pricing reports. Note that pre-merchantable trees (< 5" DBH) require `tree_type="live"` since growing stock defaults to ≥5" DBH.
 
 ## Combining Groupings
 

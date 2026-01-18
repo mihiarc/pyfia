@@ -8,9 +8,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **`panel()` function** - Create t1/t2 remeasurement panels from FIA data:
+  - Condition-level panels for harvest and area change analysis
+  - Tree-level panels with GRM-based tree fate classification (survivor, mortality, cut, diversion, ingrowth)
+  - Expansion factor support for per-acre estimates via `expand=True`
+  - Configurable filters: `min_remper`, `max_remper`, `min_invyr`, `harvest_only`
+- **`by_size_class` parameter for GRM estimators** - Group mortality, growth, and removals by diameter class:
+  - `size_class_type="market"`: Pre-merchantable, Pulpwood, Chip-n-Saw, Sawtimber (species-aware)
+  - `size_class_type="standard"`: FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
+  - `size_class_type="descriptive"`: Saplings, Small, Medium, Large
+- **Pre-merchantable tree support** - Trees <5" DBH now supported in mortality estimation (fixes #67):
+  - Use `tree_type="live"` to include all live trees
+  - Properly categorized as "Pre-merchantable" in market size classes
+  - TPA recommended for small trees (FIA doesn't calculate volume for <5" DBH)
 - **AGENTCD grouping in mortality()** - Group mortality estimates by cause of death (tree-level)
 - **DSTRBCD grouping in mortality()** - Group mortality estimates by disturbance code (condition-level)
 - Example script `examples/mortality_by_cause.py` for timber casualty loss analysis
+
+### Fixed
+- **GRM totals ~60x too high when EVALID not set** - Trees were counted multiple times across all annual evaluations. Now auto-filters to most recent GRM evaluation with warning.
+- **`area_domain` filter not applied in `area()` function** - Domain filters were being ignored
+- **SQL injection vulnerabilities** - Fixed high-severity security issues in query construction
+- **UNITCD not included when using AGENTCD grouping** - Missing grouping column in mortality output
+- **Table caching bug** - Tables now reload when new columns are needed
+- **Null rows in area estimation grouped output** - Fixed null rows appearing in results
+- **COND table caching after other estimators** - Fixed stale cache issues
+
+### Changed
+- Refactored estimators to use centralized column resolution and data loading modules
+- Improved error handling with custom exception hierarchy
+- Enhanced type hints and validation across estimation module
 
 ## [1.1.0b1] - 2025-12-23
 

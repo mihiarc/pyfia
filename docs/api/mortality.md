@@ -142,10 +142,33 @@ print(result)
 |------|-------------|------------|
 | `"standard"` | FIA numeric ranges | 1.0-4.9, 5.0-9.9, 10.0-19.9, 20.0-29.9, 30.0+ |
 | `"descriptive"` | Text labels | Saplings, Small, Medium, Large |
-| `"market"` | Timber market categories | Pulpwood, Chip-n-Saw (pine only), Sawtimber |
+| `"market"` | Timber market categories | Pre-merchantable, Pulpwood, Chip-n-Saw (pine only), Sawtimber |
 
 !!! note "Market Size Classes"
     Market size classes use species-aware thresholds based on TimberMart-South:
 
+    - **Pre-merchantable (all species)**: < 5.0" DBH
     - **Pine/Softwood (SPCD < 300)**: Pulpwood (5-8.9"), Chip-n-Saw (9-11.9"), Sawtimber (12"+)
     - **Hardwood (SPCD >= 300)**: Pulpwood (5-10.9"), Sawtimber (11"+)
+
+### Pre-merchantable Tree Mortality
+
+By default, `mortality()` only includes growing stock trees (≥5" DBH). To analyze mortality of smaller trees, use `tree_type="live"`:
+
+```python
+# Include pre-merchantable trees (1.0" to 4.9" DBH)
+result = pyfia.mortality(
+    db,
+    tree_type="live",  # Include all live trees, not just growing stock
+    by_size_class=True,
+    size_class_type="market",
+    measure="tpa"  # TPA recommended for small trees
+)
+
+# Filter to pre-merchantable only
+import polars as pl
+premerch = result.filter(pl.col("SIZE_CLASS") == "Pre-merchantable")
+```
+
+!!! warning "Volume not available for small trees"
+    FIA does not calculate volume for trees < 5" DBH. Use `measure="tpa"` or `measure="count"` when analyzing pre-merchantable mortality.

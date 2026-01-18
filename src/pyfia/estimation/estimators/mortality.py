@@ -59,7 +59,11 @@ class MortalityEstimator(GRMBaseEstimator):
                 grp_by = [grp_by]
             plot_schema = plot.collect_schema().names()
             for col in grp_by:
-                if col in PLOT_GROUPING_COLUMNS and col in plot_schema and col not in plot_cols:
+                if (
+                    col in PLOT_GROUPING_COLUMNS
+                    and col in plot_schema
+                    and col not in plot_cols
+                ):
                     plot_cols.append(col)
 
         plot = plot.select(plot_cols)

@@ -170,7 +170,9 @@ def compare_panel_to_removals(
                 panel_estimate = panel_expanded["PER_ACRE"][0]
             else:
                 # Try to find the per-acre column
-                per_acre_cols = [c for c in panel_expanded.columns if "ACRE" in c.upper()]
+                per_acre_cols = [
+                    c for c in panel_expanded.columns if "ACRE" in c.upper()
+                ]
                 if per_acre_cols:
                     panel_estimate = panel_expanded[per_acre_cols[0]][0]
                 else:
@@ -180,13 +182,17 @@ def compare_panel_to_removals(
                     )
 
             panel_cut_trees = panel_raw.height
-            avg_remper = panel_raw["REMPER"].mean() if "REMPER" in panel_raw.columns else 5.0
+            avg_remper = (
+                panel_raw["REMPER"].mean() if "REMPER" in panel_raw.columns else 5.0
+            )
 
-            panel_agg = pl.DataFrame({
-                "PANEL_CUT_TREES": [panel_cut_trees],
-                "PANEL_ANNUALIZED": [panel_estimate],
-                "AVG_REMPER": [avg_remper],
-            })
+            panel_agg = pl.DataFrame(
+                {
+                    "PANEL_CUT_TREES": [panel_cut_trees],
+                    "PANEL_ANNUALIZED": [panel_estimate],
+                    "AVG_REMPER": [avg_remper],
+                }
+            )
 
         else:
             # Original method: raw TPA_UNADJ without proper expansion
@@ -228,7 +234,9 @@ def compare_panel_to_removals(
                 if has_tpa:
                     # Calculate sum of TPA_UNADJ and average REMPER
                     if group_cols:
-                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        available_group_cols = [
+                            c for c in group_cols if c in cut_trees.columns
+                        ]
                         if not available_group_cols:
                             raise ValueError(
                                 f"None of the grouping columns {group_cols} found in panel data. "
@@ -255,15 +263,17 @@ def compare_panel_to_removals(
                     # Divide by n_plots for per-plot (≈per-acre) average
                     panel_agg = panel_agg.with_columns(
                         [
-                            (pl.col("PANEL_TPA_SUM") / pl.col("AVG_REMPER") / n_plots).alias(
-                                "PANEL_ANNUALIZED"
-                            )
+                            (
+                                pl.col("PANEL_TPA_SUM") / pl.col("AVG_REMPER") / n_plots
+                            ).alias("PANEL_ANNUALIZED")
                         ]
                     )
                 else:
                     # Fallback to raw counts if no TPA column
                     if group_cols:
-                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        available_group_cols = [
+                            c for c in group_cols if c in cut_trees.columns
+                        ]
                         panel_agg = cut_trees.group_by(available_group_cols).agg(
                             [
                                 pl.len().alias("PANEL_CUT_TREES"),
@@ -302,11 +312,15 @@ def compare_panel_to_removals(
                 if has_tpa:
                     # Proper volume per acre: TPA * volume
                     if group_cols:
-                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        available_group_cols = [
+                            c for c in group_cols if c in cut_trees.columns
+                        ]
                         panel_agg = cut_trees.group_by(available_group_cols).agg(
                             [
                                 pl.len().alias("PANEL_CUT_TREES"),
-                                (pl.col(tpa_col) * pl.col(vol_col)).sum().alias("PANEL_VOL_SUM"),
+                                (pl.col(tpa_col) * pl.col(vol_col))
+                                .sum()
+                                .alias("PANEL_VOL_SUM"),
                                 pl.col("REMPER").mean().alias("AVG_REMPER"),
                             ]
                         )
@@ -314,7 +328,9 @@ def compare_panel_to_removals(
                         panel_agg = cut_trees.select(
                             [
                                 pl.len().alias("PANEL_CUT_TREES"),
-                                (pl.col(tpa_col) * pl.col(vol_col)).sum().alias("PANEL_VOL_SUM"),
+                                (pl.col(tpa_col) * pl.col(vol_col))
+                                .sum()
+                                .alias("PANEL_VOL_SUM"),
                                 pl.col("REMPER").mean().alias("AVG_REMPER"),
                             ]
                         )
@@ -328,7 +344,9 @@ def compare_panel_to_removals(
                 else:
                     # Fallback without TPA
                     if group_cols:
-                        available_group_cols = [c for c in group_cols if c in cut_trees.columns]
+                        available_group_cols = [
+                            c for c in group_cols if c in cut_trees.columns
+                        ]
                         panel_agg = cut_trees.group_by(available_group_cols).agg(
                             [
                                 pl.len().alias("PANEL_CUT_TREES"),
@@ -373,7 +391,11 @@ def compare_panel_to_removals(
         if removals_col is None:
             # Try TOTAL if no PER_ACRE (we'll note this mismatch)
             for col in removals_data.columns:
-                if "REMOVALS" in col.upper() and "SE" not in col.upper() and "TOTAL" in col.upper():
+                if (
+                    "REMOVALS" in col.upper()
+                    and "SE" not in col.upper()
+                    and "TOTAL" in col.upper()
+                ):
                     removals_col = col
                     break
 
@@ -397,9 +419,7 @@ def compare_panel_to_removals(
     if group_cols:
         available_group_cols = [c for c in group_cols if c in panel_agg.columns]
         # Find matching columns in removals
-        removals_group_cols = [
-            c for c in group_cols if c in removals_data.columns
-        ]
+        removals_group_cols = [c for c in group_cols if c in removals_data.columns]
 
         if available_group_cols and removals_group_cols:
             # Join on common group columns
@@ -413,11 +433,19 @@ def compare_panel_to_removals(
             else:
                 # No common columns, create cross comparison
                 comparison = panel_agg.with_columns(
-                    [pl.lit(removals_data["REMOVALS_ESTIMATE"][0]).alias("REMOVALS_ESTIMATE")]
+                    [
+                        pl.lit(removals_data["REMOVALS_ESTIMATE"][0]).alias(
+                            "REMOVALS_ESTIMATE"
+                        )
+                    ]
                 )
         else:
             comparison = panel_agg.with_columns(
-                [pl.lit(removals_data["REMOVALS_ESTIMATE"][0]).alias("REMOVALS_ESTIMATE")]
+                [
+                    pl.lit(removals_data["REMOVALS_ESTIMATE"][0]).alias(
+                        "REMOVALS_ESTIMATE"
+                    )
+                ]
             )
     else:
         # No grouping - simple comparison
@@ -446,7 +474,9 @@ def compare_panel_to_removals(
             .otherwise(pl.lit(1.0))
             .alias("RATIO"),
             # Absolute difference
-            (pl.col("PANEL_ANNUALIZED") - pl.col("REMOVALS_ESTIMATE")).alias("ABS_DIFF"),
+            (pl.col("PANEL_ANNUALIZED") - pl.col("REMOVALS_ESTIMATE")).alias(
+                "ABS_DIFF"
+            ),
         ]
     )
 
@@ -454,9 +484,7 @@ def compare_panel_to_removals(
         [
             # Percentage difference
             pl.when(pl.col("REMOVALS_ESTIMATE") > 0)
-            .then(
-                (pl.col("ABS_DIFF") / pl.col("REMOVALS_ESTIMATE") * 100).abs()
-            )
+            .then((pl.col("ABS_DIFF") / pl.col("REMOVALS_ESTIMATE") * 100).abs())
             .otherwise(pl.lit(100.0))
             .alias("PCT_DIFF"),
             # Status classification
@@ -601,7 +629,9 @@ def diagnose_panel_removals_diff(
         )
 
         if verbose:
-            console.print("\n[bold]Tree Fate Distribution (from GRM-based panel):[/bold]")
+            console.print(
+                "\n[bold]Tree Fate Distribution (from GRM-based panel):[/bold]"
+            )
             table = Table(show_header=True, header_style="bold cyan")
             table.add_column("Tree Fate")
             table.add_column("Count", justify="right")
@@ -620,7 +650,7 @@ def diagnose_panel_removals_diff(
         )
 
         if verbose:
-            console.print(f"\n[bold]Removal Trees Analysis:[/bold]")
+            console.print("\n[bold]Removal Trees Analysis:[/bold]")
             console.print(f"Total removal trees: {len(removal_trees):,}")
 
             # Break down by cut vs diversion
@@ -633,7 +663,11 @@ def diagnose_panel_removals_diff(
             # Show GRM component distribution if available
             if "COMPONENT" in removal_trees.columns:
                 console.print("\n[bold]GRM Component Breakdown:[/bold]")
-                comp_counts = removal_trees.group_by("COMPONENT").len().sort("len", descending=True)
+                comp_counts = (
+                    removal_trees.group_by("COMPONENT")
+                    .len()
+                    .sort("len", descending=True)
+                )
                 for row in comp_counts.iter_rows(named=True):
                     console.print(f"  - {row['COMPONENT']}: {row['len']:,}")
 
@@ -642,7 +676,9 @@ def diagnose_panel_removals_diff(
             sample = removal_trees.head(sample_size)
 
             if verbose:
-                console.print(f"\n[bold]Sample of {min(sample_size, len(removal_trees))} removal trees:[/bold]")
+                console.print(
+                    f"\n[bold]Sample of {min(sample_size, len(removal_trees))} removal trees:[/bold]"
+                )
 
                 sample_cols = ["PLT_CN", "TRE_CN", "TREE_FATE"]
                 if "COMPONENT" in sample.columns:

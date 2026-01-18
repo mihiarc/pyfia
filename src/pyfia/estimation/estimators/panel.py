@@ -26,8 +26,11 @@ from ...validation import (
     validate_domain_expression,
     validate_land_type,
 )
-from ..grm import resolve_grm_columns, normalize_tree_type, normalize_land_type, apply_grm_adjustment
 from ..aggregation import apply_two_stage_aggregation
+from ..grm import (
+    apply_grm_adjustment,
+    resolve_grm_columns,
+)
 
 
 class PanelBuilder:
@@ -473,11 +476,13 @@ class PanelBuilder:
 
         # Rename columns with t2_ prefix for consistency
         # (GRM MIDPT values are midpoint estimates between t1 and t2)
-        data = data.rename({
-            "DIA": "t2_DIA",
-            "STATUSCD": "t2_STATUSCD",
-            "VOLCFNET": "t2_VOLCFNET",
-        })
+        data = data.rename(
+            {
+                "DIA": "t2_DIA",
+                "STATUSCD": "t2_STATUSCD",
+                "VOLCFNET": "t2_VOLCFNET",
+            }
+        )
 
         # Rename biomass columns if present
         schema = data.collect_schema().names()
@@ -490,9 +495,11 @@ class PanelBuilder:
 
         # Create t1_ columns from DIA_BEGIN
         if "DIA_BEGIN" in data.collect_schema().names():
-            data = data.with_columns([
-                pl.col("DIA_BEGIN").alias("t1_DIA"),
-            ])
+            data = data.with_columns(
+                [
+                    pl.col("DIA_BEGIN").alias("t1_DIA"),
+                ]
+            )
 
         # Apply tree domain filter
         data = self._apply_tree_domain_filter(data)
@@ -567,16 +574,20 @@ class PanelBuilder:
             cond = cond.lazy()
 
         # Aggregate CONDPROP to plot level (sum of all condition proportions)
-        cond_agg = cond.group_by("PLT_CN").agg([
-            pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
-        ])
+        cond_agg = cond.group_by("PLT_CN").agg(
+            [
+                pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
+            ]
+        )
 
         data = data.join(cond_agg, on="PLT_CN", how="left")
 
         # Fill null CONDPROP with 1.0 (assume full plot if missing)
-        data = data.with_columns([
-            pl.col("CONDPROP_UNADJ").fill_null(1.0).alias("CONDPROP_UNADJ"),
-        ])
+        data = data.with_columns(
+            [
+                pl.col("CONDPROP_UNADJ").fill_null(1.0).alias("CONDPROP_UNADJ"),
+            ]
+        )
 
         return data
 
@@ -611,28 +622,34 @@ class PanelBuilder:
             if value_col not in schema:
                 value_col = "VOLCFNET" if "VOLCFNET" in schema else None
             if value_col is not None:
-                data = data.with_columns([
-                    (
-                        pl.col("TPA_UNADJ").cast(pl.Float64)
-                        * pl.col(value_col).cast(pl.Float64)
-                        * pl.col("ADJ_FACTOR").cast(pl.Float64)
-                    ).alias("VALUE_ADJ")
-                ])
+                data = data.with_columns(
+                    [
+                        (
+                            pl.col("TPA_UNADJ").cast(pl.Float64)
+                            * pl.col(value_col).cast(pl.Float64)
+                            * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                        ).alias("VALUE_ADJ")
+                    ]
+                )
             else:
                 # Fall back to TPA if no volume available
-                data = data.with_columns([
+                data = data.with_columns(
+                    [
+                        (
+                            pl.col("TPA_UNADJ").cast(pl.Float64)
+                            * pl.col("ADJ_FACTOR").cast(pl.Float64)
+                        ).alias("VALUE_ADJ")
+                    ]
+                )
+        else:  # TPA
+            data = data.with_columns(
+                [
                     (
                         pl.col("TPA_UNADJ").cast(pl.Float64)
                         * pl.col("ADJ_FACTOR").cast(pl.Float64)
                     ).alias("VALUE_ADJ")
-                ])
-        else:  # TPA
-            data = data.with_columns([
-                (
-                    pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * pl.col("ADJ_FACTOR").cast(pl.Float64)
-                ).alias("VALUE_ADJ")
-            ])
+                ]
+            )
 
         # Apply two-stage aggregation
         metric_mappings = {"VALUE_ADJ": "CONDITION_VALUE"}
@@ -842,20 +859,22 @@ class PanelBuilder:
 
         # Map GRM components to tree fates
         # Use str.starts_with for flexibility with component naming
-        return data.with_columns([
-            pl.when(pl.col("COMPONENT") == "SURVIVOR")
-            .then(pl.lit("survivor"))
-            .when(pl.col("COMPONENT").str.starts_with("MORTALITY"))
-            .then(pl.lit("mortality"))
-            .when(pl.col("COMPONENT").str.starts_with("CUT"))
-            .then(pl.lit("cut"))
-            .when(pl.col("COMPONENT").str.starts_with("DIVERSION"))
-            .then(pl.lit("diversion"))
-            .when(pl.col("COMPONENT") == "INGROWTH")
-            .then(pl.lit("ingrowth"))
-            .otherwise(pl.lit("other"))
-            .alias("TREE_FATE")
-        ])
+        return data.with_columns(
+            [
+                pl.when(pl.col("COMPONENT") == "SURVIVOR")
+                .then(pl.lit("survivor"))
+                .when(pl.col("COMPONENT").str.starts_with("MORTALITY"))
+                .then(pl.lit("mortality"))
+                .when(pl.col("COMPONENT").str.starts_with("CUT"))
+                .then(pl.lit("cut"))
+                .when(pl.col("COMPONENT").str.starts_with("DIVERSION"))
+                .then(pl.lit("diversion"))
+                .when(pl.col("COMPONENT") == "INGROWTH")
+                .then(pl.lit("ingrowth"))
+                .otherwise(pl.lit("other"))
+                .alias("TREE_FATE")
+            ]
+        )
 
     # Note: _infer_cut_from_harvest() has been removed.
     # Tree fate classification is now handled entirely by GRM COMPONENT,

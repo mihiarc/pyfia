@@ -11,9 +11,9 @@ from typing import List, Literal, Optional
 
 import polars as pl
 
+from ..filtering.utils import create_size_class_expr
 from .base import AggregationResult, BaseEstimator
 from .columns import get_cond_columns as _get_cond_columns
-from ..filtering.utils import create_size_class_expr
 
 logger = logging.getLogger(__name__)
 

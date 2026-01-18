@@ -167,7 +167,14 @@ class GrowthEstimator(GRMBaseEstimator):
             plot = plot.lazy()
 
         # Base plot columns always needed
-        plot_cols = ["CN", "STATECD", "INVYR", "PREV_PLT_CN", "MACRO_BREAKPOINT_DIA", "REMPER"]
+        plot_cols = [
+            "CN",
+            "STATECD",
+            "INVYR",
+            "PREV_PLT_CN",
+            "MACRO_BREAKPOINT_DIA",
+            "REMPER",
+        ]
 
         # Add any plot-level grouping columns from grp_by
         grp_by = self.config.get("grp_by")
@@ -176,7 +183,11 @@ class GrowthEstimator(GRMBaseEstimator):
                 grp_by = [grp_by]
             plot_schema = plot.collect_schema().names()
             for col in grp_by:
-                if col in PLOT_GROUPING_COLUMNS and col in plot_schema and col not in plot_cols:
+                if (
+                    col in PLOT_GROUPING_COLUMNS
+                    and col in plot_schema
+                    and col not in plot_cols
+                ):
                     plot_cols.append(col)
 
         plot = plot.select(plot_cols)

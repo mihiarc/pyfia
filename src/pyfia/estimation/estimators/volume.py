@@ -21,7 +21,6 @@ from ..utils import (
     format_output_columns,
     validate_estimator_inputs,
 )
-from ..variance import calculate_domain_total_variance
 
 
 class VolumeEstimator(BaseEstimator):
@@ -207,107 +206,37 @@ class VolumeEstimator(BaseEstimator):
         V(Ŷ) = Σ_h w_h² × s²_yh × n_h
 
         This matches EVALIDator's variance calculation for tree-based estimates.
-        The simpler domain total formula is appropriate because the y values already
-        incorporate expansion factors through the estimation pipeline.
 
         Raises
         ------
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        # Extract data from AggregationResult or use DataFrame directly
-        if isinstance(agg_result, AggregationResult):
-            results = agg_result.results
-            plot_tree_data = agg_result.plot_tree_data
-            group_cols = agg_result.group_cols
-        else:
-            # Backward compatibility: DataFrame passed directly
-            results = agg_result
-            plot_tree_data = None
-            group_cols = []
-
-        if plot_tree_data is None:
+        # Handle backward compatibility: DataFrame passed directly
+        if not isinstance(agg_result, AggregationResult):
             raise ValueError(
-                "Plot-tree data is required for volume variance calculation. "
-                "Cannot compute statistically valid standard errors without tree-level "
-                "measurements. Ensure data preservation is working correctly in the "
-                "estimation pipeline."
+                "Volume variance calculation requires AggregationResult. "
+                "DataFrame input is no longer supported."
             )
 
-        # Calculate variance for each group or overall
-        if group_cols:
-            # Use shared helper for grouped variance calculation
-            metric_mappings = {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
-            results = self._calculate_grouped_variance(
-                plot_tree_data,
-                results,
-                group_cols,
-                metric_mappings,
-            )
-        else:
-            # No grouping, calculate overall variance using domain total formula
-            plot_data = plot_tree_data.group_by(["PLT_CN", "STRATUM_CN", "EXPNS"]).agg(
-                [
-                    pl.sum("VOLUME_ADJ").alias("y_i"),
-                    pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),
-                ]
-            )
+        # Use unified variance calculation method
+        metric_configs = [
+            {
+                "adjusted_col": "VOLUME_ADJ",
+                "acre_se_col": "VOLUME_ACRE_SE",
+                "total_se_col": "VOLUME_TOTAL_SE",
+                "acre_var_col": "VOLUME_ACRE_VARIANCE",
+                "total_var_col": "VOLUME_TOTAL_VARIANCE",
+                "acre_col": "VOLUME_ACRE",
+                "total_col": "VOLUME_TOTAL",
+            }
+        ]
 
-            # CRITICAL: Include ALL plots in variance calculation (not just those with data)
-            # Plots without volume should contribute zeros, which affects the variance
-            strat_data = self._get_stratification_data()
-            all_plots = (
-                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-            )
-
-            # Join with all plots, filling missing with zeros
-            all_plots_with_values = all_plots.join(
-                plot_data.select(["PLT_CN", "y_i", "x_i"]),
-                on="PLT_CN",
-                how="left",
-            ).with_columns(
-                [
-                    pl.col("y_i").fill_null(0.0),
-                    pl.col("x_i").fill_null(0.0),
-                ]
-            )
-
-            var_stats = calculate_domain_total_variance(
-                all_plots_with_values, y_col="y_i"
-            )
-
-            # Calculate per-acre SE by dividing total SE by total area
-            total_area = (
-                all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
-            ).sum()
-            se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
-            variance_acre = (se_acre**2) if se_acre > 0 else 0.0
-
-            results = results.with_columns(
-                [
-                    pl.lit(se_acre).alias("VOLUME_ACRE_SE"),
-                    pl.lit(var_stats["se_total"]).alias("VOLUME_TOTAL_SE"),
-                    pl.lit(variance_acre).alias("VOLUME_ACRE_VARIANCE"),
-                    pl.lit(var_stats["variance_total"]).alias("VOLUME_TOTAL_VARIANCE"),
-                ]
-            )
-
-        # Add CV if requested
-        if self.config.get("include_cv", False):
-            results = results.with_columns(
-                [
-                    pl.when(pl.col("VOLUME_ACRE") > 0)
-                    .then(pl.col("VOLUME_ACRE_SE") / pl.col("VOLUME_ACRE") * 100)
-                    .otherwise(None)
-                    .alias("VOLUME_ACRE_CV"),
-                    pl.when(pl.col("VOLUME_TOTAL") > 0)
-                    .then(pl.col("VOLUME_TOTAL_SE") / pl.col("VOLUME_TOTAL") * 100)
-                    .otherwise(None)
-                    .alias("VOLUME_TOTAL_CV"),
-                ]
-            )
-
-        return results
+        return self._calculate_variance_for_metrics(
+            agg_result,
+            metric_configs,
+            include_cv=self.config.get("include_cv", False),
+        )
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format volume estimation output."""

@@ -918,6 +918,348 @@ class BaseEstimator(ABC):
         # Step 7: Join variance results back to main results
         return self._join_variance_to_results(results, variance_df, valid_group_cols)
 
+    def _calculate_variance_for_metrics(
+        self,
+        agg_result: AggregationResult,
+        metric_configs: list[dict[str, str]],
+        include_cv: bool = False,
+    ) -> pl.DataFrame:
+        """
+        Calculate variance for one or more metrics using domain total variance formula.
+
+        This is the unified variance calculation method that replaces duplicated code
+        across estimators. It handles both grouped and ungrouped cases, single and
+        multiple metrics, using vectorized operations where possible.
+
+        Implements the stratified domain total variance formula from Bechtold & Patterson (2005):
+        V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+
+        Parameters
+        ----------
+        agg_result : AggregationResult
+            Bundle containing results, plot_tree_data, and group_cols from
+            aggregate_results().
+        metric_configs : list of dict
+            List of metric configurations, each with keys:
+            - "adjusted_col": str - Column name in plot_tree_data (e.g., "VOLUME_ADJ")
+            - "acre_se_col": str - Output SE column name for per-acre (e.g., "VOLUME_ACRE_SE")
+            - "total_se_col": str - Output SE column name for total (e.g., "VOLUME_TOTAL_SE")
+            - "acre_var_col": str, optional - Output variance column for per-acre
+            - "total_var_col": str, optional - Output variance column for total
+            - "acre_col": str, optional - The acre estimate column for CV calculation
+            - "total_col": str, optional - The total estimate column for CV calculation
+        include_cv : bool, default False
+            If True, add coefficient of variation columns (requires acre_col/total_col
+            in metric_configs).
+
+        Returns
+        -------
+        pl.DataFrame
+            Results with variance columns added for all metrics.
+
+        Raises
+        ------
+        ValueError
+            If plot_tree_data is not available for variance calculation.
+
+        Examples
+        --------
+        Single metric (volume):
+        >>> metric_configs = [{
+        ...     "adjusted_col": "VOLUME_ADJ",
+        ...     "acre_se_col": "VOLUME_ACRE_SE",
+        ...     "total_se_col": "VOLUME_TOTAL_SE",
+        ...     "acre_var_col": "VOLUME_ACRE_VARIANCE",
+        ...     "total_var_col": "VOLUME_TOTAL_VARIANCE",
+        ... }]
+        >>> results = self._calculate_variance_for_metrics(agg_result, metric_configs)
+
+        Multiple metrics (TPA + BAA):
+        >>> metric_configs = [
+        ...     {"adjusted_col": "TPA_ADJ", "acre_se_col": "TPA_SE", "total_se_col": "TPA_TOTAL_SE"},
+        ...     {"adjusted_col": "BAA_ADJ", "acre_se_col": "BAA_SE", "total_se_col": "BAA_TOTAL_SE"},
+        ... ]
+        >>> results = self._calculate_variance_for_metrics(agg_result, metric_configs)
+        """
+        results = agg_result.results
+        plot_tree_data = agg_result.plot_tree_data
+        group_cols = agg_result.group_cols
+
+        if plot_tree_data is None:
+            raise ValueError(
+                f"Plot-tree data is required for {self.__class__.__name__} variance "
+                "calculation. Cannot compute statistically valid standard errors "
+                "without tree-level data. Ensure data preservation is working "
+                "correctly in the estimation pipeline."
+            )
+
+        # Step 1: Aggregate to plot-condition level for all metrics
+        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
+        if "STRATUM_CN" in plot_tree_data.columns:
+            plot_group_cols.insert(2, "STRATUM_CN")
+        if "CONDPROP_UNADJ" in plot_tree_data.columns:
+            plot_group_cols.append("CONDPROP_UNADJ")
+
+        # Add grouping columns
+        if group_cols:
+            for col in group_cols:
+                if col in plot_tree_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
+        # Build aggregation expressions for all metrics
+        agg_exprs = []
+        for i, cfg in enumerate(metric_configs):
+            agg_exprs.append(pl.sum(cfg["adjusted_col"]).alias(f"y_{i}_ic"))
+
+        plot_cond_data = plot_tree_data.group_by(plot_group_cols).agg(agg_exprs)
+
+        # Step 2: Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "EXPNS"]
+        if "STRATUM_CN" in plot_cond_data.columns:
+            plot_level_cols.insert(1, "STRATUM_CN")
+        if group_cols:
+            plot_level_cols.extend(
+                [c for c in group_cols if c in plot_cond_data.columns]
+            )
+
+        # Build plot-level aggregation
+        plot_agg_exprs = [
+            pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i")
+        ] if "CONDPROP_UNADJ" in plot_cond_data.columns else [pl.lit(1.0).alias("x_i")]
+
+        for i in range(len(metric_configs)):
+            plot_agg_exprs.append(pl.sum(f"y_{i}_ic").alias(f"y_{i}_i"))
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(plot_agg_exprs)
+
+        # Step 3: Get ALL plots in the evaluation for proper variance calculation
+        strat_data = self._get_stratification_data()
+        all_plots = (
+            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+        )
+
+        # Step 4: Calculate variance for each group or overall
+        if group_cols:
+            results = self._calculate_grouped_multi_metric_variance(
+                plot_data=plot_data,
+                all_plots=all_plots,
+                results=results,
+                group_cols=group_cols,
+                metric_configs=metric_configs,
+            )
+        else:
+            results = self._calculate_overall_multi_metric_variance(
+                plot_data=plot_data,
+                all_plots=all_plots,
+                results=results,
+                metric_configs=metric_configs,
+            )
+
+        # Step 5: Add CV if requested
+        if include_cv:
+            results = self._add_cv_columns(results, metric_configs)
+
+        return results
+
+    def _calculate_grouped_multi_metric_variance(
+        self,
+        plot_data: pl.DataFrame,
+        all_plots: pl.DataFrame,
+        results: pl.DataFrame,
+        group_cols: list[str],
+        metric_configs: list[dict[str, str]],
+    ) -> pl.DataFrame:
+        """
+        Calculate variance for grouped estimates with multiple metrics.
+
+        Uses a loop over groups for now; could be further optimized with
+        vectorized operations in the future.
+        """
+        from .variance import calculate_domain_total_variance
+
+        variance_results = []
+
+        for group_vals in results.iter_rows():
+            # Build filter for this group
+            group_filter = pl.lit(True)
+            group_dict = {}
+
+            for col in group_cols:
+                if col in plot_data.columns:
+                    val = group_vals[results.columns.index(col)]
+                    group_dict[col] = val
+                    if val is None:
+                        group_filter = group_filter & pl.col(col).is_null()
+                    else:
+                        group_filter = group_filter & (pl.col(col) == val)
+
+            # Filter plot data for this specific group
+            group_plot_data = plot_data.filter(group_filter)
+
+            # Build select columns for join
+            select_cols = ["PLT_CN", "x_i"] + [f"y_{i}_i" for i in range(len(metric_configs))]
+            select_cols = [c for c in select_cols if c in group_plot_data.columns]
+
+            # Join with ALL plots, filling missing with zeros
+            all_plots_group = all_plots.join(
+                group_plot_data.select(select_cols),
+                on="PLT_CN",
+                how="left",
+            )
+
+            # Fill nulls with zeros
+            fill_exprs = [pl.col("x_i").fill_null(0.0)]
+            for i in range(len(metric_configs)):
+                col_name = f"y_{i}_i"
+                if col_name in all_plots_group.columns:
+                    fill_exprs.append(pl.col(col_name).fill_null(0.0))
+
+            all_plots_group = all_plots_group.with_columns(fill_exprs)
+
+            # Calculate variance for each metric
+            result_row = dict(group_dict)
+
+            if len(all_plots_group) > 0:
+                # Calculate total area for per-acre SE
+                total_area = (
+                    all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                ).sum()
+
+                for i, cfg in enumerate(metric_configs):
+                    y_col = f"y_{i}_i"
+                    if y_col in all_plots_group.columns:
+                        var_stats = calculate_domain_total_variance(
+                            all_plots_group, y_col
+                        )
+                        se_acre = (
+                            var_stats["se_total"] / total_area if total_area > 0 else 0.0
+                        )
+
+                        result_row[cfg["acre_se_col"]] = se_acre
+                        result_row[cfg["total_se_col"]] = var_stats["se_total"]
+
+                        # Add variance columns if specified
+                        if "acre_var_col" in cfg:
+                            result_row[cfg["acre_var_col"]] = se_acre**2
+                        if "total_var_col" in cfg:
+                            result_row[cfg["total_var_col"]] = var_stats["variance_total"]
+            else:
+                # No data for this group
+                for cfg in metric_configs:
+                    result_row[cfg["acre_se_col"]] = 0.0
+                    result_row[cfg["total_se_col"]] = 0.0
+                    if "acre_var_col" in cfg:
+                        result_row[cfg["acre_var_col"]] = 0.0
+                    if "total_var_col" in cfg:
+                        result_row[cfg["total_var_col"]] = 0.0
+
+            variance_results.append(result_row)
+
+        # Join variance results back to main results
+        if variance_results:
+            var_df = pl.DataFrame(variance_results)
+            # Use only valid group columns that exist in both dataframes
+            join_cols = [c for c in group_cols if c in var_df.columns and c in results.columns]
+            if join_cols:
+                results = results.join(var_df, on=join_cols, how="left")
+
+        return results
+
+    def _calculate_overall_multi_metric_variance(
+        self,
+        plot_data: pl.DataFrame,
+        all_plots: pl.DataFrame,
+        results: pl.DataFrame,
+        metric_configs: list[dict[str, str]],
+    ) -> pl.DataFrame:
+        """
+        Calculate overall variance (ungrouped) for multiple metrics.
+        """
+        from .variance import calculate_domain_total_variance
+
+        # Build select columns for join
+        select_cols = ["PLT_CN", "x_i"] + [f"y_{i}_i" for i in range(len(metric_configs))]
+        select_cols = [c for c in select_cols if c in plot_data.columns]
+
+        # Join with ALL plots, filling missing with zeros
+        all_plots_with_values = all_plots.join(
+            plot_data.select(select_cols),
+            on="PLT_CN",
+            how="left",
+        )
+
+        # Fill nulls with zeros
+        fill_exprs = [pl.col("x_i").fill_null(0.0)]
+        for i in range(len(metric_configs)):
+            col_name = f"y_{i}_i"
+            if col_name in all_plots_with_values.columns:
+                fill_exprs.append(pl.col(col_name).fill_null(0.0))
+
+        all_plots_with_values = all_plots_with_values.with_columns(fill_exprs)
+
+        # Calculate total area for per-acre SE
+        total_area = (
+            all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
+        ).sum()
+
+        # Calculate variance for each metric and add to results
+        for i, cfg in enumerate(metric_configs):
+            y_col = f"y_{i}_i"
+            if y_col in all_plots_with_values.columns:
+                var_stats = calculate_domain_total_variance(
+                    all_plots_with_values, y_col
+                )
+                se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
+
+                results = results.with_columns([
+                    pl.lit(se_acre).alias(cfg["acre_se_col"]),
+                    pl.lit(var_stats["se_total"]).alias(cfg["total_se_col"]),
+                ])
+
+                # Add variance columns if specified
+                if "acre_var_col" in cfg:
+                    results = results.with_columns([
+                        pl.lit(se_acre**2).alias(cfg["acre_var_col"]),
+                    ])
+                if "total_var_col" in cfg:
+                    results = results.with_columns([
+                        pl.lit(var_stats["variance_total"]).alias(cfg["total_var_col"]),
+                    ])
+
+        return results
+
+    def _add_cv_columns(
+        self,
+        results: pl.DataFrame,
+        metric_configs: list[dict[str, str]],
+    ) -> pl.DataFrame:
+        """Add coefficient of variation columns for metrics that specify acre_col/total_col."""
+        for cfg in metric_configs:
+            acre_col = cfg.get("acre_col")
+            total_col = cfg.get("total_col")
+            acre_se_col = cfg["acre_se_col"]
+            total_se_col = cfg["total_se_col"]
+
+            if acre_col and acre_col in results.columns:
+                cv_col = acre_se_col.replace("_SE", "_CV")
+                results = results.with_columns([
+                    pl.when(pl.col(acre_col) > 0)
+                    .then(pl.col(acre_se_col) / pl.col(acre_col) * 100)
+                    .otherwise(None)
+                    .alias(cv_col),
+                ])
+
+            if total_col and total_col in results.columns:
+                cv_col = total_se_col.replace("_SE", "_CV")
+                results = results.with_columns([
+                    pl.when(pl.col(total_col) > 0)
+                    .then(pl.col(total_se_col) / pl.col(total_col) * 100)
+                    .otherwise(None)
+                    .alias(cv_col),
+                ])
+
+        return results
+
     # === Abstract Methods ===
 
     @abstractmethod

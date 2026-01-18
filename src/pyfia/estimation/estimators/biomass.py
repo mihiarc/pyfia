@@ -15,6 +15,7 @@ from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
 from ..constants import CARBON_FRACTION, LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
+from ..utils import ensure_evalid_set, ensure_fia_instance
 
 
 class BiomassEstimator(BaseEstimator):
@@ -428,6 +429,11 @@ def biomass(
     guidelines and FIA standard practice. This percentage may vary slightly
     by species and component but 47% is the standard factor.
 
+    **EVALID Handling:**
+    If no EVALID is specified, the function automatically selects the most
+    recent EXPVOL evaluation to prevent overcounting from multiple evaluations.
+    For explicit control, use db.clip_by_evalid() before calling biomass().
+
     **Evaluation Year vs. Inventory Year**: The YEAR in output represents
     the evaluation reference year from EVALID, not individual plot inventory
     years (INVYR). Due to FIA's rotating panel design, plots within an
@@ -598,6 +604,16 @@ def biomass(
     variance = validate_boolean(variance, "variance")
     most_recent = validate_boolean(most_recent, "most_recent")
 
+    # Ensure db is a FIA instance using shared utility
+    db, owns_db = ensure_fia_instance(db)
+
+    # Ensure EVALID is set using shared utility
+    # Use "VOL" for biomass estimation (EXPVOL evaluations)
+    if most_recent and db.evalid is None:
+        db.clip_most_recent(eval_type="VOL")
+    else:
+        ensure_evalid_set(db, eval_type="VOL", estimator_name="biomass")
+
     # Create config
     config = {
         "grp_by": grp_by,
@@ -615,5 +631,10 @@ def biomass(
     }
 
     # Create and run estimator
-    estimator = BiomassEstimator(db, config)
-    return estimator.estimate()
+    try:
+        estimator = BiomassEstimator(db, config)
+        return estimator.estimate()
+    finally:
+        # Clean up if we created the db
+        if owns_db and hasattr(db, "close"):
+            db.close()

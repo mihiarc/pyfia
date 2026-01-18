@@ -16,7 +16,6 @@ from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import validate_estimator_inputs
-from ..variance import calculate_domain_total_variance
 
 if TYPE_CHECKING:
     from ...core import FIA
@@ -205,184 +204,30 @@ class TPAEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        # Extract data from AggregationResult or use DataFrame directly
-        if isinstance(agg_result, AggregationResult):
-            results = agg_result.results
-            plot_tree_data = agg_result.plot_tree_data
-            group_cols = agg_result.group_cols
-        else:
-            # Backward compatibility: DataFrame passed directly
-            results = agg_result
-            plot_tree_data = None
-            group_cols = []
-
-        if plot_tree_data is None:
+        # Handle backward compatibility: DataFrame passed directly
+        if not isinstance(agg_result, AggregationResult):
             raise ValueError(
-                "Plot-tree data is required for TPA/BAA variance calculation. "
-                "Cannot compute statistically valid standard errors without tree-level "
-                "data. Ensure data preservation is working correctly in the estimation "
-                "pipeline."
+                "TPA variance calculation requires AggregationResult. "
+                "DataFrame input is no longer supported."
             )
 
-        # Step 1: Aggregate to plot-condition level
-        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
-        if "STRATUM_CN" in plot_tree_data.columns:
-            plot_group_cols.insert(2, "STRATUM_CN")
-        if "CONDPROP_UNADJ" in plot_tree_data.columns:
-            plot_group_cols.append("CONDPROP_UNADJ")
-
-        # Add grouping columns
-        if group_cols:
-            for col in group_cols:
-                if col in plot_tree_data.columns and col not in plot_group_cols:
-                    plot_group_cols.append(col)
-
-        plot_cond_agg = [
-            pl.sum("TPA_ADJ").alias("y_tpa_ic"),
-            pl.sum("BAA_ADJ").alias("y_baa_ic"),
+        # Use unified variance calculation method for both TPA and BAA
+        metric_configs = [
+            {
+                "adjusted_col": "TPA_ADJ",
+                "acre_se_col": "TPA_SE",
+                "total_se_col": "TPA_TOTAL_SE",
+            },
+            {
+                "adjusted_col": "BAA_ADJ",
+                "acre_se_col": "BAA_SE",
+                "total_se_col": "BAA_TOTAL_SE",
+            },
         ]
 
-        plot_cond_data = plot_tree_data.group_by(plot_group_cols).agg(plot_cond_agg)
+        results = self._calculate_variance_for_metrics(agg_result, metric_configs)
 
-        # Step 2: Aggregate to plot level
-        plot_level_cols = ["PLT_CN", "EXPNS"]
-        if "STRATUM_CN" in plot_cond_data.columns:
-            plot_level_cols.insert(1, "STRATUM_CN")
-        if group_cols:
-            plot_level_cols.extend(
-                [c for c in group_cols if c in plot_cond_data.columns]
-            )
-
-        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
-            [
-                pl.sum("y_tpa_ic").alias("y_tpa_i"),
-                pl.sum("y_baa_ic").alias("y_baa_i"),
-                pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i"),
-            ]
-        )
-
-        # Step 3: Get ALL plots in the evaluation for proper variance calculation
-        strat_data = self._get_stratification_data()
-        all_plots = (
-            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-        )
-
-        # Step 4: Calculate variance for each group or overall
-        if group_cols:
-            variance_results = []
-
-            for group_vals in results.iter_rows():
-                group_filter = pl.lit(True)
-                group_dict = {}
-
-                for i, col in enumerate(group_cols):
-                    if col in plot_data.columns:
-                        group_dict[col] = group_vals[results.columns.index(col)]
-                        group_filter = group_filter & (
-                            pl.col(col) == group_vals[results.columns.index(col)]
-                        )
-
-                group_plot_data = plot_data.filter(group_filter)
-
-                all_plots_group = all_plots.join(
-                    group_plot_data.select(["PLT_CN", "y_tpa_i", "y_baa_i", "x_i"]),
-                    on="PLT_CN",
-                    how="left",
-                ).with_columns(
-                    [
-                        pl.col("y_tpa_i").fill_null(0.0),
-                        pl.col("y_baa_i").fill_null(0.0),
-                        pl.col("x_i").fill_null(0.0),
-                    ]
-                )
-
-                if len(all_plots_group) > 0:
-                    # Calculate variance using domain total formula (matches EVALIDator)
-                    tpa_stats = calculate_domain_total_variance(
-                        all_plots_group, "y_tpa_i"
-                    )
-                    baa_stats = calculate_domain_total_variance(
-                        all_plots_group, "y_baa_i"
-                    )
-
-                    # Calculate per-acre SE by dividing total SE by total area
-                    total_area = (
-                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
-                    ).sum()
-                    tpa_se_acre = (
-                        tpa_stats["se_total"] / total_area if total_area > 0 else 0.0
-                    )
-                    baa_se_acre = (
-                        baa_stats["se_total"] / total_area if total_area > 0 else 0.0
-                    )
-
-                    variance_results.append(
-                        {
-                            **group_dict,
-                            "TPA_SE": tpa_se_acre,
-                            "TPA_TOTAL_SE": tpa_stats["se_total"],
-                            "BAA_SE": baa_se_acre,
-                            "BAA_TOTAL_SE": baa_stats["se_total"],
-                        }
-                    )
-                else:
-                    variance_results.append(
-                        {
-                            **group_dict,
-                            "TPA_SE": 0.0,
-                            "TPA_TOTAL_SE": 0.0,
-                            "BAA_SE": 0.0,
-                            "BAA_TOTAL_SE": 0.0,
-                        }
-                    )
-
-            if variance_results:
-                var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=group_cols, how="left")
-        else:
-            # No grouping, calculate overall variance with ALL plots
-            all_plots_with_values = all_plots.join(
-                plot_data.select(["PLT_CN", "y_tpa_i", "y_baa_i", "x_i"]),
-                on="PLT_CN",
-                how="left",
-            ).with_columns(
-                [
-                    pl.col("y_tpa_i").fill_null(0.0),
-                    pl.col("y_baa_i").fill_null(0.0),
-                    pl.col("x_i").fill_null(0.0),
-                ]
-            )
-
-            tpa_stats = calculate_domain_total_variance(
-                all_plots_with_values, "y_tpa_i"
-            )
-            baa_stats = calculate_domain_total_variance(
-                all_plots_with_values, "y_baa_i"
-            )
-
-            # Calculate per-acre SE by dividing total SE by total area
-            total_area = (
-                all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
-            ).sum()
-            tpa_se_acre = tpa_stats["se_total"] / total_area if total_area > 0 else 0.0
-            baa_se_acre = baa_stats["se_total"] / total_area if total_area > 0 else 0.0
-
-            results = results.with_columns(
-                [
-                    pl.lit(tpa_se_acre).alias("TPA_SE"),
-                    pl.lit(baa_se_acre).alias("BAA_SE"),
-                ]
-            )
-
-            if "TPA_TOTAL" in results.columns:
-                results = results.with_columns(
-                    [
-                        pl.lit(tpa_stats["se_total"]).alias("TPA_TOTAL_SE"),
-                        pl.lit(baa_stats["se_total"]).alias("BAA_TOTAL_SE"),
-                    ]
-                )
-
-        # Convert to variance if requested
+        # Convert to variance if requested (swap SE columns for VAR columns)
         if self.config.get("variance", False):
             results = results.with_columns(
                 [

@@ -15,7 +15,12 @@ from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
 from ..constants import CARBON_FRACTION, LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import ensure_evalid_set, ensure_fia_instance
+from ..utils import (
+    ensure_evalid_set,
+    ensure_fia_instance,
+    validate_aggregation_result,
+    validate_required_columns,
+)
 
 
 class BiomassEstimator(BaseEstimator):
@@ -129,12 +134,10 @@ class BiomassEstimator(BaseEstimator):
             Bundle containing results, plot_tree_data, and group_cols for
             explicit variance calculation.
         """
-        # Validate required columns exist
-        data_schema = data.collect_schema()
-        required_cols = ["PLT_CN", "BIOMASS_ACRE", "CARBON_ACRE"]
-        missing_cols = [col for col in required_cols if col not in data_schema.names()]
-        if missing_cols:
-            raise ValueError(f"Required columns missing from data: {missing_cols}")
+        # Validate required columns using shared utility
+        validate_required_columns(
+            data, ["PLT_CN", "BIOMASS_ACRE", "CARBON_ACRE"], "biomass data"
+        )
 
         # Get stratification data
         strat_data = self._get_stratification_data()
@@ -204,7 +207,7 @@ class BiomassEstimator(BaseEstimator):
         )
 
     def calculate_variance(
-        self, agg_result: "Union[AggregationResult, pl.DataFrame]"
+        self, agg_result: AggregationResult  # type: ignore[override]
     ) -> pl.DataFrame:
         """Calculate variance for biomass estimates using domain total variance formula.
 
@@ -218,12 +221,8 @@ class BiomassEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        # Handle backward compatibility: DataFrame passed directly
-        if not isinstance(agg_result, AggregationResult):
-            raise ValueError(
-                "Biomass variance calculation requires AggregationResult. "
-                "DataFrame input is no longer supported."
-            )
+        # Validate input using shared utility
+        validate_aggregation_result(agg_result, "Biomass")
 
         # Use unified variance calculation method for both biomass and carbon
         metric_configs = [

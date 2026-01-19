@@ -19,6 +19,7 @@ from ..utils import (
     ensure_evalid_set,
     ensure_fia_instance,
     format_output_columns,
+    validate_aggregation_result,
     validate_estimator_inputs,
 )
 
@@ -198,7 +199,7 @@ class VolumeEstimator(BaseEstimator):
         )
 
     def calculate_variance(
-        self, agg_result: Union[AggregationResult, pl.DataFrame]
+        self, agg_result: AggregationResult  # type: ignore[override]
     ) -> pl.DataFrame:
         """Calculate variance for volume estimates using domain total variance formula.
 
@@ -212,12 +213,8 @@ class VolumeEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        # Handle backward compatibility: DataFrame passed directly
-        if not isinstance(agg_result, AggregationResult):
-            raise ValueError(
-                "Volume variance calculation requires AggregationResult. "
-                "DataFrame input is no longer supported."
-            )
+        # Validate input using shared utility
+        validate_aggregation_result(agg_result, "Volume")
 
         # Use unified variance calculation method
         metric_configs = [

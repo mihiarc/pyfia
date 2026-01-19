@@ -21,6 +21,7 @@ from ...core import FIA
 from ..base import BaseEstimator
 from ..constants import LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
+from ..utils import validate_required_columns
 from ..variance import calculate_domain_total_variance
 
 
@@ -145,12 +146,8 @@ class CarbonPoolEstimator(BaseEstimator):
         Stage 1: Aggregate trees to plot-condition level
         Stage 2: Apply expansion factors and calculate population totals
         """
-        # Validate required columns exist
-        data_schema = data.collect_schema()
-        required_cols = ["PLT_CN", "CARBON_ACRE"]
-        missing_cols = [col for col in required_cols if col not in data_schema.names()]
-        if missing_cols:
-            raise ValueError(f"Required columns missing from data: {missing_cols}")
+        # Validate required columns using shared utility
+        validate_required_columns(data, ["PLT_CN", "CARBON_ACRE"], "carbon data")
 
         # Get stratification data
         strat_data = self._get_stratification_data()

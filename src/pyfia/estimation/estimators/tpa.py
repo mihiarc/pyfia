@@ -15,7 +15,11 @@ from ..base import AggregationResult, BaseEstimator
 from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import ensure_evalid_set, validate_estimator_inputs
+from ..utils import (
+    ensure_evalid_set,
+    validate_aggregation_result,
+    validate_estimator_inputs,
+)
 
 if TYPE_CHECKING:
     from ...core import FIA
@@ -189,7 +193,7 @@ class TPAEstimator(BaseEstimator):
         )
 
     def calculate_variance(
-        self, agg_result: "Union[AggregationResult, pl.DataFrame]"
+        self, agg_result: AggregationResult  # type: ignore[override]
     ) -> pl.DataFrame:
         """
         Calculate variance for TPA and BAA estimates using domain total variance formula.
@@ -204,12 +208,8 @@ class TPAEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        # Handle backward compatibility: DataFrame passed directly
-        if not isinstance(agg_result, AggregationResult):
-            raise ValueError(
-                "TPA variance calculation requires AggregationResult. "
-                "DataFrame input is no longer supported."
-            )
+        # Validate input using shared utility
+        validate_aggregation_result(agg_result, "TPA")
 
         # Use unified variance calculation method for both TPA and BAA
         metric_configs = [

@@ -7,7 +7,7 @@ initialization patterns used across all estimator functions.
 
 import warnings
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
 
 import polars as pl
 
@@ -235,6 +235,83 @@ def ensure_evalid_set(
             "inclusion of multiple overlapping evaluations. Consider using db.clip_by_evalid() "
             "to explicitly select appropriate EVALIDs."
         )
+
+
+def validate_aggregation_result(
+    agg_result: Any,
+    estimator_name: str,
+) -> None:
+    """
+    Validate that input is an AggregationResult for variance calculation.
+
+    This function consolidates the common validation pattern used in all
+    estimator calculate_variance() methods.
+
+    Parameters
+    ----------
+    agg_result : Any
+        The input to validate (should be an AggregationResult)
+    estimator_name : str
+        Name of the estimator for error messages (e.g., 'Volume', 'TPA', 'Biomass')
+
+    Raises
+    ------
+    ValueError
+        If agg_result is not an AggregationResult instance
+
+    Examples
+    --------
+    >>> from pyfia.estimation.base import AggregationResult
+    >>> validate_aggregation_result(some_result, "Volume")  # Raises if not AggregationResult
+    """
+    # Import here to avoid circular imports
+    from .base import AggregationResult
+
+    if not isinstance(agg_result, AggregationResult):
+        raise ValueError(
+            f"{estimator_name} variance calculation requires AggregationResult. "
+            "DataFrame input is no longer supported."
+        )
+
+
+def validate_required_columns(
+    data: Union[pl.DataFrame, pl.LazyFrame],
+    required_cols: List[str],
+    context: str = "data",
+) -> None:
+    """
+    Validate that required columns exist in the DataFrame or LazyFrame.
+
+    This function consolidates the common pattern of checking for required
+    columns before processing data.
+
+    Parameters
+    ----------
+    data : pl.DataFrame or pl.LazyFrame
+        The data to validate
+    required_cols : list of str
+        Column names that must be present
+    context : str, default 'data'
+        Description of the data for error messages (e.g., 'tree data', 'plot data')
+
+    Raises
+    ------
+    ValueError
+        If any required columns are missing
+
+    Examples
+    --------
+    >>> validate_required_columns(tree_df, ["PLT_CN", "DIA", "TPA_UNADJ"], "tree data")
+    """
+    if isinstance(data, pl.LazyFrame):
+        schema = data.collect_schema()
+        columns = schema.names()
+    else:
+        columns = data.columns
+
+    missing_cols = [col for col in required_cols if col not in columns]
+    if missing_cols:
+        raise ValueError(f"Required columns missing from {context}: {missing_cols}")
 
 
 def _enhance_grouping_columns(df: pl.DataFrame) -> pl.DataFrame:

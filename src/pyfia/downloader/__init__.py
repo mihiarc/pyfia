@@ -134,16 +134,21 @@ def _convert_csvs_to_duckdb(
 
     try:
         for csv_file in csv_files:
-            # Extract table name from filename (e.g., GA_PLOT.csv -> PLOT)
-            name_parts = csv_file.stem.split("_")
-            if len(name_parts) >= 2:
-                table_name = "_".join(
-                    name_parts[1:]
-                )  # Handle names like TREE_GRM_COMPONENT
-            else:
-                table_name = name_parts[0]
+            # Extract table name from filename
+            # State tables: GA_PLOT.csv -> PLOT, GA_TREE_GRM_COMPONENT.csv -> TREE_GRM_COMPONENT
+            # Reference tables: REF_SPECIES.csv -> REF_SPECIES (keep as-is)
+            filename = csv_file.stem.upper()
 
-            table_name = table_name.upper()
+            if filename.startswith("REF_"):
+                # Reference table - keep full name
+                table_name = filename
+            else:
+                # State table - strip state prefix
+                name_parts = filename.split("_")
+                if len(name_parts) >= 2:
+                    table_name = "_".join(name_parts[1:])
+                else:
+                    table_name = name_parts[0]
 
             # Validate table name to prevent SQL injection
             try:
@@ -376,6 +381,19 @@ def _download_single_state(
         if not downloaded:
             raise DownloadError(f"No tables downloaded for {state}")
 
+        # Also download key reference tables (state-independent)
+        if show_progress:
+            console.print("\n[bold]Downloading reference tables...[/bold]")
+
+        try:
+            client.download_reference_tables(
+                dest_dir=csv_dir,
+                tables=["REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE"],
+                show_progress=show_progress,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to download reference tables: {e}")
+
         # Convert to DuckDB
         if show_progress:
             console.print("\n[bold]Converting to DuckDB...[/bold]")
@@ -481,13 +499,16 @@ def _download_multi_state(
                 csv_files = list(csv_dir.glob("*.csv")) + list(csv_dir.glob("*.CSV"))
 
                 for csv_file in csv_files:
-                    # Extract table name
-                    name_parts = csv_file.stem.split("_")
-                    if len(name_parts) >= 2:
-                        table_name = "_".join(name_parts[1:])
+                    # Extract table name (same logic as _convert_csvs_to_duckdb)
+                    filename = csv_file.stem.upper()
+                    if filename.startswith("REF_"):
+                        table_name = filename
                     else:
-                        table_name = name_parts[0]
-                    table_name = table_name.upper()
+                        name_parts = filename.split("_")
+                        if len(name_parts) >= 2:
+                            table_name = "_".join(name_parts[1:])
+                        else:
+                            table_name = name_parts[0]
 
                     # Validate table name to prevent SQL injection
                     try:
@@ -526,6 +547,32 @@ def _download_multi_state(
                         logger.warning(
                             f"Failed to import {safe_table} for {state}: {e}"
                         )
+
+        # Download and add reference tables (once for all states)
+        if show_progress:
+            console.print("\n[bold]Downloading reference tables...[/bold]")
+
+        try:
+            with tempfile.TemporaryDirectory() as ref_temp_dir:
+                ref_temp_path = Path(ref_temp_dir)
+                ref_tables = client.download_reference_tables(
+                    dest_dir=ref_temp_path,
+                    tables=["REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE"],
+                    show_progress=show_progress,
+                )
+
+                for table_name, csv_path in ref_tables.items():
+                    try:
+                        safe_table = validate_sql_identifier(table_name, "table name")
+                        safe_csv_path = sanitize_sql_path(csv_path)
+                        conn.execute(f"""
+                            CREATE TABLE IF NOT EXISTS "{safe_table}" AS
+                            SELECT * FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
+                        """)
+                    except Exception as e:
+                        logger.warning(f"Failed to import reference table {table_name}: {e}")
+        except Exception as e:
+            logger.warning(f"Failed to download reference tables: {e}")
 
         conn.execute("CHECKPOINT")
 

@@ -460,3 +460,84 @@ class DataMartClient:
             return bool(response.status_code == 200)
         except requests.exceptions.RequestException:
             return False
+
+    def download_reference_tables(
+        self,
+        dest_dir: Path,
+        tables: Optional[List[str]] = None,
+        show_progress: bool = True,
+    ) -> Dict[str, Path]:
+        """
+        Download FIA reference tables from the bundled FIADB_REFERENCE.zip.
+
+        Reference tables are state-independent lookup tables (REF_SPECIES,
+        REF_FOREST_TYPE, REF_STATE, etc.) bundled together in a single ZIP.
+
+        Parameters
+        ----------
+        dest_dir : Path
+            Directory to save the extracted CSV files.
+        tables : list of str, optional
+            Specific reference tables to keep. If None, keeps common ones:
+            REF_SPECIES, REF_FOREST_TYPE, REF_STATE.
+        show_progress : bool, default True
+            Show download progress bar.
+
+        Returns
+        -------
+        dict
+            Mapping of table names to downloaded file paths.
+
+        Examples
+        --------
+        >>> client = DataMartClient()
+        >>> paths = client.download_reference_tables(Path("./data"))
+        >>> print(f"Downloaded: {list(paths.keys())}")
+        """
+        # Common reference tables to keep by default
+        default_tables = ["REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE"]
+        keep_tables = [t.upper() for t in (tables or default_tables)]
+
+        url = f"{DATAMART_CSV_BASE}FIADB_REFERENCE.zip"
+        logger.info(f"Downloading reference tables from {url}")
+
+        downloaded = {}
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            zip_path = temp_path / "FIADB_REFERENCE.zip"
+
+            try:
+                self._download_file(
+                    url,
+                    zip_path,
+                    description="FIADB_REFERENCE",
+                    show_progress=show_progress,
+                )
+            except TableNotFoundError:
+                raise TableNotFoundError("FIADB_REFERENCE")
+
+            # Extract all files
+            extracted = self._extract_zip(zip_path, temp_path, show_progress=False)
+
+            # Move requested tables to destination
+            dest_dir.mkdir(parents=True, exist_ok=True)
+
+            for f in extracted:
+                if f.suffix.lower() == ".csv":
+                    table_name = f.stem.upper()
+                    if table_name in keep_tables:
+                        dest_path = dest_dir / f.name
+                        shutil.move(str(f), str(dest_path))
+                        downloaded[table_name] = dest_path
+                        logger.info(f"Extracted {table_name} to {dest_path}")
+
+        if show_progress:
+            from rich.console import Console
+
+            console = Console()
+            console.print(
+                f"[green]Downloaded {len(downloaded)} reference tables[/green]"
+            )
+
+        return downloaded

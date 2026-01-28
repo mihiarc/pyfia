@@ -124,12 +124,18 @@ def join_species_names(
     if hasattr(species, "collect"):
         species = species.collect()
 
+    # Cast SPCD to Int64 for consistent joining
+    species = species.with_columns(pl.col("SPCD").cast(pl.Int64))
+
     # Rename columns
     rename_map = {"SPCD": species_col, "COMMON_NAME": common_name_col}
     if include_scientific and scientific_name_col:
         rename_map["SCIENTIFIC_NAME"] = scientific_name_col
 
     species = species.rename(rename_map).unique(species_col)
+
+    # Cast the join column in data to match
+    data = data.with_columns(pl.col(species_col).cast(pl.Int64))
 
     return data.join(species, on=species_col, how="left")
 

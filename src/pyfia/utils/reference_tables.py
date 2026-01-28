@@ -5,6 +5,7 @@ This module provides functions to easily join FIA reference tables
 with estimation results to add descriptive names and metadata.
 """
 
+from pathlib import Path
 from typing import Optional, Union
 
 import polars as pl
@@ -14,7 +15,7 @@ from ..core.fia import FIA
 
 def join_forest_type_names(
     data: pl.DataFrame,
-    db: Union[str, FIA],
+    db: Union[str, Path, FIA],
     forest_type_col: str = "FORTYPCD",
     name_col: str = "FOREST_TYPE_NAME",
 ) -> pl.DataFrame:
@@ -43,7 +44,7 @@ def join_forest_type_names(
     >>> results_with_names = join_forest_type_names(results, db)
     """
     # Ensure we have a FIA object
-    if isinstance(db, str):
+    if isinstance(db, (str, Path)):
         db = FIA(db)
 
     # Check if column exists
@@ -72,7 +73,7 @@ def join_forest_type_names(
 
 def join_species_names(
     data: pl.DataFrame,
-    db: Union[str, FIA],
+    db: Union[str, Path, FIA],
     species_col: str = "SPCD",
     common_name_col: str = "COMMON_NAME",
     scientific_name_col: Optional[str] = "SCIENTIFIC_NAME",
@@ -106,7 +107,7 @@ def join_species_names(
     >>> results = tpa(db, bySpecies=True)
     >>> results_with_names = join_species_names(results, db)
     """
-    if isinstance(db, str):
+    if isinstance(db, (str, Path)):
         db = FIA(db)
 
     if species_col not in data.columns:
@@ -135,7 +136,7 @@ def join_species_names(
 
 def join_state_names(
     data: pl.DataFrame,
-    db: Union[str, FIA],
+    db: Union[str, Path, FIA],
     state_col: str = "STATECD",
     state_name_col: str = "STATE_NAME",
     state_abbr_col: Optional[str] = "STATE_ABBR",
@@ -164,7 +165,7 @@ def join_state_names(
     pl.DataFrame
         Original data with state names added
     """
-    if isinstance(db, str):
+    if isinstance(db, (str, Path)):
         db = FIA(db)
 
     if state_col not in data.columns:
@@ -196,7 +197,7 @@ def join_state_names(
 
 def join_multiple_references(
     data: pl.DataFrame,
-    db: Union[str, FIA],
+    db: Union[str, Path, FIA],
     forest_type: bool = False,
     species: bool = False,
     state: bool = False,

@@ -25,7 +25,7 @@ def ensure_ri_data(data_dir: Optional[Path] = None) -> Path:
     Parameters
     ----------
     data_dir : Path, optional
-        Directory to store data. Defaults to notebooks/data/
+        Directory to store data. Defaults to ./data/ in current directory
 
     Returns
     -------
@@ -41,14 +41,28 @@ def ensure_ri_data(data_dir: Optional[Path] = None) -> Path:
     from pyfia import download
 
     if data_dir is None:
-        data_dir = Path(__file__).parent / "data"
+        # Use current working directory for Colab compatibility
+        data_dir = Path("./data")
 
     data_dir = Path(data_dir)
     db_path = data_dir / "ri" / "ri.duckdb"
 
+    # Check if database exists AND has tables (not just an empty file)
     if db_path.exists():
-        print(f"Rhode Island data already available at: {db_path}")
-        return db_path
+        try:
+            import duckdb
+            con = duckdb.connect(str(db_path), read_only=True)
+            tables = con.execute("SHOW TABLES").fetchall()
+            con.close()
+            if len(tables) > 0:
+                print(f"Rhode Island data already available at: {db_path}")
+                return db_path
+            else:
+                print(f"Database exists but is empty, re-downloading...")
+                db_path.unlink()  # Remove empty database
+        except Exception:
+            print(f"Database exists but may be corrupted, re-downloading...")
+            db_path.unlink()  # Remove corrupted database
 
     print("Downloading Rhode Island FIA data (this may take 1-2 minutes)...")
     db_path = download("RI", dir=data_dir)

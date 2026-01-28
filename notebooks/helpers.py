@@ -47,21 +47,28 @@ def ensure_ri_data(data_dir: Optional[Path] = None) -> Path:
     data_dir = Path(data_dir)
     db_path = data_dir / "ri" / "ri.duckdb"
 
-    # Check if database exists AND has tables (not just an empty file)
+    # Check if database exists AND has tables including reference tables
     if db_path.exists():
         try:
             import duckdb
             con = duckdb.connect(str(db_path), read_only=True)
-            tables = con.execute("SHOW TABLES").fetchall()
+            tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
             con.close()
-            if len(tables) > 0:
+
+            # Check for required reference tables (added in recent pyFIA versions)
+            has_ref_tables = "REF_SPECIES" in tables and "REF_FOREST_TYPE" in tables
+
+            if len(tables) > 0 and has_ref_tables:
                 print(f"Rhode Island data already available at: {db_path}")
                 return db_path
+            elif len(tables) > 0 and not has_ref_tables:
+                print("Database missing reference tables, re-downloading...")
+                db_path.unlink()  # Remove old database without ref tables
             else:
-                print(f"Database exists but is empty, re-downloading...")
+                print("Database exists but is empty, re-downloading...")
                 db_path.unlink()  # Remove empty database
         except Exception:
-            print(f"Database exists but may be corrupted, re-downloading...")
+            print("Database exists but may be corrupted, re-downloading...")
             db_path.unlink()  # Remove corrupted database
 
     print("Downloading Rhode Island FIA data (this may take 1-2 minutes)...")

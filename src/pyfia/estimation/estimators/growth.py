@@ -238,10 +238,11 @@ class GrowthEstimator(GRMBaseEstimator):
         if "BEGINEND" not in self.db.tables:
             try:
                 self.db.load_table("BEGINEND")
-            except (KeyError, ValueError) as e:
-                # BEGINEND may not exist in some databases (e.g., MotherDuck)
+            except Exception as e:
+                # BEGINEND may not exist in some databases (e.g., MotherDuck, local DuckDB)
                 # KeyError: table not found in database
                 # ValueError: table loading validation error
+                # CatalogException: DuckDB table doesn't exist
                 # Create it dynamically - it's just a 2-row reference table
                 logger.debug(
                     "BEGINEND table not found in database, creating dynamically: %s", e

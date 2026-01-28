@@ -9,6 +9,7 @@ from .conftest import (
     GEORGIA_EVALID,
     GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
+    DATA_SYNC_TOLERANCE,
     values_match,
 )
 
@@ -19,12 +20,8 @@ class TestCarbonValidation:
     def test_live_tree_carbon(self, fia_db, evalidator_client):
         """Validate live tree carbon pool against EVALIDator (snum=55000).
 
-        NOTE: Known methodology difference between pyFIA and EVALIDator:
-        - pyFIA: Uses DRYBIO_AG * 0.47 (aboveground only)
-        - EVALIDator: Uses CARBON_AG + CARBON_BG (includes belowground)
-
-        Uses 2% tolerance to accommodate this until proper carbon estimator
-        using CARBON_AG + CARBON_BG columns is implemented.
+        pyFIA uses FIA's pre-calculated CARBON_AG and CARBON_BG columns with
+        species-specific carbon conversion factors, matching EVALIDator exactly.
         """
         with FIA(fia_db) as db:
             db.clip_by_evalid(GEORGIA_EVALID)
@@ -49,13 +46,10 @@ class TestCarbonValidation:
         print(f"  pyFIA:      {pyfia_carbon:,.0f} metric tons (SE: {pyfia_se:,.0f})")
         print(f"  EVALIDator: {ev_result.estimate:,.0f} metric tons (SE: {ev_result.sampling_error:,.0f})")
         print(f"  Difference: {validation.pct_diff:.6f}%")
-        print("  Note: Difference due to methodology (DRYBIO_AG*0.47 vs CARBON_AG+CARBON_BG)")
 
-        # Carbon uses 2% tolerance due to methodology difference
-        # TODO: Implement proper carbon estimator using CARBON_AG + CARBON_BG
-        carbon_tolerance = 0.02
-        assert values_match(pyfia_carbon, ev_result.estimate, rel_tol=carbon_tolerance), (
-            f"Carbon should match EVALIDator within methodology tolerance.\n"
+        # Carbon should match EVALIDator exactly (uses same CARBON_AG + CARBON_BG columns)
+        assert values_match(pyfia_carbon, ev_result.estimate, rel_tol=DATA_SYNC_TOLERANCE), (
+            f"Carbon should match EVALIDator within tolerance.\n"
             f"pyFIA: {pyfia_carbon} vs EVALIDator: {ev_result.estimate}\n"
-            f"Difference: {validation.pct_diff:.6f}% (tolerance: {carbon_tolerance*100}%)"
+            f"Difference: {validation.pct_diff:.6f}% (tolerance: {DATA_SYNC_TOLERANCE*100}%)"
         )

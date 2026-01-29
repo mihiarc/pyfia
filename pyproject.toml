@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyfia"
-version = "1.2.0"
+version = "1.2.2"
 description = "High-performance Python library for Forest Inventory and Analysis (FIA) data analysis"
 readme = "README.md"
 authors = [
@@ -134,19 +134,19 @@ check_untyped_defs = true
 show_column_numbers = true
 pretty = true
 
-# Exclude modules with pre-existing type issues (to be fixed separately)
-# TODO: Fix these and remove overrides
-[[tool.mypy.overrides]]
-module = [
-    "pyfia.evalidator.*",
-    "pyfia.core.data_reader",
-    "pyfia.core.fia",
-    "pyfia.core.utils",
-    "pyfia.downloader.client",
-    "pyfia.estimation.estimators.area_change",
-    "pyfia.estimation.estimators.carbon_pools",
-]
-ignore_errors = true
+# All modules now pass mypy type checking
+# This override list kept as documentation of previously problematic modules
+# [[tool.mypy.overrides]]
+# module = [
+#     "pyfia.evalidator.*",
+#     "pyfia.core.data_reader",
+#     "pyfia.core.fia",
+#     "pyfia.core.utils",
+#     "pyfia.downloader.client",
+#     "pyfia.estimation.estimators.area_change",
+#     "pyfia.estimation.estimators.carbon_pools",
+# ]
+# ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

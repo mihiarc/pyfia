@@ -241,7 +241,8 @@ class MotherDuckBackend(DatabaseBackend):
             self._schema_cache[table_name] = schema
             return schema
         except duckdb.Error as e:
-            logger.error(f"Failed to get schema for table {table_name}: {e}")
+            # Use debug level - missing tables are often expected (e.g., BEGINEND)
+            logger.debug(f"Failed to get schema for table {table_name}: {e}")
             raise
 
     def table_exists(self, table_name: str) -> bool:

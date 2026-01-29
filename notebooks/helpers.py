@@ -14,7 +14,7 @@ from rich.console import Console
 from rich.table import Table
 
 
-def ensure_ri_data(data_dir: Optional[Path] = None) -> Path:
+def ensure_ri_data(data_dir: Optional[Path] = None, force_download: bool = False) -> Path:
     """
     Ensure Rhode Island FIA data is downloaded and return the database path.
 
@@ -26,6 +26,9 @@ def ensure_ri_data(data_dir: Optional[Path] = None) -> Path:
     ----------
     data_dir : Path, optional
         Directory to store data. Defaults to ./data/ in current directory
+    force_download : bool, optional
+        If True, delete existing database and re-download fresh data.
+        Use this if you're getting unexpected results (e.g., 0 for dead trees).
 
     Returns
     -------
@@ -46,6 +49,11 @@ def ensure_ri_data(data_dir: Optional[Path] = None) -> Path:
 
     data_dir = Path(data_dir)
     db_path = data_dir / "ri" / "ri.duckdb"
+
+    # Force fresh download if requested
+    if force_download and db_path.exists():
+        print("Force download requested - removing existing database...")
+        db_path.unlink()
 
     # Check if database exists AND has tables including reference tables
     if db_path.exists():

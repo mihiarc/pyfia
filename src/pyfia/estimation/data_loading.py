@@ -12,7 +12,6 @@ Design principles:
 """
 
 import logging
-from functools import lru_cache
 from typing import List, Optional, Tuple
 
 import polars as pl
@@ -58,6 +57,7 @@ class DataLoader:
         """
         self.db = db
         self.config = config
+        self._stratification_cache: Optional[pl.LazyFrame] = None
 
         # Validate grp_by columns early during initialization
         self._validate_grp_by_columns()
@@ -488,6 +488,10 @@ class DataLoader:
 
         This pushes common filters to the database level to reduce memory usage.
 
+        NOTE: STATUSCD filter is NOT pushed to SQL because the TREE table is
+        cached and subsequent calls with different tree_type would use stale data.
+        The STATUSCD filter is applied in Polars in BaseEstimator.apply_filters().
+
         Returns
         -------
         Optional[str]
@@ -495,17 +499,9 @@ class DataLoader:
         """
         filters = []
 
-        # Tree type filter (most common optimization)
-        tree_type = self.config.get("tree_type", "live")
-        if tree_type == "live":
-            filters.append("STATUSCD = 1")
-        elif tree_type == "dead":
-            filters.append("STATUSCD = 2")
-        elif tree_type == "gs":
-            # Growing stock: live trees with valid tree class
-            # Note: TREECLCD filter applied in Polars since it's conditional
-            filters.append("STATUSCD = 1")
-        # "all" means no STATUSCD filter
+        # NOTE: Do NOT add STATUSCD filter here - it causes caching bugs!
+        # The STATUSCD filter is applied in apply_filters() instead.
+        # See: https://github.com/mihiarc/pyfia/issues/XXX
 
         # Basic validity filters (these are always applied in apply_tree_filters)
         filters.append("DIA IS NOT NULL")
@@ -542,7 +538,6 @@ class DataLoader:
             return " AND ".join(filters)
         return None
 
-    @lru_cache(maxsize=1)
     def get_stratification_data(self) -> pl.LazyFrame:
         """
         Get stratification data with simple caching.
@@ -552,6 +547,8 @@ class DataLoader:
         pl.LazyFrame
             Joined PPSA, POP_STRATUM, and PLOT data including MACRO_BREAKPOINT_DIA
         """
+        if self._stratification_cache is not None:
+            return self._stratification_cache
         # Load PPSA
         if "POP_PLOT_STRATUM_ASSGN" not in self.db.tables:
             self.db.load_table("POP_PLOT_STRATUM_ASSGN")
@@ -632,4 +629,5 @@ class DataLoader:
         # Join with PLOT to get MACRO_BREAKPOINT_DIA
         strat_data = strat_data.join(plot_selected, on="PLT_CN", how="left")
 
+        self._stratification_cache = strat_data
         return strat_data

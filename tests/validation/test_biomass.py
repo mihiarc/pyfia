@@ -107,11 +107,21 @@ class TestBiomassValidation:
             f"pyFIA: {pyfia_plot_count} vs EVALIDator: {ev_result.plot_count}"
         )
 
-    @pytest.mark.skip(reason="snum=13 returns trees >=1\" not >=5\" - need correct snum")
+    @pytest.mark.skip(
+        reason="No direct EVALIDator snum for 'live tree biomass >=5\" DBH'. "
+               "EVALIDator only offers growing-stock (snum=96 is dead trees, "
+               "snum=312 is growth). Would need strFilter parameter to validate."
+    )
     def test_biomass_5inch_trees(self, fia_db, evalidator_client):
         """Validate aboveground biomass for trees >=5" DBH.
 
-        NOTE: Skipped - EVALIDator snum=13 is for trees >=1" DBH, not >=5".
-        Need to verify correct snum or use strFilter parameter.
+        NOTE: Skipped - EVALIDator doesn't have a direct estimate for
+        "aboveground biomass of live trees >= 5 inches DBH". Options:
+        - snum=10: Live trees >= 1" DBH (too inclusive)
+        - snum=96: Dead trees >= 5" DBH (wrong tree type)
+        - snum=312: Growing-stock growth >= 5" DBH (wrong metric)
+
+        To validate this, would need to use EVALIDator's strFilter parameter
+        to filter snum=10 to DIA >= 5.
         """
         pass

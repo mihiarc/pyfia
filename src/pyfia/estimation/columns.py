@@ -134,12 +134,13 @@ def get_cond_columns(
     grp_by: Optional[Union[str, List[str]]] = None,
     base_cols: Optional[List[str]] = None,
     include_prop_basis: bool = False,
+    area_domain: Optional[str] = None,
 ) -> List[str]:
     """
     Resolve condition columns for estimation.
 
-    Combines base columns, land type-specific columns, and grouping columns
-    into a single deduplicated list.
+    Combines base columns, land type-specific columns, grouping columns,
+    and columns referenced in area_domain into a single deduplicated list.
 
     Parameters
     ----------
@@ -155,6 +156,10 @@ def get_cond_columns(
         Override default base columns. If not provided, uses BASE_COND_COLUMNS.
     include_prop_basis : bool, default False
         Whether to include PROP_BASIS column for area adjustment calculations.
+    area_domain : str, optional
+        SQL-like domain expression. Columns referenced in this expression
+        will be automatically added to the column list if they are valid
+        condition columns.
 
     Returns
     -------
@@ -171,6 +176,9 @@ def get_cond_columns(
 
     >>> get_cond_columns(grp_by="OWNGRPCD")
     ['PLT_CN', 'CONDID', 'COND_STATUS_CD', 'CONDPROP_UNADJ', 'OWNGRPCD']
+
+    >>> get_cond_columns(area_domain="FORTYPCD == 161")
+    ['PLT_CN', 'CONDID', 'COND_STATUS_CD', 'CONDPROP_UNADJ', 'FORTYPCD']
     """
     cols = list(base_cols or BASE_COND_COLUMNS)
 
@@ -189,6 +197,15 @@ def get_cond_columns(
         if isinstance(grp_by, str):
             grp_by = [grp_by]
         for col in grp_by:
+            if col not in cols and col in COND_GROUPING_COLUMNS:
+                cols.append(col)
+
+    # Add columns referenced in area_domain expression
+    if area_domain:
+        from ..filtering.parser import DomainExpressionParser
+
+        domain_cols = DomainExpressionParser.extract_columns(area_domain)
+        for col in domain_cols:
             if col not in cols and col in COND_GROUPING_COLUMNS:
                 cols.append(col)
 

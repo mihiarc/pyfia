@@ -11,13 +11,16 @@ Bechtold & Patterson (2005), Chapter 4: Area Change Estimation
 FIA Database User Guide, SUBP_COND_CHNG_MTRX table documentation
 """
 
-from typing import List, Literal, Optional, Union
+from typing import TYPE_CHECKING, List, Literal, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
 from ..base import BaseEstimator
 from ..utils import format_output_columns
+
+if TYPE_CHECKING:
+    from ..base import AggregationResult
 
 
 class AreaChangeEstimator(BaseEstimator):
@@ -412,12 +415,24 @@ class AreaChangeEstimator(BaseEstimator):
 
         return result
 
-    def calculate_variance(self, result: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(
+        self, agg_result: "AggregationResult | pl.DataFrame"
+    ) -> pl.DataFrame:
         """
         Calculate variance for area change estimates.
 
         Uses stratified variance estimation following Bechtold & Patterson.
+
+        Parameters
+        ----------
+        agg_result : AggregationResult or pl.DataFrame
+            Either an AggregationResult bundle or a DataFrame for backward compat.
         """
+        # Extract results DataFrame from AggregationResult if needed
+        from ..base import AggregationResult
+
+        result = agg_result.results if isinstance(agg_result, AggregationResult) else agg_result
+
         if self.plot_change_data is None:
             return result
 
@@ -426,7 +441,7 @@ class AreaChangeEstimator(BaseEstimator):
         if grp_by:
             if isinstance(grp_by, str):
                 grp_by = [grp_by]
-            group_cols = list(grp_by)
+            group_cols: list[str] = list(grp_by)
         else:
             group_cols = []
 
@@ -438,8 +453,8 @@ class AreaChangeEstimator(BaseEstimator):
 
         var_result = calculate_grouped_domain_total_variance(
             plot_data=self.plot_change_data,
-            value_col="AREA_CHANGE",
-            group_cols=group_cols if group_cols else None,
+            y_col="AREA_CHANGE",
+            group_cols=group_cols if group_cols else [],
         )
 
         # Join variance to result

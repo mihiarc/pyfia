@@ -583,53 +583,6 @@ def assign_size_class(
     return tree_df.with_columns(size_expr)
 
 
-def assign_forest_type_group(
-    cond_df: pl.DataFrame,
-    fortypcd_column: str = "FORTYPCD",
-    output_column: str = "FOREST_TYPE_GROUP",
-) -> pl.DataFrame:
-    """
-    Assign forest type groups based on forest type codes.
-
-    .. deprecated::
-        Use `add_forest_type_group` instead for more accurate
-        western forest type handling.
-
-    Groups forest types into major categories following FIA classification.
-
-    Parameters
-    ----------
-    cond_df : pl.DataFrame
-        Condition dataframe with forest type codes
-    fortypcd_column : str, default "FORTYPCD"
-        Column containing forest type codes
-    output_column : str, default "FOREST_TYPE_GROUP"
-        Name for output column
-
-    Returns
-    -------
-    pl.DataFrame
-        Condition dataframe with forest type group column added
-
-    Examples
-    --------
-    >>> # Add forest type groups
-    >>> conds_with_groups = assign_forest_type_group(conditions)
-    """
-    import warnings
-
-    warnings.warn(
-        "assign_forest_type_group is deprecated. Use add_forest_type_group instead.",
-        DeprecationWarning,
-        stacklevel=2,
-    )
-    return add_forest_type_group(
-        cond_df,
-        fortypcd_col=fortypcd_column,
-        output_col=output_column,
-    )
-
-
 def assign_species_group(
     tree_df: pl.DataFrame,
     species_df: pl.DataFrame,

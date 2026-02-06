@@ -53,8 +53,10 @@ class FIADataReader:
             "motherduck:"
         )
 
+        # Type annotation: str for MotherDuck, Path for local files
+        self.db_path: Union[str, Path]
         if self._is_motherduck:
-            self.db_path = db_str  # type: ignore[assignment]
+            self.db_path = db_str
         else:
             self.db_path = Path(db_path)
             if not self.db_path.exists():

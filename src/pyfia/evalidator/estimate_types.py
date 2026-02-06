@@ -42,17 +42,25 @@ class EstimateType(IntEnum):
 
     # --- AREA CHANGE (10 estimates) ---
     SNUM_126 = 126
+    AREA_CHANGE_SAMPLED = 126  # alias
     SNUM_127 = 127
+    AREA_CHANGE_FOREST_EITHER = 127  # alias
     SNUM_128 = 128
+    AREA_CHANGE_FOREST_REMEASURED = 128  # alias
     SNUM_129 = 129
+    AREA_CHANGE_TIMBERLAND_REMEASURED = 129  # alias
     SNUM_130 = 130
+    AREA_CHANGE_TIMBERLAND_EITHER = 130  # alias
     SNUM_135 = 135
+    AREA_CHANGE_ANNUAL_SAMPLED = 135  # alias
     SNUM_136 = 136
     AREA_CHANGE_ANNUAL_FOREST_BOTH = 136  # alias
     SNUM_137 = 137
     AREA_CHANGE_ANNUAL_FOREST_EITHER = 137  # alias
     SNUM_138 = 138
+    AREA_CHANGE_ANNUAL_TIMBERLAND_BOTH = 138  # alias
     SNUM_139 = 139
+    AREA_CHANGE_ANNUAL_TIMBERLAND_EITHER = 139  # alias
 
     # --- TREE COUNT (10 estimates) ---
     SNUM_4 = 4
@@ -398,9 +406,11 @@ class EstimateType(IntEnum):
     SNUM_10 = 10
     BIOMASS_AG_LIVE = 10  # alias
     SNUM_13 = 13
+    BIOMASS_AG_LIVE_5INCH = 13  # alias - aboveground biomass trees >=5" DBH
     SNUM_59 = 59
     BIOMASS_BG_LIVE = 59  # alias
     SNUM_73 = 73
+    BIOMASS_BG_LIVE_5INCH = 73  # alias - belowground biomass trees >=5" DBH
     SNUM_96 = 96
     SNUM_105 = 105
     SNUM_108 = 108
@@ -410,6 +420,7 @@ class EstimateType(IntEnum):
     SNUM_121 = 121
     SNUM_124 = 124
     SNUM_311 = 311
+    GROWTH_NET_BIOMASS = 311  # alias - net annual growth of biomass
     SNUM_312 = 312
     SNUM_313 = 313
     SNUM_314 = 314
@@ -423,6 +434,7 @@ class EstimateType(IntEnum):
     SNUM_322 = 322
     SNUM_335 = 335
     SNUM_336 = 336
+    MORTALITY_BIOMASS = 336  # alias - annual mortality of biomass
     SNUM_337 = 337
     SNUM_338 = 338
     SNUM_339 = 339
@@ -434,6 +446,7 @@ class EstimateType(IntEnum):
     SNUM_345 = 345
     SNUM_346 = 346
     SNUM_369 = 369
+    REMOVALS_BIOMASS = 369  # alias - annual removals of biomass
     SNUM_370 = 370
     SNUM_371 = 371
     SNUM_372 = 372

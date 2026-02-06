@@ -57,12 +57,14 @@ class TPAEstimator(BaseEstimator):
 
         Uses centralized column resolution from columns.py to reduce duplication.
         Dynamically includes timber land columns when land_type='timber' and
-        adds grouping columns as needed.
+        adds grouping columns as needed. Also includes columns referenced in
+        area_domain for proper filtering.
         """
         return _get_cond_columns(
             land_type=self.config.get("land_type", "forest"),
             grp_by=self.config.get("grp_by"),
             include_prop_basis=False,  # TPA doesn't need PROP_BASIS
+            area_domain=self.config.get("area_domain"),
         )
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:

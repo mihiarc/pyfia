@@ -1,22 +1,62 @@
 #!/usr/bin/env python3
 """
-Example: Mortality estimates grouped by cause of death (AGENTCD).
+Mortality Estimates Grouped by Cause of Death
+==============================================
 
-This example demonstrates the new AGENTCD and DSTRBCD grouping capabilities
-in the mortality() function, enabling timber casualty loss analysis.
+This example demonstrates how to estimate annual tree mortality grouped by
+cause of death (AGENTCD) - a real-world use case for forest landowners who
+need to classify timber losses for federal income tax purposes.
 
-Use Case: Forest landowners need to classify mortality by cause for
-federal income tax purposes:
-- Casualty Loss (tax-deductible): Fire, hurricanes/wind
-- Non-Casualty Loss: Insects, disease, drought
-- Non-Deductible: Animal damage, vegetation competition
+Tax Classification for Timber Losses
+------------------------------------
+The IRS allows deductions for timber casualties, but the treatment varies:
 
-Usage:
-    # With MotherDuck
+- CASUALTY (fully deductible): Sudden, unexpected events
+  - Fire (AGENTCD=30)
+  - Weather damage like hurricanes, tornadoes, ice storms (AGENTCD=50)
+
+- NON-CASUALTY (limited deduction): Gradual losses
+  - Insect damage (AGENTCD=10)
+  - Disease (AGENTCD=20)
+
+- NON-DEDUCTIBLE: Normal forest losses
+  - Animal damage (AGENTCD=40)
+  - Vegetation competition (AGENTCD=60)
+  - Silvicultural activities (AGENTCD=80)
+
+How This Script Works
+---------------------
+1. Connects to an FIA database (local DuckDB or cloud MotherDuck)
+2. Runs mortality estimation with `grp_by="AGENTCD"` to group by cause
+3. Maps AGENTCD codes to human-readable names and tax classifications
+4. Summarizes total mortality volume by tax category
+5. Also shows mortality by disturbance type (DSTRBCD1) for context
+
+Key pyFIA Features Demonstrated
+-------------------------------
+- `grp_by` parameter: Group estimates by any column (AGENTCD, SPCD, etc.)
+- `measure` parameter: Choose what to measure (volume, tpa, biomass, etc.)
+- `variance=True`: Include standard errors for uncertainty quantification
+- Support for both local DuckDB and cloud MotherDuck databases
+
+Usage
+-----
+    # With local DuckDB file
+    uv run python examples/mortality_by_cause.py --duckdb data/ri/ri/ri.duckdb
+
+    # With MotherDuck cloud database
     uv run python examples/mortality_by_cause.py --motherduck fia_va
 
-    # With local DuckDB
-    uv run python examples/mortality_by_cause.py --duckdb data/virginia.duckdb
+    # With specific EVALID
+    uv run python examples/mortality_by_cause.py --duckdb data/va.duckdb --evalid 512001
+
+Output
+------
+The script produces two tables:
+1. Annual mortality volume by cause (AGENTCD) with tax classification
+2. Annual mortality volume by disturbance type (DSTRBCD1)
+
+Plus a summary showing total volume in each tax category.
 """
 
 import argparse
@@ -26,7 +66,7 @@ from rich.table import Table
 console = Console()
 
 
-# AGENTCD code descriptions
+# AGENTCD code descriptions (from FIA documentation)
 AGENTCD_NAMES = {
     0: "No agent recorded",
     10: "Insect",
@@ -54,13 +94,35 @@ TAX_CLASSIFICATION = {
 
 
 def run_mortality_by_agentcd(db):
-    """Run mortality estimates grouped by AGENTCD."""
+    """
+    Run mortality estimates grouped by AGENTCD (cause of death).
+
+    This function demonstrates the core pyFIA pattern:
+    1. Call an estimation function (mortality, volume, area, etc.)
+    2. Use grp_by to group results by a column of interest
+    3. Process and display the results
+
+    Parameters
+    ----------
+    db : FIA or MotherDuckFIA
+        Connected database instance.
+
+    Returns
+    -------
+    pl.DataFrame
+        Mortality results grouped by AGENTCD.
+    """
     from pyfia import mortality
 
     console.print("\n[bold]Mortality by Cause of Death (AGENTCD)[/bold]")
     console.print("=" * 60)
 
-    # Run mortality with AGENTCD grouping
+    # Run mortality estimation with AGENTCD grouping
+    # Key parameters:
+    # - grp_by="AGENTCD": Group results by mortality agent code
+    # - measure="volume": Report mortality in cubic feet
+    # - tree_type="gs": Growing stock trees only
+    # - variance=True: Include standard errors
     result = mortality(
         db,
         grp_by="AGENTCD",
@@ -70,7 +132,7 @@ def run_mortality_by_agentcd(db):
         variance=True,
     )
 
-    # Display results
+    # Display results in a formatted table
     table = Table(title="Annual Mortality Volume by Cause")
     table.add_column("AGENTCD", justify="right")
     table.add_column("Cause", justify="left")
@@ -122,7 +184,22 @@ def run_mortality_by_agentcd(db):
 
 
 def run_mortality_by_dstrbcd(db):
-    """Run mortality estimates grouped by DSTRBCD1 (disturbance code)."""
+    """
+    Run mortality estimates grouped by DSTRBCD1 (disturbance code).
+
+    DSTRBCD1 records the primary disturbance affecting a condition,
+    providing additional context beyond the mortality agent.
+
+    Parameters
+    ----------
+    db : FIA or MotherDuckFIA
+        Connected database instance.
+
+    Returns
+    -------
+    pl.DataFrame
+        Mortality results grouped by DSTRBCD1.
+    """
     from pyfia import mortality
 
     console.print("\n[bold]Mortality by Disturbance Type (DSTRBCD1)[/bold]")
@@ -161,6 +238,7 @@ def run_mortality_by_dstrbcd(db):
 
 
 def main():
+    """Main entry point - parse arguments and run analysis."""
     parser = argparse.ArgumentParser(
         description="Demonstrate mortality grouping by cause of death"
     )

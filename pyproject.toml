@@ -67,11 +67,13 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "rich",
     "pyyaml>=6.0.0",
+    "pandas>=2.0.0",
     "requests>=2.31.0",
 ]
 
 [project.optional-dependencies]
 spatial = ["geopandas>=0.14.0", "shapely>=2.0.0"]
+pandas = ["pandas>=2.0.0"]
 dev = [
     "pytest>=8.4.1",
     "pytest-cov>=6.2.1",
@@ -84,7 +86,7 @@ dev = [
     "mkdocs-material>=9.5.0",
     "pre-commit>=3.6.0",
 ]
-all = ["pyfia[spatial,dev]"]
+all = ["pyfia[spatial,pandas,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/mihiarc/pyfia"

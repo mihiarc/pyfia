@@ -355,92 +355,43 @@ class AreaEstimator(BaseEstimator):
 
         # If we have grouping variables, calculate variance for each group
         if group_cols:
-            # Use vectorized grouped variance calculation
-            from ..variance import calculate_grouped_domain_total_variance
+            # Calculate variance for each group separately
+            variance_results = []
 
-            # Get valid group columns that exist in the data
-            valid_group_cols = [c for c in group_cols if c in plot_data.columns]
+            for group_vals in results.iter_rows():
+                # Filter plot data for this group
+                group_filter = pl.lit(True)
+                group_dict = {}
 
-            if valid_group_cols:
-                # Determine the stratum column name
-                # Prefer STRATUM_CN over STRATUM, and don't use ESTN_UNIT for variance
-                if "STRATUM_CN" in strat_cols:
-                    stratum_col = "STRATUM_CN"
-                elif "STRATUM" in strat_cols:
-                    stratum_col = "STRATUM"
-                else:
-                    stratum_col = strat_cols[0] if strat_cols else "STRATUM"
+                for i, col in enumerate(group_cols):
+                    if col in plot_data.columns:
+                        val = group_vals[results.columns.index(col)]
+                        group_dict[col] = val
+                        if val is None:
+                            group_filter = group_filter & pl.col(col).is_null()
+                        else:
+                            group_filter = group_filter & (pl.col(col) == val)
 
-                # FIX for Issue #68: Variance underestimation for rare categories
-                # When grouping by a categorical variable like FORTYPCD, variance must
-                # include ALL plots in each stratum, not just plots matching each group.
-                # Non-matching plots contribute y=0 to the variance calculation.
-                #
-                # Step 1: Get unique group values from results
-                unique_groups = results.select(valid_group_cols).unique()
+                group_plot_data = plot_data.filter(group_filter)
 
-                # Step 2: Get base plot data without group columns (all plots with stratum info)
-                base_plot_cols = ["PLT_CN", stratum_col, "EXPNS"]
-                all_plots_base = cond_data.select(
-                    [c for c in base_plot_cols if c in cond_data.columns]
-                ).unique()
-
-                # Step 3: Cross-join all plots with unique groups
-                # Result: Every plot appears once for each group value
-                all_plots_expanded = all_plots_base.join(unique_groups, how="cross")
-
-                # Step 4: Left join with actual plot_data on PLT_CN + group columns
-                # Plot P1 with FORTYPCD=809 data only matches (P1, 809) row
-                # All other (P1, other_type) rows get NULL y values -> filled with 0
-                join_keys = ["PLT_CN"] + valid_group_cols
-                all_plots_with_data = all_plots_expanded.join(
-                    plot_data.select(["PLT_CN", "y_i"] + valid_group_cols),
-                    on=join_keys,
-                    how="left",
-                )
-
-                # Step 5: Fill NULL y values with 0.0
-                all_plots_with_data = all_plots_with_data.with_columns(
-                    pl.col("y_i").fill_null(0.0)
-                )
-
-                # Calculate variance for all groups in one vectorized operation
-                var_df = calculate_grouped_domain_total_variance(
-                    all_plots_with_data,
-                    group_cols=valid_group_cols,
-                    y_col="y_i",
-                    x_col="y_i",  # For area, x is also area (no ratio)
-                    stratum_col=stratum_col,
-                    weight_col="EXPNS",
-                )
-
-                # Rename columns to match expected output
-                var_df = var_df.rename(
-                    {
-                        "se_total": "AREA_SE",
-                        "variance_total": "AREA_VARIANCE",
-                    }
-                )
-
-                # SE_PERCENT will be calculated after joining with results
-                # since we need the actual AREA_TOTAL values
-
-                # Select only the columns we need
-                keep_cols = valid_group_cols + ["AREA_SE", "AREA_VARIANCE"]
-                keep_cols = [c for c in keep_cols if c in var_df.columns]
-                var_df = var_df.select(keep_cols)
-
-                # Join variance results back to main results
-                results = results.join(var_df, on=valid_group_cols, how="left")
-
-                # Calculate SE_PERCENT using actual AREA_TOTAL from results
-                if "AREA_TOTAL" in results.columns and "AREA_SE" in results.columns:
-                    results = results.with_columns(
-                        pl.when(pl.col("AREA_TOTAL") > 0)
-                        .then(100 * pl.col("AREA_SE") / pl.col("AREA_TOTAL"))
-                        .otherwise(0.0)
-                        .alias("AREA_SE_PERCENT")
+                if len(group_plot_data) > 0:
+                    # Calculate variance for this group
+                    var_stats = self._calculate_variance_for_group(
+                        group_plot_data, strat_cols
                     )
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "AREA_SE": var_stats["se_total"],
+                            "AREA_SE_PERCENT": var_stats["se_percent"],
+                            "AREA_VARIANCE": var_stats["variance"],
+                        }
+                    )
+
+            # Join variance results back to main results
+            if variance_results:
+                var_df = pl.DataFrame(variance_results)
+                results = results.join(var_df, on=group_cols, how="left")
         else:
             # No grouping, calculate overall variance
             var_stats = self._calculate_variance_for_group(plot_data, strat_cols)
@@ -568,8 +519,7 @@ class AreaEstimator(BaseEstimator):
                     )
 
         # Add year
-        year = self._extract_evaluation_year()
-        results = results.with_columns([pl.lit(year).alias("YEAR")])
+        results = results.with_columns([pl.lit(2023).alias("YEAR")])
 
         # Format columns
         results = format_output_columns(

@@ -10,7 +10,6 @@ from __future__ import annotations
 import logging
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING
 
 import polars as pl
 
@@ -24,9 +23,6 @@ from .exceptions import (
     SpatialExtensionError,
     SpatialFileError,
 )
-
-if TYPE_CHECKING:
-    from .backends import MotherDuckBackend
 
 logger = logging.getLogger(__name__)
 
@@ -100,10 +96,8 @@ class FIA:
             "motherduck:"
         )
 
-        # Type annotation: str for MotherDuck, Path for local files
-        self.db_path: str | Path
         if self._is_motherduck:
-            self.db_path = db_str
+            self.db_path = db_str  # type: ignore[assignment]
         else:
             self.db_path = Path(db_path)
             if not self.db_path.exists():
@@ -192,13 +186,8 @@ class FIA:
 
     def __exit__(self, _exc_type, _exc_val, _exc_tb):
         """Context manager exit."""
-        self.close()
-
-    def close(self):
-        """Close the database connection."""
-        if hasattr(self, "_reader") and self._reader:
-            if hasattr(self._reader, "_backend") and self._reader._backend:
-                self._reader._backend.disconnect()
+        # Connection cleanup handled by FIADataReader
+        pass
 
     # Connection management moved to FIADataReader with backend support
 
@@ -342,10 +331,6 @@ class FIA:
 
                 result = batch_query_by_values(valid_plot_cns, query_batch)
 
-                # Ensure result is a LazyFrame for consistent processing
-                if isinstance(result, pl.DataFrame):
-                    result = result.lazy()
-
                 # Join polygon attributes for PLOT table if available
                 if table_name == "PLOT" and self._polygon_attributes is not None:
                     result = result.join(
@@ -452,23 +437,12 @@ class FIA:
 
         if eval_type is not None:
             # FIA uses 'EXP' prefix for evaluation types
-            # Special cases:
-            # - "ALL" maps to "EXPALL" for area estimation
-            # - "GRM" maps to EXPGROW, EXPMORT, or EXPREMV for growth/mortality/removals
-            # - "CURR" maps to "EXPCURR" for current area
-            eval_type_upper = eval_type.upper()
-            if eval_type_upper == "ALL":
+            # Special case: "ALL" maps to "EXPALL" for area estimation
+            if eval_type.upper() == "ALL":
                 eval_type_full = "EXPALL"
-                df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
-            elif eval_type_upper == "GRM":
-                # GRM is a composite type - filter for any of the three GRM eval types
-                grm_types = ["EXPGROW", "EXPMORT", "EXPREMV"]
-                df = df.filter(pl.col("EVAL_TYP").is_in(grm_types))
-            elif eval_type_upper == "CURR":
-                df = df.filter(pl.col("EVAL_TYP") == "EXPCURR")
             else:
-                eval_type_full = f"EXP{eval_type_upper}"
-                df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
+                eval_type_full = f"EXP{eval_type}"
+            df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
 
         if most_recent:
             # Add parsed EVALID columns for robust year sorting
@@ -1378,8 +1352,7 @@ class MotherDuckFIA(FIA):
         self._backend.connect()
 
         # Create a minimal reader-like wrapper for compatibility
-        # Type note: _MotherDuckReaderWrapper provides the same interface as FIADataReader
-        self._reader = _MotherDuckReaderWrapper(self._backend)  # type: ignore[assignment]
+        self._reader = _MotherDuckReaderWrapper(self._backend)
 
     def __enter__(self):
         """Context manager entry."""
@@ -1415,13 +1388,12 @@ class _MotherDuckReaderWrapper:
     without requiring a full FIADataReader instance.
     """
 
-    def __init__(self, backend: "MotherDuckBackend") -> None:
+    def __init__(self, backend) -> None:
         self._backend = backend
 
     def get_table_schema(self, table_name: str) -> dict[str, str]:
         """Get schema for a table from the MotherDuck database."""
-        schema: dict[str, str] = self._backend.get_table_schema(table_name)
-        return schema
+        return self._backend.get_table_schema(table_name)
 
     def read_table(
         self,
@@ -1439,7 +1411,7 @@ class _MotherDuckReaderWrapper:
         if where:
             query += f" WHERE {where}"
 
-        df: pl.DataFrame = self._backend.execute_query(query)
+        df = self._backend.execute_query(query)
 
         if lazy:
             return df.lazy()

@@ -198,23 +198,23 @@ class BaseEstimator(ABC):
                 data = data.filter(gs_filter)
             # "all" means no filter
 
-        # Apply land type filter using centralized indicator function.
-        # NOTE: DataLoader._build_cond_sql_filter also pushes this to SQL for
-        # performance (reduces data transfer). This Polars filter is the
-        # definitive filter that guarantees correctness regardless of how
-        # data was loaded or cached.
+        # Apply land type filter using centralized indicator function
+        # This replaces magic numbers with named constants from status_codes.py
         land_type = self.config.get("land_type", "forest")
         if land_type and land_type != "all" and "COND_STATUS_CD" in columns:
             data = data.filter(get_land_domain_indicator(land_type))
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
+    def aggregate_results(
+        self, data: pl.LazyFrame | None
+    ) -> AggregationResult | pl.DataFrame:
         """
         Aggregate results with stratification.
 
-        Subclasses must implement this to return AggregationResult containing
-        the aggregated results, plot-tree data for variance, and group columns.
+        Subclasses should override this to return AggregationResult for proper
+        variance calculation. The base implementation returns a DataFrame for
+        backward compatibility.
 
         Parameters
         ----------
@@ -223,23 +223,57 @@ class BaseEstimator(ABC):
 
         Returns
         -------
-        AggregationResult
-            Bundle with results, plot_tree_data, and group_cols for
-            variance calculation.
+        Union[AggregationResult, pl.DataFrame]
+            AggregationResult with results, plot_tree_data, and group_cols,
+            or DataFrame for backward compatibility
         """
-        raise NotImplementedError(
-            f"{type(self).__name__} must implement aggregate_results()"
-        )
+        # Get stratification data
+        strat_data = self._get_stratification_data()
 
-    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
+        if data is None:
+            # Area-only estimation
+            return self._aggregate_area_only(strat_data)
+
+        # Join with stratification
+        data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
+
+        # Setup grouping columns
+        group_cols = self._setup_grouping()
+
+        # Aggregate by groups
+        if group_cols:
+            results = (
+                data_with_strat.group_by(group_cols)
+                .agg(
+                    [
+                        pl.sum("ESTIMATE_VALUE").alias("ESTIMATE"),
+                        pl.count("PLT_CN").alias("N_PLOTS"),
+                    ]
+                )
+                .collect()
+            )
+        else:
+            results = data_with_strat.select(
+                [
+                    pl.sum("ESTIMATE_VALUE").alias("ESTIMATE"),
+                    pl.count("PLT_CN").alias("N_PLOTS"),
+                ]
+            ).collect()
+
+        return results
+
+    def calculate_variance(
+        self, agg_result: AggregationResult | pl.DataFrame
+    ) -> pl.DataFrame:
         """
         Calculate variance for estimates.
 
         Parameters
         ----------
-        agg_result : AggregationResult
-            Bundle containing results, plot_tree_data, and group_cols
-            from aggregate_results().
+        agg_result : Union[AggregationResult, pl.DataFrame]
+            Either an AggregationResult containing results, plot_tree_data,
+            and group_cols for explicit data passing, or a DataFrame for
+            backward compatibility with subclasses that haven't been updated.
 
         Returns
         -------
@@ -272,8 +306,9 @@ class BaseEstimator(ABC):
             Formatted results
         """
         # Add metadata columns
-        year = self._extract_evaluation_year()
-        results = results.with_columns([pl.lit(year).alias("YEAR")])
+        results = results.with_columns(
+            [pl.lit(self.config.get("year", 2023)).alias("YEAR")]
+        )
 
         # Reorder columns
         col_order = ["YEAR", "ESTIMATE", "SE", "N_PLOTS"]
@@ -461,6 +496,11 @@ class BaseEstimator(ABC):
             Joined PPSA, POP_STRATUM, and PLOT data including MACRO_BREAKPOINT_DIA
         """
         return self.data_loader.get_stratification_data()
+
+    def _aggregate_area_only(self, strat_data: pl.LazyFrame) -> pl.DataFrame:
+        """Handle area-only aggregation without tree data."""
+        # This would be implemented by area estimator
+        return pl.DataFrame()
 
     def _preserve_plot_tree_data(
         self,
@@ -983,11 +1023,9 @@ class BaseEstimator(ABC):
             )
 
         # Build plot-level aggregation
-        plot_agg_exprs = (
-            [pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i")]
-            if "CONDPROP_UNADJ" in plot_cond_data.columns
-            else [pl.lit(1.0).alias("x_i")]
-        )
+        plot_agg_exprs = [
+            pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i")
+        ] if "CONDPROP_UNADJ" in plot_cond_data.columns else [pl.lit(1.0).alias("x_i")]
 
         for i in range(len(metric_configs)):
             plot_agg_exprs.append(pl.sum(f"y_{i}_ic").alias(f"y_{i}_i"))
@@ -1034,113 +1072,96 @@ class BaseEstimator(ABC):
         """
         Calculate variance for grouped estimates with multiple metrics.
 
-        Uses vectorized operations via calculate_grouped_domain_total_variance
-        to compute variance for all groups in a single pass per metric,
-        avoiding the O(groups × metrics) loop pattern.
+        Uses a loop over groups for now; could be further optimized with
+        vectorized operations in the future.
         """
-        from .variance import calculate_grouped_domain_total_variance
+        from .variance import calculate_domain_total_variance
 
-        # Get valid group columns that exist in the data
-        valid_group_cols = [c for c in group_cols if c in plot_data.columns]
+        variance_results = []
 
-        if not valid_group_cols:
-            # No valid grouping - fall back to overall calculation
-            return self._calculate_overall_multi_metric_variance(
-                plot_data, all_plots, results, metric_configs
-            )
+        for group_vals in results.iter_rows():
+            # Build filter for this group
+            group_filter = pl.lit(True)
+            group_dict = {}
 
-        # Step 1: Get unique group values from results
-        # This ensures we only create variance rows for groups that have estimates
-        unique_groups = results.select(valid_group_cols).unique()
+            for col in group_cols:
+                if col in plot_data.columns:
+                    val = group_vals[results.columns.index(col)]
+                    group_dict[col] = val
+                    if val is None:
+                        group_filter = group_filter & pl.col(col).is_null()
+                    else:
+                        group_filter = group_filter & (pl.col(col) == val)
 
-        # Step 2: Cross-join all_plots with unique_groups
-        # Result: Every plot appears once for each group value
-        # This is essential for correct variance calculation - plots without
-        # a given forest type should contribute y=0 to that type's variance
-        all_plots_expanded = all_plots.join(unique_groups, how="cross")
+            # Filter plot data for this specific group
+            group_plot_data = plot_data.filter(group_filter)
 
-        # Step 3: Prepare plot_data columns for join
-        select_cols = ["PLT_CN", "x_i"] + valid_group_cols
-        select_cols += [f"y_{i}_i" for i in range(len(metric_configs))]
-        select_cols = [c for c in select_cols if c in plot_data.columns]
+            # Build select columns for join
+            select_cols = ["PLT_CN", "x_i"] + [f"y_{i}_i" for i in range(len(metric_configs))]
+            select_cols = [c for c in select_cols if c in group_plot_data.columns]
 
-        # Step 4: Left join on PLT_CN + group_cols (KEY FIX for Issue #68)
-        # Plot P1 with FORTYPCD=809 data only matches (P1, 809) row
-        # All other (P1, other_type) rows get NULL y values -> filled with 0
-        join_keys = ["PLT_CN"] + valid_group_cols
-        all_plots_with_data = all_plots_expanded.join(
-            plot_data.select(select_cols),
-            on=join_keys,
-            how="left",
-        )
-
-        # Step 5: Fill NULL y values with 0.0
-        # Plots without data for a specific group contribute 0 to that group's estimate
-        fill_exprs = [pl.col("x_i").fill_null(0.0)]
-        for i in range(len(metric_configs)):
-            col_name = f"y_{i}_i"
-            if col_name in all_plots_with_data.columns:
-                fill_exprs.append(pl.col(col_name).fill_null(0.0))
-
-        all_plots_with_data = all_plots_with_data.with_columns(fill_exprs)
-
-        # Step 2: Calculate variance for each metric using vectorized operations
-        variance_dfs = []
-        for i, cfg in enumerate(metric_configs):
-            y_col = f"y_{i}_i"
-            if y_col not in all_plots_with_data.columns:
-                continue
-
-            # Use vectorized grouped variance calculation
-            var_df = calculate_grouped_domain_total_variance(
-                all_plots_with_data,
-                group_cols=valid_group_cols,
-                y_col=y_col,
-                x_col="x_i",
-                stratum_col="STRATUM_CN",
-                weight_col="EXPNS",
-            )
-
-            # Rename columns to match metric config
-            rename_dict = {
-                "se_acre": cfg["acre_se_col"],
-                "se_total": cfg["total_se_col"],
-            }
-            if "acre_var_col" in cfg:
-                rename_dict["variance_acre"] = cfg["acre_var_col"]
-            if "total_var_col" in cfg:
-                rename_dict["variance_total"] = cfg["total_var_col"]
-
-            # Select only the columns we need
-            keep_cols = valid_group_cols + list(rename_dict.keys())
-            keep_cols = [c for c in keep_cols if c in var_df.columns]
-            var_df = var_df.select(keep_cols).rename(rename_dict)
-
-            variance_dfs.append(var_df)
-
-        # Step 3: Join all variance results together
-        if not variance_dfs:
-            return results
-
-        # Start with the first variance df and join others
-        combined_var = variance_dfs[0]
-        for var_df in variance_dfs[1:]:
-            # Get new columns (not group cols) - only select these from right side
-            # to avoid duplicate columns with _right suffix from outer join
-            new_cols = [c for c in var_df.columns if c not in valid_group_cols]
-            if not new_cols:
-                continue
-            # Use left join since all group values should be present in first df
-            combined_var = combined_var.join(
-                var_df.select(valid_group_cols + new_cols),
-                on=valid_group_cols,
+            # Join with ALL plots, filling missing with zeros
+            all_plots_group = all_plots.join(
+                group_plot_data.select(select_cols),
+                on="PLT_CN",
                 how="left",
             )
 
-        # Step 4: Join variance results back to main results
-        join_cols = [c for c in valid_group_cols if c in results.columns]
-        if join_cols:
-            results = results.join(combined_var, on=join_cols, how="left")
+            # Fill nulls with zeros
+            fill_exprs = [pl.col("x_i").fill_null(0.0)]
+            for i in range(len(metric_configs)):
+                col_name = f"y_{i}_i"
+                if col_name in all_plots_group.columns:
+                    fill_exprs.append(pl.col(col_name).fill_null(0.0))
+
+            all_plots_group = all_plots_group.with_columns(fill_exprs)
+
+            # Calculate variance for each metric
+            result_row = dict(group_dict)
+
+            if len(all_plots_group) > 0:
+                # Calculate total area for per-acre SE
+                total_area = (
+                    all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                ).sum()
+
+                for i, cfg in enumerate(metric_configs):
+                    y_col = f"y_{i}_i"
+                    if y_col in all_plots_group.columns:
+                        var_stats = calculate_domain_total_variance(
+                            all_plots_group, y_col
+                        )
+                        se_acre = (
+                            var_stats["se_total"] / total_area if total_area > 0 else 0.0
+                        )
+
+                        result_row[cfg["acre_se_col"]] = se_acre
+                        result_row[cfg["total_se_col"]] = var_stats["se_total"]
+
+                        # Add variance columns if specified
+                        if "acre_var_col" in cfg:
+                            result_row[cfg["acre_var_col"]] = se_acre**2
+                        if "total_var_col" in cfg:
+                            result_row[cfg["total_var_col"]] = var_stats["variance_total"]
+            else:
+                # No data for this group
+                for cfg in metric_configs:
+                    result_row[cfg["acre_se_col"]] = 0.0
+                    result_row[cfg["total_se_col"]] = 0.0
+                    if "acre_var_col" in cfg:
+                        result_row[cfg["acre_var_col"]] = 0.0
+                    if "total_var_col" in cfg:
+                        result_row[cfg["total_var_col"]] = 0.0
+
+            variance_results.append(result_row)
+
+        # Join variance results back to main results
+        if variance_results:
+            var_df = pl.DataFrame(variance_results)
+            # Use only valid group columns that exist in both dataframes
+            join_cols = [c for c in group_cols if c in var_df.columns and c in results.columns]
+            if join_cols:
+                results = results.join(var_df, on=join_cols, how="left")
 
         return results
 
@@ -1157,9 +1178,7 @@ class BaseEstimator(ABC):
         from .variance import calculate_domain_total_variance
 
         # Build select columns for join
-        select_cols = ["PLT_CN", "x_i"] + [
-            f"y_{i}_i" for i in range(len(metric_configs))
-        ]
+        select_cols = ["PLT_CN", "x_i"] + [f"y_{i}_i" for i in range(len(metric_configs))]
         select_cols = [c for c in select_cols if c in plot_data.columns]
 
         # Join with ALL plots, filling missing with zeros
@@ -1192,28 +1211,20 @@ class BaseEstimator(ABC):
                 )
                 se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
 
-                results = results.with_columns(
-                    [
-                        pl.lit(se_acre).alias(cfg["acre_se_col"]),
-                        pl.lit(var_stats["se_total"]).alias(cfg["total_se_col"]),
-                    ]
-                )
+                results = results.with_columns([
+                    pl.lit(se_acre).alias(cfg["acre_se_col"]),
+                    pl.lit(var_stats["se_total"]).alias(cfg["total_se_col"]),
+                ])
 
                 # Add variance columns if specified
                 if "acre_var_col" in cfg:
-                    results = results.with_columns(
-                        [
-                            pl.lit(se_acre**2).alias(cfg["acre_var_col"]),
-                        ]
-                    )
+                    results = results.with_columns([
+                        pl.lit(se_acre**2).alias(cfg["acre_var_col"]),
+                    ])
                 if "total_var_col" in cfg:
-                    results = results.with_columns(
-                        [
-                            pl.lit(var_stats["variance_total"]).alias(
-                                cfg["total_var_col"]
-                            ),
-                        ]
-                    )
+                    results = results.with_columns([
+                        pl.lit(var_stats["variance_total"]).alias(cfg["total_var_col"]),
+                    ])
 
         return results
 
@@ -1231,25 +1242,21 @@ class BaseEstimator(ABC):
 
             if acre_col and acre_col in results.columns:
                 cv_col = acre_se_col.replace("_SE", "_CV")
-                results = results.with_columns(
-                    [
-                        pl.when(pl.col(acre_col) > 0)
-                        .then(pl.col(acre_se_col) / pl.col(acre_col) * 100)
-                        .otherwise(None)
-                        .alias(cv_col),
-                    ]
-                )
+                results = results.with_columns([
+                    pl.when(pl.col(acre_col) > 0)
+                    .then(pl.col(acre_se_col) / pl.col(acre_col) * 100)
+                    .otherwise(None)
+                    .alias(cv_col),
+                ])
 
             if total_col and total_col in results.columns:
                 cv_col = total_se_col.replace("_SE", "_CV")
-                results = results.with_columns(
-                    [
-                        pl.when(pl.col(total_col) > 0)
-                        .then(pl.col(total_se_col) / pl.col(total_col) * 100)
-                        .otherwise(None)
-                        .alias(cv_col),
-                    ]
-                )
+                results = results.with_columns([
+                    pl.when(pl.col(total_col) > 0)
+                    .then(pl.col(total_se_col) / pl.col(total_col) * 100)
+                    .otherwise(None)
+                    .alias(cv_col),
+                ])
 
         return results
 

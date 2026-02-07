@@ -13,18 +13,16 @@ Key differences from biomass-derived carbon:
 - Matches EVALIDator exactly for live tree carbon estimates
 """
 
-from typing import TYPE_CHECKING, List, Optional, Union
+from typing import List, Optional, Union
 
 import polars as pl
 
 from ...core import FIA
-from ..base import AggregationResult, BaseEstimator
+from ..base import BaseEstimator
 from ..constants import LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
-from ..utils import validate_aggregation_result, validate_required_columns
-
-if TYPE_CHECKING:
-    from ..base import AggregationResult
+from ..utils import validate_required_columns
+from ..variance import calculate_domain_total_variance
 
 
 class CarbonPoolEstimator(BaseEstimator):
@@ -140,19 +138,13 @@ class CarbonPoolEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
         """
         Aggregate carbon with two-stage aggregation for correct per-acre estimates.
 
         Implements FIA's design-based estimation methodology:
         Stage 1: Aggregate trees to plot-condition level
         Stage 2: Apply expansion factors and calculate population totals
-
-        Returns
-        -------
-        AggregationResult
-            Bundle containing results, plot_tree_data, and group_cols for
-            explicit variance calculation.
         """
         # Validate required columns using shared utility
         validate_required_columns(data, ["PLT_CN", "CARBON_ACRE"], "carbon data")
@@ -175,9 +167,10 @@ class CarbonPoolEstimator(BaseEstimator):
 
         # Setup grouping
         group_cols = self._setup_grouping()
+        self.group_cols = group_cols
 
-        # Preserve plot-tree level data for variance calculation
-        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+        # CRITICAL: Store plot-tree level data for variance calculation
+        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
             metric_cols=["CARBON_ADJ"],
             group_cols=group_cols,
@@ -200,40 +193,152 @@ class CarbonPoolEstimator(BaseEstimator):
             if cols_to_drop:
                 results = results.drop(cols_to_drop)
 
-        return AggregationResult(
-            results=results,
-            plot_tree_data=plot_tree_data,
-            group_cols=group_cols,
-        )
+        return results
 
-    def calculate_variance(
-        self,
-        agg_result: AggregationResult,  # type: ignore[override]
-    ) -> pl.DataFrame:
+    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
         """
         Calculate variance for carbon estimates using domain total variance formula.
 
-        Uses the unified _calculate_variance_for_metrics method with the
-        stratified domain total variance formula from Bechtold & Patterson (2005).
+        Implements the stratified domain total variance formula from
+        Bechtold & Patterson (2005):
+
+        V(Ŷ) = Σ_h W_h² × s²_yh × n_h
+
+        Where W_h is the stratum expansion factor (EXPNS), s²_yh is the sample
+        variance within stratum h, and n_h is the number of plots in stratum h.
 
         Raises
         ------
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        validate_aggregation_result(agg_result, "Carbon")
+        if self.plot_tree_data is None:
+            raise ValueError(
+                "Plot-tree data is required for carbon variance calculation. "
+                "Cannot compute statistically valid standard errors without tree-level "
+                "data. Ensure data preservation is working correctly in the estimation "
+                "pipeline."
+            )
 
-        metric_configs = [
-            {
-                "adjusted_col": "CARBON_ADJ",
-                "acre_se_col": "CARBON_ACRE_SE",
-                "total_se_col": "CARBON_TOTAL_SE",
-                "acre_var_col": "CARBON_ACRE_VARIANCE",
-                "total_var_col": "CARBON_TOTAL_VARIANCE",
-            }
+        # Step 1: Aggregate to plot-condition level
+        plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
+        if "STRATUM_CN" in self.plot_tree_data.columns:
+            plot_group_cols.insert(2, "STRATUM_CN")
+
+        # Add grouping columns
+        if self.group_cols:
+            for col in self.group_cols:
+                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+                    plot_group_cols.append(col)
+
+        plot_cond_agg = [
+            pl.sum("CARBON_ADJ").alias("y_carb_ic"),  # Carbon per condition
         ]
 
-        return self._calculate_variance_for_metrics(agg_result, metric_configs)
+        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
+            plot_cond_agg
+        )
+
+        # Step 2: Aggregate to plot level
+        plot_level_cols = ["PLT_CN", "EXPNS"]
+        if "STRATUM_CN" in plot_cond_data.columns:
+            plot_level_cols.insert(1, "STRATUM_CN")
+        if self.group_cols:
+            plot_level_cols.extend(
+                [c for c in self.group_cols if c in plot_cond_data.columns]
+            )
+
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
+            [
+                pl.sum("y_carb_ic").alias("y_carb_i"),  # Total carbon per plot
+                pl.lit(1.0).alias("x_i"),  # Area proportion per plot (full plot = 1)
+            ]
+        )
+
+        # Step 3: Calculate variance for each group or overall
+        if self.group_cols:
+            # Get ALL plots in the evaluation for proper variance calculation
+            strat_data = self._get_stratification_data()
+            all_plots = (
+                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
+            )
+
+            # Calculate variance for each group separately
+            variance_results = []
+
+            for group_vals in results.iter_rows():
+                # Build filter for this group
+                group_filter = pl.lit(True)
+                group_dict = {}
+
+                for i, col in enumerate(self.group_cols):
+                    if col in plot_data.columns:
+                        group_dict[col] = group_vals[results.columns.index(col)]
+                        group_filter = group_filter & (
+                            pl.col(col) == group_vals[results.columns.index(col)]
+                        )
+
+                # Filter plot data for this specific group
+                group_plot_data = plot_data.filter(group_filter)
+
+                # Join with ALL plots, filling missing with zeros
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_carb_i", "x_i"]),
+                    on="PLT_CN",
+                    how="left",
+                ).with_columns(
+                    [
+                        pl.col("y_carb_i").fill_null(0.0),
+                        pl.col("x_i").fill_null(0.0),
+                    ]
+                )
+
+                if len(all_plots_group) > 0:
+                    carb_stats = calculate_domain_total_variance(
+                        all_plots_group, "y_carb_i"
+                    )
+                    # Calculate total area for per-acre SE
+                    total_area = (
+                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
+                    ).sum()
+                    se_acre = (
+                        carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    )
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "CARBON_ACRE_SE": se_acre,
+                            "CARBON_TOTAL_SE": carb_stats["se_total"],
+                        }
+                    )
+                else:
+                    variance_results.append(
+                        {
+                            **group_dict,
+                            "CARBON_ACRE_SE": 0.0,
+                            "CARBON_TOTAL_SE": 0.0,
+                        }
+                    )
+
+            # Join variance results back to main results
+            if variance_results:
+                var_df = pl.DataFrame(variance_results)
+                results = results.join(var_df, on=self.group_cols, how="left")
+        else:
+            # No grouping, calculate overall variance
+            carb_stats = calculate_domain_total_variance(plot_data, "y_carb_i")
+            # Calculate total area for per-acre SE
+            total_area = (plot_data["EXPNS"] * plot_data["x_i"]).sum()
+            se_acre = carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+
+            results = results.with_columns(
+                [
+                    pl.lit(se_acre).alias("CARBON_ACRE_SE"),
+                    pl.lit(carb_stats["se_total"]).alias("CARBON_TOTAL_SE"),
+                ]
+            )
+
+        return results
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         """Format carbon estimation output."""

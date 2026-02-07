@@ -27,56 +27,44 @@ def extract_estimate_and_se(result: pl.DataFrame, estimate_type: str) -> Tuple[f
 
     Different estimators use different column naming conventions:
     - area(): AREA, AREA_SE
-    - volume(): VOLCFNET_TOTAL, VOLCFNET_TOTAL_SE
-    - biomass(): BIO_TOTAL, BIO_TOTAL_SE
-    - tpa(): TPA_TOTAL, TPA_TOTAL_SE (when totals=True)
+    - volume(): VOLUME_TOTAL, VOLUME_SE
+    - biomass(): BIOMASS_TOTAL, BIOMASS_SE
+    - tpa(): TPA_TOTAL, TPA_SE (when totals=True)
     """
     cols = result.columns
 
-    # Find the main estimate column and corresponding SE column
-    est_col = None
-    se_col = None
-
+    # Find the main estimate column
     if estimate_type == "area":
         est_col = "AREA" if "AREA" in cols else None
         se_col = "AREA_SE" if "AREA_SE" in cols else None
     elif estimate_type == "volume":
-        # Look for VOLCFNET_TOTAL or similar volume total columns
-        for col in cols:
-            if col.endswith("_TOTAL") and "VOL" in col.upper() and "SE" not in col:
-                est_col = col
-                se_col = f"{col}_SE" if f"{col}_SE" in cols else None
-                break
+        est_col = "VOLUME_TOTAL" if "VOLUME_TOTAL" in cols else "VOL_TOTAL" if "VOL_TOTAL" in cols else None
+        se_col = "VOLUME_SE" if "VOLUME_SE" in cols else "VOL_SE" if "VOL_SE" in cols else None
     elif estimate_type == "biomass":
-        # Look for BIO_TOTAL or BIOMASS_TOTAL
-        for col in cols:
-            if col.endswith("_TOTAL") and "BIO" in col.upper() and "SE" not in col:
-                est_col = col
-                se_col = f"{col}_SE" if f"{col}_SE" in cols else None
-                break
+        est_col = "BIOMASS_TOTAL" if "BIOMASS_TOTAL" in cols else "BIO_TOTAL" if "BIO_TOTAL" in cols else None
+        se_col = "BIOMASS_SE" if "BIOMASS_SE" in cols else "BIO_SE" if "BIO_SE" in cols else None
     elif estimate_type == "tpa":
-        # Look for TPA_TOTAL
-        for col in cols:
-            if col.endswith("_TOTAL") and "TPA" in col.upper() and "SE" not in col:
-                est_col = col
-                se_col = f"{col}_SE" if f"{col}_SE" in cols else None
-                break
+        est_col = "TPA_TOTAL" if "TPA_TOTAL" in cols else "TREE_TOTAL" if "TREE_TOTAL" in cols else None
+        se_col = "TPA_SE" if "TPA_SE" in cols else "TREE_SE" if "TREE_SE" in cols else None
+    else:
+        est_col = None
+        se_col = None
 
-    # Fallback: look for columns ending in _TOTAL
+    # Fallback: look for columns ending in _TOTAL or just named like the estimate type
     if est_col is None:
         for col in cols:
             col_upper = col.upper()
-            if col_upper.endswith("_TOTAL") and "EXPNS" not in col_upper and "SE" not in col_upper:
+            if col_upper.endswith("_TOTAL") and "EXPNS" not in col_upper:
                 est_col = col
-                # Look for corresponding SE column
-                se_col = f"{col}_SE" if f"{col}_SE" in cols else None
+                break
+            if col_upper == estimate_type.upper():
+                est_col = col
                 break
 
-    # Final fallback for SE: look for _TOTAL_SE columns (not _ACRE_SE)
     if se_col is None:
         for col in cols:
             col_upper = col.upper()
-            if "_TOTAL_SE" in col_upper:
+            if "_SE" in col_upper and "PCT" not in col_upper and "PERCENT" not in col_upper and "EXPNS" not in col_upper:
                 se_col = col
                 break
 
@@ -401,9 +389,19 @@ def main():
     client = EVALIDatorClient(timeout=60)
     all_results = []
 
+    # Test Georgia
+    georgia_results = validate_state(
+        db_path="/Users/mihiarc/pyfia/data/georgia.duckdb",
+        state_code=13,
+        state_name="Georgia",
+        year=2023,
+        client=client
+    )
+    all_results.extend(georgia_results)
+
     # Test Rhode Island
     ri_results = validate_state(
-        db_path=str(Path(__file__).parent.parent / "data" / "ri" / "ri" / "ri.duckdb"),
+        db_path="/Users/mihiarc/pyfia/data/rhode_island.duckdb",
         state_code=44,
         state_name="Rhode Island",
         year=2024,  # Use 2024 to match most recent EVALID in database

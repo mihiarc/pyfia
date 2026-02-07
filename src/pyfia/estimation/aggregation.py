@@ -226,8 +226,8 @@ def compute_per_acre_values(
 
     results_df = results_df.with_columns(per_acre_exprs)
 
-    # Clean up intermediate columns (keep totals, per-acre values, and AREA_TOTAL)
-    cols_to_drop = ["N_CONDITIONS"]
+    # Clean up intermediate columns (keep totals and per-acre values)
+    cols_to_drop = ["N_CONDITIONS", "AREA_TOTAL"]
     for adj_col, cond_col in metric_mappings.items():
         metric_name = cond_col.replace("CONDITION_", "")
         cols_to_drop.append(f"{metric_name}_NUM")

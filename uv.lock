@@ -1101,12 +1101,13 @@ wheels = [
 
 [[package]]
 name = "pyfia"
-version = "1.2.3"
+version = "1.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "connectorx" },
     { name = "duckdb" },
     { name = "numpy" },
+    { name = "pandas" },
     { name = "polars" },
     { name = "pyarrow" },
     { name = "pydantic" },
@@ -1161,6 +1162,7 @@ requires-dist = [
     { name = "mkdocs-material", marker = "extra == 'dev'", specifier = ">=9.5.0" },
     { name = "mypy", marker = "extra == 'dev'", specifier = ">=1.16.1" },
     { name = "numpy", specifier = ">=1.26.0" },
+    { name = "pandas", specifier = ">=2.0.0" },
     { name = "pandas", marker = "extra == 'pandas'", specifier = ">=2.0.0" },
     { name = "polars", specifier = ">=1.0.0" },
     { name = "pre-commit", marker = "extra == 'dev'", specifier = ">=3.6.0" },

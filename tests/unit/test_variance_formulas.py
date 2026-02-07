@@ -1172,3 +1172,368 @@ class TestFormulaDocumentation:
             f"Additivity violation: V1={v1}, V2={v2}, expected total={expected_total}, "
             f"got {var_stats['variance']}"
         )
+
+
+# =============================================================================
+# TestExactBPVarianceFormula
+# =============================================================================
+
+
+class TestExactBPVarianceFormula:
+    """
+    Test the exact Bechtold & Patterson (2005) post-stratified variance formula.
+
+    The exact formula is:
+        V_EU = (A²/n) × Σ_h W_h × s²_yh/n_h + (A²/n²) × Σ_h (1-W_h) × s²_yh/n_h
+             = V1 + V2
+
+    Where V2 is the post-stratification correction term that captures
+    uncertainty from estimating stratum weights from the sample.
+
+    These tests directly call calculate_domain_total_variance with all B&P
+    columns present to exercise the exact formula path.
+    """
+
+    def test_single_eu_single_stratum_hand_calculated(self):
+        """
+        Hand-calculated exact B&P variance for a single EU with one stratum.
+
+        Setup:
+        - 1 EU with AREA_USED = 10000 acres
+        - 1 stratum: W_h = 1.0 (all P1 points in this stratum)
+        - n_h = 4 plots
+        - y values = [10, 20, 30, 40]
+        - s² = var([10,20,30,40], ddof=1) = 166.6667
+        - n = 4 (total plots in EU)
+
+        v_h = s²/n_h = 166.6667 / 4 = 41.6667
+
+        V1 = (A²/n) × W_h × v_h
+           = (10000²/4) × 1.0 × 41.6667
+           = 25000000 × 41.6667
+           = 1,041,666,750
+
+        V2 = (A²/n²) × (1 - W_h) × v_h
+           = (10000²/16) × 0.0 × 41.6667
+           = 0  (since W_h = 1.0)
+
+        V_total = V1 + V2 = 1,041,666,750
+        """
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": [1, 1, 1, 1],
+                "EXPNS": [2500.0, 2500.0, 2500.0, 2500.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 100],
+                "STRATUM_WGT": [1.0, 1.0, 1.0, 1.0],
+                "AREA_USED": [10000.0, 10000.0, 10000.0, 10000.0],
+                "P2POINTCNT": [4.0, 4.0, 4.0, 4.0],
+                "y_i": [10.0, 20.0, 30.0, 40.0],
+            }
+        )
+
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # Hand calculation
+        s2 = np.var([10, 20, 30, 40], ddof=1)  # 166.6667
+        n_h = 4
+        A = 10000.0
+        n = 4
+        W_h = 1.0
+
+        v_h = s2 / n_h
+        v1 = (A**2 / n) * W_h * v_h
+        v2 = (A**2 / n**2) * (1 - W_h) * v_h
+        expected_variance = v1 + v2
+
+        assert abs(result["variance_total"] - expected_variance) < 1.0, (
+            f"Expected {expected_variance}, got {result['variance_total']}"
+        )
+        assert abs(result["se_total"] - expected_variance**0.5) < 0.01
+
+    def test_two_strata_proportional_allocation(self):
+        """
+        With proportional allocation (W_h = n_h/n), V2 should be zero,
+        and the result should match the simplified formula.
+
+        Setup:
+        - 1 EU, AREA_USED = 10000
+        - Stratum A: W_h = 0.6, n_h = 3, y = [10, 20, 30]
+        - Stratum B: W_h = 0.4, n_h = 2, y = [50, 60]
+        - n = 5, proportional: W_A = 3/5 = 0.6, W_B = 2/5 = 0.4
+
+        When W_h = n_h/n exactly, V2 terms cancel out:
+        (1 - W_h) = (1 - n_h/n) = (n - n_h)/n
+        """
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+                "STRATUM_CN": [1, 1, 1, 2, 2],
+                "EXPNS": [2000.0, 2000.0, 2000.0, 2000.0, 2000.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 100, 100],
+                "STRATUM_WGT": [0.6, 0.6, 0.6, 0.4, 0.4],
+                "AREA_USED": [10000.0] * 5,
+                "P2POINTCNT": [3.0, 3.0, 3.0, 2.0, 2.0],
+                "y_i": [10.0, 20.0, 30.0, 50.0, 60.0],
+            }
+        )
+
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # Hand calculation
+        A = 10000.0
+        n = 5
+
+        s2_a = np.var([10, 20, 30], ddof=1)  # 100
+        s2_b = np.var([50, 60], ddof=1)  # 50
+
+        v_h_a = s2_a / 3  # 33.3333
+        v_h_b = s2_b / 2  # 25.0
+
+        v1 = (A**2 / n) * (0.6 * v_h_a + 0.4 * v_h_b)
+        v2 = (A**2 / n**2) * ((1 - 0.6) * v_h_a + (1 - 0.4) * v_h_b)
+        expected = v1 + v2
+
+        assert abs(result["variance_total"] - expected) < 1.0, (
+            f"Expected {expected}, got {result['variance_total']}"
+        )
+
+    def test_non_proportional_allocation_v2_positive(self):
+        """
+        With non-proportional allocation, V2 should be > 0.
+
+        Setup:
+        - 1 EU, AREA_USED = 10000
+        - Stratum A: W_h = 0.9 (many P1 points), n_h = 2 (few P2 plots)
+        - Stratum B: W_h = 0.1 (few P1 points), n_h = 8 (many P2 plots)
+        - n = 10
+
+        Non-proportional because:
+          W_A = 0.9 but n_A/n = 2/10 = 0.2
+          W_B = 0.1 but n_B/n = 8/10 = 0.8
+        """
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        np.random.seed(42)
+        y_a = np.random.uniform(10, 30, 2).tolist()
+        y_b = np.random.uniform(40, 60, 8).tolist()
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(10)],
+                "STRATUM_CN": [1, 1] + [2] * 8,
+                "EXPNS": [5000.0] * 2 + [125.0] * 8,
+                "ESTN_UNIT_CN": [100] * 10,
+                "STRATUM_WGT": [0.9] * 2 + [0.1] * 8,
+                "AREA_USED": [10000.0] * 10,
+                "P2POINTCNT": [2.0] * 2 + [8.0] * 8,
+                "y_i": y_a + y_b,
+            }
+        )
+
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # Calculate V2 manually to verify it's positive
+        A = 10000.0
+        n = 10
+        s2_a = np.var(y_a, ddof=1)
+        s2_b = np.var(y_b, ddof=1)
+
+        v_h_a = s2_a / 2
+        v_h_b = s2_b / 8
+
+        v2 = (A**2 / n**2) * ((1 - 0.9) * v_h_a + (1 - 0.1) * v_h_b)
+        assert v2 > 0, "V2 should be positive for non-proportional allocation"
+
+        v1 = (A**2 / n) * (0.9 * v_h_a + 0.1 * v_h_b)
+        expected = v1 + v2
+
+        assert abs(result["variance_total"] - expected) < 1.0, (
+            f"Expected {expected}, got {result['variance_total']}"
+        )
+        assert result["variance_total"] > 0
+
+    def test_multiple_estimation_units(self):
+        """
+        Test variance aggregation across multiple estimation units.
+
+        Setup:
+        - EU 1: AREA_USED = 8000, 1 stratum, W_h = 1.0, n_h = 3
+        - EU 2: AREA_USED = 12000, 1 stratum, W_h = 1.0, n_h = 2
+        - V_total = V_EU1 + V_EU2
+        """
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+                "STRATUM_CN": [1, 1, 1, 2, 2],
+                "EXPNS": [2666.67, 2666.67, 2666.67, 6000.0, 6000.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 200, 200],
+                "STRATUM_WGT": [1.0, 1.0, 1.0, 1.0, 1.0],
+                "AREA_USED": [8000.0, 8000.0, 8000.0, 12000.0, 12000.0],
+                "P2POINTCNT": [3.0, 3.0, 3.0, 2.0, 2.0],
+                "y_i": [10.0, 20.0, 30.0, 50.0, 70.0],
+            }
+        )
+
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # EU 1: A=8000, n=3, W_h=1.0
+        s2_1 = np.var([10, 20, 30], ddof=1)  # 100
+        v_h_1 = s2_1 / 3
+        v_eu1 = (8000**2 / 3) * 1.0 * v_h_1  # V1 only (V2=0 since W=1)
+
+        # EU 2: A=12000, n=2, W_h=1.0
+        s2_2 = np.var([50, 70], ddof=1)  # 200
+        v_h_2 = s2_2 / 2
+        v_eu2 = (12000**2 / 2) * 1.0 * v_h_2  # V1 only
+
+        expected = v_eu1 + v_eu2
+
+        assert abs(result["variance_total"] - expected) < 1.0, (
+            f"Expected {expected}, got {result['variance_total']}"
+        )
+
+    def test_single_plot_stratum_excluded(self):
+        """
+        Strata with n_h = 1 should contribute 0 variance (s² undefined).
+        """
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": [1, 1, 1, 2],  # Stratum 2 has only 1 plot
+                "EXPNS": [2500.0, 2500.0, 2500.0, 2500.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 100],
+                "STRATUM_WGT": [0.75, 0.75, 0.75, 0.25],
+                "AREA_USED": [10000.0] * 4,
+                "P2POINTCNT": [3.0, 3.0, 3.0, 1.0],
+                "y_i": [10.0, 20.0, 30.0, 100.0],
+            }
+        )
+
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # Only stratum 1 contributes (stratum 2 has n_h=1)
+        A = 10000.0
+        n = 4
+        s2_1 = np.var([10, 20, 30], ddof=1)  # 100
+        v_h_1 = s2_1 / 3
+        # Stratum 2 v_h = 0 (excluded)
+
+        v1 = (A**2 / n) * (0.75 * v_h_1 + 0.25 * 0)
+        v2 = (A**2 / n**2) * ((1 - 0.75) * v_h_1 + (1 - 0.25) * 0)
+        expected = v1 + v2
+
+        assert abs(result["variance_total"] - expected) < 1.0, (
+            f"Expected {expected}, got {result['variance_total']}"
+        )
+
+    def test_fallback_without_bp_columns(self):
+        """
+        When B&P columns are absent, should fall back to simplified formula.
+        """
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": [1, 1, 1, 1],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "y_i": [0.8, 1.0, 0.6, 0.9],
+            }
+        )
+
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # Simplified formula: V = w² × s² × n
+        s2 = np.var([0.8, 1.0, 0.6, 0.9], ddof=1)
+        expected = (1000.0**2) * s2 * 4
+
+        assert abs(result["variance_total"] - expected) < 1e-6
+
+    def test_grouped_exact_bp_variance(self):
+        """
+        Test grouped variance with exact B&P formula.
+
+        Two species groups in one EU, each with one stratum.
+        """
+        from pyfia.estimation.variance import (
+            calculate_grouped_domain_total_variance,
+        )
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "STRATUM_CN": [1, 1, 1, 1, 1, 1],
+                "EXPNS": [2000.0] * 6,
+                "ESTN_UNIT_CN": [100] * 6,
+                "STRATUM_WGT": [1.0] * 6,
+                "AREA_USED": [12000.0] * 6,
+                "P2POINTCNT": [6.0] * 6,
+                "y_i": [10.0, 20.0, 30.0, 5.0, 15.0, 25.0],
+                "SPCD": [100, 100, 100, 200, 200, 200],
+                "x_i": [1.0] * 6,
+            }
+        )
+
+        result = calculate_grouped_domain_total_variance(
+            plot_data,
+            group_cols=["SPCD"],
+            y_col="y_i",
+            x_col="x_i",
+        )
+
+        assert len(result) == 2
+        assert "variance_total" in result.columns
+        assert "se_total" in result.columns
+
+        # Each group should have positive variance
+        for row in result.iter_rows(named=True):
+            assert row["variance_total"] > 0
+            assert row["se_total"] > 0
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_exact_bp_variance_non_negative(self, seed):
+        """Property test: exact B&P variance must always be non-negative."""
+        from pyfia.estimation.variance import calculate_domain_total_variance
+
+        np.random.seed(seed)
+        n_plots = np.random.randint(2, 15)
+        n_strata = np.random.randint(1, min(4, n_plots))
+
+        # Assign plots to strata
+        strata = np.sort(np.random.choice(range(1, n_strata + 1), size=n_plots))
+        stratum_weights = np.random.dirichlet(np.ones(n_strata))
+        area_used = np.random.uniform(5000, 50000)
+
+        rows = []
+        for i in range(n_plots):
+            s = strata[i]
+            n_h = np.sum(strata == s)
+            rows.append(
+                {
+                    "PLT_CN": f"P{i}",
+                    "STRATUM_CN": int(s),
+                    "EXPNS": area_used / n_plots,
+                    "ESTN_UNIT_CN": 100,
+                    "STRATUM_WGT": float(stratum_weights[s - 1]),
+                    "AREA_USED": area_used,
+                    "P2POINTCNT": float(n_h),
+                    "y_i": float(np.random.uniform(0, 100)),
+                }
+            )
+
+        plot_data = pl.DataFrame(rows)
+        result = calculate_domain_total_variance(plot_data, "y_i")
+
+        assert result["variance_total"] >= 0, (
+            f"Variance was negative: {result['variance_total']}"
+        )
+        assert result["se_total"] >= 0

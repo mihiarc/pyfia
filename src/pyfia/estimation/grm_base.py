@@ -465,9 +465,13 @@ class GRMBaseEstimator(BaseEstimator):
 
         # Get ALL plots in the evaluation for proper variance calculation
         strat_data = self._get_stratification_data()
-        all_plots = (
-            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-        )
+        strat_schema = strat_data.collect_schema().names()
+        # Select B&P variance columns when available
+        bp_cols = ["ESTN_UNIT_CN", "STRATUM_WGT", "AREA_USED", "P2POINTCNT"]
+        select_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"] + [
+            c for c in bp_cols if c in strat_schema
+        ]
+        all_plots = strat_data.select(select_cols).unique().collect()
 
         # Calculate variance
         if group_cols:

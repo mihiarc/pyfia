@@ -1184,11 +1184,13 @@ class TestExactBPVarianceFormula:
     Test the exact Bechtold & Patterson (2005) post-stratified variance formula.
 
     The exact formula is:
-        V_EU = (A²/n) × Σ_h W_h × s²_yh/n_h + (A²/n²) × Σ_h (1-W_h) × s²_yh/n_h
+        V_EU = (A²/n) × Σ_h W_h × s²_yh + (A²/n²) × Σ_h (1-W_h) × s²_yh
              = V1 + V2
 
     Where V2 is the post-stratification correction term that captures
     uncertainty from estimating stratum weights from the sample.
+    Note: s²_yh is used directly (NOT s²_yh/n_h). The sample size is
+    accounted for in the A²/n and A²/n² terms.
 
     These tests directly call calculate_domain_total_variance with all B&P
     columns present to exercise the exact formula path.
@@ -1206,18 +1208,16 @@ class TestExactBPVarianceFormula:
         - s² = var([10,20,30,40], ddof=1) = 166.6667
         - n = 4 (total plots in EU)
 
-        v_h = s²/n_h = 166.6667 / 4 = 41.6667
+        B&P formula uses s² directly (NOT s²/n_h):
+        V1 = (A²/n) × W_h × s²
+           = (10000²/4) × 1.0 × 166.6667
+           = 25000000 × 166.6667
+           = 4,166,666,750
 
-        V1 = (A²/n) × W_h × v_h
-           = (10000²/4) × 1.0 × 41.6667
-           = 25000000 × 41.6667
-           = 1,041,666,750
-
-        V2 = (A²/n²) × (1 - W_h) × v_h
-           = (10000²/16) × 0.0 × 41.6667
+        V2 = (A²/n²) × (1 - W_h) × s²
            = 0  (since W_h = 1.0)
 
-        V_total = V1 + V2 = 1,041,666,750
+        V_total = V1 + V2 = 4,166,666,750
         """
         from pyfia.estimation.variance import calculate_domain_total_variance
 
@@ -1236,16 +1236,14 @@ class TestExactBPVarianceFormula:
 
         result = calculate_domain_total_variance(plot_data, "y_i")
 
-        # Hand calculation
+        # Hand calculation: B&P uses s² directly in V1/V2
         s2 = np.var([10, 20, 30, 40], ddof=1)  # 166.6667
-        n_h = 4
         A = 10000.0
         n = 4
         W_h = 1.0
 
-        v_h = s2 / n_h
-        v1 = (A**2 / n) * W_h * v_h
-        v2 = (A**2 / n**2) * (1 - W_h) * v_h
+        v1 = (A**2 / n) * W_h * s2
+        v2 = (A**2 / n**2) * (1 - W_h) * s2
         expected_variance = v1 + v2
 
         assert abs(result["variance_total"] - expected_variance) < 1.0, (
@@ -1284,18 +1282,15 @@ class TestExactBPVarianceFormula:
 
         result = calculate_domain_total_variance(plot_data, "y_i")
 
-        # Hand calculation
+        # Hand calculation: B&P uses s² directly (NOT s²/n_h)
         A = 10000.0
         n = 5
 
         s2_a = np.var([10, 20, 30], ddof=1)  # 100
         s2_b = np.var([50, 60], ddof=1)  # 50
 
-        v_h_a = s2_a / 3  # 33.3333
-        v_h_b = s2_b / 2  # 25.0
-
-        v1 = (A**2 / n) * (0.6 * v_h_a + 0.4 * v_h_b)
-        v2 = (A**2 / n**2) * ((1 - 0.6) * v_h_a + (1 - 0.4) * v_h_b)
+        v1 = (A**2 / n) * (0.6 * s2_a + 0.4 * s2_b)
+        v2 = (A**2 / n**2) * ((1 - 0.6) * s2_a + (1 - 0.4) * s2_b)
         expected = v1 + v2
 
         assert abs(result["variance_total"] - expected) < 1.0, (
@@ -1338,18 +1333,16 @@ class TestExactBPVarianceFormula:
         result = calculate_domain_total_variance(plot_data, "y_i")
 
         # Calculate V2 manually to verify it's positive
+        # B&P uses s² directly (NOT s²/n_h)
         A = 10000.0
         n = 10
         s2_a = np.var(y_a, ddof=1)
         s2_b = np.var(y_b, ddof=1)
 
-        v_h_a = s2_a / 2
-        v_h_b = s2_b / 8
-
-        v2 = (A**2 / n**2) * ((1 - 0.9) * v_h_a + (1 - 0.1) * v_h_b)
+        v2 = (A**2 / n**2) * ((1 - 0.9) * s2_a + (1 - 0.1) * s2_b)
         assert v2 > 0, "V2 should be positive for non-proportional allocation"
 
-        v1 = (A**2 / n) * (0.9 * v_h_a + 0.1 * v_h_b)
+        v1 = (A**2 / n) * (0.9 * s2_a + 0.1 * s2_b)
         expected = v1 + v2
 
         assert abs(result["variance_total"] - expected) < 1.0, (
@@ -1383,15 +1376,13 @@ class TestExactBPVarianceFormula:
 
         result = calculate_domain_total_variance(plot_data, "y_i")
 
-        # EU 1: A=8000, n=3, W_h=1.0
+        # EU 1: A=8000, n=3, W_h=1.0 — B&P uses s² directly
         s2_1 = np.var([10, 20, 30], ddof=1)  # 100
-        v_h_1 = s2_1 / 3
-        v_eu1 = (8000**2 / 3) * 1.0 * v_h_1  # V1 only (V2=0 since W=1)
+        v_eu1 = (8000**2 / 3) * 1.0 * s2_1  # V1 only (V2=0 since W=1)
 
         # EU 2: A=12000, n=2, W_h=1.0
         s2_2 = np.var([50, 70], ddof=1)  # 200
-        v_h_2 = s2_2 / 2
-        v_eu2 = (12000**2 / 2) * 1.0 * v_h_2  # V1 only
+        v_eu2 = (12000**2 / 2) * 1.0 * s2_2  # V1 only
 
         expected = v_eu1 + v_eu2
 
@@ -1421,14 +1412,14 @@ class TestExactBPVarianceFormula:
         result = calculate_domain_total_variance(plot_data, "y_i")
 
         # Only stratum 1 contributes (stratum 2 has n_h=1)
+        # B&P uses s² directly (NOT s²/n_h)
         A = 10000.0
         n = 4
         s2_1 = np.var([10, 20, 30], ddof=1)  # 100
-        v_h_1 = s2_1 / 3
-        # Stratum 2 v_h = 0 (excluded)
+        # Stratum 2 s2 = 0 (excluded, n_h=1)
 
-        v1 = (A**2 / n) * (0.75 * v_h_1 + 0.25 * 0)
-        v2 = (A**2 / n**2) * ((1 - 0.75) * v_h_1 + (1 - 0.25) * 0)
+        v1 = (A**2 / n) * (0.75 * s2_1 + 0.25 * 0)
+        v2 = (A**2 / n**2) * ((1 - 0.75) * s2_1 + (1 - 0.25) * 0)
         expected = v1 + v2
 
         assert abs(result["variance_total"] - expected) < 1.0, (
@@ -1561,23 +1552,10 @@ class TestRatioOfMeansVariance:
         - 4 plots with y = [10, 20, 30, 40], x = [0.8, 0.9, 1.0, 0.7]
         - Single stratum, W_h = 1.0, A = 10000, n = 4, P2POINTCNT = 4
 
-        Hand calculation:
-        - s2_y = var([10,20,30,40], ddof=1) = 166.6667
-        - s2_x = var([0.8,0.9,1.0,0.7], ddof=1) = 0.016667
-        - cov_yx = cov([10,20,30,40], [0.8,0.9,1.0,0.7], ddof=1) = 1.0
-        - v_yh = 166.6667 / 4 = 41.6667
-        - v_xh = 0.016667 / 4 = 0.004167
-        - c_yxh = 1.0 / 4 = 0.25
-
-        V(Y) = (A^2/n) * W * v_yh = (1e8/4) * 41.6667 = 1,041,666,750
-        V(X) = (A^2/n) * W * v_xh = (1e8/4) * 0.004167 = 104,166.67
-        Cov  = (A^2/n) * W * c_yxh = (1e8/4) * 0.25 = 6,250,000
-
-        total_y = EXPNS * sum(y) = 2500 * 100 = 250,000
-        total_x = EXPNS * sum(x) = 2500 * 3.4 = 8,500
-        R = 250000 / 8500 = 29.4118
-
-        V(R) = (1/8500^2) * [1041666750 + 29.4118^2 * 104166.67 - 2*29.4118*6250000]
+        B&P post-stratified variance uses s² directly (NOT s²/n_h):
+        V(Y) = (A²/n) × W_h × s²_y = (1e8/4) × 166.6667 = 4,166,666,750
+        V(X) = (A²/n) × W_h × s²_x = (1e8/4) × 0.016667 = 416,666.67
+        Cov  = (A²/n) × W_h × cov_yx = (1e8/4) × 1.0 = 25,000,000
         """
         from pyfia.estimation.variance import calculate_ratio_of_means_variance
 
@@ -1626,19 +1604,16 @@ class TestRatioOfMeansVariance:
         assert result["se_ratio"] > 0
 
         # Hand-calculate the ratio variance
+        # B&P uses s² directly (NOT s²/n_h)
         s2_y = np.var(y_vals, ddof=1)
         s2_x = np.var(x_vals, ddof=1)
         cov_yx = np.cov(y_vals, x_vals, ddof=1)[0, 1]
         area = 10000.0
         n = 4
 
-        v_yh = s2_y / n
-        v_xh = s2_x / n
-        c_yxh = cov_yx / n
-
-        var_y = (area**2 / n) * v_yh
-        var_x = (area**2 / n) * v_xh
-        cov_total = (area**2 / n) * c_yxh
+        var_y = (area**2 / n) * s2_y
+        var_x = (area**2 / n) * s2_x
+        cov_total = (area**2 / n) * cov_yx
 
         r_hat = expected_ratio
         expected_var_ratio = (1.0 / expected_total_x**2) * (

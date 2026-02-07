@@ -818,12 +818,13 @@ def _calculate_exact_bp_variance(
     )
     strata_stats = strata_stats.join(eu_totals, on=estn_unit_col, how="left")
 
-    # Calculate v_h = s²_yh / n_h for strata with n_h > 1
-    # Use n_h_design (P2POINTCNT) for the denominator as per B&P formula
+    # B&P post-stratified variance uses s²_h directly (NOT s²_h/n_h).
+    # The formula V(ȳ_ps) = (1/n)Σ W_h s²_h + (1/n²)Σ (1-W_h) s²_h
+    # already accounts for sample size through the A²/n and A²/n² terms.
     strata_stats = strata_stats.with_columns(
         [
             pl.when(pl.col("n_h_actual") > 1)
-            .then(pl.col("s2_yh") / pl.col("n_h_design"))
+            .then(pl.col("s2_yh"))
             .otherwise(0.0)
             .alias("v_h"),
         ]
@@ -1083,19 +1084,21 @@ def _calculate_exact_bp_ratio_variance(
     )
     strata_stats = strata_stats.join(eu_totals, on=estn_unit_col, how="left")
 
-    # v_yh, v_xh, c_yxh = s²/n_h for strata with n_h > 1
+    # B&P post-stratified variance uses s²_h directly (NOT s²_h/n_h).
+    # The formula V(ȳ_ps) = (1/n)Σ W_h s²_h + (1/n²)Σ (1-W_h) s²_h
+    # already accounts for sample size through the A²/n and A²/n² terms.
     strata_stats = strata_stats.with_columns(
         [
             pl.when(pl.col("n_h_actual") > 1)
-            .then(pl.col("s2_yh") / pl.col("n_h_design"))
+            .then(pl.col("s2_yh"))
             .otherwise(0.0)
             .alias("v_yh"),
             pl.when(pl.col("n_h_actual") > 1)
-            .then(pl.col("s2_xh") / pl.col("n_h_design"))
+            .then(pl.col("s2_xh"))
             .otherwise(0.0)
             .alias("v_xh"),
             pl.when(pl.col("n_h_actual") > 1)
-            .then(pl.col("cov_yxh") / pl.col("n_h_design"))
+            .then(pl.col("cov_yxh"))
             .otherwise(0.0)
             .alias("c_yxh"),
         ]

@@ -636,11 +636,18 @@ class DataLoader:
         )
 
         # Compute STRATUM_WGT = P1POINTCNT / P1PNTCNT_EU
+        # Guard against null or zero P1PNTCNT_EU to avoid inf/NaN propagation
         pop_stratum_selected = pop_stratum_selected.with_columns(
-            (
+            pl.when(
+                pl.col("P1PNTCNT_EU").is_not_null()
+                & (pl.col("P1PNTCNT_EU").cast(pl.Float64) > 0)
+            )
+            .then(
                 pl.col("P1POINTCNT").cast(pl.Float64)
                 / pl.col("P1PNTCNT_EU").cast(pl.Float64)
-            ).alias("STRATUM_WGT")
+            )
+            .otherwise(0.0)
+            .alias("STRATUM_WGT")
         )
 
         # Select MACRO_BREAKPOINT_DIA from PLOT table

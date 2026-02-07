@@ -413,7 +413,7 @@ class GRMBaseEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        from .variance import calculate_domain_total_variance
+        from .variance import calculate_ratio_of_means_variance
 
         if plot_tree_data is None:
             raise ValueError(
@@ -465,11 +465,15 @@ class GRMBaseEstimator(BaseEstimator):
 
         # Get ALL plots in the evaluation for proper variance calculation
         strat_data = self._get_stratification_data()
-        all_plots = (
-            strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-        )
+        strat_schema = strat_data.collect_schema().names()
+        # Select B&P variance columns when available
+        bp_cols = ["ESTN_UNIT_CN", "STRATUM_WGT", "AREA_USED", "P2POINTCNT"]
+        select_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"] + [
+            c for c in bp_cols if c in strat_schema
+        ]
+        all_plots = strat_data.select(select_cols).unique().collect()
 
-        # Calculate variance
+        # Calculate variance using ratio-of-means for per-acre SE
         if group_cols:
             variance_results = []
 
@@ -500,22 +504,15 @@ class GRMBaseEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    # Calculate variance using domain total formula (matches EVALIDator)
-                    var_stats = calculate_domain_total_variance(all_plots_group, "y_i")
-
-                    # Calculate per-acre SE by dividing total SE by total area
-                    total_area = (
-                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
-                    ).sum()
-                    se_acre = (
-                        var_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    ratio_stats = calculate_ratio_of_means_variance(
+                        all_plots_group, "y_i", "x_i"
                     )
 
                     variance_results.append(
                         {
                             **group_dict,
-                            acre_se_col: se_acre,
-                            total_se_col: var_stats["se_total"],
+                            acre_se_col: ratio_stats["se_ratio"],
+                            total_se_col: ratio_stats["se_total"],
                         }
                     )
                 else:
@@ -543,18 +540,14 @@ class GRMBaseEstimator(BaseEstimator):
                 ]
             )
 
-            var_stats = calculate_domain_total_variance(all_plots_with_values, "y_i")
-
-            # Calculate per-acre SE by dividing total SE by total area
-            total_area = (
-                all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
-            ).sum()
-            se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
+            ratio_stats = calculate_ratio_of_means_variance(
+                all_plots_with_values, "y_i", "x_i"
+            )
 
             results = results.with_columns(
                 [
-                    pl.lit(se_acre).alias(acre_se_col),
-                    pl.lit(var_stats["se_total"]).alias(total_se_col),
+                    pl.lit(ratio_stats["se_ratio"]).alias(acre_se_col),
+                    pl.lit(ratio_stats["se_total"]).alias(total_se_col),
                 ]
             )
 

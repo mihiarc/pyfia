@@ -590,15 +590,64 @@ class DataLoader:
         # when joining with other tables that also have STATECD, INVYR, etc.
         ppsa_selected = ppsa_unique.select(["PLT_CN", "STRATUM_CN"])
 
+        # Load POP_ESTN_UNIT for exact B&P variance formula
+        if "POP_ESTN_UNIT" not in self.db.tables:
+            self.db.load_table("POP_ESTN_UNIT")
+        pop_estn_unit = self.db.tables["POP_ESTN_UNIT"]
+        if not isinstance(pop_estn_unit, pl.LazyFrame):
+            pop_estn_unit = pop_estn_unit.lazy()
+
+        # Apply EVALID filter to POP_ESTN_UNIT
+        if self.db.evalid:
+            pop_estn_unit = pop_estn_unit.filter(
+                pl.col("EVALID").is_in(self.db.evalid)
+            )
+
+        # Deduplicate POP_ESTN_UNIT (same reason as POP_STRATUM)
+        pop_estn_unit_unique = pop_estn_unit.unique(subset=["CN"])
+
+        # Select columns from POP_ESTN_UNIT
+        pop_estn_unit_selected = pop_estn_unit_unique.select(
+            [
+                pl.col("CN").alias("ESTN_UNIT_CN"),
+                "AREA_USED",
+                "P1PNTCNT_EU",
+            ]
+        )
+
         # Select necessary columns from POP_STRATUM
+        # Include ESTN_UNIT_CN, P1POINTCNT, P2POINTCNT for exact B&P variance
         pop_stratum_selected = pop_stratum_unique.select(
             [
                 pl.col("CN").alias("STRATUM_CN"),
+                "ESTN_UNIT_CN",
                 "EXPNS",
                 "ADJ_FACTOR_MICR",
                 "ADJ_FACTOR_SUBP",
                 "ADJ_FACTOR_MACR",
+                "P1POINTCNT",
+                "P2POINTCNT",
             ]
+        )
+
+        # Join POP_STRATUM with POP_ESTN_UNIT to get AREA_USED and P1PNTCNT_EU
+        pop_stratum_selected = pop_stratum_selected.join(
+            pop_estn_unit_selected, on="ESTN_UNIT_CN", how="left"
+        )
+
+        # Compute STRATUM_WGT = P1POINTCNT / P1PNTCNT_EU
+        # Guard against null or zero P1PNTCNT_EU to avoid inf/NaN propagation
+        pop_stratum_selected = pop_stratum_selected.with_columns(
+            pl.when(
+                pl.col("P1PNTCNT_EU").is_not_null()
+                & (pl.col("P1PNTCNT_EU").cast(pl.Float64) > 0)
+            )
+            .then(
+                pl.col("P1POINTCNT").cast(pl.Float64)
+                / pl.col("P1PNTCNT_EU").cast(pl.Float64)
+            )
+            .otherwise(0.0)
+            .alias("STRATUM_WGT")
         )
 
         # Select MACRO_BREAKPOINT_DIA from PLOT table

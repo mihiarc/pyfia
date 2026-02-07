@@ -1537,3 +1537,358 @@ class TestExactBPVarianceFormula:
             f"Variance was negative: {result['variance_total']}"
         )
         assert result["se_total"] >= 0
+
+
+# =============================================================================
+# TestRatioOfMeansVariance
+# =============================================================================
+
+
+class TestRatioOfMeansVariance:
+    """
+    Test the ratio-of-means variance formula from Bechtold & Patterson (2005):
+
+        V(R) = (1/X^2) * [V(Y) + R^2 * V(X) - 2*R*Cov(Y,X)]
+
+    Where R = Y/X is the per-acre estimate.
+    """
+
+    def test_ratio_variance_hand_calculated(self):
+        """
+        Hand-calculated ratio variance for a single EU, single stratum.
+
+        Setup:
+        - 4 plots with y = [10, 20, 30, 40], x = [0.8, 0.9, 1.0, 0.7]
+        - Single stratum, W_h = 1.0, A = 10000, n = 4, P2POINTCNT = 4
+
+        Hand calculation:
+        - s2_y = var([10,20,30,40], ddof=1) = 166.6667
+        - s2_x = var([0.8,0.9,1.0,0.7], ddof=1) = 0.016667
+        - cov_yx = cov([10,20,30,40], [0.8,0.9,1.0,0.7], ddof=1) = 1.0
+        - v_yh = 166.6667 / 4 = 41.6667
+        - v_xh = 0.016667 / 4 = 0.004167
+        - c_yxh = 1.0 / 4 = 0.25
+
+        V(Y) = (A^2/n) * W * v_yh = (1e8/4) * 41.6667 = 1,041,666,750
+        V(X) = (A^2/n) * W * v_xh = (1e8/4) * 0.004167 = 104,166.67
+        Cov  = (A^2/n) * W * c_yxh = (1e8/4) * 0.25 = 6,250,000
+
+        total_y = EXPNS * sum(y) = 2500 * 100 = 250,000
+        total_x = EXPNS * sum(x) = 2500 * 3.4 = 8,500
+        R = 250000 / 8500 = 29.4118
+
+        V(R) = (1/8500^2) * [1041666750 + 29.4118^2 * 104166.67 - 2*29.4118*6250000]
+        """
+        from pyfia.estimation.variance import calculate_ratio_of_means_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": [1, 1, 1, 1],
+                "EXPNS": [2500.0, 2500.0, 2500.0, 2500.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 100],
+                "STRATUM_WGT": [1.0, 1.0, 1.0, 1.0],
+                "AREA_USED": [10000.0, 10000.0, 10000.0, 10000.0],
+                "P2POINTCNT": [4.0, 4.0, 4.0, 4.0],
+                "y_i": [10.0, 20.0, 30.0, 40.0],
+                "x_i": [0.8, 0.9, 1.0, 0.7],
+            }
+        )
+
+        result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+
+        # Verify all expected keys are present
+        assert "variance_total" in result
+        assert "se_total" in result
+        assert "variance_ratio" in result
+        assert "se_ratio" in result
+        assert "total_y" in result
+        assert "total_x" in result
+        assert "ratio" in result
+
+        # Verify totals
+        y_vals = np.array([10, 20, 30, 40])
+        x_vals = np.array([0.8, 0.9, 1.0, 0.7])
+        expns = 2500.0
+
+        expected_total_y = expns * y_vals.sum()
+        expected_total_x = expns * x_vals.sum()
+        assert abs(result["total_y"] - expected_total_y) < 1.0
+        assert abs(result["total_x"] - expected_total_x) < 1.0
+
+        # Verify ratio
+        expected_ratio = expected_total_y / expected_total_x
+        assert abs(result["ratio"] - expected_ratio) < 0.01
+
+        # Verify variance is positive and ratio variance is computed
+        assert result["variance_total"] > 0
+        assert result["variance_ratio"] > 0
+        assert result["se_ratio"] > 0
+
+        # Hand-calculate the ratio variance
+        s2_y = np.var(y_vals, ddof=1)
+        s2_x = np.var(x_vals, ddof=1)
+        cov_yx = np.cov(y_vals, x_vals, ddof=1)[0, 1]
+        area = 10000.0
+        n = 4
+
+        v_yh = s2_y / n
+        v_xh = s2_x / n
+        c_yxh = cov_yx / n
+
+        var_y = (area**2 / n) * v_yh
+        var_x = (area**2 / n) * v_xh
+        cov_total = (area**2 / n) * c_yxh
+
+        r_hat = expected_ratio
+        expected_var_ratio = (1.0 / expected_total_x**2) * (
+            var_y + r_hat**2 * var_x - 2 * r_hat * cov_total
+        )
+
+        assert abs(result["variance_ratio"] - expected_var_ratio) < 0.1, (
+            f"Expected V(R)={expected_var_ratio}, got {result['variance_ratio']}"
+        )
+
+    def test_constant_x_equals_simple_formula(self):
+        """
+        When all x_i = constant c, V(X)=0 and Cov(Y,X)=0,
+        so V(R) = V(Y) / X^2, which is the old simplified formula.
+        """
+        from pyfia.estimation.variance import (
+            calculate_domain_total_variance,
+            calculate_ratio_of_means_variance,
+        )
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": [1, 1, 1, 1],
+                "EXPNS": [2500.0, 2500.0, 2500.0, 2500.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 100],
+                "STRATUM_WGT": [1.0, 1.0, 1.0, 1.0],
+                "AREA_USED": [10000.0, 10000.0, 10000.0, 10000.0],
+                "P2POINTCNT": [4.0, 4.0, 4.0, 4.0],
+                "y_i": [10.0, 20.0, 30.0, 40.0],
+                "x_i": [1.0, 1.0, 1.0, 1.0],  # Constant x
+            }
+        )
+
+        ratio_result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+        domain_result = calculate_domain_total_variance(plot_data, "y_i")
+
+        # With constant x, V(X)=0 and Cov=0
+        # So V(R) = V(Y) / X^2
+        total_x = ratio_result["total_x"]
+        expected_var_ratio = domain_result["variance_total"] / total_x**2
+        expected_se_ratio = domain_result["se_total"] / total_x
+
+        assert abs(ratio_result["variance_ratio"] - expected_var_ratio) < 1e-6, (
+            f"Expected {expected_var_ratio}, got {ratio_result['variance_ratio']}"
+        )
+        assert abs(ratio_result["se_ratio"] - expected_se_ratio) < 1e-6, (
+            f"Expected {expected_se_ratio}, got {ratio_result['se_ratio']}"
+        )
+
+    def test_with_bp_columns_multi_eu(self):
+        """
+        Full B&P ratio variance with 2 EUs and hand-calculated values.
+        """
+        from pyfia.estimation.variance import calculate_ratio_of_means_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+                "STRATUM_CN": [1, 1, 1, 2, 2],
+                "EXPNS": [2666.67, 2666.67, 2666.67, 6000.0, 6000.0],
+                "ESTN_UNIT_CN": [100, 100, 100, 200, 200],
+                "STRATUM_WGT": [1.0, 1.0, 1.0, 1.0, 1.0],
+                "AREA_USED": [8000.0, 8000.0, 8000.0, 12000.0, 12000.0],
+                "P2POINTCNT": [3.0, 3.0, 3.0, 2.0, 2.0],
+                "y_i": [10.0, 20.0, 30.0, 50.0, 70.0],
+                "x_i": [0.8, 1.0, 0.9, 0.7, 0.95],
+            }
+        )
+
+        result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+
+        # Basic assertions
+        assert result["variance_total"] > 0
+        assert result["variance_ratio"] >= 0
+        assert result["se_ratio"] >= 0
+        assert result["total_x"] > 0
+        assert result["ratio"] > 0
+
+    def test_positive_covariance_reduces_variance(self):
+        """
+        When Y and X are positively correlated, the ratio variance
+        should be less than V(Y)/X^2 (the old simplified formula).
+
+        This is because V(R) = (1/X^2) * [V(Y) + R^2*V(X) - 2*R*Cov]
+        and the -2*R*Cov term reduces variance when Cov > 0.
+        """
+        from pyfia.estimation.variance import calculate_ratio_of_means_variance
+
+        # Create data where y and x are positively correlated
+        # High x -> high y (more forest area -> more volume)
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(6)],
+                "STRATUM_CN": [1] * 6,
+                "EXPNS": [2000.0] * 6,
+                "ESTN_UNIT_CN": [100] * 6,
+                "STRATUM_WGT": [1.0] * 6,
+                "AREA_USED": [12000.0] * 6,
+                "P2POINTCNT": [6.0] * 6,
+                "y_i": [5.0, 15.0, 25.0, 35.0, 45.0, 55.0],
+                "x_i": [0.3, 0.5, 0.7, 0.8, 0.9, 1.0],
+            }
+        )
+
+        result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+
+        # Calculate the old simplified formula: V(Y) / X^2
+        old_se_acre = result["se_total"] / result["total_x"]
+        old_var_acre = old_se_acre**2
+
+        # Ratio variance should be smaller due to positive covariance
+        assert result["variance_ratio"] < old_var_acre, (
+            f"Ratio variance {result['variance_ratio']} should be < "
+            f"simplified {old_var_acre} for positively correlated data"
+        )
+
+    def test_grouped_ratio_variance(self):
+        """
+        Test grouped ratio variance with two species groups.
+        """
+        from pyfia.estimation.variance import (
+            calculate_grouped_domain_total_variance,
+        )
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "STRATUM_CN": [1, 1, 1, 1, 1, 1],
+                "EXPNS": [2000.0] * 6,
+                "ESTN_UNIT_CN": [100] * 6,
+                "STRATUM_WGT": [1.0] * 6,
+                "AREA_USED": [12000.0] * 6,
+                "P2POINTCNT": [6.0] * 6,
+                "y_i": [10.0, 20.0, 30.0, 5.0, 15.0, 25.0],
+                "x_i": [0.8, 0.9, 1.0, 0.6, 0.7, 0.85],
+                "SPCD": [100, 100, 100, 200, 200, 200],
+            }
+        )
+
+        result = calculate_grouped_domain_total_variance(
+            plot_data,
+            group_cols=["SPCD"],
+            y_col="y_i",
+            x_col="x_i",
+        )
+
+        assert len(result) == 2
+        assert "variance_acre" in result.columns
+        assert "se_acre" in result.columns
+        assert "variance_total" in result.columns
+        assert "se_total" in result.columns
+
+        # Each group should have positive variance
+        for row in result.iter_rows(named=True):
+            assert row["variance_total"] > 0
+            assert row["se_total"] > 0
+            assert row["se_acre"] > 0
+            assert row["variance_acre"] > 0
+
+    def test_fallback_without_bp_columns(self):
+        """
+        Ratio variance should work with simplified formula when B&P columns absent.
+        """
+        from pyfia.estimation.variance import calculate_ratio_of_means_variance
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "STRATUM_CN": [1, 1, 1, 1],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "y_i": [10.0, 20.0, 30.0, 40.0],
+                "x_i": [0.8, 0.9, 1.0, 0.7],
+            }
+        )
+
+        result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+
+        # Should still compute valid results
+        assert result["variance_total"] > 0
+        assert result["se_total"] > 0
+        assert result["variance_ratio"] >= 0
+        assert result["se_ratio"] >= 0
+        assert result["total_y"] > 0
+        assert result["total_x"] > 0
+
+    @pytest.mark.parametrize("seed", range(10))
+    def test_ratio_variance_non_negative(self, seed):
+        """Property test: ratio variance should never be negative."""
+        from pyfia.estimation.variance import calculate_ratio_of_means_variance
+
+        np.random.seed(seed)
+        n_plots = np.random.randint(3, 15)
+
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(n_plots)],
+                "STRATUM_CN": [1] * n_plots,
+                "EXPNS": [np.random.uniform(500, 3000)] * n_plots,
+                "ESTN_UNIT_CN": [100] * n_plots,
+                "STRATUM_WGT": [1.0] * n_plots,
+                "AREA_USED": [np.random.uniform(5000, 50000)] * n_plots,
+                "P2POINTCNT": [float(n_plots)] * n_plots,
+                "y_i": np.random.uniform(0, 100, n_plots).tolist(),
+                "x_i": np.random.uniform(0.1, 1.0, n_plots).tolist(),
+            }
+        )
+
+        result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+
+        assert result["variance_ratio"] >= 0, (
+            f"Ratio variance was negative: {result['variance_ratio']}"
+        )
+        assert result["se_ratio"] >= 0
+
+    def test_ungrouped_fallback_uses_ratio_variance(self):
+        """
+        Test that calculate_grouped_domain_total_variance with no group_cols
+        uses ratio variance instead of simple se_total/total_x.
+        """
+        from pyfia.estimation.variance import (
+            calculate_grouped_domain_total_variance,
+            calculate_ratio_of_means_variance,
+        )
+
+        # Data with positive correlation between y and x
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": [f"P{i}" for i in range(5)],
+                "STRATUM_CN": [1] * 5,
+                "EXPNS": [2000.0] * 5,
+                "ESTN_UNIT_CN": [100] * 5,
+                "STRATUM_WGT": [1.0] * 5,
+                "AREA_USED": [10000.0] * 5,
+                "P2POINTCNT": [5.0] * 5,
+                "y_i": [5.0, 15.0, 25.0, 35.0, 45.0],
+                "x_i": [0.3, 0.5, 0.7, 0.8, 1.0],
+            }
+        )
+
+        # No valid group cols -> falls back to scalar path
+        grouped_result = calculate_grouped_domain_total_variance(
+            plot_data,
+            group_cols=["NONEXISTENT_COL"],
+            y_col="y_i",
+            x_col="x_i",
+        )
+
+        # Should match scalar ratio variance
+        scalar_result = calculate_ratio_of_means_variance(plot_data, "y_i", "x_i")
+
+        assert abs(grouped_result["se_acre"][0] - scalar_result["se_ratio"]) < 1e-10
+        assert abs(grouped_result["se_total"][0] - scalar_result["se_total"]) < 1e-10

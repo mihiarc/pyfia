@@ -22,7 +22,7 @@ from ..base import BaseEstimator
 from ..constants import LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import validate_required_columns
-from ..variance import calculate_domain_total_variance
+from ..variance import calculate_ratio_of_means_variance
 
 
 class CarbonPoolEstimator(BaseEstimator):
@@ -224,6 +224,8 @@ class CarbonPoolEstimator(BaseEstimator):
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
         if "STRATUM_CN" in self.plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
+        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+            plot_group_cols.append("CONDPROP_UNADJ")
 
         # Add grouping columns
         if self.group_cols:
@@ -248,26 +250,32 @@ class CarbonPoolEstimator(BaseEstimator):
                 [c for c in self.group_cols if c in plot_cond_data.columns]
             )
 
-        plot_data = plot_cond_data.group_by(plot_level_cols).agg(
-            [
-                pl.sum("y_carb_ic").alias("y_carb_i"),  # Total carbon per plot
-                pl.lit(1.0).alias("x_i"),  # Area proportion per plot (full plot = 1)
-            ]
+        # Include CONDPROP_UNADJ for correct area proportion (x_i)
+        condprop_col = (
+            "CONDPROP_UNADJ" if "CONDPROP_UNADJ" in plot_cond_data.columns else None
         )
+        agg_cols = [pl.sum("y_carb_ic").alias("y_carb_i")]
+        if condprop_col:
+            agg_cols.append(pl.sum(condprop_col).cast(pl.Float64).alias("x_i"))
+        else:
+            agg_cols.append(pl.lit(1.0).alias("x_i"))
 
-        # Step 3: Calculate variance for each group or overall
+        plot_data = plot_cond_data.group_by(plot_level_cols).agg(agg_cols)
+
+        # Step 3: Get ALL plots with B&P columns for proper variance calculation
+        strat_data = self._get_stratification_data()
+        strat_schema = strat_data.collect_schema().names()
+        bp_cols = ["ESTN_UNIT_CN", "STRATUM_WGT", "AREA_USED", "P2POINTCNT"]
+        select_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"] + [
+            c for c in bp_cols if c in strat_schema
+        ]
+        all_plots = strat_data.select(select_cols).unique().collect()
+
+        # Step 4: Calculate variance using ratio-of-means
         if self.group_cols:
-            # Get ALL plots in the evaluation for proper variance calculation
-            strat_data = self._get_stratification_data()
-            all_plots = (
-                strat_data.select("PLT_CN", "STRATUM_CN", "EXPNS").unique().collect()
-            )
-
-            # Calculate variance for each group separately
             variance_results = []
 
             for group_vals in results.iter_rows():
-                # Build filter for this group
                 group_filter = pl.lit(True)
                 group_dict = {}
 
@@ -278,10 +286,8 @@ class CarbonPoolEstimator(BaseEstimator):
                             pl.col(col) == group_vals[results.columns.index(col)]
                         )
 
-                # Filter plot data for this specific group
                 group_plot_data = plot_data.filter(group_filter)
 
-                # Join with ALL plots, filling missing with zeros
                 all_plots_group = all_plots.join(
                     group_plot_data.select(["PLT_CN", "y_carb_i", "x_i"]),
                     on="PLT_CN",
@@ -294,21 +300,14 @@ class CarbonPoolEstimator(BaseEstimator):
                 )
 
                 if len(all_plots_group) > 0:
-                    carb_stats = calculate_domain_total_variance(
-                        all_plots_group, "y_carb_i"
-                    )
-                    # Calculate total area for per-acre SE
-                    total_area = (
-                        all_plots_group["EXPNS"] * all_plots_group["x_i"]
-                    ).sum()
-                    se_acre = (
-                        carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+                    ratio_stats = calculate_ratio_of_means_variance(
+                        all_plots_group, "y_carb_i", "x_i"
                     )
                     variance_results.append(
                         {
                             **group_dict,
-                            "CARBON_ACRE_SE": se_acre,
-                            "CARBON_TOTAL_SE": carb_stats["se_total"],
+                            "CARBON_ACRE_SE": ratio_stats["se_ratio"],
+                            "CARBON_TOTAL_SE": ratio_stats["se_total"],
                         }
                     )
                 else:
@@ -320,21 +319,30 @@ class CarbonPoolEstimator(BaseEstimator):
                         }
                     )
 
-            # Join variance results back to main results
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
                 results = results.join(var_df, on=self.group_cols, how="left")
         else:
-            # No grouping, calculate overall variance
-            carb_stats = calculate_domain_total_variance(plot_data, "y_carb_i")
-            # Calculate total area for per-acre SE
-            total_area = (plot_data["EXPNS"] * plot_data["x_i"]).sum()
-            se_acre = carb_stats["se_total"] / total_area if total_area > 0 else 0.0
+            # No grouping, calculate overall variance with ALL plots
+            all_plots_with_values = all_plots.join(
+                plot_data.select(["PLT_CN", "y_carb_i", "x_i"]),
+                on="PLT_CN",
+                how="left",
+            ).with_columns(
+                [
+                    pl.col("y_carb_i").fill_null(0.0),
+                    pl.col("x_i").fill_null(0.0),
+                ]
+            )
+
+            ratio_stats = calculate_ratio_of_means_variance(
+                all_plots_with_values, "y_carb_i", "x_i"
+            )
 
             results = results.with_columns(
                 [
-                    pl.lit(se_acre).alias("CARBON_ACRE_SE"),
-                    pl.lit(carb_stats["se_total"]).alias("CARBON_TOTAL_SE"),
+                    pl.lit(ratio_stats["se_ratio"]).alias("CARBON_ACRE_SE"),
+                    pl.lit(ratio_stats["se_total"]).alias("CARBON_TOTAL_SE"),
                 ]
             )
 

@@ -1026,9 +1026,11 @@ class BaseEstimator(ABC):
             )
 
         # Build plot-level aggregation
-        plot_agg_exprs = [
-            pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i")
-        ] if "CONDPROP_UNADJ" in plot_cond_data.columns else [pl.lit(1.0).alias("x_i")]
+        plot_agg_exprs = (
+            [pl.sum("CONDPROP_UNADJ").cast(pl.Float64).alias("x_i")]
+            if "CONDPROP_UNADJ" in plot_cond_data.columns
+            else [pl.lit(1.0).alias("x_i")]
+        )
 
         for i in range(len(metric_configs)):
             plot_agg_exprs.append(pl.sum(f"y_{i}_ic").alias(f"y_{i}_i"))
@@ -1081,8 +1083,11 @@ class BaseEstimator(ABC):
 
         Uses a loop over groups for now; could be further optimized with
         vectorized operations in the future.
+
+        Uses ratio-of-means variance for per-acre SE:
+        V(R) = (1/X^2) * [V(Y) + R^2*V(X) - 2*R*Cov(Y,X)]
         """
-        from .variance import calculate_domain_total_variance
+        from .variance import calculate_ratio_of_means_variance
 
         variance_results = []
 
@@ -1104,7 +1109,9 @@ class BaseEstimator(ABC):
             group_plot_data = plot_data.filter(group_filter)
 
             # Build select columns for join
-            select_cols = ["PLT_CN", "x_i"] + [f"y_{i}_i" for i in range(len(metric_configs))]
+            select_cols = ["PLT_CN", "x_i"] + [
+                f"y_{i}_i" for i in range(len(metric_configs))
+            ]
             select_cols = [c for c in select_cols if c in group_plot_data.columns]
 
             # Join with ALL plots, filling missing with zeros
@@ -1127,29 +1134,26 @@ class BaseEstimator(ABC):
             result_row = dict(group_dict)
 
             if len(all_plots_group) > 0:
-                # Calculate total area for per-acre SE
-                total_area = (
-                    all_plots_group["EXPNS"] * all_plots_group["x_i"]
-                ).sum()
-
                 for i, cfg in enumerate(metric_configs):
                     y_col = f"y_{i}_i"
                     if y_col in all_plots_group.columns:
-                        var_stats = calculate_domain_total_variance(
-                            all_plots_group, y_col
+                        ratio_stats = calculate_ratio_of_means_variance(
+                            all_plots_group, y_col, "x_i"
                         )
-                        se_acre = (
-                            var_stats["se_total"] / total_area if total_area > 0 else 0.0
-                        )
+                        se_acre = ratio_stats["se_ratio"]
 
                         result_row[cfg["acre_se_col"]] = se_acre
-                        result_row[cfg["total_se_col"]] = var_stats["se_total"]
+                        result_row[cfg["total_se_col"]] = ratio_stats["se_total"]
 
                         # Add variance columns if specified
                         if "acre_var_col" in cfg:
-                            result_row[cfg["acre_var_col"]] = se_acre**2
+                            result_row[cfg["acre_var_col"]] = ratio_stats[
+                                "variance_ratio"
+                            ]
                         if "total_var_col" in cfg:
-                            result_row[cfg["total_var_col"]] = var_stats["variance_total"]
+                            result_row[cfg["total_var_col"]] = ratio_stats[
+                                "variance_total"
+                            ]
             else:
                 # No data for this group
                 for cfg in metric_configs:
@@ -1166,7 +1170,9 @@ class BaseEstimator(ABC):
         if variance_results:
             var_df = pl.DataFrame(variance_results)
             # Use only valid group columns that exist in both dataframes
-            join_cols = [c for c in group_cols if c in var_df.columns and c in results.columns]
+            join_cols = [
+                c for c in group_cols if c in var_df.columns and c in results.columns
+            ]
             if join_cols:
                 results = results.join(var_df, on=join_cols, how="left")
 
@@ -1181,11 +1187,16 @@ class BaseEstimator(ABC):
     ) -> pl.DataFrame:
         """
         Calculate overall variance (ungrouped) for multiple metrics.
+
+        Uses ratio-of-means variance for per-acre SE:
+        V(R) = (1/X^2) * [V(Y) + R^2*V(X) - 2*R*Cov(Y,X)]
         """
-        from .variance import calculate_domain_total_variance
+        from .variance import calculate_ratio_of_means_variance
 
         # Build select columns for join
-        select_cols = ["PLT_CN", "x_i"] + [f"y_{i}_i" for i in range(len(metric_configs))]
+        select_cols = ["PLT_CN", "x_i"] + [
+            f"y_{i}_i" for i in range(len(metric_configs))
+        ]
         select_cols = [c for c in select_cols if c in plot_data.columns]
 
         # Join with ALL plots, filling missing with zeros
@@ -1204,34 +1215,39 @@ class BaseEstimator(ABC):
 
         all_plots_with_values = all_plots_with_values.with_columns(fill_exprs)
 
-        # Calculate total area for per-acre SE
-        total_area = (
-            all_plots_with_values["EXPNS"] * all_plots_with_values["x_i"]
-        ).sum()
-
         # Calculate variance for each metric and add to results
         for i, cfg in enumerate(metric_configs):
             y_col = f"y_{i}_i"
             if y_col in all_plots_with_values.columns:
-                var_stats = calculate_domain_total_variance(
-                    all_plots_with_values, y_col
+                ratio_stats = calculate_ratio_of_means_variance(
+                    all_plots_with_values, y_col, "x_i"
                 )
-                se_acre = var_stats["se_total"] / total_area if total_area > 0 else 0.0
+                se_acre = ratio_stats["se_ratio"]
 
-                results = results.with_columns([
-                    pl.lit(se_acre).alias(cfg["acre_se_col"]),
-                    pl.lit(var_stats["se_total"]).alias(cfg["total_se_col"]),
-                ])
+                results = results.with_columns(
+                    [
+                        pl.lit(se_acre).alias(cfg["acre_se_col"]),
+                        pl.lit(ratio_stats["se_total"]).alias(cfg["total_se_col"]),
+                    ]
+                )
 
                 # Add variance columns if specified
                 if "acre_var_col" in cfg:
-                    results = results.with_columns([
-                        pl.lit(se_acre**2).alias(cfg["acre_var_col"]),
-                    ])
+                    results = results.with_columns(
+                        [
+                            pl.lit(ratio_stats["variance_ratio"]).alias(
+                                cfg["acre_var_col"]
+                            ),
+                        ]
+                    )
                 if "total_var_col" in cfg:
-                    results = results.with_columns([
-                        pl.lit(var_stats["variance_total"]).alias(cfg["total_var_col"]),
-                    ])
+                    results = results.with_columns(
+                        [
+                            pl.lit(ratio_stats["variance_total"]).alias(
+                                cfg["total_var_col"]
+                            ),
+                        ]
+                    )
 
         return results
 
@@ -1249,21 +1265,25 @@ class BaseEstimator(ABC):
 
             if acre_col and acre_col in results.columns:
                 cv_col = acre_se_col.replace("_SE", "_CV")
-                results = results.with_columns([
-                    pl.when(pl.col(acre_col) > 0)
-                    .then(pl.col(acre_se_col) / pl.col(acre_col) * 100)
-                    .otherwise(None)
-                    .alias(cv_col),
-                ])
+                results = results.with_columns(
+                    [
+                        pl.when(pl.col(acre_col) > 0)
+                        .then(pl.col(acre_se_col) / pl.col(acre_col) * 100)
+                        .otherwise(None)
+                        .alias(cv_col),
+                    ]
+                )
 
             if total_col and total_col in results.columns:
                 cv_col = total_se_col.replace("_SE", "_CV")
-                results = results.with_columns([
-                    pl.when(pl.col(total_col) > 0)
-                    .then(pl.col(total_se_col) / pl.col(total_col) * 100)
-                    .otherwise(None)
-                    .alias(cv_col),
-                ])
+                results = results.with_columns(
+                    [
+                        pl.when(pl.col(total_col) > 0)
+                        .then(pl.col(total_se_col) / pl.col(total_col) * 100)
+                        .otherwise(None)
+                        .alias(cv_col),
+                    ]
+                )
 
         return results
 

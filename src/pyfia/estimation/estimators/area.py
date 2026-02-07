@@ -568,7 +568,8 @@ class AreaEstimator(BaseEstimator):
                     )
 
         # Add year
-        results = results.with_columns([pl.lit(2023).alias("YEAR")])
+        year = self._extract_evaluation_year()
+        results = results.with_columns([pl.lit(year).alias("YEAR")])
 
         # Format columns
         results = format_output_columns(

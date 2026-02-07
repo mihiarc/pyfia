@@ -93,7 +93,7 @@ Homepage = "https://github.com/mihiarc/pyfia"
 Documentation = "https://mihiarc.github.io/pyfia/"
 Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
-Changelog = "https://github.com/mihiarc/pyfia/releases"
+Changelog = "https://github.com/mihiarc/pyfia/blob/main/CHANGELOG.md"
 
 
 [tool.setuptools]

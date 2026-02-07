@@ -103,7 +103,6 @@ nav:
     - Grouping Results: guides/grouping.md
     - Spatial Filtering: guides/spatial.md
     - Variance Estimation: variance_calculation_guide.md
-    - Lazy Evaluation: lazy_evaluation_guide.md
   - API Reference:
     - Overview: api/index.md
     - Core:
@@ -125,7 +124,6 @@ nav:
       - Reference Tables: api/reference_tables.md
       - EVALIDator: api/evalidator.md
       - Data Download: api/downloader.md
-    - Data Conversion: api/conversion.md
   - Examples: examples.md
   - Development:
     - Contributing: DEVELOPMENT.md

@@ -74,10 +74,28 @@ db = FIA(db_path)
 ```python
 # Filter to Georgia, most recent evaluation
 db.clip_by_state("GA")
+db.clip_most_recent()
 
 # Or filter by specific EVALID
 db.clip_by_evalid([132403, 132404])
 ```
+
+!!! warning "Always filter to a single evaluation before estimating"
+
+    FIA databases contain multiple overlapping evaluations (EVALIDs) for each state.
+    If you skip `clip_most_recent()` or `clip_by_evalid()`, plots will be counted
+    multiple times and **your estimates will be wrong** — totals can be inflated by
+    10-60x.
+
+    **Rule of thumb:** Always call `db.clip_most_recent()` after `clip_by_state()`.
+    For GRM estimates (growth, mortality, removals), use `eval_type="GRM"`:
+
+    ```python
+    db.clip_most_recent(eval_type="GRM")
+    ```
+
+    See the [FIA Technical Context](fia_technical_context.md) for details on the
+    EVALID system and why this matters for statistical validity.
 
 ### 3. Run an Analysis
 
@@ -92,9 +110,10 @@ print(forest_area)
 volume = pyfia.volume(db, grp_by="SPCD")
 print(volume)
 
-# Get mortality estimates
-mortality = pyfia.mortality(db, measure="volume")
-print(mortality)
+# Get mortality estimates (GRM estimates need GRM evaluation type)
+db.clip_most_recent(eval_type="GRM")
+mort = pyfia.mortality(db, measure="volume")
+print(mort)
 ```
 
 ### 4. Add Descriptive Names

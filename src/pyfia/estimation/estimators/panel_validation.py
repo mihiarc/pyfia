@@ -138,6 +138,10 @@ def compare_panel_to_removals(
     db_path = db.db_path if isinstance(db, FIA) else db
 
     with FIA(db_path) as fia_db:
+        # GRM estimators (removals) require an EVALID filter.
+        # Use GROW eval type — EXPGROW/EXPMORT/EXPREMV share the same EVALID.
+        fia_db.clip_most_recent(eval_type="GROW")
+
         # === Method depends on expand flag ===
         if expand:
             # Use proper per-acre expansion from panel()

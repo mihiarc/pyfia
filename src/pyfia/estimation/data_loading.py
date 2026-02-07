@@ -11,9 +11,10 @@ Design principles:
 - No complex patterns - just load data
 """
 
+from __future__ import annotations
+
 import logging
 from functools import lru_cache
-from typing import List, Optional, Tuple
 
 import polars as pl
 
@@ -103,7 +104,7 @@ class DataLoader:
             return
 
         # Check for polygon attributes if they exist
-        polygon_attr_cols: List[str] = []
+        polygon_attr_cols: list[str] = []
         if (
             hasattr(self.db, "_polygon_attributes")
             and self.db._polygon_attributes is not None
@@ -142,25 +143,25 @@ class DataLoader:
 
     def load_data(
         self,
-        required_tables: List[str],
-        tree_columns: Optional[List[str]] = None,
-        cond_columns: Optional[List[str]] = None,
-    ) -> Optional[pl.LazyFrame]:
+        required_tables: list[str],
+        tree_columns: list[str] | None = None,
+        cond_columns: list[str] | None = None,
+    ) -> pl.LazyFrame | None:
         """
         Load and join required tables.
 
         Parameters
         ----------
-        required_tables : List[str]
+        required_tables : list[str]
             List of required table names
-        tree_columns : Optional[List[str]]
+        tree_columns : list[str] | None
             Columns to load from TREE table
-        cond_columns : Optional[List[str]]
+        cond_columns : list[str] | None
             Columns to load from COND table
 
         Returns
         -------
-        Optional[pl.LazyFrame]
+        pl.LazyFrame | None
             Joined data or None if no tree data needed
         """
         # Handle area-only estimations (no tree data)
@@ -172,22 +173,22 @@ class DataLoader:
 
     def _prepare_column_lists(
         self,
-        tree_columns: Optional[List[str]],
-        cond_columns: Optional[List[str]],
-    ) -> Tuple[Optional[List[str]], Optional[List[str]]]:
+        tree_columns: list[str] | None,
+        cond_columns: list[str] | None,
+    ) -> tuple[list[str] | None, list[str] | None]:
         """
         Prepare column lists for TREE and COND tables including grouping columns.
 
         Parameters
         ----------
-        tree_columns : Optional[List[str]]
+        tree_columns : list[str] | None
             Base tree columns required
-        cond_columns : Optional[List[str]]
+        cond_columns : list[str] | None
             Base condition columns required
 
         Returns
         -------
-        tuple[Optional[List[str]], Optional[List[str]]]
+        tuple[list[str] | None, list[str] | None]
             (tree_cols, cond_cols) with grouping columns added
 
         Raises
@@ -227,8 +228,8 @@ class DataLoader:
     def _load_table_with_cache_check(
         self,
         table_name: str,
-        columns: Optional[List[str]],
-        where: Optional[str] = None,
+        columns: list[str] | None,
+        where: str | None = None,
     ) -> pl.LazyFrame:
         """
         Load a table with cache invalidation if required columns are missing.
@@ -237,9 +238,9 @@ class DataLoader:
         ----------
         table_name : str
             Name of the table to load
-        columns : Optional[List[str]]
+        columns : list[str] | None
             Required columns
-        where : Optional[str]
+        where : str | None
             SQL WHERE clause
 
         Returns
@@ -268,13 +269,13 @@ class DataLoader:
 
         return df
 
-    def _get_valid_plots_filter(self) -> Optional[pl.LazyFrame]:
+    def _get_valid_plots_filter(self) -> pl.LazyFrame | None:
         """
         Get valid plot CNs based on EVALID and plot_domain filters.
 
         Returns
         -------
-        Optional[pl.LazyFrame]
+        pl.LazyFrame | None
             LazyFrame with valid PLT_CN values, or None if no filters
         """
         valid_plots = None
@@ -320,8 +321,8 @@ class DataLoader:
     def _apply_plot_filter_and_select_columns(
         self,
         df: pl.LazyFrame,
-        valid_plots: Optional[pl.LazyFrame],
-        columns: Optional[List[str]],
+        valid_plots: pl.LazyFrame | None,
+        columns: list[str] | None,
     ) -> pl.LazyFrame:
         """
         Apply plot filter and select required columns from a dataframe.
@@ -330,9 +331,9 @@ class DataLoader:
         ----------
         df : pl.LazyFrame
             Input dataframe
-        valid_plots : Optional[pl.LazyFrame]
+        valid_plots : pl.LazyFrame | None
             Valid plot CNs to filter by
-        columns : Optional[List[str]]
+        columns : list[str] | None
             Columns to select
 
         Returns
@@ -354,8 +355,8 @@ class DataLoader:
 
     def _load_tree_cond_data(
         self,
-        tree_columns: Optional[List[str]],
-        cond_columns: Optional[List[str]],
+        tree_columns: list[str] | None,
+        cond_columns: list[str] | None,
     ) -> pl.LazyFrame:
         """Load and join tree and condition data.
 
@@ -367,9 +368,9 @@ class DataLoader:
 
         Parameters
         ----------
-        tree_columns : Optional[List[str]]
+        tree_columns : list[str] | None
             Columns to load from TREE table
-        cond_columns : Optional[List[str]]
+        cond_columns : list[str] | None
             Columns to load from COND table
 
         Returns
@@ -404,13 +405,13 @@ class DataLoader:
 
     def _load_area_data(
         self,
-        cond_columns: Optional[List[str]] = None,
+        cond_columns: list[str] | None = None,
     ) -> pl.LazyFrame:
         """Load condition and plot data for area estimation.
 
         Parameters
         ----------
-        cond_columns : Optional[List[str]]
+        cond_columns : list[str] | None
             Columns to load from COND table
 
         Returns
@@ -483,14 +484,14 @@ class DataLoader:
 
         return data
 
-    def _build_tree_sql_filter(self) -> Optional[str]:
+    def _build_tree_sql_filter(self) -> str | None:
         """Build SQL WHERE clause for TREE table based on config.
 
         This pushes common filters to the database level to reduce memory usage.
 
         Returns
         -------
-        Optional[str]
+        str | None
             SQL WHERE clause (without WHERE keyword) or None if no filters
         """
         filters = []
@@ -515,14 +516,14 @@ class DataLoader:
             return " AND ".join(filters)
         return None
 
-    def _build_cond_sql_filter(self) -> Optional[str]:
+    def _build_cond_sql_filter(self) -> str | None:
         """Build SQL WHERE clause for COND table based on config.
 
         This pushes land type filters to the database level to reduce memory usage.
 
         Returns
         -------
-        Optional[str]
+        str | None
             SQL WHERE clause (without WHERE keyword) or None if no filters
         """
         filters = []
@@ -599,9 +600,7 @@ class DataLoader:
 
         # Apply EVALID filter to POP_ESTN_UNIT
         if self.db.evalid:
-            pop_estn_unit = pop_estn_unit.filter(
-                pl.col("EVALID").is_in(self.db.evalid)
-            )
+            pop_estn_unit = pop_estn_unit.filter(pl.col("EVALID").is_in(self.db.evalid))
 
         # Deduplicate POP_ESTN_UNIT (same reason as POP_STRATUM)
         pop_estn_unit_unique = pop_estn_unit.unique(subset=["CN"])

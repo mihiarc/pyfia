@@ -29,10 +29,11 @@ References
 - rFIA Package: https://doserlab.com/files/rfia/
 """
 
+from __future__ import annotations
+
 import logging
 import tempfile
 from pathlib import Path
-from typing import List, Optional, Union
 
 from rich.console import Console
 
@@ -98,7 +99,7 @@ def _get_default_data_dir() -> Path:
 def _convert_csvs_to_duckdb(
     csv_dir: Path,
     output_path: Path,
-    state_code: Optional[int] = None,
+    state_code: int | None = None,
     show_progress: bool = True,
 ) -> Path:
     """
@@ -197,10 +198,10 @@ def _convert_csvs_to_duckdb(
 
 
 def download(
-    states: Union[str, List[str]],
-    dir: Optional[Union[str, Path]] = None,
+    states: str | list[str],
+    dir: str | Path | None = None,
     common: bool = True,
-    tables: Optional[List[str]] = None,
+    tables: list[str] | None = None,
     force: bool = False,
     show_progress: bool = True,
     use_cache: bool = True,
@@ -324,7 +325,7 @@ def _download_single_state(
     client: DataMartClient,
     cache: DownloadCache,
     common: bool,
-    tables: Optional[List[str]],
+    tables: list[str] | None,
     force: bool,
     show_progress: bool,
     use_cache: bool,
@@ -423,12 +424,12 @@ def _download_single_state(
 
 
 def _download_multi_state(
-    states: List[str],
+    states: list[str],
     data_dir: Path,
     client: DataMartClient,
     cache: DownloadCache,
     common: bool,
-    tables: Optional[List[str]],
+    tables: list[str] | None,
     force: bool,
     show_progress: bool,
     use_cache: bool,
@@ -570,7 +571,9 @@ def _download_multi_state(
                             SELECT * FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)
                         """)
                     except Exception as e:
-                        logger.warning(f"Failed to import reference table {table_name}: {e}")
+                        logger.warning(
+                            f"Failed to import reference table {table_name}: {e}"
+                        )
         except Exception as e:
             logger.warning(f"Failed to download reference tables: {e}")
 
@@ -593,8 +596,8 @@ def _download_multi_state(
 
 
 def clear_cache(
-    older_than_days: Optional[int] = None,
-    state: Optional[str] = None,
+    older_than_days: int | None = None,
+    state: str | None = None,
     delete_files: bool = False,
 ) -> int:
     """

@@ -17,17 +17,17 @@ These functions are stateless and operate on Polars DataFrames/LazyFrames,
 making them easy to test and reuse across different estimators.
 """
 
-from typing import Dict, List, Tuple
+from __future__ import annotations
 
 import polars as pl
 
 
 def aggregate_to_condition_level(
     data_with_strat: pl.LazyFrame,
-    metric_mappings: Dict[str, str],
-    group_cols: List[str],
-    available_cols: List[str],
-) -> Tuple[pl.LazyFrame, List[str]]:
+    metric_mappings: dict[str, str],
+    group_cols: list[str],
+    available_cols: list[str],
+) -> tuple[pl.LazyFrame, list[str]]:
     """
     Stage 1: Aggregate metrics to plot-condition level.
 
@@ -39,18 +39,18 @@ def aggregate_to_condition_level(
     data_with_strat : pl.LazyFrame
         Data with stratification columns joined (must include PLT_CN, CONDID,
         STRATUM_CN, EXPNS, CONDPROP_UNADJ)
-    metric_mappings : Dict[str, str]
+    metric_mappings : dict[str, str]
         Mapping of adjusted metrics to condition-level aggregates, e.g.:
         {"VOLUME_ADJ": "CONDITION_VOLUME"} for volume estimation
         {"TPA_ADJ": "CONDITION_TPA", "BAA_ADJ": "CONDITION_BAA"} for TPA estimation
-    group_cols : List[str]
+    group_cols : list[str]
         User-specified grouping columns (e.g., SPCD, FORTYPCD)
-    available_cols : List[str]
+    available_cols : list[str]
         Available columns in the data (from collect_schema().names())
 
     Returns
     -------
-    tuple[pl.LazyFrame, List[str]]
+    tuple[pl.LazyFrame, list[str]]
         Condition-level aggregated data and the grouping columns used
 
     Examples
@@ -90,9 +90,9 @@ def aggregate_to_condition_level(
 
 def aggregate_to_population_level(
     condition_agg: pl.LazyFrame,
-    metric_mappings: Dict[str, str],
-    group_cols: List[str],
-    condition_group_cols: List[str],
+    metric_mappings: dict[str, str],
+    group_cols: list[str],
+    condition_group_cols: list[str],
 ) -> pl.LazyFrame:
     """
     Stage 2: Apply expansion factors and calculate population estimates.
@@ -103,11 +103,11 @@ def aggregate_to_population_level(
     ----------
     condition_agg : pl.LazyFrame
         Condition-level aggregated data from aggregate_to_condition_level
-    metric_mappings : Dict[str, str]
+    metric_mappings : dict[str, str]
         Mapping of adjusted metrics to condition-level aggregates
-    group_cols : List[str]
+    group_cols : list[str]
         User-specified grouping columns
-    condition_group_cols : List[str]
+    condition_group_cols : list[str]
         Columns used in condition-level grouping
 
     Returns
@@ -178,7 +178,7 @@ def aggregate_to_population_level(
 
 def compute_per_acre_values(
     results_df: pl.DataFrame,
-    metric_mappings: Dict[str, str],
+    metric_mappings: dict[str, str],
 ) -> pl.DataFrame:
     """
     Calculate per-acre values using ratio-of-means and clean up intermediate columns.
@@ -190,7 +190,7 @@ def compute_per_acre_values(
     results_df : pl.DataFrame
         Population-level results from aggregate_to_population_level with
         numerator, total, and area columns
-    metric_mappings : Dict[str, str]
+    metric_mappings : dict[str, str]
         Mapping of adjusted metrics to condition-level aggregates
 
     Returns
@@ -242,8 +242,8 @@ def compute_per_acre_values(
 
 def apply_two_stage_aggregation(
     data_with_strat: pl.LazyFrame,
-    metric_mappings: Dict[str, str],
-    group_cols: List[str],
+    metric_mappings: dict[str, str],
+    group_cols: list[str],
     use_grm_adjustment: bool = False,
 ) -> pl.DataFrame:
     """
@@ -265,12 +265,12 @@ def apply_two_stage_aggregation(
         - EXPNS: Expansion factor (acres per plot)
         - CONDPROP_UNADJ: Unadjusted condition proportion
         - Plus all columns in metric_mappings keys
-    metric_mappings : Dict[str, str]
+    metric_mappings : dict[str, str]
         Mapping of adjusted metrics to condition-level aggregates, e.g.:
         - {"VOLUME_ADJ": "CONDITION_VOLUME"} for volume estimation
         - {"TPA_ADJ": "CONDITION_TPA", "BAA_ADJ": "CONDITION_BAA"} for TPA
         - {"BIOMASS_ADJ": "CONDITION_BIOMASS"} for biomass
-    group_cols : List[str]
+    group_cols : list[str]
         User-specified grouping columns (e.g., ["SPCD"], ["FORTYPCD", "OWNGRPCD"])
     use_grm_adjustment : bool, default False
         If True, use SUBPTYP_GRM for adjustment factors (mortality/growth/removals).

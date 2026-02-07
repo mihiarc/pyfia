@@ -4,6 +4,8 @@ FIA estimators.
 Simple, focused estimator implementations without unnecessary abstractions.
 """
 
+from __future__ import annotations
+
 from .area import AreaEstimator, area
 from .area_change import AreaChangeEstimator, area_change
 from .biomass import BiomassEstimator, biomass

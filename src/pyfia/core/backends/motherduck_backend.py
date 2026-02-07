@@ -5,10 +5,12 @@ This module provides a MotherDuck-specific implementation of the DatabaseBackend
 interface, enabling cloud-based FIA data access via MotherDuck's serverless DuckDB.
 """
 
+from __future__ import annotations
+
 import logging
 import os
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 import duckdb
 import polars as pl
@@ -51,7 +53,7 @@ class MotherDuckBackend(DatabaseBackend):
     def __init__(
         self,
         database: str,
-        motherduck_token: Optional[str] = None,
+        motherduck_token: str | None = None,
         **kwargs: Any,
     ):
         """
@@ -61,7 +63,7 @@ class MotherDuckBackend(DatabaseBackend):
         ----------
         database : str
             Name of the MotherDuck database (e.g., 'fia_ga')
-        motherduck_token : Optional[str]
+        motherduck_token : str | None
             MotherDuck authentication token. If not provided, uses
             MOTHERDUCK_TOKEN environment variable.
         **kwargs : Any
@@ -70,8 +72,8 @@ class MotherDuckBackend(DatabaseBackend):
         # Don't pass db_path to super since we don't have a file path
         self.database = database
         self.motherduck_token = motherduck_token or os.environ.get("MOTHERDUCK_TOKEN")
-        self._connection: Optional[duckdb.DuckDBPyConnection] = None
-        self._schema_cache: Dict[str, Dict[str, str]] = {}
+        self._connection: duckdb.DuckDBPyConnection | None = None
+        self._schema_cache: dict[str, dict[str, str]] = {}
 
         if not self.motherduck_token:
             raise ValueError(
@@ -139,7 +141,7 @@ class MotherDuckBackend(DatabaseBackend):
     def execute_query(
         self,
         query: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> pl.DataFrame:
         """
         Execute SQL query and return results as Polars DataFrame.
@@ -150,7 +152,7 @@ class MotherDuckBackend(DatabaseBackend):
         ----------
         query : str
             SQL query string
-        params : Optional[Dict[str, Any]]
+        params : dict[str, Any] | None
             Optional query parameters (uses $param syntax)
 
         Returns
@@ -211,7 +213,7 @@ class MotherDuckBackend(DatabaseBackend):
             return f'"{REFERENCE_DATABASE}"."main"."{safe_table}"'
         return f'"{safe_table}"'
 
-    def get_table_schema(self, table_name: str) -> Dict[str, str]:
+    def get_table_schema(self, table_name: str) -> dict[str, str]:
         """
         Get schema information for a table.
 
@@ -222,7 +224,7 @@ class MotherDuckBackend(DatabaseBackend):
 
         Returns
         -------
-        Dict[str, str]
+        dict[str, str]
             Dictionary mapping column names to SQL types
         """
         if table_name in self._schema_cache:
@@ -279,7 +281,7 @@ class MotherDuckBackend(DatabaseBackend):
         except duckdb.Error:
             return False
 
-    def describe_table(self, table_name: str) -> List[tuple]:
+    def describe_table(self, table_name: str) -> list[tuple]:
         """
         Get table description for schema detection.
 
@@ -290,7 +292,7 @@ class MotherDuckBackend(DatabaseBackend):
 
         Returns
         -------
-        List[tuple]
+        list[tuple]
             List of tuples with column information
         """
         if not self._connection:
@@ -394,7 +396,7 @@ class MotherDuckBackend(DatabaseBackend):
         return col_type in ["INTEGER", "BIGINT", "INT", "SMALLINT", "TINYINT"]
 
     def build_select_clause(
-        self, table_name: str, columns: Optional[List[str]] = None
+        self, table_name: str, columns: list[str] | None = None
     ) -> str:
         """
         Build SELECT clause with appropriate type casting for FIA data.
@@ -406,7 +408,7 @@ class MotherDuckBackend(DatabaseBackend):
         ----------
         table_name : str
             Name of the table
-        columns : Optional[List[str]]
+        columns : list[str] | None
             Optional list of columns to select
 
         Returns

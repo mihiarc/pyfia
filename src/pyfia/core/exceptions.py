@@ -26,8 +26,9 @@ Usage Guidelines
 - Include relevant context (table names, column names, etc.)
 """
 
+from __future__ import annotations
+
 import logging
-from typing import List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -76,7 +77,7 @@ class TableNotFoundError(DatabaseError):
         List of tables that are available, for reference.
     """
 
-    def __init__(self, table: str, available_tables: Optional[List[str]] = None):
+    def __init__(self, table: str, available_tables: list[str] | None = None):
         self.table = table
         self.available_tables = available_tables
         message = f"Table '{table}' not found in database"
@@ -99,7 +100,7 @@ class ConnectionError(DatabaseError):
         Reason for the connection failure.
     """
 
-    def __init__(self, path: str, reason: Optional[str] = None):
+    def __init__(self, path: str, reason: str | None = None):
         self.path = path
         self.reason = reason
         message = f"Failed to connect to database at '{path}'"
@@ -139,8 +140,8 @@ class InsufficientDataError(EstimationError):
     def __init__(
         self,
         message: str,
-        n_records: Optional[int] = None,
-        min_required: Optional[int] = None,
+        n_records: int | None = None,
+        min_required: int | None = None,
     ):
         self.n_records = n_records
         self.min_required = min_required
@@ -174,7 +175,7 @@ class MissingColumnError(EstimationError):
         Table where the columns were expected.
     """
 
-    def __init__(self, columns: List[str], table: Optional[str] = None):
+    def __init__(self, columns: list[str], table: str | None = None):
         self.columns = columns
         self.table = table
         cols_str = ", ".join(columns)
@@ -212,7 +213,7 @@ class InvalidDomainError(FilterError):
         Reason why the expression is invalid.
     """
 
-    def __init__(self, expression: str, domain_type: str, reason: Optional[str] = None):
+    def __init__(self, expression: str, domain_type: str, reason: str | None = None):
         self.expression = expression
         self.domain_type = domain_type
         self.reason = reason
@@ -234,7 +235,7 @@ class InvalidEVALIDError(FilterError):
         Reason why the EVALID is invalid.
     """
 
-    def __init__(self, evalid: Union[int, List[int]], reason: Optional[str] = None):
+    def __init__(self, evalid: int | list[int], reason: str | None = None):
         self.evalid = evalid
         self.reason = reason
         if isinstance(evalid, list):
@@ -262,9 +263,7 @@ class NoEVALIDError(FilterError):
         Suggested action to resolve the issue.
     """
 
-    def __init__(
-        self, operation: Optional[str] = None, suggestion: Optional[str] = None
-    ):
+    def __init__(self, operation: str | None = None, suggestion: str | None = None):
         self.operation = operation
         self.suggestion = suggestion
         message = "No EVALID filter specified"
@@ -292,7 +291,7 @@ class ConfigurationError(PyFIAError):
         The parameter that has an invalid value.
     """
 
-    def __init__(self, message: str, parameter: Optional[str] = None):
+    def __init__(self, message: str, parameter: str | None = None):
         self.parameter = parameter
         if parameter:
             message = f"Invalid configuration for '{parameter}': {message}"
@@ -330,8 +329,8 @@ class SpatialFileError(SpatialError):
     def __init__(
         self,
         path: str,
-        reason: Optional[str] = None,
-        supported_formats: Optional[List[str]] = None,
+        reason: str | None = None,
+        supported_formats: list[str] | None = None,
     ):
         self.path = path
         self.reason = reason
@@ -354,7 +353,7 @@ class SpatialExtensionError(SpatialError):
         Reason why the extension could not be loaded.
     """
 
-    def __init__(self, reason: Optional[str] = None):
+    def __init__(self, reason: str | None = None):
         self.reason = reason
         message = "Failed to load DuckDB spatial extension"
         if reason:
@@ -375,7 +374,7 @@ class NoSpatialFilterError(SpatialError):
         Number of polygons in the file.
     """
 
-    def __init__(self, polygon_path: str, n_polygons: Optional[int] = None):
+    def __init__(self, polygon_path: str, n_polygons: int | None = None):
         self.polygon_path = polygon_path
         self.n_polygons = n_polygons
         message = f"No plots found within polygon(s) from '{polygon_path}'"

@@ -25,7 +25,7 @@ CRITICAL: This module must be used for ALL tree-based calculations to ensure
 accurate expansion from sample plots to population estimates.
 """
 
-from typing import Optional, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -88,11 +88,11 @@ def get_adjustment_factor_expr(
 
 
 def apply_tree_adjustment_factors(
-    data: Union[pl.DataFrame, pl.LazyFrame],
+    data: pl.DataFrame | pl.LazyFrame,
     size_col: str = "DIA",
     macro_breakpoint_col: str = "MACRO_BREAKPOINT_DIA",
     output_col: str = "ADJ_FACTOR",
-) -> Union[pl.DataFrame, pl.LazyFrame]:
+) -> pl.DataFrame | pl.LazyFrame:
     """
     Apply tree adjustment factors to a dataframe.
 
@@ -101,7 +101,7 @@ def apply_tree_adjustment_factors(
 
     Parameters
     ----------
-    data : Union[pl.DataFrame, pl.LazyFrame]
+    data : pl.DataFrame | pl.LazyFrame
         Data containing tree diameters and adjustment factor columns
     size_col : str
         Column name for tree diameter (DBH in inches)
@@ -112,7 +112,7 @@ def apply_tree_adjustment_factors(
 
     Returns
     -------
-    Union[pl.DataFrame, pl.LazyFrame]
+    pl.DataFrame | pl.LazyFrame
         Data with adjustment factor column added
 
     Raises
@@ -232,12 +232,12 @@ def get_tree_adjustment_sql(
 
 def calculate_expanded_trees(
     tpa_unadj: float,
-    dia: Optional[float],
+    dia: float | None,
     adj_factor_micr: float,
     adj_factor_subp: float,
     adj_factor_macr: float,
     expns: float,
-    macro_breakpoint: Optional[float] = None,
+    macro_breakpoint: float | None = None,
 ) -> float:
     """
     Calculate expanded tree count for a single tree record.
@@ -249,7 +249,7 @@ def calculate_expanded_trees(
     ----------
     tpa_unadj : float
         Unadjusted trees per acre (from TREE.TPA_UNADJ)
-    dia : Optional[float]
+    dia : float | None
         Tree diameter at breast height in inches
     adj_factor_micr : float
         Microplot adjustment factor (from POP_STRATUM.ADJ_FACTOR_MICR)
@@ -259,7 +259,7 @@ def calculate_expanded_trees(
         Macroplot adjustment factor (from POP_STRATUM.ADJ_FACTOR_MACR)
     expns : float
         Expansion factor to total acres (from POP_STRATUM.EXPNS)
-    macro_breakpoint : Optional[float]
+    macro_breakpoint : float | None
         Macroplot breakpoint diameter (from PLOT.MACRO_BREAKPOINT_DIA)
 
     Returns
@@ -337,10 +337,10 @@ def get_area_adjustment_factor_expr(
 
 
 def apply_area_adjustment_factors(
-    data: Union[pl.DataFrame, pl.LazyFrame],
+    data: pl.DataFrame | pl.LazyFrame,
     prop_basis_col: str = "PROP_BASIS",
     output_col: str = "ADJ_FACTOR_AREA",
-) -> Union[pl.DataFrame, pl.LazyFrame]:
+) -> pl.DataFrame | pl.LazyFrame:
     """
     Apply area adjustment factors to a dataframe.
 
@@ -349,7 +349,7 @@ def apply_area_adjustment_factors(
 
     Parameters
     ----------
-    data : Union[pl.DataFrame, pl.LazyFrame]
+    data : pl.DataFrame | pl.LazyFrame
         Data containing condition data and adjustment factor columns
     prop_basis_col : str
         Column name for condition proportion basis
@@ -358,7 +358,7 @@ def apply_area_adjustment_factors(
 
     Returns
     -------
-    Union[pl.DataFrame, pl.LazyFrame]
+    pl.DataFrame | pl.LazyFrame
         Data with area adjustment factor column added
 
     Raises
@@ -612,7 +612,6 @@ WHERE
     COND.COND_STATUS_CD = 1  -- Forestland
     AND POP_STRATUM.EVALID = ?  -- Specific evaluation
 """
-
 
 if __name__ == "__main__":
     # Example usage and documentation

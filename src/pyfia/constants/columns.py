@@ -4,6 +4,8 @@ Centralizes column name strings to prevent typos and enable IDE autocompletion.
 These constants match the official FIA database column names.
 """
 
+from __future__ import annotations
+
 
 class TreeColumns:
     """TREE table column names."""

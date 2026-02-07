@@ -1,5 +1,7 @@
 """pyFIA utilities module."""
 
+from __future__ import annotations
+
 from .reference_tables import (
     join_forest_type_names,
     join_multiple_references,

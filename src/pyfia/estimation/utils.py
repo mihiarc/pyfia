@@ -5,9 +5,11 @@ Simple utilities for common operations, including shared validation and
 initialization patterns used across all estimator functions.
 """
 
+from __future__ import annotations
+
 import warnings
 from dataclasses import dataclass
-from typing import TYPE_CHECKING, Any, List, Optional, Tuple, Union
+from typing import TYPE_CHECKING, Any
 
 import polars as pl
 
@@ -34,13 +36,13 @@ class ValidatedInputs:
     ----------
     land_type : str
         Validated land type ('forest', 'timber', or 'all')
-    grp_by : Optional[Union[str, List[str]]]
+    grp_by : str | list[str] | None
         Validated grouping column(s)
-    area_domain : Optional[str]
+    area_domain : str | None
         Validated area domain expression
-    plot_domain : Optional[str]
+    plot_domain : str | None
         Validated plot domain expression
-    tree_domain : Optional[str]
+    tree_domain : str | None
         Validated tree domain expression (for tree-based estimators)
     variance : bool
         Whether to calculate variance
@@ -51,10 +53,10 @@ class ValidatedInputs:
     """
 
     land_type: str
-    grp_by: Optional[Union[str, List[str]]]
-    area_domain: Optional[str]
-    plot_domain: Optional[str]
-    tree_domain: Optional[str]
+    grp_by: str | list[str] | None
+    area_domain: str | None
+    plot_domain: str | None
+    tree_domain: str | None
     variance: bool
     totals: bool
     most_recent: bool
@@ -62,10 +64,10 @@ class ValidatedInputs:
 
 def validate_estimator_inputs(
     land_type: str = "forest",
-    grp_by: Optional[Union[str, List[str]]] = None,
-    area_domain: Optional[str] = None,
-    plot_domain: Optional[str] = None,
-    tree_domain: Optional[str] = None,
+    grp_by: str | list[str] | None = None,
+    area_domain: str | None = None,
+    plot_domain: str | None = None,
+    tree_domain: str | None = None,
     variance: bool = False,
     totals: bool = True,
     most_recent: bool = False,
@@ -132,7 +134,7 @@ def validate_estimator_inputs(
     )
 
 
-def ensure_fia_instance(db: Union[str, "FIA"]) -> Tuple["FIA", bool]:
+def ensure_fia_instance(db: str | "FIA") -> tuple["FIA", bool]:
     """
     Ensure db is a FIA instance, creating one if a path string is provided.
 
@@ -275,8 +277,8 @@ def validate_aggregation_result(
 
 
 def validate_required_columns(
-    data: Union[pl.DataFrame, pl.LazyFrame],
-    required_cols: List[str],
+    data: pl.DataFrame | pl.LazyFrame,
+    required_cols: list[str],
     context: str = "data",
 ) -> None:
     """

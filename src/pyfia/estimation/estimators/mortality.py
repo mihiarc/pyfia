@@ -5,7 +5,9 @@ Implements FIA's Growth-Removal-Mortality methodology for calculating
 annual tree mortality using TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables.
 """
 
-from typing import List, Literal, Optional, Union
+from __future__ import annotations
+
+from typing import Literal
 
 import polars as pl
 
@@ -28,11 +30,11 @@ class MortalityEstimator(GRMBaseEstimator):
         """Return 'mortality' as the GRM component type."""
         return "mortality"
 
-    def get_component_filter(self) -> Optional[pl.Expr]:
+    def get_component_filter(self) -> pl.Expr | None:
         """Filter to mortality components only."""
         return pl.col("COMPONENT").str.starts_with("MORTALITY")
 
-    def load_data(self) -> Optional[pl.LazyFrame]:
+    def load_data(self) -> pl.LazyFrame | None:
         """Load GRM data for mortality estimation."""
         from ..columns import PLOT_GROUPING_COLUMNS
 
@@ -251,16 +253,16 @@ class MortalityEstimator(GRMBaseEstimator):
 
 
 def mortality(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     size_class_type: str = "standard",
     land_type: str = "timber",
     tree_type: str = "gs",
     measure: str = "volume",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     as_rate: bool = False,
     totals: bool = True,
     variance: bool = False,
@@ -275,7 +277,7 @@ def mortality(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database.
     grp_by : str or list of str, optional
         Column name(s) to group results by.

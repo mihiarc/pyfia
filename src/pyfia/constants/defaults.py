@@ -5,6 +5,8 @@ Contains default parameter values, mathematical constants, validation
 ranges, and standard error messages used throughout pyFIA.
 """
 
+from __future__ import annotations
+
 
 class MathConstants:
     """Mathematical conversion factors."""

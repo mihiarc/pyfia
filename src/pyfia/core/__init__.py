@@ -8,6 +8,8 @@ This module contains the fundamental classes and functions for working with FIA 
 - Custom exception classes
 """
 
+from __future__ import annotations
+
 from .data_reader import FIADataReader
 from .exceptions import (
     ConfigurationError,

@@ -13,7 +13,7 @@ Key differences from biomass-derived carbon:
 - Matches EVALIDator exactly for live tree carbon estimates
 """
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -39,7 +39,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database
     config : dict
         Configuration dictionary with:
@@ -54,17 +54,17 @@ class CarbonPoolEstimator(BaseEstimator):
         - variance : bool - Calculate variance estimates
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict) -> None:
+    def __init__(self, db: str | FIA, config: dict) -> None:
         """Initialize with storage for variance calculation."""
         super().__init__(db, config)
-        self.plot_tree_data: Optional[pl.DataFrame] = None
-        self.group_cols: Optional[List[str]] = None
+        self.plot_tree_data: pl.DataFrame | None = None
+        self.group_cols: list[str] | None = None
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Carbon estimation requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
-    def get_tree_columns(self) -> List[str]:
+    def get_tree_columns(self) -> list[str]:
         """Required tree columns for carbon estimation."""
         pool = self.config.get("pool", "total")
 
@@ -89,7 +89,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
         return cols
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Required condition columns."""
         return [
             "PLT_CN",
@@ -384,15 +384,15 @@ class CarbonPoolEstimator(BaseEstimator):
 
 
 def carbon_pool(
-    db: Union[str, FIA],
+    db: str | FIA,
     pool: str = "total",
-    grp_by: Optional[Union[str, List[str]]] = None,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     land_type: str = "forest",
     tree_type: str = "live",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
@@ -406,7 +406,7 @@ def carbon_pool(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database.
     pool : {'ag', 'bg', 'total'}, default 'total'
         Carbon pool to estimate:

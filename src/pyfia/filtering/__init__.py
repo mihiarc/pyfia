@@ -8,6 +8,8 @@ This module provides all filtering functionality including:
 - Grouping and classification utilities
 """
 
+from __future__ import annotations
+
 # Core parsing functionality
 # Filtering functions
 from .filters import apply_area_filters, apply_plot_filters, apply_tree_filters

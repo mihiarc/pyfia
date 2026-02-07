@@ -11,6 +11,8 @@ This package provides FIA-specific constants organized by domain:
 - defaults: Default values, validation ranges, error messages
 """
 
+from __future__ import annotations
+
 from .columns import (
     CondColumns,
     OutputColumns,

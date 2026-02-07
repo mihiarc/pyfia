@@ -5,9 +5,11 @@ This module provides high-performance functions for reading FIA data
 from DuckDB and SQLite databases using Polars lazy evaluation.
 """
 
+from __future__ import annotations
+
 import logging
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Union, overload
+from typing import Literal, overload
 
 import polars as pl
 
@@ -29,7 +31,7 @@ class FIADataReader:
     """
 
     def __init__(
-        self, db_path: Union[str, Path], engine: Optional[str] = None, **backend_kwargs
+        self, db_path: str | Path, engine: str | None = None, **backend_kwargs
     ):
         """
         Initialize data reader.
@@ -82,7 +84,7 @@ class FIADataReader:
             # Avoid raising during garbage collection
             pass
 
-    def get_table_schema(self, table_name: str) -> Dict[str, str]:
+    def get_table_schema(self, table_name: str) -> dict[str, str]:
         """
         Get schema information for a table.
 
@@ -182,7 +184,7 @@ class FIADataReader:
         return isinstance(self._backend, DuckDBBackend)
 
     def execute_spatial_query(
-        self, query: str, params: Optional[Dict] = None
+        self, query: str, params: dict | None = None
     ) -> pl.DataFrame:
         """
         Execute a spatial SQL query.
@@ -215,7 +217,7 @@ class FIADataReader:
         return self._backend.execute_spatial_query(query, params)
 
     def _build_select_clause(
-        self, table_name: str, columns: Optional[List[str]] = None
+        self, table_name: str, columns: list[str] | None = None
     ) -> str:
         """
         Build SELECT clause with appropriate type casting.
@@ -238,8 +240,8 @@ class FIADataReader:
     def read_table(
         self,
         table_name: str,
-        columns: Optional[List[str]] = None,
-        where: Optional[str] = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
         lazy: Literal[False] = False,
     ) -> pl.DataFrame: ...
 
@@ -247,18 +249,18 @@ class FIADataReader:
     def read_table(
         self,
         table_name: str,
-        columns: Optional[List[str]] = None,
-        where: Optional[str] = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
         lazy: Literal[True] = True,
     ) -> pl.LazyFrame: ...
 
     def read_table(
         self,
         table_name: str,
-        columns: Optional[List[str]] = None,
-        where: Optional[str] = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
         lazy: bool = True,
-    ) -> Union[pl.DataFrame, pl.LazyFrame]:
+    ) -> pl.DataFrame | pl.LazyFrame:
         """
         Read a table from the FIA database.
 
@@ -307,7 +309,7 @@ class FIADataReader:
             return df.lazy()
         return df
 
-    def read_plot_data(self, evalid: List[int]) -> pl.DataFrame:
+    def read_plot_data(self, evalid: list[int]) -> pl.DataFrame:
         """
         Read PLOT data filtered by EVALID.
 
@@ -338,7 +340,7 @@ class FIADataReader:
 
         if plot_cns:
 
-            def query_plots(batch: List[str]) -> pl.LazyFrame:
+            def query_plots(batch: list[str]) -> pl.LazyFrame:
                 cn_str = ", ".join(f"'{cn}'" for cn in batch)
                 return self.read_table("PLOT", where=f"CN IN ({cn_str})", lazy=True)
 
@@ -362,7 +364,7 @@ class FIADataReader:
 
         return plots
 
-    def read_tree_data(self, plot_cns: List[str]) -> pl.DataFrame:
+    def read_tree_data(self, plot_cns: list[str]) -> pl.DataFrame:
         """
         Read TREE data for specified plots.
 
@@ -381,14 +383,14 @@ class FIADataReader:
         if not plot_cns:
             return pl.DataFrame()
 
-        def query_trees(batch: List[str]) -> pl.LazyFrame:
+        def query_trees(batch: list[str]) -> pl.LazyFrame:
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
             return self.read_table("TREE", where=f"PLT_CN IN ({cn_str})", lazy=True)
 
         result = batch_query_by_values(plot_cns, query_trees)
         return result.collect() if hasattr(result, "collect") else result
 
-    def read_cond_data(self, plot_cns: List[str]) -> pl.DataFrame:
+    def read_cond_data(self, plot_cns: list[str]) -> pl.DataFrame:
         """
         Read COND data for specified plots.
 
@@ -407,14 +409,14 @@ class FIADataReader:
         if not plot_cns:
             return pl.DataFrame()
 
-        def query_conds(batch: List[str]) -> pl.LazyFrame:
+        def query_conds(batch: list[str]) -> pl.LazyFrame:
             cn_str = ", ".join(f"'{cn}'" for cn in batch)
             return self.read_table("COND", where=f"PLT_CN IN ({cn_str})", lazy=True)
 
         result = batch_query_by_values(plot_cns, query_conds)
         return result.collect() if hasattr(result, "collect") else result
 
-    def read_pop_tables(self, evalid: List[int]) -> Dict[str, pl.DataFrame]:
+    def read_pop_tables(self, evalid: list[int]) -> dict[str, pl.DataFrame]:
         """
         Read population estimation tables for specified EVALIDs.
 
@@ -471,9 +473,7 @@ class FIADataReader:
             "pop_estn_unit": pop_estn_unit,
         }
 
-    def read_evalid_data(
-        self, evalid: Union[int, List[int]]
-    ) -> Dict[str, pl.DataFrame]:
+    def read_evalid_data(self, evalid: int | list[int]) -> dict[str, pl.DataFrame]:
         """
         Read all data for specified EVALID(s).
 

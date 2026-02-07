@@ -5,8 +5,9 @@ This module provides functions to easily join FIA reference tables
 with estimation results to add descriptive names and metadata.
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Optional, Union
 
 import polars as pl
 
@@ -15,7 +16,7 @@ from ..core.fia import FIA
 
 def join_forest_type_names(
     data: pl.DataFrame,
-    db: Union[str, Path, FIA],
+    db: str | Path | FIA,
     forest_type_col: str = "FORTYPCD",
     name_col: str = "FOREST_TYPE_NAME",
 ) -> pl.DataFrame:
@@ -73,10 +74,10 @@ def join_forest_type_names(
 
 def join_species_names(
     data: pl.DataFrame,
-    db: Union[str, Path, FIA],
+    db: str | Path | FIA,
     species_col: str = "SPCD",
     common_name_col: str = "COMMON_NAME",
-    scientific_name_col: Optional[str] = "SCIENTIFIC_NAME",
+    scientific_name_col: str | None = "SCIENTIFIC_NAME",
     include_scientific: bool = False,
 ) -> pl.DataFrame:
     """
@@ -142,10 +143,10 @@ def join_species_names(
 
 def join_state_names(
     data: pl.DataFrame,
-    db: Union[str, Path, FIA],
+    db: str | Path | FIA,
     state_col: str = "STATECD",
     state_name_col: str = "STATE_NAME",
-    state_abbr_col: Optional[str] = "STATE_ABBR",
+    state_abbr_col: str | None = "STATE_ABBR",
     include_abbr: bool = True,
 ) -> pl.DataFrame:
     """
@@ -203,7 +204,7 @@ def join_state_names(
 
 def join_multiple_references(
     data: pl.DataFrame,
-    db: Union[str, Path, FIA],
+    db: str | Path | FIA,
     forest_type: bool = False,
     species: bool = False,
     state: bool = False,

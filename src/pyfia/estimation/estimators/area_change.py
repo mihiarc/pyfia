@@ -11,7 +11,9 @@ Bechtold & Patterson (2005), Chapter 4: Area Change Estimation
 FIA Database User Guide, SUBP_COND_CHNG_MTRX table documentation
 """
 
-from typing import List, Literal, Optional, Union
+from __future__ import annotations
+
+from typing import Literal
 
 import polars as pl
 
@@ -66,12 +68,12 @@ class AreaChangeEstimator(BaseEstimator):
         - Loss: Previous COND_STATUS_CD == 1, Current COND_STATUS_CD != 1
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict) -> None:
+    def __init__(self, db: str | FIA, config: dict) -> None:
         """Initialize with storage for variance calculation."""
         super().__init__(db, config)
-        self.plot_change_data: Optional[pl.DataFrame] = None
+        self.plot_change_data: pl.DataFrame | None = None
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Area change requires SUBP_COND_CHNG_MTRX, COND, PLOT, and stratification."""
         return [
             "SUBP_COND_CHNG_MTRX",
@@ -81,7 +83,7 @@ class AreaChangeEstimator(BaseEstimator):
             "POP_STRATUM",
         ]
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Get required condition columns."""
         core_cols = [
             "CN",
@@ -107,7 +109,7 @@ class AreaChangeEstimator(BaseEstimator):
 
         return core_cols
 
-    def load_data(self) -> Optional[pl.LazyFrame]:
+    def load_data(self) -> pl.LazyFrame | None:
         """
         Load and join tables for area change estimation.
 
@@ -506,8 +508,8 @@ def area_change(
     land_type: Literal["forest", "timber"] = "forest",
     change_type: Literal["net", "gross_gain", "gross_loss"] = "net",
     annual: bool = True,
-    grp_by: Optional[Union[str, List[str]]] = None,
-    area_domain: Optional[str] = None,
+    grp_by: str | list[str] | None = None,
+    area_domain: str | None = None,
     variance: bool = False,
     totals: bool = False,
 ) -> pl.DataFrame:

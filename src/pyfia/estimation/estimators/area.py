@@ -4,7 +4,7 @@ Area estimation for FIA data.
 Simple, straightforward implementation without unnecessary abstractions.
 """
 
-from typing import Dict, List, Optional, Tuple, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -28,15 +28,15 @@ class AreaEstimator(BaseEstimator):
     abstractions or deep inheritance hierarchies.
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict) -> None:
+    def __init__(self, db: str | FIA, config: dict) -> None:
         """Initialize the area estimator."""
         super().__init__(db, config)
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Area estimation requires COND, PLOT, and stratification tables."""
         return ["COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Get required condition columns based on actual usage."""
         # Core columns always needed for area calculation
         core_cols = [
@@ -147,25 +147,25 @@ class AreaEstimator(BaseEstimator):
         return data
 
     def _select_variance_columns(
-        self, available_cols: List[str]
-    ) -> Tuple[List[Union[str, pl.Expr]], List[str]]:
+        self, available_cols: list[str]
+    ) -> tuple[list[str | pl.Expr], list[str]]:
         """
         Select columns needed for variance calculation.
 
         Parameters
         ----------
-        available_cols : List[str]
+        available_cols : list[str]
             List of available column names in the data
 
         Returns
         -------
-        tuple[List[Union[str, pl.Expr]], List[str]]
+        tuple[list[str | pl.Expr], list[str]]
             Tuple of (columns_to_select, group_columns)
             - columns_to_select: List of column names or Polars expressions to select
             - group_columns: List of grouping column names
         """
         # Build column list based on what's available
-        cols_to_select: List[Union[str, pl.Expr]] = ["PLT_CN"]
+        cols_to_select: list[str | pl.Expr] = ["PLT_CN"]
 
         # Add condition ID if available
         if "CONDID" in available_cols:
@@ -193,7 +193,7 @@ class AreaEstimator(BaseEstimator):
         )
 
         # Add grouping columns if they exist
-        group_cols: List[str] = []
+        group_cols: list[str] = []
         if self.config.get("grp_by"):
             grp_by = self.config["grp_by"]
             if isinstance(grp_by, str):
@@ -416,8 +416,8 @@ class AreaEstimator(BaseEstimator):
         return results
 
     def _calculate_variance_for_group(
-        self, plot_data: pl.DataFrame, strat_cols: List[str]
-    ) -> Dict[str, Optional[float]]:
+        self, plot_data: pl.DataFrame, strat_cols: list[str]
+    ) -> dict[str, float | None]:
         """Calculate variance for a single group using domain total estimation formula.
 
         For domain (subset) estimation in FIA, we're estimating a total over a domain.
@@ -533,13 +533,13 @@ class AreaEstimator(BaseEstimator):
 
 
 def area(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     land_type: str = "forest",
-    area_domain: Optional[str] = None,
-    plot_domain: Optional[str] = None,
+    area_domain: str | None = None,
+    plot_domain: str | None = None,
     most_recent: bool = False,
-    eval_type: Optional[str] = None,
+    eval_type: str | None = None,
     variance: bool = False,
     totals: bool = True,
 ) -> pl.DataFrame:
@@ -552,7 +552,7 @@ def area(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database. Can be either a path
         string to a DuckDB/SQLite file or an existing FIA connection object.
     grp_by : str or list of str, optional

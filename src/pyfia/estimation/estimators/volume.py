@@ -5,7 +5,7 @@ Simple, straightforward implementation for calculating tree volume
 without unnecessary abstractions.
 """
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -31,15 +31,15 @@ class VolumeEstimator(BaseEstimator):
     Estimates tree volume (cubic feet) using standard FIA methods.
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict) -> None:
+    def __init__(self, db: str | FIA, config: dict) -> None:
         """Initialize the volume estimator."""
         super().__init__(db, config)
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Volume estimation requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
-    def get_tree_columns(self) -> List[str]:
+    def get_tree_columns(self) -> list[str]:
         """Required tree columns for volume estimation.
 
         Uses centralized column resolution from columns.py to reduce duplication.
@@ -59,7 +59,7 @@ class VolumeEstimator(BaseEstimator):
             grp_by=self.config.get("grp_by"),
         )
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Required condition columns.
 
         Uses centralized column resolution from columns.py to reduce duplication.
@@ -199,7 +199,8 @@ class VolumeEstimator(BaseEstimator):
         )
 
     def calculate_variance(
-        self, agg_result: AggregationResult  # type: ignore[override]
+        self,
+        agg_result: AggregationResult,  # type: ignore[override]
     ) -> pl.DataFrame:
         """Calculate variance for volume estimates using domain total variance formula.
 
@@ -291,20 +292,20 @@ class VolumeEstimator(BaseEstimator):
 
 
 def volume(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     land_type: str = "forest",
     tree_type: str = "live",
     vol_type: str = "net",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
-    plot_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
+    plot_domain: str | None = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
-    eval_type: Optional[str] = None,
+    eval_type: str | None = None,
 ) -> pl.DataFrame:
     """
     Estimate tree volume from FIA data.
@@ -315,7 +316,7 @@ def volume(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database. Can be either a path
         string to a DuckDB/SQLite file or an existing FIA connection object.
     grp_by : str or list of str, optional

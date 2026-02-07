@@ -5,6 +5,8 @@ Contains tree status, land status, ownership, and other classification
 codes used in FIA data.
 """
 
+from __future__ import annotations
+
 
 class TreeStatus:
     """Tree status codes (STATUSCD)."""

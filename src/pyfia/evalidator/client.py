@@ -7,11 +7,13 @@ and retrieving official population estimates for validation.
 Reference: https://apps.fs.usda.gov/fiadb-api/
 """
 
+from __future__ import annotations
+
 import logging
 import random
 import time
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -37,8 +39,8 @@ class EVALIDatorEstimate:
     estimate_type: str
     state_code: int
     year: int
-    grouping: Optional[Dict[str, Any]] = None
-    raw_response: Optional[Dict[str, Any]] = None
+    grouping: dict[str, Any] | None = None
+    raw_response: dict[str, Any] | None = None
 
 
 class EVALIDatorClient:
@@ -94,7 +96,7 @@ class EVALIDatorClient:
         cselected: str = "Total",
         output_format: str = "NJSON",
         **kwargs,
-    ) -> Dict[str, Any]:
+    ) -> dict[str, Any]:
         """
         Make a request to the EVALIDator API with automatic retry.
 
@@ -136,7 +138,7 @@ class EVALIDatorClient:
             **kwargs,
         }
 
-        last_exception: Optional[Exception] = None
+        last_exception: Exception | None = None
 
         for attempt in range(self.max_retries + 1):
             try:
@@ -159,7 +161,7 @@ class EVALIDatorClient:
                 if "error" in data:
                     raise ValueError(f"EVALIDator API error: {data['error']}")
 
-                result: Dict[str, Any] = data
+                result: dict[str, Any] = data
                 return result
 
             except (
@@ -194,7 +196,7 @@ class EVALIDatorClient:
 
     def _parse_njson_response(
         self,
-        data: Dict[str, Any],
+        data: dict[str, Any],
         snum: int,
         state_code: int,
         year: int,

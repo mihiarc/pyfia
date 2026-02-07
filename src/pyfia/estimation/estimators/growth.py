@@ -6,8 +6,10 @@ annual tree growth using TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and
 TREE_GRM_BEGIN tables following EVALIDator approach.
 """
 
+from __future__ import annotations
+
 import logging
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 import polars as pl
 
@@ -34,7 +36,7 @@ class GrowthEstimator(GRMBaseEstimator):
         """Return 'growth' as the GRM component type."""
         return "growth"
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Required condition columns for growth estimation."""
         base_cols = [
             "PLT_CN",
@@ -58,7 +60,7 @@ class GrowthEstimator(GRMBaseEstimator):
 
         return base_cols
 
-    def load_data(self) -> Optional[pl.LazyFrame]:
+    def load_data(self) -> pl.LazyFrame | None:
         """
         Load and join tables following EVALIDator SQL join sequence.
 
@@ -516,16 +518,16 @@ class GrowthEstimator(GRMBaseEstimator):
 
 
 def growth(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     size_class_type: str = "standard",
     land_type: str = "forest",
     tree_type: str = "gs",
     measure: str = "volume",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
@@ -539,7 +541,7 @@ def growth(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database.
     grp_by : str or list of str, optional
         Column name(s) to group results by.

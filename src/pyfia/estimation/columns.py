@@ -5,7 +5,7 @@ It eliminates duplicated code in volume.py, biomass.py, and tpa.py
 by providing shared column lists and resolution functions.
 """
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 # Base tree columns always needed for estimation
 BASE_TREE_COLUMNS = [
@@ -74,10 +74,10 @@ PLOT_GROUPING_COLUMNS = [
 
 
 def get_tree_columns(
-    estimator_cols: List[str],
-    grp_by: Optional[Union[str, List[str]]] = None,
-    base_cols: Optional[List[str]] = None,
-) -> List[str]:
+    estimator_cols: list[str],
+    grp_by: str | list[str] | None = None,
+    base_cols: list[str] | None = None,
+) -> list[str]:
     """
     Resolve tree columns for estimation.
 
@@ -86,18 +86,18 @@ def get_tree_columns(
 
     Parameters
     ----------
-    estimator_cols : List[str]
+    estimator_cols : list[str]
         Estimator-specific columns (e.g., VOLCFNET for volume estimation,
         DRYBIO_AG for biomass estimation)
-    grp_by : str or List[str], optional
+    grp_by : str or list[str], optional
         User-specified grouping columns. Only columns that exist in
         TREE_GROUPING_COLUMNS will be added.
-    base_cols : List[str], optional
+    base_cols : list[str], optional
         Override default base columns. If not provided, uses BASE_TREE_COLUMNS.
 
     Returns
     -------
-    List[str]
+    list[str]
         Complete list of tree columns to select, deduplicated.
 
     Examples
@@ -131,10 +131,10 @@ def get_tree_columns(
 
 def get_cond_columns(
     land_type: str = "forest",
-    grp_by: Optional[Union[str, List[str]]] = None,
-    base_cols: Optional[List[str]] = None,
+    grp_by: str | list[str] | None = None,
+    base_cols: list[str] | None = None,
     include_prop_basis: bool = False,
-) -> List[str]:
+) -> list[str]:
     """
     Resolve condition columns for estimation.
 
@@ -148,17 +148,17 @@ def get_cond_columns(
         - "forest": Include all forest land
         - "timber": Include timberland (adds SITECLCD, RESERVCD)
         - "all": All conditions
-    grp_by : str or List[str], optional
+    grp_by : str or list[str], optional
         User-specified grouping columns. Only columns that exist in
         COND_GROUPING_COLUMNS will be added.
-    base_cols : List[str], optional
+    base_cols : list[str], optional
         Override default base columns. If not provided, uses BASE_COND_COLUMNS.
     include_prop_basis : bool, default False
         Whether to include PROP_BASIS column for area adjustment calculations.
 
     Returns
     -------
-    List[str]
+    list[str]
         Complete list of condition columns to select, deduplicated.
 
     Examples

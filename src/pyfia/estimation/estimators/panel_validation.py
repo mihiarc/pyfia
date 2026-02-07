@@ -21,8 +21,10 @@ Bechtold & Patterson (2005), Chapter 4: Change Estimation
 FIA Database User Guide, TREE_GRM_COMPONENT documentation
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 import polars as pl
 from rich.console import Console
@@ -39,7 +41,7 @@ console = Console()
 class ComparisonResult:
     """Result of comparing panel to removals estimates."""
 
-    group_values: Optional[dict]  # Group column values (None if no grouping)
+    group_values: dict | None  # Group column values (None if no grouping)
     panel_cut_trees: int  # Raw count of cut/diversion trees from panel
     panel_annualized: float  # Panel estimate (TPA * trees / REMPER)
     removals_estimate: float  # Annualized estimate from removals()
@@ -63,8 +65,8 @@ class ComparisonResult:
 
 
 def compare_panel_to_removals(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     land_type: str = "forest",
     tree_type: str = "gs",
     measure: Literal["tpa", "volume"] = "tpa",
@@ -84,9 +86,9 @@ def compare_panel_to_removals(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database
-    grp_by : Optional[Union[str, List[str]]]
+    grp_by : str | list[str] | None
         Grouping columns (e.g., "STATECD", ["STATECD", "COUNTYCD"])
     land_type : str
         "forest" or "timber" - must match between both functions
@@ -509,7 +511,7 @@ def compare_panel_to_removals(
 def _print_comparison_table(
     comparison: pl.DataFrame,
     measure: str,
-    group_cols: List[str],
+    group_cols: list[str],
 ) -> None:
     """Print a rich table of comparison results."""
     table = Table(
@@ -574,7 +576,7 @@ def _print_comparison_table(
 
 
 def diagnose_panel_removals_diff(
-    db: Union[str, FIA],
+    db: str | FIA,
     land_type: str = "forest",
     tree_type: str = "gs",
     min_invyr: int = 2000,
@@ -589,7 +591,7 @@ def diagnose_panel_removals_diff(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection
     land_type : str
         Land type filter
@@ -694,7 +696,7 @@ def diagnose_panel_removals_diff(
 
 
 def validate_panel_harvest(
-    db: Union[str, FIA],
+    db: str | FIA,
     tolerance_ratio: float = 0.8,
     verbose: bool = True,
     expand: bool = False,
@@ -706,7 +708,7 @@ def validate_panel_harvest(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection
     tolerance_ratio : float
         Minimum acceptable ratio of panel_annualized / removals_estimate

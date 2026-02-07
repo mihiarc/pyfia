@@ -5,7 +5,7 @@ Simple implementation for calculating tree biomass and carbon
 without unnecessary abstractions.
 """
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -30,15 +30,15 @@ class BiomassEstimator(BaseEstimator):
     Estimates tree biomass (dry weight in tons) and carbon content.
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict) -> None:
+    def __init__(self, db: str | FIA, config: dict) -> None:
         """Initialize the biomass estimator."""
         super().__init__(db, config)
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Biomass requires tree, condition, and stratification tables."""
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
-    def get_tree_columns(self) -> List[str]:
+    def get_tree_columns(self) -> list[str]:
         """Required tree columns for biomass estimation.
 
         Uses centralized column resolution from columns.py to reduce duplication.
@@ -61,7 +61,7 @@ class BiomassEstimator(BaseEstimator):
             grp_by=self.config.get("grp_by"),
         )
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Required condition columns.
 
         Uses centralized column resolution from columns.py to reduce duplication.
@@ -207,7 +207,8 @@ class BiomassEstimator(BaseEstimator):
         )
 
     def calculate_variance(
-        self, agg_result: AggregationResult  # type: ignore[override]
+        self,
+        agg_result: AggregationResult,  # type: ignore[override]
     ) -> pl.DataFrame:
         """Calculate variance for biomass estimates using domain total variance formula.
 
@@ -273,16 +274,16 @@ class BiomassEstimator(BaseEstimator):
 
 
 def biomass(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     land_type: str = "forest",
     tree_type: str = "live",
     component: str = "AG",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
-    plot_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
+    plot_domain: str | None = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
@@ -297,7 +298,7 @@ def biomass(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database. Can be either a path
         string to a DuckDB/SQLite file or an existing FIA connection object.
     grp_by : str or list of str, optional

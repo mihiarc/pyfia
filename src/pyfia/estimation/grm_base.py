@@ -5,12 +5,14 @@ This module provides the shared functionality for growth, mortality,
 and removals estimation using FIA's GRM tables.
 """
 
+from __future__ import annotations
+
 import logging
-import warnings
-from typing import List, Literal, Optional
+from typing import Literal
 
 import polars as pl
 
+from ..core.exceptions import NoEVALIDError
 from ..filtering.utils import create_size_class_expr
 from .base import AggregationResult, BaseEstimator
 from .columns import get_cond_columns as _get_cond_columns
@@ -44,31 +46,27 @@ class GRMBaseEstimator(BaseEstimator):
 
         GRM estimates (growth, mortality, removals) require filtering to a specific
         EVALID to avoid counting trees multiple times across different evaluations.
-        If no EVALID is set, this method auto-filters to the most recent GRM
-        evaluation and warns the user.
 
         Without this filter, totals (e.g., MORT_TOTAL) can be ~60x too high because
         the same trees appear in multiple EVALIDs across different annual evaluations.
         Per-acre values remain correct because the inflation cancels in the ratio.
+
+        Raises
+        ------
+        NoEVALIDError
+            If no EVALID filter has been set. Users must explicitly call
+            db.clip_by_evalid() or db.clip_most_recent(eval_type='GRM').
         """
         if self.db.evalid is None:
-            warnings.warn(
-                f"No EVALID filter set for {self.component_type} estimation. "
-                "Auto-filtering to most recent GRM evaluation (EXPGROW/EXPMORT/EXPREMV). "
-                "To avoid this warning, call db.clip_by_evalid(evalid) or "
-                "db.clip_most_recent(eval_type='GRM') before calling estimation functions.",
-                UserWarning,
-                stacklevel=4,  # Point to user's code calling mortality()/growth()/removals()
+            raise NoEVALIDError(
+                operation=f"{self.component_type} estimation",
+                suggestion=(
+                    "GRM estimates require an EVALID filter to avoid counting trees "
+                    "multiple times across evaluations. Call "
+                    "db.clip_by_evalid(evalid) or db.clip_most_recent(eval_type='GRM') "
+                    "before calling estimation functions."
+                ),
             )
-            try:
-                self.db.clip_most_recent(eval_type="GRM")
-            except Exception as e:
-                # If auto-filter fails, raise a clear error
-                raise ValueError(
-                    f"Could not auto-filter to GRM evaluation for {self.component_type} "
-                    f"estimation: {e}. Please set an EVALID explicitly using "
-                    "db.clip_by_evalid(evalid) or db.clip_most_recent(eval_type='GRM')."
-                ) from e
 
     @property
     def component_type(self) -> Literal["growth", "mortality", "removals"]:
@@ -91,13 +89,13 @@ class GRMBaseEstimator(BaseEstimator):
         """Return the adjusted value column name."""
         return f"{self.metric_prefix}_ADJ"
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """GRM estimators require GRM tables."""
         from .grm import get_grm_required_tables
 
         return get_grm_required_tables(self.component_type)
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Standard condition columns for GRM estimation.
 
         Uses centralized column resolution from columns.py to reduce duplication.
@@ -132,7 +130,7 @@ class GRMBaseEstimator(BaseEstimator):
             )
         return self._grm_columns
 
-    def _load_simple_grm_data(self) -> Optional[pl.LazyFrame]:
+    def _load_simple_grm_data(self) -> pl.LazyFrame | None:
         """
         Load GRM data using the simple pattern (for mortality/removals).
 
@@ -281,7 +279,7 @@ class GRMBaseEstimator(BaseEstimator):
 
         return data
 
-    def get_component_filter(self) -> Optional[pl.Expr]:
+    def get_component_filter(self) -> pl.Expr | None:
         """
         Return component-specific filter expression.
 
@@ -377,8 +375,8 @@ class GRMBaseEstimator(BaseEstimator):
         adjusted_col: str,
         acre_se_col: str,
         total_se_col: str,
-        plot_tree_data: Optional[pl.DataFrame] = None,
-        group_cols: Optional[List[str]] = None,
+        plot_tree_data: pl.DataFrame | None = None,
+        group_cols: list[str] | None = None,
     ) -> pl.DataFrame:
         """
         Calculate variance for GRM estimates using domain total variance formula.
@@ -400,7 +398,7 @@ class GRMBaseEstimator(BaseEstimator):
             Name for the total standard error column.
         plot_tree_data : pl.DataFrame, optional
             Plot-tree level data for variance calculation.
-        group_cols : List[str], optional
+        group_cols : list[str], optional
             Grouping columns used in aggregation.
 
         Returns

@@ -6,8 +6,10 @@ MortalityEstimator, and RemovalsEstimator for working with FIA's
 TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and TREE_GRM_BEGIN tables.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import List, Literal, Optional, Union
+from typing import Literal
 
 import polars as pl
 
@@ -203,7 +205,7 @@ def load_grm_component(
 def load_grm_midpt(
     db,
     measure: str = "volume",
-    include_additional_cols: Optional[List[str]] = None,
+    include_additional_cols: list[str] | None = None,
 ) -> pl.LazyFrame:
     """Load TREE_GRM_MIDPT table for volume/biomass data.
 
@@ -386,7 +388,7 @@ def aggregate_cond_to_plot(cond: pl.LazyFrame) -> pl.LazyFrame:
 def filter_by_evalid(
     data: pl.LazyFrame,
     db,
-    evalid: Optional[Union[int, List[int]]] = None,
+    evalid: int | list[int] | None = None,
 ) -> pl.LazyFrame:
     """Filter GRM data to plots in the specified EVALID(s).
 
@@ -432,7 +434,7 @@ def filter_by_evalid(
 
 def get_grm_required_tables(
     component_type: ComponentType,
-) -> List[str]:
+) -> list[str]:
     """Get list of required tables for GRM estimation.
 
     Parameters

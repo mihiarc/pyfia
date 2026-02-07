@@ -5,6 +5,8 @@ Simple, direct functions for land type classification without unnecessary
 abstraction layers or design patterns.
 """
 
+from __future__ import annotations
+
 from enum import Enum
 
 import polars as pl

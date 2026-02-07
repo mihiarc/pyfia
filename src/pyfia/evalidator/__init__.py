@@ -40,3 +40,5 @@ References
 - FIADB-API Documentation: https://apps.fs.usda.gov/fiadb-api/
 - Arbor Analytics Guide: https://arbor-analytics.com/post/2023-10-25-using-r-and-python-to-get-forest-resource-data-through-the-evalidator-api/
 """
+
+from __future__ import annotations

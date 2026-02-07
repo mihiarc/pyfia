@@ -67,19 +67,22 @@ pyFIA implements design-based estimation following [Bechtold & Patterson (2005)]
 - **EVALID-based filtering** for statistically valid estimates
 - **Temporal methods**: TI, annual, SMA, LMA, EMA
 
-## Installation Options
+## Installation
 
 ```bash
-# Basic
+# Recommended: use uv for fast, reliable installs
+uv pip install pyfia
+
+# Or with pip
 pip install pyfia
 
-# With spatial support
-pip install pyfia[spatial]
-
-# Development
-git clone https://github.com/mihiarc/pyfia.git
-cd pyfia && pip install -e .[dev]
+# With spatial support (polygon clipping, spatial joins)
+uv pip install pyfia[spatial]
 ```
+
+> **Tip:** Always use a virtual environment (`uv venv` or `python -m venv .venv`).
+
+For development setup, see the [Getting Started guide](https://mihiarc.github.io/pyfia/getting-started/).
 
 ## Documentation
 

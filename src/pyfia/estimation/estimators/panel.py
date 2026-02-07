@@ -16,7 +16,9 @@ FIA Database User Guide, PLOT and TREE table documentation
 FIA GRM methodology documentation
 """
 
-from typing import List, Literal, Optional, Union
+from __future__ import annotations
+
+from typing import Literal
 
 import polars as pl
 
@@ -519,7 +521,7 @@ class PanelBuilder:
 
         return result
 
-    def _ensure_tables_loaded(self, tables: List[str]) -> None:
+    def _ensure_tables_loaded(self, tables: list[str]) -> None:
         """Ensure required tables are loaded."""
         for table in tables:
             if table not in self.db.tables:
@@ -682,7 +684,7 @@ class PanelBuilder:
 
         return results
 
-    def _get_condition_columns(self) -> List[str]:
+    def _get_condition_columns(self) -> list[str]:
         """Get columns to include for condition panel."""
         cols = ["CN", "PLT_CN", "CONDID", "CONDPROP_UNADJ"]
         cols.extend(self.DEFAULT_COND_COLUMNS)
@@ -696,7 +698,7 @@ class PanelBuilder:
 
         return cols
 
-    def _get_tree_columns(self) -> List[str]:
+    def _get_tree_columns(self) -> list[str]:
         """Get columns to include for tree panel."""
         cols = ["CN", "PLT_CN", "CONDID", "TREE", "SUBP"]
         cols.extend(self.DEFAULT_TREE_COLUMNS)
@@ -1005,21 +1007,21 @@ class PanelBuilder:
 
 
 def panel(
-    db: Union[str, FIA],
+    db: str | FIA,
     level: Literal["condition", "tree"] = "condition",
-    columns: Optional[List[str]] = None,
+    columns: list[str] | None = None,
     land_type: str = "forest",
     tree_type: str = "gs",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     expand_chains: bool = True,
     min_remper: float = 0,
-    max_remper: Optional[float] = None,
+    max_remper: float | None = None,
     min_invyr: int = 2000,
     harvest_only: bool = False,
     expand: bool = False,
     measure: Literal["tpa", "volume"] = "tpa",
-    grp_by: Optional[List[str]] = None,
+    grp_by: list[str] | None = None,
     by_fate: bool = False,
 ) -> pl.DataFrame:
     """
@@ -1041,7 +1043,7 @@ def panel(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database.
     level : {'condition', 'tree'}, default 'condition'
         Level of panel to create:

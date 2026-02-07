@@ -5,10 +5,12 @@ This module provides a DuckDB-specific implementation of the DatabaseBackend
 interface, optimized for FIA data processing with native Polars integration.
 """
 
+from __future__ import annotations
+
 import logging
 import time
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import duckdb
 import polars as pl
@@ -34,10 +36,10 @@ class DuckDBBackend(DatabaseBackend):
 
     def __init__(
         self,
-        db_path: Union[str, Path],
+        db_path: str | Path,
         read_only: bool = True,
-        memory_limit: Optional[str] = None,
-        threads: Optional[int] = None,
+        memory_limit: str | None = None,
+        threads: int | None = None,
         **kwargs: Any,
     ):
         """
@@ -45,13 +47,13 @@ class DuckDBBackend(DatabaseBackend):
 
         Parameters
         ----------
-        db_path : Union[str, Path]
+        db_path : str | Path
             Path to DuckDB database file
         read_only : bool
             Open database in read-only mode
-        memory_limit : Optional[str]
+        memory_limit : str | None
             Memory limit for DuckDB (e.g., '4GB')
-        threads : Optional[int]
+        threads : int | None
             Number of threads for DuckDB to use
         **kwargs : Any
             Additional DuckDB configuration options
@@ -73,7 +75,7 @@ class DuckDBBackend(DatabaseBackend):
         }
 
         # Add configuration options
-        config_options: Dict[str, Any] = {}
+        config_options: dict[str, Any] = {}
         if self.memory_limit:
             config_options["memory_limit"] = self.memory_limit
         if self.threads:
@@ -102,7 +104,7 @@ class DuckDBBackend(DatabaseBackend):
     def execute_query(
         self,
         query: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> pl.DataFrame:
         """
         Execute SQL query and return results as Polars DataFrame.
@@ -113,7 +115,7 @@ class DuckDBBackend(DatabaseBackend):
         ----------
         query : str
             SQL query string
-        params : Optional[Dict[str, Any]]
+        params : dict[str, Any] | None
             Optional query parameters (uses $param syntax)
 
         Returns
@@ -152,7 +154,7 @@ class DuckDBBackend(DatabaseBackend):
                 logger.debug(f"Parameters: {params}")
             raise
 
-    def get_table_schema(self, table_name: str) -> Dict[str, str]:
+    def get_table_schema(self, table_name: str) -> dict[str, str]:
         """
         Get schema information for a table.
 
@@ -163,7 +165,7 @@ class DuckDBBackend(DatabaseBackend):
 
         Returns
         -------
-        Dict[str, str]
+        dict[str, str]
             Dictionary mapping column names to SQL types
         """
         if table_name in self._schema_cache:
@@ -213,7 +215,7 @@ class DuckDBBackend(DatabaseBackend):
         except duckdb.Error:
             return False
 
-    def describe_table(self, table_name: str) -> List[tuple]:
+    def describe_table(self, table_name: str) -> list[tuple]:
         """
         Get table description for schema detection.
 
@@ -224,7 +226,7 @@ class DuckDBBackend(DatabaseBackend):
 
         Returns
         -------
-        List[tuple]
+        list[tuple]
             List of tuples with column information
         """
         if not self._connection:
@@ -329,7 +331,7 @@ class DuckDBBackend(DatabaseBackend):
         return col_type in ["INTEGER", "BIGINT", "INT", "SMALLINT", "TINYINT"]
 
     def build_select_clause(
-        self, table_name: str, columns: Optional[List[str]] = None
+        self, table_name: str, columns: list[str] | None = None
     ) -> str:
         """
         Build SELECT clause with appropriate type casting for FIA data.
@@ -338,7 +340,7 @@ class DuckDBBackend(DatabaseBackend):
         ----------
         table_name : str
             Name of the table
-        columns : Optional[List[str]]
+        columns : list[str] | None
             Optional list of columns to select
 
         Returns
@@ -416,7 +418,7 @@ class DuckDBBackend(DatabaseBackend):
     def execute_spatial_query(
         self,
         query: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> pl.DataFrame:
         """
         Execute a spatial SQL query.
@@ -428,7 +430,7 @@ class DuckDBBackend(DatabaseBackend):
         ----------
         query : str
             SQL query string with spatial functions
-        params : Optional[Dict[str, Any]]
+        params : dict[str, Any] | None
             Optional query parameters
 
         Returns

@@ -5,8 +5,9 @@ This module provides functions to compare pyFIA estimates against
 official USFS EVALIDator values for validation purposes.
 """
 
+from __future__ import annotations
+
 from dataclasses import dataclass
-from typing import Optional
 
 from .client import EVALIDatorClient, EVALIDatorEstimate
 
@@ -21,7 +22,7 @@ class ValidationResult:
     evalidator_se: float
     evalidator_variance: float
     evalidator_plot_count: int
-    pyfia_plot_count: Optional[int]
+    pyfia_plot_count: int | None
     absolute_diff: float
     pct_diff: float
     within_1se: bool
@@ -38,7 +39,7 @@ def compare_estimates(
     pyfia_se: float,
     evalidator_result: EVALIDatorEstimate,
     tolerance_pct: float = 5.0,
-    pyfia_plot_count: Optional[int] = None,
+    pyfia_plot_count: int | None = None,
 ) -> ValidationResult:
     """
     Compare a pyFIA estimate with an EVALIDator official estimate.
@@ -120,7 +121,7 @@ def validate_pyfia_estimate(
     state_code: int,
     year: int,
     estimate_type: str,
-    client: Optional[EVALIDatorClient] = None,
+    client: EVALIDatorClient | None = None,
     **kwargs,
 ) -> ValidationResult:
     """

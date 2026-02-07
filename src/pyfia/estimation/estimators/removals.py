@@ -5,7 +5,9 @@ Simple implementation for calculating average annual removals of merchantable
 bole wood volume of growing-stock trees.
 """
 
-from typing import List, Literal, Optional, Union
+from __future__ import annotations
+
+from typing import Literal
 
 import polars as pl
 
@@ -28,7 +30,7 @@ class RemovalsEstimator(GRMBaseEstimator):
         """Return 'removals' as the GRM component type."""
         return "removals"
 
-    def get_tree_columns(self) -> List[str]:
+    def get_tree_columns(self) -> list[str]:
         """Required tree columns for removals estimation."""
         cols = ["CN", "PLT_CN", "CONDID", "STATUSCD", "SPCD", "DIA", "TPA_UNADJ"]
 
@@ -38,7 +40,7 @@ class RemovalsEstimator(GRMBaseEstimator):
 
         return cols
 
-    def load_data(self) -> Optional[pl.LazyFrame]:
+    def load_data(self) -> pl.LazyFrame | None:
         """Load GRM data for removals estimation."""
         # Use the simple GRM data loading pattern
         return self._load_simple_grm_data()
@@ -185,16 +187,16 @@ class RemovalsEstimator(GRMBaseEstimator):
 
 
 def removals(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     size_class_type: str = "standard",
     land_type: str = "forest",
     tree_type: str = "gs",
     measure: str = "volume",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
@@ -208,9 +210,9 @@ def removals(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path
-    grp_by : Optional[Union[str, List[str]]]
+    grp_by : str | list[str] | None
         Columns to group by (e.g., "STATECD", "FORTYPCD")
     by_species : bool
         Group by species code
@@ -227,9 +229,9 @@ def removals(
         Tree type: "gs" (growing stock), "all"
     measure : str
         What to measure: "volume", "biomass", or "count"
-    tree_domain : Optional[str]
+    tree_domain : str | None
         SQL-like filter for trees
-    area_domain : Optional[str]
+    area_domain : str | None
         SQL-like filter for area
     totals : bool
         Include population totals

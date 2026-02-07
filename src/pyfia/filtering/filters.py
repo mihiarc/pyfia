@@ -7,7 +7,9 @@ including tree-level, area/condition-level, and plot-level filtering.
 All functions support both eager DataFrames and lazy LazyFrames for memory efficiency.
 """
 
-from typing import Optional, TypeVar
+from __future__ import annotations
+
+from typing import TypeVar
 
 import polars as pl
 
@@ -24,7 +26,6 @@ from .parser import DomainExpressionParser
 # Type variable for DataFrame/LazyFrame operations
 FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 
-
 # =============================================================================
 # Tree Filtering
 # =============================================================================
@@ -33,7 +34,7 @@ FrameType = TypeVar("FrameType", pl.DataFrame, pl.LazyFrame)
 def apply_tree_filters(
     tree_df: FrameType,
     tree_type: str = "all",
-    tree_domain: Optional[str] = None,
+    tree_domain: str | None = None,
     require_volume: bool = False,
     require_diameter_thresholds: bool = False,
 ) -> FrameType:
@@ -57,7 +58,7 @@ def apply_tree_filters(
         - "dead": Dead trees only (STATUSCD == 2)
         - "gs": Growing stock trees (TREECLCD == 2)
         - "all": All trees with valid measurements
-    tree_domain : Optional[str], default None
+    tree_domain : str | None, default None
         SQL-like expression for additional filtering (e.g., "DIA >= 10.0")
     require_volume : bool, default False
         If True, require valid volume data (VOLCFGRS not null).
@@ -163,7 +164,7 @@ def apply_tree_filters(
 def apply_area_filters(
     cond_df: FrameType,
     land_type: str = "all",
-    area_domain: Optional[str] = None,
+    area_domain: str | None = None,
     area_estimation_mode: bool = False,
 ) -> FrameType:
     """
@@ -185,7 +186,7 @@ def apply_area_filters(
         - "forest": Forest land only (COND_STATUS_CD == 1)
         - "timber": Productive, unreserved forest land
         - "all": All conditions
-    area_domain : Optional[str], default None
+    area_domain : str | None, default None
         SQL-like expression for additional filtering
     area_estimation_mode : bool, default False
         If True, skip land type filtering (used by area estimation module
@@ -242,7 +243,7 @@ def apply_area_filters(
 
 def apply_plot_filters(
     plot_df: FrameType,
-    plot_domain: Optional[str] = None,
+    plot_domain: str | None = None,
 ) -> FrameType:
     """
     Apply plot domain filters for plot data.
@@ -258,7 +259,7 @@ def apply_plot_filters(
     ----------
     plot_df : pl.DataFrame or pl.LazyFrame
         Plot dataframe or lazyframe to filter
-    plot_domain : Optional[str], default None
+    plot_domain : str | None, default None
         SQL-like expression for plot-level filtering.
         Common PLOT columns include:
 

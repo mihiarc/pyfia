@@ -6,8 +6,10 @@ This module provides database backends for FIA data access:
 - MotherDuckBackend: Cloud-based MotherDuck access
 """
 
+from __future__ import annotations
+
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any
 
 from .base import DatabaseBackend, QueryResult
 from .duckdb_backend import DuckDBBackend
@@ -23,13 +25,13 @@ __all__ = [
 ]
 
 
-def create_backend(db_path: Union[str, Path], **kwargs: Any) -> DatabaseBackend:
+def create_backend(db_path: str | Path, **kwargs: Any) -> DatabaseBackend:
     """
     Create a database backend (DuckDB or MotherDuck).
 
     Parameters
     ----------
-    db_path : Union[str, Path]
+    db_path : str | Path
         Path to the database. Supports:
         - Local file path: "path/to/database.duckdb"
         - MotherDuck: "md:database_name" or "motherduck:database_name"
@@ -77,7 +79,7 @@ def create_backend(db_path: Union[str, Path], **kwargs: Any) -> DatabaseBackend:
 
 def create_motherduck_backend(
     database: str,
-    motherduck_token: Optional[str] = None,
+    motherduck_token: str | None = None,
     **kwargs: Any,
 ) -> MotherDuckBackend:
     """
@@ -87,7 +89,7 @@ def create_motherduck_backend(
     ----------
     database : str
         Name of the MotherDuck database (e.g., 'fia_ga')
-    motherduck_token : Optional[str]
+    motherduck_token : str | None
         MotherDuck authentication token. If not provided, uses
         MOTHERDUCK_TOKEN environment variable.
     **kwargs : Any

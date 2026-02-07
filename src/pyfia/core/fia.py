@@ -70,7 +70,7 @@ class FIA:
     ----------
     db_path : Path
         Path to the DuckDB database.
-    tables : Dict[str, pl.LazyFrame]
+    tables : dict[str, pl.LazyFrame]
         Loaded FIA tables as lazy frames.
     evalid : list of int or None
         Active EVALID filter.
@@ -1129,7 +1129,7 @@ class FIA:
 
         Returns
         -------
-        Dict[str, pl.DataFrame]
+        dict[str, pl.DataFrame]
             Dictionary with filtered dataframes for estimation containing:
             'plot', 'tree', 'cond', 'pop_plot_stratum_assgn',
             'pop_stratum', 'pop_estn_unit'.

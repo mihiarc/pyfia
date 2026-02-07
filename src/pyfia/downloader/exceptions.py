@@ -5,7 +5,7 @@ This module defines exception classes for handling various error conditions
 that can occur during FIA data downloads from the DataMart.
 """
 
-from typing import List, Optional
+from __future__ import annotations
 
 
 class DownloadError(Exception):
@@ -20,7 +20,7 @@ class DownloadError(Exception):
         URL that caused the error.
     """
 
-    def __init__(self, message: str, url: Optional[str] = None):
+    def __init__(self, message: str, url: str | None = None):
         self.message = message
         self.url = url
         super().__init__(self.message)
@@ -38,7 +38,7 @@ class StateNotFoundError(DownloadError):
         List of valid state codes for reference.
     """
 
-    def __init__(self, state: str, valid_states: Optional[List[str]] = None):
+    def __init__(self, state: str, valid_states: list[str] | None = None):
         self.state = state
         self.valid_states = valid_states
         message = f"Invalid state code: '{state}'"
@@ -59,7 +59,7 @@ class TableNotFoundError(DownloadError):
         The state for which the table was requested.
     """
 
-    def __init__(self, table: str, state: Optional[str] = None):
+    def __init__(self, table: str, state: str | None = None):
         self.table = table
         self.state = state
         message = f"Table '{table}' not found"
@@ -83,7 +83,7 @@ class NetworkError(DownloadError):
     """
 
     def __init__(
-        self, message: str, url: Optional[str] = None, status_code: Optional[int] = None
+        self, message: str, url: str | None = None, status_code: int | None = None
     ):
         self.status_code = status_code
         super().__init__(message, url)

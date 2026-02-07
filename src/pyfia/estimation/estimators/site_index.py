@@ -6,7 +6,7 @@ methodology. Site index values represent expected dominant tree height (feet)
 at a specified base age, indicating site productivity.
 """
 
-from typing import Dict, List, Optional, Tuple, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -30,15 +30,15 @@ class SiteIndexEstimator(BaseEstimator):
     tree height at a base age.
     """
 
-    def __init__(self, db: Union[str, FIA], config: dict) -> None:
+    def __init__(self, db: str | FIA, config: dict) -> None:
         """Initialize the site index estimator."""
         super().__init__(db, config)
 
-    def get_required_tables(self) -> List[str]:
+    def get_required_tables(self) -> list[str]:
         """Site index estimation requires COND, PLOT, and stratification tables."""
         return ["COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
-    def get_cond_columns(self) -> List[str]:
+    def get_cond_columns(self) -> list[str]:
         """Get required condition columns for site index estimation."""
         # Core columns always needed
         core_cols = [
@@ -160,10 +160,10 @@ class SiteIndexEstimator(BaseEstimator):
         return data
 
     def _select_variance_columns(
-        self, available_cols: List[str]
-    ) -> Tuple[List[str], List[str]]:
+        self, available_cols: list[str]
+    ) -> tuple[list[str], list[str]]:
         """Select columns needed for variance calculation."""
-        cols_to_select: List[str] = ["PLT_CN"]
+        cols_to_select: list[str] = ["PLT_CN"]
 
         if "CONDID" in available_cols:
             cols_to_select.append("CONDID")
@@ -193,7 +193,7 @@ class SiteIndexEstimator(BaseEstimator):
                 cols_to_select.append(col)
 
         # Grouping columns - SIBASE always included
-        group_cols: List[str] = ["SIBASE"]
+        group_cols: list[str] = ["SIBASE"]
 
         grp_by = self.config.get("grp_by")
         if grp_by:
@@ -287,7 +287,7 @@ class SiteIndexEstimator(BaseEstimator):
         )
 
     def _aggregate_to_plot_level(
-        self, plot_cond_data: pl.DataFrame, group_cols: List[str]
+        self, plot_cond_data: pl.DataFrame, group_cols: list[str]
     ) -> pl.DataFrame:
         """Aggregate condition data to plot level for variance calculation."""
         base_cols = ["PLT_CN"]
@@ -309,9 +309,7 @@ class SiteIndexEstimator(BaseEstimator):
         return plot_cond_data.group_by(base_cols).agg(
             [
                 # Y: weighted site index per plot (numerator)
-                (pl.col("SI_WEIGHTED") * pl.col("ADJ_FACTOR_AREA"))
-                .sum()
-                .alias("y_i"),
+                (pl.col("SI_WEIGHTED") * pl.col("ADJ_FACTOR_AREA")).sum().alias("y_i"),
                 # X: area proportion per plot (denominator)
                 (pl.col("AREA_WEIGHTED") * pl.col("ADJ_FACTOR_AREA"))
                 .sum()
@@ -322,9 +320,9 @@ class SiteIndexEstimator(BaseEstimator):
     def _calculate_ratio_variance(
         self,
         plot_data: pl.DataFrame,
-        ratio: Optional[float],
-        total_x: Optional[float],
-    ) -> Dict[str, Optional[float]]:
+        ratio: float | None,
+        total_x: float | None,
+    ) -> dict[str, float | None]:
         """Calculate variance for ratio estimator.
 
         Uses the standard FIA ratio variance formula:
@@ -532,13 +530,13 @@ class SiteIndexEstimator(BaseEstimator):
 
 
 def site_index(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     land_type: str = "forest",
-    area_domain: Optional[str] = None,
-    plot_domain: Optional[str] = None,
+    area_domain: str | None = None,
+    plot_domain: str | None = None,
     most_recent: bool = False,
-    eval_type: Optional[str] = None,
+    eval_type: str | None = None,
 ) -> pl.DataFrame:
     """
     Estimate area-weighted mean site index from FIA data.
@@ -552,7 +550,7 @@ def site_index(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database.
     grp_by : str or list of str, optional
         Column name(s) to group results by. Common grouping columns:
@@ -678,7 +676,9 @@ def site_index(
     db_instance, owns_db = ensure_fia_instance(db)
 
     # Ensure EVALID is set
-    ensure_evalid_set(db_instance, eval_type=eval_type or "ALL", estimator_name="site_index")
+    ensure_evalid_set(
+        db_instance, eval_type=eval_type or "ALL", estimator_name="site_index"
+    )
 
     # Create config
     config = {

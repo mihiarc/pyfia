@@ -11,6 +11,8 @@ Part of the FIA Python Ecosystem:
 - AskFIA: AI conversational interface (https://github.com/mihiarc/askfia)
 """
 
+from __future__ import annotations
+
 __version__ = "1.2.3"
 __author__ = "Chris Mihiar"
 

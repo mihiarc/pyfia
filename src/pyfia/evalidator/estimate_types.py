@@ -7,8 +7,9 @@ USDA Forest Service FIA EVALIDator API.
 Source: https://apps.fs.usda.gov/fiadb-api/fullreport/parameters/snum
 """
 
+from __future__ import annotations
+
 from enum import IntEnum
-from typing import Dict
 
 
 class EstimateType(IntEnum):
@@ -823,7 +824,7 @@ class EstimateType(IntEnum):
 
 
 # Complete mapping of SNUM values to their descriptions
-SNUM_DESCRIPTIONS: Dict[int, str] = {
+SNUM_DESCRIPTIONS: dict[int, str] = {
     2: "Area of forest land, in acres",
     3: "Area of timberland, in acres",
     4: "Number of live trees (at least 1 inch d.b.h./d.r.c.), in trees, on forest land",

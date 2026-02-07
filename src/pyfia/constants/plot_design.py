@@ -5,7 +5,7 @@ Contains FIA plot design parameters, diameter breakpoints, size class
 definitions, and plot basis types.
 """
 
-from typing import Dict, Tuple
+from __future__ import annotations
 
 
 class PlotDesign:
@@ -52,7 +52,7 @@ class PlotBasis:
 
 
 # Standard size class definitions
-STANDARD_SIZE_CLASSES: Dict[str, Tuple[float, float]] = {
+STANDARD_SIZE_CLASSES: dict[str, tuple[float, float]] = {
     "1.0-4.9": (1.0, 5.0),
     "5.0-9.9": (5.0, 10.0),
     "10.0-19.9": (10.0, 20.0),
@@ -61,7 +61,7 @@ STANDARD_SIZE_CLASSES: Dict[str, Tuple[float, float]] = {
 }
 
 # Descriptive size class definitions (alternative labeling)
-DESCRIPTIVE_SIZE_CLASSES: Dict[str, Tuple[float, float]] = {
+DESCRIPTIVE_SIZE_CLASSES: dict[str, tuple[float, float]] = {
     "Saplings": (1.0, 5.0),
     "Small": (5.0, 10.0),
     "Medium": (10.0, 20.0),
@@ -70,14 +70,14 @@ DESCRIPTIVE_SIZE_CLASSES: Dict[str, Tuple[float, float]] = {
 
 # Timber market size classes (based on TimberMart-South categories)
 # Pine/Softwood (SPCD < 300)
-MARKET_SIZE_CLASSES_PINE: Dict[str, Tuple[float, float]] = {
+MARKET_SIZE_CLASSES_PINE: dict[str, tuple[float, float]] = {
     "Pulpwood": (5.0, 9.0),
     "Chip-n-Saw": (9.0, 12.0),
     "Sawtimber": (12.0, float("inf")),
 }
 
 # Hardwood (SPCD >= 300) - no Chip-n-Saw category
-MARKET_SIZE_CLASSES_HARDWOOD: Dict[str, Tuple[float, float]] = {
+MARKET_SIZE_CLASSES_HARDWOOD: dict[str, tuple[float, float]] = {
     "Pulpwood": (5.0, 11.0),
     "Sawtimber": (11.0, float("inf")),
 }

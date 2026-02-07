@@ -5,12 +5,13 @@ This module provides caching functionality to avoid re-downloading
 FIA data that has already been retrieved.
 """
 
+from __future__ import annotations
+
 import json
 import logging
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ class DownloadCache:
         self.cache_dir = Path(cache_dir).expanduser()
         self.cache_dir.mkdir(parents=True, exist_ok=True)
         self.metadata_file = self.cache_dir / self.METADATA_FILE
-        self._metadata: Dict[str, CachedDownload] = {}
+        self._metadata: dict[str, CachedDownload] = {}
         self._load_metadata()
 
     def _get_cache_key(self, state: str) -> str:
@@ -111,9 +112,7 @@ class DownloadCache:
         with open(self.metadata_file, "w") as f:
             json.dump(data, f, indent=2)
 
-    def get_cached(
-        self, state: str, max_age_days: Optional[float] = None
-    ) -> Optional[Path]:
+    def get_cached(self, state: str, max_age_days: float | None = None) -> Path | None:
         """
         Get the path to a cached DuckDB file if it exists and is valid.
 
@@ -156,7 +155,7 @@ class DownloadCache:
         self,
         state: str,
         path: Path,
-        checksum: Optional[str] = None,
+        checksum: str | None = None,
     ) -> None:
         """
         Add a downloaded DuckDB file to the cache.
@@ -222,8 +221,8 @@ class DownloadCache:
 
     def clear_cache(
         self,
-        older_than: Optional[timedelta] = None,
-        state: Optional[str] = None,
+        older_than: timedelta | None = None,
+        state: str | None = None,
         delete_files: bool = False,
     ) -> int:
         """
@@ -308,7 +307,7 @@ class DownloadCache:
             "stale_entries": stale_count,
         }
 
-    def list_cached(self, state: Optional[str] = None) -> List[CachedDownload]:
+    def list_cached(self, state: str | None = None) -> list[CachedDownload]:
         """
         List cached downloads.
 

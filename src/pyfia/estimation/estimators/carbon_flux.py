@@ -10,7 +10,9 @@ Positive values indicate net carbon sequestration (carbon sink).
 Negative values indicate net carbon emission (carbon source).
 """
 
-from typing import Any, Dict, List, Optional, Union
+from __future__ import annotations
+
+from typing import Any
 
 import polars as pl
 
@@ -23,13 +25,13 @@ from .removals import removals
 
 
 def carbon_flux(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]] = None,
+    db: str | FIA,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     land_type: str = "forest",
     tree_type: str = "gs",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     totals: bool = True,
     variance: bool = True,
     most_recent: bool = False,
@@ -48,7 +50,7 @@ def carbon_flux(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database.
     grp_by : str or list of str, optional
         Column name(s) to group results by (e.g., 'FORTYPCD', 'OWNGRPCD').
@@ -155,10 +157,10 @@ def carbon_flux(
 
 
 def _normalize_group_cols(
-    grp_by: Optional[Union[str, List[str]]], by_species: bool
-) -> List[str]:
+    grp_by: str | list[str] | None, by_species: bool
+) -> list[str]:
     """Normalize grouping columns to a list."""
-    group_cols: List[str] = []
+    group_cols: list[str] = []
 
     if grp_by:
         if isinstance(grp_by, str):
@@ -177,7 +179,7 @@ def _calculate_carbon_flux(
     growth_result: pl.DataFrame,
     mortality_result: pl.DataFrame,
     removals_result: pl.DataFrame,
-    group_cols: List[str],
+    group_cols: list[str],
     totals: bool,
     variance: bool,
     include_components: bool,
@@ -261,7 +263,7 @@ def _scalar_flux(
         if forest_area > 0:
             acre_se = net_se / forest_area
             result["NET_CARBON_FLUX_ACRE_SE"] = [acre_se]
-            cv_value: Optional[float] = (
+            cv_value: float | None = (
                 abs(acre_se / net_acre) * 100 if net_acre != 0 else None
             )
             result["NET_CARBON_FLUX_CV"] = [cv_value]  # type: ignore[list-item]
@@ -286,7 +288,7 @@ def _grouped_flux(
     growth_result: pl.DataFrame,
     mortality_result: pl.DataFrame,
     removals_result: pl.DataFrame,
-    group_cols: List[str],
+    group_cols: list[str],
     totals: bool,
     variance: bool,
     include_components: bool,
@@ -496,13 +498,13 @@ def _grouped_flux(
 
 
 def _empty_result(
-    group_cols: List[str],
+    group_cols: list[str],
     totals: bool,
     variance: bool,
     include_components: bool,
 ) -> pl.DataFrame:
     """Return empty DataFrame with correct schema."""
-    schema: Dict[str, Any] = {col: pl.Int64 for col in group_cols}
+    schema: dict[str, Any] = {col: pl.Int64 for col in group_cols}
     schema["NET_CARBON_FLUX_ACRE"] = pl.Float64
     schema["AREA_TOTAL"] = pl.Float64
 

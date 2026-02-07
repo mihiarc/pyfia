@@ -4,6 +4,8 @@ FIA table names.
 Contains standard FIA database table names used throughout pyFIA.
 """
 
+from __future__ import annotations
+
 
 class TableNames:
     """Standard FIA table names."""

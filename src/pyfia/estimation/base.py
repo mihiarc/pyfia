@@ -54,7 +54,7 @@ class AggregationResult:
         Plot-tree level data preserved for variance calculation. Contains
         the individual measurements needed to compute variance following
         Bechtold & Patterson (2005) methodology.
-    group_cols : List[str]
+    group_cols : list[str]
         The grouping columns used in aggregation. Needed for grouped variance
         calculation to ensure variance is computed for each group.
     """
@@ -79,7 +79,7 @@ class BaseEstimator(ABC):
 
         Parameters
         ----------
-        db : Union[str, FIA]
+        db : str | FIA
             Database connection or path
         config : dict
             Configuration dictionary with estimation parameters
@@ -140,7 +140,7 @@ class BaseEstimator(ABC):
 
         Returns
         -------
-        Optional[pl.LazyFrame]
+        pl.LazyFrame | None
             Joined data or None if no tree data needed
         """
         tables = self.get_required_tables()
@@ -218,12 +218,12 @@ class BaseEstimator(ABC):
 
         Parameters
         ----------
-        data : Optional[pl.LazyFrame]
+        data : pl.LazyFrame | None
             Calculated values or None for area-only
 
         Returns
         -------
-        Union[AggregationResult, pl.DataFrame]
+        AggregationResult | pl.DataFrame
             AggregationResult with results, plot_tree_data, and group_cols,
             or DataFrame for backward compatibility
         """
@@ -270,7 +270,7 @@ class BaseEstimator(ABC):
 
         Parameters
         ----------
-        agg_result : Union[AggregationResult, pl.DataFrame]
+        agg_result : AggregationResult | pl.DataFrame
             Either an AggregationResult containing results, plot_tree_data,
             and group_cols for explicit data passing, or a DataFrame for
             backward compatibility with subclasses that haven't been updated.
@@ -359,16 +359,16 @@ class BaseEstimator(ABC):
         ----------
         data_with_strat : pl.LazyFrame
             Data with stratification columns joined
-        metric_mappings : Dict[str, str]
+        metric_mappings : dict[str, str]
             Mapping of adjusted metrics to condition-level aggregates
-        group_cols : List[str]
+        group_cols : list[str]
             User-specified grouping columns
-        available_cols : List[str]
+        available_cols : list[str]
             Available columns in the data
 
         Returns
         -------
-        tuple[pl.LazyFrame, List[str]]
+        tuple[pl.LazyFrame, list[str]]
             Condition-level aggregated data and the grouping columns used
         """
         return _aggregate_to_condition_level_impl(
@@ -393,11 +393,11 @@ class BaseEstimator(ABC):
         ----------
         condition_agg : pl.LazyFrame
             Condition-level aggregated data
-        metric_mappings : Dict[str, str]
+        metric_mappings : dict[str, str]
             Mapping of adjusted metrics to condition-level aggregates
-        group_cols : List[str]
+        group_cols : list[str]
             User-specified grouping columns
-        condition_group_cols : List[str]
+        condition_group_cols : list[str]
             Columns used in condition-level grouping
 
         Returns
@@ -425,7 +425,7 @@ class BaseEstimator(ABC):
         ----------
         results_df : pl.DataFrame
             Population-level results with numerator, total, and area columns
-        metric_mappings : Dict[str, str]
+        metric_mappings : dict[str, str]
             Mapping of adjusted metrics to condition-level aggregates
 
         Returns
@@ -455,11 +455,11 @@ class BaseEstimator(ABC):
         ----------
         data_with_strat : pl.LazyFrame
             Data with stratification columns joined (must include EXPNS, CONDPROP_UNADJ)
-        metric_mappings : Dict[str, str]
+        metric_mappings : dict[str, str]
             Mapping of adjusted metrics to condition-level aggregates, e.g.:
             {"VOLUME_ADJ": "CONDITION_VOLUME"} for volume estimation
             {"TPA_ADJ": "CONDITION_TPA", "BAA_ADJ": "CONDITION_BAA"} for TPA estimation
-        group_cols : List[str]
+        group_cols : list[str]
             User-specified grouping columns (e.g., SPCD, FORTYPCD)
         use_grm_adjustment : bool, default False
             If True, use SUBPTYP_GRM for adjustment factors (mortality/growth/removals)
@@ -518,9 +518,9 @@ class BaseEstimator(ABC):
         ----------
         data_with_strat : pl.LazyFrame
             Data with stratification columns joined
-        metric_cols : List[str]
+        metric_cols : list[str]
             Metric columns to preserve (e.g., ["VOLUME_ADJ"], ["BIOMASS_ADJ", "CARBON_ADJ"])
-        group_cols : List[str], optional
+        group_cols : list[str], optional
             Grouping columns to preserve
 
         Returns
@@ -670,7 +670,7 @@ class BaseEstimator(ABC):
             Plot-tree level data
         metric_col : str
             Column containing the metric to aggregate
-        group_cols : List[str]
+        group_cols : list[str]
             Grouping columns
         y_col_alias : str
             Alias for the y column
@@ -723,14 +723,14 @@ class BaseEstimator(ABC):
             Plot-level aggregated data
         results : pl.DataFrame
             Results containing unique group combinations
-        group_cols : List[str]
+        group_cols : list[str]
             Grouping columns
         y_col_alias : str
             Alias for the y column
 
         Returns
         -------
-        tuple[pl.DataFrame, List[str]]
+        tuple[pl.DataFrame, list[str]]
             Expanded plot data and valid group columns
         """
         # Get all plots from stratification (include B&P columns when available)
@@ -790,7 +790,7 @@ class BaseEstimator(ABC):
         ----------
         variance_df : pl.DataFrame
             Variance results with generic column names
-        metric_mappings : Dict[str, tuple[str, str]]
+        metric_mappings : dict[str, tuple[str, str]]
             Mapping of metric to (SE column, variance column) names
 
         Returns
@@ -834,7 +834,7 @@ class BaseEstimator(ABC):
             Main results dataframe
         variance_df : pl.DataFrame
             Variance results to join
-        valid_group_cols : List[str]
+        valid_group_cols : list[str]
             Columns to join on
 
         Returns
@@ -877,9 +877,9 @@ class BaseEstimator(ABC):
             Plot-tree level data preserved during aggregation
         results : pl.DataFrame
             Aggregated results with grouping columns
-        group_cols : List[str]
+        group_cols : list[str]
             Columns used for grouping
-        metric_mappings : Dict[str, tuple[str, str]]
+        metric_mappings : dict[str, tuple[str, str]]
             Mapping of adjusted metric column to (SE column name, variance column name)
             e.g., {"VOLUME_ADJ": ("VOLUME_ACRE_SE", "VOLUME_ACRE_VARIANCE")}
         y_col_alias : str, default "y_i"

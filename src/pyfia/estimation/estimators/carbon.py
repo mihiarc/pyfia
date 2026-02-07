@@ -13,7 +13,7 @@ columns which incorporate species-specific carbon conversion factors. This
 matches EVALIDator snum=55000 exactly.
 """
 
-from typing import List, Optional, Union
+from __future__ import annotations
 
 import polars as pl
 
@@ -23,14 +23,14 @@ from .carbon_pools import carbon_pool
 
 
 def carbon(
-    db: Union[str, FIA],
+    db: str | FIA,
     pool: str = "live",
-    grp_by: Optional[Union[str, List[str]]] = None,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     land_type: str = "forest",
     tree_type: str = "live",
-    tree_domain: Optional[str] = None,
-    area_domain: Optional[str] = None,
+    tree_domain: str | None = None,
+    area_domain: str | None = None,
     totals: bool = True,
     variance: bool = False,
     most_recent: bool = False,
@@ -45,7 +45,7 @@ def carbon(
 
     Parameters
     ----------
-    db : Union[str, FIA]
+    db : str | FIA
         Database connection or path to FIA database. Can be either a path
         string to a DuckDB/SQLite file or an existing FIA connection object.
     pool : {'ag', 'bg', 'live', 'dead', 'litter', 'soil', 'total'}, default 'live'
@@ -243,12 +243,12 @@ def carbon(
 
 
 def _estimate_dead_carbon(
-    db: Union[str, FIA],
-    grp_by: Optional[Union[str, List[str]]],
+    db: str | FIA,
+    grp_by: str | list[str] | None,
     by_species: bool,
     land_type: str,
-    tree_domain: Optional[str],
-    area_domain: Optional[str],
+    tree_domain: str | None,
+    area_domain: str | None,
     totals: bool,
     variance: bool,
     most_recent: bool,

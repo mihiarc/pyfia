@@ -5,14 +5,14 @@ Contains mappings between state abbreviations, names, and FIPS codes
 used in FIA data.
 """
 
-from typing import Dict
+from __future__ import annotations
 
 
 class StateCodes:
     """State FIPS codes and mappings."""
 
     # State abbreviations to FIPS codes
-    ABBR_TO_CODE: Dict[str, int] = {
+    ABBR_TO_CODE: dict[str, int] = {
         "AL": 1,
         "AK": 2,
         "AZ": 4,
@@ -66,7 +66,7 @@ class StateCodes:
     }
 
     # State names to FIPS codes
-    NAME_TO_CODE: Dict[str, int] = {
+    NAME_TO_CODE: dict[str, int] = {
         "alabama": 1,
         "alaska": 2,
         "arizona": 4,
@@ -120,5 +120,5 @@ class StateCodes:
     }
 
     # Derived mappings
-    CODE_TO_NAME: Dict[int, str] = {v: k.title() for k, v in NAME_TO_CODE.items()}
-    CODE_TO_ABBR: Dict[int, str] = {v: k for k, v in ABBR_TO_CODE.items()}
+    CODE_TO_NAME: dict[int, str] = {v: k.title() for k, v in NAME_TO_CODE.items()}
+    CODE_TO_ABBR: dict[int, str] = {v: k for k, v in ABBR_TO_CODE.items()}

@@ -71,7 +71,7 @@ Reference:
     Station. 85 p. https://doi.org/10.2737/SRS-GTR-80
 """
 
-from typing import Dict, List, Tuple
+from __future__ import annotations
 
 import polars as pl
 
@@ -80,7 +80,7 @@ from .constants import Z_SCORE_90, Z_SCORE_95, Z_SCORE_99
 
 def calculate_grouped_domain_total_variance(
     plot_data: pl.DataFrame,
-    group_cols: List[str],
+    group_cols: list[str],
     y_col: str,
     x_col: str = "x_i",
     stratum_col: str = "STRATUM_CN",
@@ -105,7 +105,7 @@ def calculate_grouped_domain_total_variance(
     plot_data : pl.DataFrame
         Plot-level data with group columns, stratum assignment, and values.
         Must contain PLT_CN, y_col, stratum_col, weight_col, and group_cols.
-    group_cols : List[str]
+    group_cols : list[str]
         Columns to group results by (e.g., ["SPCD"] for by-species)
     y_col : str
         Column name for Y values (the metric being estimated)
@@ -216,7 +216,7 @@ def calculate_grouped_domain_total_variance(
 
 def _calculate_grouped_exact_bp_variance(
     plot_data: pl.DataFrame,
-    valid_group_cols: List[str],
+    valid_group_cols: list[str],
     y_col: str,
     x_col: str,
     stratum_col: str,
@@ -468,7 +468,7 @@ def _calculate_grouped_exact_bp_variance(
 
 def _calculate_grouped_simplified_variance(
     plot_data: pl.DataFrame,
-    valid_group_cols: List[str],
+    valid_group_cols: list[str],
     y_col: str,
     x_col: str,
     stratum_col: str,
@@ -652,7 +652,7 @@ def calculate_domain_total_variance(
     stratum_wgt_col: str = "STRATUM_WGT",
     area_used_col: str = "AREA_USED",
     p2pointcnt_col: str = "P2POINTCNT",
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Calculate variance for domain total estimation.
 
     Implements the exact post-stratified variance formula from Bechtold &
@@ -774,7 +774,7 @@ def _calculate_exact_bp_variance(
     stratum_wgt_col: str,
     area_used_col: str,
     p2pointcnt_col: str,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Exact Bechtold & Patterson post-stratified variance (V1 + V2).
 
     Computes variance per estimation unit then sums across EUs.
@@ -881,7 +881,7 @@ def _calculate_simplified_variance(
     y_col: str,
     stratum_col: str,
     weight_col: str,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Simplified variance formula V = Σ_h W_h² × s²_yh × n_h.
 
     Used as fallback when exact B&P columns are not available
@@ -945,7 +945,7 @@ def calculate_ratio_of_means_variance(
     stratum_wgt_col: str = "STRATUM_WGT",
     area_used_col: str = "AREA_USED",
     p2pointcnt_col: str = "P2POINTCNT",
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Calculate variance for ratio-of-means estimation (per-acre estimates).
 
     Implements the ratio-of-means variance formula from Bechtold & Patterson
@@ -1035,7 +1035,7 @@ def _calculate_exact_bp_ratio_variance(
     stratum_wgt_col: str,
     area_used_col: str,
     p2pointcnt_col: str,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Exact B&P ratio-of-means variance with V1+V2 per estimation unit.
 
     Computes V(Y), V(X), and Cov(Y,X) using the exact post-stratified
@@ -1193,7 +1193,7 @@ def _calculate_simplified_ratio_variance(
     x_col: str,
     stratum_col: str,
     weight_col: str,
-) -> Dict[str, float]:
+) -> dict[str, float]:
     """Simplified ratio-of-means variance (no B&P columns).
 
     Uses the per-stratum formula:
@@ -1327,7 +1327,7 @@ def safe_sqrt(expr: pl.Expr, default: float = 0.0) -> pl.Expr:
 
 def calculate_confidence_interval(
     estimate: float, se: float, confidence: float = 0.95
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Calculate confidence interval using normal approximation.
 
@@ -1342,7 +1342,7 @@ def calculate_confidence_interval(
 
     Returns
     -------
-    Tuple[float, float]
+    tuple[float, float]
         Lower and upper bounds of confidence interval
     """
     if confidence == 0.95:

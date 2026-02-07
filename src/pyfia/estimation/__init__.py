@@ -31,6 +31,8 @@ variance calculations), import directly from submodules:
     - pyfia.estimation.variance
 """
 
+from __future__ import annotations
+
 # Import estimator functions - THE PUBLIC API
 from .estimators import (
     area,

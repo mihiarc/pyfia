@@ -1,6 +1,8 @@
 """Utility functions for pyFIA core operations."""
 
-from typing import Callable, List, Optional, TypeVar, Union
+from __future__ import annotations
+
+from typing import Callable, TypeVar
 
 import polars as pl
 
@@ -10,10 +12,10 @@ T = TypeVar("T")
 
 
 def batch_query_by_values(
-    values: List[T],
-    query_fn: Callable[[List[T]], Union[pl.DataFrame, pl.LazyFrame]],
-    batch_size: Optional[int] = None,
-) -> Union[pl.DataFrame, pl.LazyFrame]:
+    values: list[T],
+    query_fn: Callable[[list[T]], pl.DataFrame | pl.LazyFrame],
+    batch_size: int | None = None,
+) -> pl.DataFrame | pl.LazyFrame:
     """
     Execute queries in batches to avoid SQL IN clause limits.
 
@@ -22,7 +24,7 @@ def batch_query_by_values(
 
     Parameters
     ----------
-    values : List[T]
+    values : list[T]
         Values to batch (e.g., plot CNs)
     query_fn : Callable
         Function that takes a batch of values and returns a DataFrame/LazyFrame.

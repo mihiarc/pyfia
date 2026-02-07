@@ -5,9 +5,11 @@ This module provides centralized configuration with environment variable support
 It is the canonical source for all pyFIA configuration.
 """
 
+from __future__ import annotations
+
 import os
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -207,7 +209,7 @@ def _create_settings_with_legacy_support() -> PyFIASettings:
     new_engine = os.environ.get("PYFIA_DATABASE_ENGINE")
 
     # Build kwargs for settings - legacy takes precedence if new isn't set
-    kwargs: Dict[str, Any] = {}
+    kwargs: dict[str, Any] = {}
     if legacy_db_path and not new_db_path:
         kwargs["database_path"] = Path(legacy_db_path)
     if legacy_engine and not new_engine:

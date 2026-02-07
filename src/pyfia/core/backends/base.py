@@ -5,10 +5,12 @@ This module defines the interface that all database backends must implement
 to ensure consistent behavior across different database engines.
 """
 
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, Iterator, List, Optional, Union
+from typing import Any, Iterator
 
 import polars as pl
 from pydantic import BaseModel, ConfigDict, Field
@@ -23,7 +25,7 @@ class QueryResult(BaseModel):
 
     data: pl.DataFrame
     row_count: int = Field(default=0)
-    execution_time_ms: Optional[float] = Field(default=None)
+    execution_time_ms: float | None = Field(default=None)
 
     def __init__(self, **data: Any) -> None:
         """Initialize query result and calculate row count."""
@@ -40,13 +42,13 @@ class DatabaseBackend(ABC):
     must follow to ensure consistent behavior across different backends.
     """
 
-    def __init__(self, db_path: Union[str, Path], **kwargs: Any):
+    def __init__(self, db_path: str | Path, **kwargs: Any):
         """
         Initialize database backend.
 
         Parameters
         ----------
-        db_path : Union[str, Path]
+        db_path : str | Path
             Path to database file
         **kwargs : Any
             Backend-specific configuration options
@@ -55,8 +57,8 @@ class DatabaseBackend(ABC):
         if not self.db_path.exists():
             raise FileNotFoundError(f"Database not found: {db_path}")
 
-        self._connection: Optional[Any] = None
-        self._schema_cache: Dict[str, Dict[str, str]] = {}
+        self._connection: Any | None = None
+        self._schema_cache: dict[str, dict[str, str]] = {}
         self._kwargs = kwargs
 
     @abstractmethod
@@ -73,7 +75,7 @@ class DatabaseBackend(ABC):
     def execute_query(
         self,
         query: str,
-        params: Optional[Dict[str, Any]] = None,
+        params: dict[str, Any] | None = None,
     ) -> pl.DataFrame:
         """
         Execute a SQL query and return results as Polars DataFrame.
@@ -82,7 +84,7 @@ class DatabaseBackend(ABC):
         ----------
         query : str
             SQL query string
-        params : Optional[Dict[str, Any]], optional
+        params : dict[str, Any] | None, optional
             Optional query parameters
 
         Returns
@@ -93,7 +95,7 @@ class DatabaseBackend(ABC):
         pass
 
     @abstractmethod
-    def get_table_schema(self, table_name: str) -> Dict[str, str]:
+    def get_table_schema(self, table_name: str) -> dict[str, str]:
         """
         Get schema information for a table.
 
@@ -104,7 +106,7 @@ class DatabaseBackend(ABC):
 
         Returns
         -------
-        Dict[str, str]
+        dict[str, str]
             Dictionary mapping column names to SQL types
         """
         pass
@@ -127,7 +129,7 @@ class DatabaseBackend(ABC):
         pass
 
     @abstractmethod
-    def describe_table(self, table_name: str) -> List[tuple]:
+    def describe_table(self, table_name: str) -> list[tuple]:
         """
         Get table description for schema detection.
 
@@ -138,7 +140,7 @@ class DatabaseBackend(ABC):
 
         Returns
         -------
-        List[tuple]
+        list[tuple]
             List of tuples with column information
         """
         pass
@@ -146,9 +148,9 @@ class DatabaseBackend(ABC):
     def read_table(
         self,
         table_name: str,
-        columns: Optional[List[str]] = None,
-        where: Optional[str] = None,
-        limit: Optional[int] = None,
+        columns: list[str] | None = None,
+        where: str | None = None,
+        limit: int | None = None,
     ) -> pl.DataFrame:
         """
         Read a table with optional filtering.
@@ -157,11 +159,11 @@ class DatabaseBackend(ABC):
         ----------
         table_name : str
             Name of the table to read
-        columns : Optional[List[str]], optional
+        columns : list[str] | None, optional
             Optional list of columns to select
-        where : Optional[str], optional
+        where : str | None, optional
             Optional WHERE clause (without 'WHERE' keyword)
-        limit : Optional[int], optional
+        limit : int | None, optional
             Optional row limit
 
         Returns

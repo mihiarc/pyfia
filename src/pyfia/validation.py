@@ -1,8 +1,10 @@
 """Simple input validation for pyFIA public API functions."""
 
+from __future__ import annotations
+
 import re
 from pathlib import Path
-from typing import Any, List, Optional, Union
+from typing import Any
 
 # Valid values for common parameters
 VALID_LAND_TYPES = {"forest", "timber", "all"}
@@ -62,10 +64,13 @@ def validate_temporal_method(method: str) -> str:
     return method
 
 
-def validate_domain_expression(
-    domain: Optional[str], domain_type: str
-) -> Optional[str]:
-    """Basic validation of domain expression syntax."""
+def validate_domain_expression(domain: str | None, domain_type: str) -> str | None:
+    """Validate domain expression syntax, including SQL parsing.
+
+    Performs two levels of validation:
+    1. Security checks (SQL injection patterns)
+    2. Syntax validation via DomainExpressionParser (catches typos like "DIA >== 5")
+    """
     if domain is None:
         return None
 
@@ -117,12 +122,25 @@ def validate_domain_expression(
                 f"These characters are not allowed in filter expressions."
             )
 
+    # Validate SQL syntax by attempting to parse the expression
+    # This catches typos like "DIA >== 5" or "STATUSCD === 1" at call time
+    # instead of failing deep in the query pipeline
+    from pyfia.filtering.parser import DomainExpressionParser
+
+    is_valid, error_message = DomainExpressionParser.validate_expression(
+        domain, domain_type
+    )
+    if not is_valid:
+        raise ValueError(
+            f"Invalid {domain_type} expression: '{domain}'. {error_message}"
+        )
+
     return domain
 
 
 def validate_grp_by(
-    grp_by: Optional[Union[str, List[str]]],
-) -> Optional[Union[str, List[str]]]:
+    grp_by: str | list[str] | None,
+) -> str | list[str] | None:
     """Validate grp_by parameter."""
     if grp_by is None:
         return None
@@ -147,7 +165,7 @@ def validate_grp_by(
     return grp_by
 
 
-def validate_positive_number(value: Any, param_name: str) -> Union[int, float]:
+def validate_positive_number(value: Any, param_name: str) -> int | float:
     """Validate that a value is a positive number."""
     if not isinstance(value, (int, float)):
         raise TypeError(f"{param_name} must be a number, got {type(value).__name__}")
@@ -183,7 +201,7 @@ def validate_mortality_measure(measure: str) -> str:
 SQL_DANGEROUS_CHARS = re.compile(r"['\";\\]")
 
 
-def sanitize_sql_path(path: Union[str, Path]) -> str:
+def sanitize_sql_path(path: str | Path) -> str:
     """
     Sanitize a file path for safe use in SQL queries.
 

@@ -7,7 +7,9 @@ This module consolidates all utility functionality including:
 - Grouping functions for analysis
 """
 
-from typing import Dict, List, Literal, Optional, Set, Tuple, Union
+from __future__ import annotations
+
+from typing import Literal, Set
 
 import polars as pl
 
@@ -37,7 +39,7 @@ class ColumnValidator:
     """
 
     # Predefined column sets for common validation scenarios
-    COLUMN_SETS: Dict[str, List[str]] = {
+    COLUMN_SETS: dict[str, list[str]] = {
         # Tree-related columns
         "tree_basic": ["CN", "PLT_CN", "STATUSCD"],
         "tree_diameter": ["DIA"],
@@ -67,12 +69,12 @@ class ColumnValidator:
     def validate_columns(
         cls,
         df: pl.DataFrame,
-        required_columns: Optional[Union[List[str], str]] = None,
-        column_set: Optional[str] = None,
-        context: Optional[str] = None,
+        required_columns: list[str] | str | None = None,
+        column_set: str | None = None,
+        context: str | None = None,
         raise_on_missing: bool = True,
         include_available: bool = True,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """
         Validate that required columns exist in a DataFrame.
 
@@ -80,7 +82,7 @@ class ColumnValidator:
         ----------
         df : pl.DataFrame
             DataFrame to validate
-        required_columns : List[str] or str, optional
+        required_columns : list[str] or str, optional
             List of required column names or a single column name
         column_set : str, optional
             Name of a predefined column set from COLUMN_SETS
@@ -93,7 +95,7 @@ class ColumnValidator:
 
         Returns
         -------
-        tuple[bool, List[str]]
+        tuple[bool, list[str]]
             (validation_passed, list_of_missing_columns)
 
         Raises
@@ -139,10 +141,10 @@ class ColumnValidator:
     def validate_one_of(
         cls,
         df: pl.DataFrame,
-        column_groups: List[List[str]],
-        context: Optional[str] = None,
+        column_groups: list[list[str]],
+        context: str | None = None,
         raise_on_missing: bool = True,
-    ) -> Tuple[bool, List[str]]:
+    ) -> tuple[bool, list[str]]:
         """
         Validate that at least one column from each group exists.
 
@@ -150,7 +152,7 @@ class ColumnValidator:
         ----------
         df : pl.DataFrame
             DataFrame to validate
-        column_groups : List[List[str]]
+        column_groups : list[list[str]]
             List of column groups where at least one from each group must exist
         context : str, optional
             Context for error message
@@ -159,7 +161,7 @@ class ColumnValidator:
 
         Returns
         -------
-        tuple[bool, List[str]]
+        tuple[bool, list[str]]
             (validation_passed, list_of_available_columns_used)
 
         Examples
@@ -197,9 +199,9 @@ class ColumnValidator:
     def ensure_columns(
         cls,
         df: pl.DataFrame,
-        columns: Union[List[str], Dict[str, pl.DataType]],
+        columns: list[str] | dict[str, pl.DataType],
         fill_value=None,
-        context: Optional[str] = None,
+        context: str | None = None,
     ) -> pl.DataFrame:
         """
         Ensure columns exist in DataFrame, adding them if missing.
@@ -208,7 +210,7 @@ class ColumnValidator:
         ----------
         df : pl.DataFrame
             DataFrame to modify
-        columns : List[str] or Dict[str, pl.DataType]
+        columns : list[str] or dict[str, pl.DataType]
             Columns to ensure exist (with optional datatypes)
         fill_value : Any, default None
             Value to fill for missing columns
@@ -250,9 +252,9 @@ class ColumnValidator:
     def get_missing_columns(
         cls,
         df: pl.DataFrame,
-        required_columns: Optional[Union[List[str], str]] = None,
-        column_set: Optional[str] = None,
-    ) -> List[str]:
+        required_columns: list[str] | str | None = None,
+        column_set: str | None = None,
+    ) -> list[str]:
         """
         Get list of missing columns without raising an exception.
 
@@ -260,14 +262,14 @@ class ColumnValidator:
         ----------
         df : pl.DataFrame
             DataFrame to check
-        required_columns : List[str] or str, optional
+        required_columns : list[str] or str, optional
             Required column names
         column_set : str, optional
             Name of a predefined column set
 
         Returns
         -------
-        List[str]
+        list[str]
             List of missing column names
         """
         columns_to_check = cls._get_columns_to_check(required_columns, column_set)
@@ -277,8 +279,8 @@ class ColumnValidator:
     def has_columns(
         cls,
         df: pl.DataFrame,
-        required_columns: Optional[Union[List[str], str]] = None,
-        column_set: Optional[str] = None,
+        required_columns: list[str] | str | None = None,
+        column_set: str | None = None,
     ) -> bool:
         """
         Check if DataFrame has all required columns.
@@ -287,7 +289,7 @@ class ColumnValidator:
         ----------
         df : pl.DataFrame
             DataFrame to check
-        required_columns : List[str] or str, optional
+        required_columns : list[str] or str, optional
             Required column names
         column_set : str, optional
             Name of a predefined column set
@@ -310,9 +312,9 @@ class ColumnValidator:
     @classmethod
     def _get_columns_to_check(
         cls,
-        required_columns: Optional[Union[List[str], str]],
-        column_set: Optional[str],
-    ) -> List[str]:
+        required_columns: list[str] | str | None,
+        column_set: str | None,
+    ) -> list[str]:
         """Get the list of columns to check based on inputs."""
         if column_set:
             if column_set not in cls.COLUMN_SETS:
@@ -335,8 +337,8 @@ class ColumnValidator:
     def _find_missing_columns(
         cls,
         df: pl.DataFrame,
-        columns_to_check: List[str],
-    ) -> List[str]:
+        columns_to_check: list[str],
+    ) -> list[str]:
         """Find which columns are missing from the DataFrame."""
         df_columns = set(df.columns)
         return [col for col in columns_to_check if col not in df_columns]
@@ -344,9 +346,9 @@ class ColumnValidator:
     @classmethod
     def _build_error_message(
         cls,
-        missing_columns: List[str],
-        context: Optional[str],
-        available_columns: Optional[List[str]],
+        missing_columns: list[str],
+        context: str | None,
+        available_columns: list[str] | None,
     ) -> str:
         """Build a consistent error message for missing columns."""
         error_msg = "Missing required columns"
@@ -367,9 +369,9 @@ class ColumnValidator:
 
 def validate_columns(
     df: pl.DataFrame,
-    required_columns: Optional[Union[List[str], str]] = None,
-    column_set: Optional[str] = None,
-    context: Optional[str] = None,
+    required_columns: list[str] | str | None = None,
+    column_set: str | None = None,
+    context: str | None = None,
 ) -> None:
     """
     Validate columns and raise an error if any are missing.
@@ -388,15 +390,15 @@ def validate_columns(
 
 def check_columns(
     df: pl.DataFrame,
-    required_columns: Optional[Union[List[str], str]] = None,
-    column_set: Optional[str] = None,
-) -> Tuple[bool, List[str]]:
+    required_columns: list[str] | str | None = None,
+    column_set: str | None = None,
+) -> tuple[bool, list[str]]:
     """
     Check if columns exist without raising an error.
 
     Returns
     -------
-    tuple[bool, List[str]]
+    tuple[bool, list[str]]
         (all_present, missing_columns)
     """
     return ColumnValidator.validate_columns(
@@ -409,7 +411,7 @@ def check_columns(
 
 def ensure_columns(
     df: pl.DataFrame,
-    columns: Union[List[str], Dict[str, pl.DataType]],
+    columns: list[str] | dict[str, pl.DataType],
     fill_value=None,
 ) -> pl.DataFrame:
     """
@@ -427,7 +429,7 @@ def ensure_columns(
 
 def assign_tree_basis(
     tree_df: pl.DataFrame,
-    plot_df: Optional[pl.DataFrame] = None,
+    plot_df: pl.DataFrame | None = None,
     include_macro: bool = True,
     dia_column: str = "DIA",
     macro_breakpoint_column: str = "MACRO_BREAKPOINT_DIA",
@@ -698,7 +700,7 @@ def assign_species_group(
 def validate_classification_columns(
     df: pl.DataFrame,
     classification_type: str,
-    required_columns: Optional[List[str]] = None,
+    required_columns: list[str] | None = None,
 ) -> bool:
     """
     Validate that DataFrame has required columns for classification operations.
@@ -709,7 +711,7 @@ def validate_classification_columns(
         DataFrame to validate
     classification_type : str
         Type of classification: "tree_basis", "size_class", "prop_basis", etc.
-    required_columns : List[str], optional
+    required_columns : list[str], optional
         List of required columns. If None, uses defaults for classification type.
 
     Returns
@@ -755,13 +757,13 @@ def validate_classification_columns(
 
 def setup_grouping_columns(
     df: pl.DataFrame,
-    grp_by: Optional[Union[str, List[str]]] = None,
+    grp_by: str | list[str] | None = None,
     by_species: bool = False,
     by_size_class: bool = False,
     by_land_type: bool = False,
     size_class_type: Literal["standard", "descriptive"] = "standard",
     dia_col: str = "DIA",
-) -> Tuple[pl.DataFrame, List[str]]:
+) -> tuple[pl.DataFrame, list[str]]:
     """
     Set up grouping columns for FIA estimation.
 
@@ -772,7 +774,7 @@ def setup_grouping_columns(
     ----------
     df : pl.DataFrame
         Input dataframe
-    grp_by : str or List[str], optional
+    grp_by : str or list[str], optional
         Custom column(s) to group by
     by_species : bool, default False
         Whether to group by species (SPCD)
@@ -787,7 +789,7 @@ def setup_grouping_columns(
 
     Returns
     -------
-    tuple[pl.DataFrame, List[str]]
+    tuple[pl.DataFrame, list[str]]
         Modified dataframe with grouping columns added, and list of column names to group by
     """
     group_cols = []
@@ -983,10 +985,10 @@ def add_land_type_column(df: pl.DataFrame) -> pl.DataFrame:
 
 
 def prepare_plot_groups(
-    base_groups: List[str],
-    additional_groups: Optional[List[str]] = None,
-    always_include: Optional[List[str]] = None,
-) -> List[str]:
+    base_groups: list[str],
+    additional_groups: list[str] | None = None,
+    always_include: list[str] | None = None,
+) -> list[str]:
     """
     Prepare final grouping columns for plot-level aggregation.
 
@@ -995,16 +997,16 @@ def prepare_plot_groups(
 
     Parameters
     ----------
-    base_groups : List[str]
+    base_groups : list[str]
         Base grouping columns from setup_grouping_columns
-    additional_groups : List[str], optional
+    additional_groups : list[str], optional
         Additional columns to include in grouping
-    always_include : List[str], optional
+    always_include : list[str], optional
         Columns that should always be included (default: ["PLT_CN"])
 
     Returns
     -------
-    List[str]
+    list[str]
         Final list of grouping columns
     """
     if always_include is None:
@@ -1029,7 +1031,7 @@ def prepare_plot_groups(
 
 def add_species_info(
     df: pl.DataFrame,
-    species_df: Optional[pl.DataFrame] = None,
+    species_df: pl.DataFrame | None = None,
     include_common_name: bool = True,
     include_genus: bool = False,
 ) -> pl.DataFrame:
@@ -1075,7 +1077,7 @@ def add_species_info(
 
 def validate_grouping_columns(
     df: pl.DataFrame,
-    required_groups: List[str],
+    required_groups: list[str],
 ) -> None:
     """
     Validate that required grouping columns exist in dataframe.
@@ -1084,7 +1086,7 @@ def validate_grouping_columns(
     ----------
     df : pl.DataFrame
         Dataframe to validate
-    required_groups : List[str]
+    required_groups : list[str]
         List of required column names
 
     Raises
@@ -1103,7 +1105,7 @@ def validate_grouping_columns(
 
 def get_size_class_bounds(
     size_class_type: Literal["standard", "descriptive"] = "standard",
-) -> Dict[str, tuple[float, float]]:
+) -> dict[str, tuple[float, float]]:
     """
     Get the diameter bounds for each size class.
 
@@ -1114,7 +1116,7 @@ def get_size_class_bounds(
 
     Returns
     -------
-    Dict[str, tuple[float, float]]
+    dict[str, tuple[float, float]]
         Dictionary mapping size class labels to (min, max) diameter bounds
     """
     if size_class_type == "standard":
@@ -1125,7 +1127,7 @@ def get_size_class_bounds(
         raise ValueError(f"Invalid size_class_type: {size_class_type}")
 
 
-def get_forest_type_group(fortypcd: Optional[int]) -> str:
+def get_forest_type_group(fortypcd: int | None) -> str:
     """
     Map forest type code (FORTYPCD) to forest type group name.
 
@@ -1247,7 +1249,7 @@ def add_forest_type_group(
     )
 
 
-def get_ownership_group_name(owngrpcd: Optional[int]) -> str:
+def get_ownership_group_name(owngrpcd: int | None) -> str:
     """
     Map ownership group code to descriptive name.
 
@@ -1308,7 +1310,7 @@ def add_ownership_group_name(
     )
 
 
-def get_forest_type_group_code(fortypcd: Optional[int]) -> Optional[int]:
+def get_forest_type_group_code(fortypcd: int | None) -> int | None:
     """
     Map forest type code (FORTYPCD) to forest type group code (FORTYPGRP).
 
@@ -1442,9 +1444,9 @@ def add_forest_type_group_code(
 
 def auto_enhance_grouping_data(
     data_df: pl.DataFrame,
-    group_cols: List[str],
+    group_cols: list[str],
     preserve_reference_columns: bool = True,
-) -> Tuple[pl.DataFrame, List[str]]:
+) -> tuple[pl.DataFrame, list[str]]:
     """
     Automatically enhance grouping data with reference information.
 
@@ -1456,14 +1458,14 @@ def auto_enhance_grouping_data(
     ----------
     data_df : pl.DataFrame
         Input dataframe to enhance
-    group_cols : List[str]
+    group_cols : list[str]
         List of grouping columns to potentially enhance
     preserve_reference_columns : bool, default True
         Whether to preserve original columns alongside enhanced ones
 
     Returns
     -------
-    tuple[pl.DataFrame, List[str]]
+    tuple[pl.DataFrame, list[str]]
         Enhanced dataframe and updated list of grouping columns
 
     Examples

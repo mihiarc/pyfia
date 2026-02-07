@@ -17,6 +17,8 @@ FIA-Specific Constants
 These constants are specific to FIA methodology and forestry calculations.
 """
 
+from __future__ import annotations
+
 import math
 
 # =============================================================================

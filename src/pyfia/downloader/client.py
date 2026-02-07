@@ -10,13 +10,14 @@ References
 - CSV Downloads: https://apps.fs.usda.gov/fia/datamart/CSV/
 """
 
+from __future__ import annotations
+
 import hashlib
 import logging
 import shutil
 import tempfile
 import zipfile
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import requests
 from rich.progress import (
@@ -113,7 +114,7 @@ class DataMartClient:
         self,
         url: str,
         dest_path: Path,
-        description: Optional[str] = None,
+        description: str | None = None,
         show_progress: bool = True,
     ) -> Path:
         """
@@ -207,7 +208,7 @@ class DataMartClient:
 
     def _extract_zip(
         self, zip_path: Path, extract_dir: Path, show_progress: bool = True
-    ) -> List[Path]:
+    ) -> list[Path]:
         """
         Extract a ZIP file to a directory.
 
@@ -328,11 +329,11 @@ class DataMartClient:
     def download_tables(
         self,
         state: str,
-        tables: Optional[List[str]] = None,
+        tables: list[str] | None = None,
         common: bool = True,
-        dest_dir: Optional[Path] = None,
+        dest_dir: Path | None = None,
         show_progress: bool = True,
-    ) -> Dict[str, Path]:
+    ) -> dict[str, Path]:
         """
         Download multiple FIA tables for a state.
 
@@ -464,9 +465,9 @@ class DataMartClient:
     def download_reference_tables(
         self,
         dest_dir: Path,
-        tables: Optional[List[str]] = None,
+        tables: list[str] | None = None,
         show_progress: bool = True,
-    ) -> Dict[str, Path]:
+    ) -> dict[str, Path]:
         """
         Download FIA reference tables from the bundled FIADB_REFERENCE.zip.
 

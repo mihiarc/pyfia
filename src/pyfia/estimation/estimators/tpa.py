@@ -106,7 +106,7 @@ class TPAEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """
         Aggregate TPA and BAA with proper FIA two-stage stratification.
 
@@ -122,6 +122,13 @@ class TPAEstimator(BaseEstimator):
             Bundle containing results, plot_tree_data, and group_cols for
             explicit variance calculation.
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -130,7 +137,7 @@ class TPAEstimator(BaseEstimator):
 
         # Apply adjustment factors based on tree size
         # FIA uses different plot sizes for different tree sizes
-        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
+        data_with_strat = apply_tree_adjustment_factors(
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
@@ -196,7 +203,7 @@ class TPAEstimator(BaseEstimator):
 
     def calculate_variance(
         self,
-        agg_result: AggregationResult,  # type: ignore[override]
+        agg_result: AggregationResult,
     ) -> pl.DataFrame:
         """
         Calculate variance for TPA and BAA estimates using domain total variance formula.

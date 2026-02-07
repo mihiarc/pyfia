@@ -10,6 +10,7 @@ from __future__ import annotations
 import logging
 import warnings
 from pathlib import Path
+from typing import TYPE_CHECKING, overload
 
 import polars as pl
 
@@ -24,7 +25,22 @@ from .exceptions import (
     SpatialFileError,
 )
 
+if TYPE_CHECKING:
+    from .backends import MotherDuckBackend
+
 logger = logging.getLogger(__name__)
+
+
+@overload
+def _add_parsed_evalid_columns(
+    df: pl.DataFrame,
+) -> pl.DataFrame: ...
+
+
+@overload
+def _add_parsed_evalid_columns(
+    df: pl.LazyFrame,
+) -> pl.LazyFrame: ...
 
 
 def _add_parsed_evalid_columns(
@@ -68,8 +84,8 @@ class FIA:
 
     Attributes
     ----------
-    db_path : Path
-        Path to the DuckDB database.
+    db_path : str | Path
+        Path to the DuckDB database or MotherDuck connection string.
     tables : dict[str, pl.LazyFrame]
         Loaded FIA tables as lazy frames.
     evalid : list of int or None
@@ -77,6 +93,8 @@ class FIA:
     most_recent : bool
         Whether to use most recent evaluations.
     """
+
+    db_path: str | Path
 
     def __init__(self, db_path: str | Path, engine: str | None = None):
         """
@@ -97,7 +115,7 @@ class FIA:
         )
 
         if self._is_motherduck:
-            self.db_path = db_str  # type: ignore[assignment]
+            self.db_path = db_str
         else:
             self.db_path = Path(db_path)
             if not self.db_path.exists():
@@ -329,7 +347,14 @@ class FIA:
                         lazy=True,
                     )
 
-                result = batch_query_by_values(valid_plot_cns, query_batch)
+                batch_result = batch_query_by_values(valid_plot_cns, query_batch)
+                # batch_query_by_values returns DataFrame | LazyFrame, but
+                # query_batch always returns LazyFrame so the result is LazyFrame
+                result: pl.LazyFrame = (
+                    batch_result
+                    if isinstance(batch_result, pl.LazyFrame)
+                    else batch_result.lazy()
+                )
 
                 # Join polygon attributes for PLOT table if available
                 if table_name == "PLOT" and self._polygon_attributes is not None:
@@ -446,7 +471,7 @@ class FIA:
 
         if most_recent:
             # Add parsed EVALID columns for robust year sorting
-            df = _add_parsed_evalid_columns(df)  # type: ignore[assignment]
+            df = _add_parsed_evalid_columns(df)
 
             # Special handling for Texas (STATECD=48)
             # Texas has separate East/West evaluations, but we want the full state
@@ -1352,7 +1377,7 @@ class MotherDuckFIA(FIA):
         self._backend.connect()
 
         # Create a minimal reader-like wrapper for compatibility
-        self._reader = _MotherDuckReaderWrapper(self._backend)
+        self._reader = _MotherDuckReaderWrapper(self._backend)  # type: ignore[assignment]
 
     def __enter__(self):
         """Context manager entry."""
@@ -1388,7 +1413,7 @@ class _MotherDuckReaderWrapper:
     without requiring a full FIADataReader instance.
     """
 
-    def __init__(self, backend) -> None:
+    def __init__(self, backend: MotherDuckBackend) -> None:
         self._backend = backend
 
     def get_table_schema(self, table_name: str) -> dict[str, str]:

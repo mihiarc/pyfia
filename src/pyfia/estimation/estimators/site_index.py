@@ -212,11 +212,18 @@ class SiteIndexEstimator(BaseEstimator):
 
         return cols_to_select, group_cols
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """Aggregate site index with area weighting and stratification.
 
         Returns area-weighted mean: sum(SICOND * area) / sum(area)
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -224,7 +231,7 @@ class SiteIndexEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply area adjustment factors based on PROP_BASIS
-        data_with_strat = apply_area_adjustment_factors(  # type: ignore[assignment]
+        data_with_strat = apply_area_adjustment_factors(
             data_with_strat, prop_basis_col="PROP_BASIS", output_col="ADJ_FACTOR_AREA"
         )
 
@@ -401,7 +408,7 @@ class SiteIndexEstimator(BaseEstimator):
             "se": se,
         }
 
-    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
         """Calculate variance using ratio-of-means formula.
 
         For site index (ratio estimator), variance is:

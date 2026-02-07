@@ -125,6 +125,7 @@ class DuckDBBackend(DatabaseBackend):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         start_time = time.time()
 
@@ -133,9 +134,9 @@ class DuckDBBackend(DatabaseBackend):
                 # DuckDB uses $parameter_name syntax
                 for key, value in params.items():
                     query = query.replace(f":{key}", f"${key}")
-                result = self._connection.execute(query, params)  # type: ignore[union-attr]
+                result = self._connection.execute(query, params)
             else:
-                result = self._connection.execute(query)  # type: ignore[union-attr]
+                result = self._connection.execute(query)
 
             # Native DuckDB to Polars conversion
             df: pl.DataFrame = result.pl()
@@ -173,14 +174,13 @@ class DuckDBBackend(DatabaseBackend):
 
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         # Validate table name to prevent SQL injection
         safe_table = validate_sql_identifier(table_name, "table name")
 
         try:
-            result = self._connection.execute(  # type: ignore[union-attr]
-                f'DESCRIBE "{safe_table}"'
-            ).fetchall()
+            result = self._connection.execute(f'DESCRIBE "{safe_table}"').fetchall()
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
             return schema
@@ -205,9 +205,10 @@ class DuckDBBackend(DatabaseBackend):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         try:
-            result = self._connection.execute(  # type: ignore[union-attr]
+            result = self._connection.execute(
                 "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
                 [table_name],
             ).fetchone()
@@ -231,14 +232,14 @@ class DuckDBBackend(DatabaseBackend):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         # Validate table name to prevent SQL injection
         safe_table = validate_sql_identifier(table_name, "table name")
 
         try:
-            return self._connection.execute(  # type: ignore[union-attr, no-any-return]
-                f'DESCRIBE "{safe_table}"'
-            ).fetchall()
+            result: list[tuple[Any, ...]] = self._connection.execute(f'DESCRIBE "{safe_table}"').fetchall()
+            return result
         except duckdb.Error as e:
             logger.error(f"Failed to describe table {table_name}: {e}")
             raise
@@ -401,12 +402,13 @@ class DuckDBBackend(DatabaseBackend):
 
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         try:
             # Install spatial extension (no-op if already installed)
-            self._connection.execute("INSTALL spatial")  # type: ignore[union-attr]
+            self._connection.execute("INSTALL spatial")
             # Load the extension
-            self._connection.execute("LOAD spatial")  # type: ignore[union-attr]
+            self._connection.execute("LOAD spatial")
             self._spatial_loaded = True
             logger.info("DuckDB spatial extension loaded successfully")
         except duckdb.Error as e:

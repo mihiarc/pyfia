@@ -118,7 +118,7 @@ class BiomassEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """Aggregate biomass with two-stage aggregation for correct per-acre estimates.
 
         CRITICAL FIX: This method implements two-stage aggregation following FIA
@@ -134,6 +134,13 @@ class BiomassEstimator(BaseEstimator):
             Bundle containing results, plot_tree_data, and group_cols for
             explicit variance calculation.
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Validate required columns using shared utility
         validate_required_columns(
             data, ["PLT_CN", "BIOMASS_ACRE", "CARBON_ACRE"], "biomass data"
@@ -146,7 +153,7 @@ class BiomassEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors
-        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
+        data_with_strat = apply_tree_adjustment_factors(
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
@@ -208,7 +215,7 @@ class BiomassEstimator(BaseEstimator):
 
     def calculate_variance(
         self,
-        agg_result: AggregationResult,  # type: ignore[override]
+        agg_result: AggregationResult,
     ) -> pl.DataFrame:
         """Calculate variance for biomass estimates using domain total variance formula.
 

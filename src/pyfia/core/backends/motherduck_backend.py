@@ -162,6 +162,7 @@ class MotherDuckBackend(DatabaseBackend):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         start_time = time.time()
 
@@ -170,9 +171,9 @@ class MotherDuckBackend(DatabaseBackend):
                 # DuckDB uses $parameter_name syntax
                 for key, value in params.items():
                     query = query.replace(f":{key}", f"${key}")
-                result = self._connection.execute(query, params)  # type: ignore[union-attr]
+                result = self._connection.execute(query, params)
             else:
-                result = self._connection.execute(query)  # type: ignore[union-attr]
+                result = self._connection.execute(query)
 
             # Native DuckDB to Polars conversion
             df: pl.DataFrame = result.pl()
@@ -232,13 +233,12 @@ class MotherDuckBackend(DatabaseBackend):
 
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         try:
             # Use qualified name for reference tables
             qualified_name = self._get_qualified_table_name(table_name)
-            result = self._connection.execute(  # type: ignore[union-attr]
-                f"DESCRIBE {qualified_name}"
-            ).fetchall()
+            result = self._connection.execute(f"DESCRIBE {qualified_name}").fetchall()
             schema = {row[0]: row[1] for row in result}
             self._schema_cache[table_name] = schema
             return schema
@@ -263,17 +263,18 @@ class MotherDuckBackend(DatabaseBackend):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         try:
             # For reference tables, check in the reference database
             if table_name in REFERENCE_TABLES:
-                result = self._connection.execute(  # type: ignore[union-attr]
+                result = self._connection.execute(
                     "SELECT COUNT(*) FROM information_schema.tables "
                     "WHERE table_catalog = ? AND table_name = ?",
                     [REFERENCE_DATABASE, table_name],
                 ).fetchone()
             else:
-                result = self._connection.execute(  # type: ignore[union-attr]
+                result = self._connection.execute(
                     "SELECT COUNT(*) FROM information_schema.tables WHERE table_name = ?",
                     [table_name],
                 ).fetchone()
@@ -297,13 +298,12 @@ class MotherDuckBackend(DatabaseBackend):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         try:
             # Use qualified name for reference tables
             qualified_name = self._get_qualified_table_name(table_name)
-            return self._connection.execute(  # type: ignore[union-attr, no-any-return]
-                f"DESCRIBE {qualified_name}"
-            ).fetchall()
+            return self._connection.execute(f"DESCRIBE {qualified_name}").fetchall()
         except duckdb.Error as e:
             logger.error(f"Failed to describe table {table_name}: {e}")
             raise

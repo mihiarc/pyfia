@@ -207,7 +207,7 @@ class AreaEstimator(BaseEstimator):
 
         return cols_to_select, group_cols
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """Aggregate area with stratification, preserving data for variance calculation.
 
         Returns
@@ -216,6 +216,13 @@ class AreaEstimator(BaseEstimator):
             Bundle containing results, plot_condition_data (as plot_tree_data field),
             and group_cols for explicit variance calculation.
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -223,7 +230,7 @@ class AreaEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply area adjustment factors based on PROP_BASIS
-        data_with_strat = apply_area_adjustment_factors(  # type: ignore[assignment]
+        data_with_strat = apply_area_adjustment_factors(
             data_with_strat, prop_basis_col="PROP_BASIS", output_col="ADJ_FACTOR_AREA"
         )
 
@@ -288,7 +295,7 @@ class AreaEstimator(BaseEstimator):
             group_cols=group_cols,
         )
 
-    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
         """Calculate variance for area estimates using domain total estimation formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation

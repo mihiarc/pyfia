@@ -60,4 +60,4 @@ def batch_query_by_values(
 
     if len(results) == 1:
         return results[0]
-    return pl.concat(results)
+    return pl.concat(results)  # type: ignore[type-var]

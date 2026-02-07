@@ -145,6 +145,120 @@ class DatabaseBackend(ABC):
         """
         pass
 
+    @abstractmethod
+    def is_cn_column(self, column_name: str) -> bool:
+        """
+        Check if a column is a CN (Control Number) field.
+
+        Parameters
+        ----------
+        column_name : str
+            Name of the column
+
+        Returns
+        -------
+        bool
+            True if the column is a CN field
+        """
+        pass
+
+    @abstractmethod
+    def is_string_column(self, table_name: str, column_name: str) -> bool:
+        """
+        Check if a column should be treated as a string.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
+
+        Returns
+        -------
+        bool
+            True if the column should be treated as a string
+        """
+        pass
+
+    @abstractmethod
+    def is_float_column(self, table_name: str, column_name: str) -> bool:
+        """
+        Check if a column should be treated as a floating point number.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
+
+        Returns
+        -------
+        bool
+            True if the column should be treated as a float
+        """
+        pass
+
+    @abstractmethod
+    def is_integer_column(self, table_name: str, column_name: str) -> bool:
+        """
+        Check if a column should be treated as an integer.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        column_name : str
+            Name of the column
+
+        Returns
+        -------
+        bool
+            True if the column should be treated as an integer
+        """
+        pass
+
+    @abstractmethod
+    def build_select_clause(
+        self, table_name: str, columns: list[str] | None = None
+    ) -> str:
+        """
+        Build SELECT clause with appropriate type casting.
+
+        Parameters
+        ----------
+        table_name : str
+            Name of the table
+        columns : list[str] | None
+            Optional list of columns to select
+
+        Returns
+        -------
+        str
+            SELECT clause with type casting
+        """
+        pass
+
+    @abstractmethod
+    def read_dataframe(self, query: str, **kwargs: Any) -> pl.DataFrame:
+        """
+        Execute query and return results as DataFrame.
+
+        Parameters
+        ----------
+        query : str
+            SQL query to execute
+        **kwargs : Any
+            Additional arguments
+
+        Returns
+        -------
+        pl.DataFrame
+            Polars DataFrame with results
+        """
+        pass
+
     def read_table(
         self,
         table_name: str,
@@ -210,14 +324,15 @@ class DatabaseBackend(ABC):
         """
         if not self._connection:
             self.connect()
+        assert self._connection is not None
 
         try:
             yield
             if hasattr(self._connection, "commit"):
-                self._connection.commit()  # type: ignore[union-attr]
+                self._connection.commit()
         except Exception:
             if hasattr(self._connection, "rollback"):
-                self._connection.rollback()  # type: ignore[union-attr]
+                self._connection.rollback()
             raise
 
     def __enter__(self) -> "DatabaseBackend":

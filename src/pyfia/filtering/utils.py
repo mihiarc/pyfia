@@ -9,7 +9,7 @@ This module consolidates all utility functionality including:
 
 from __future__ import annotations
 
-from typing import Literal, Set
+from typing import Literal
 
 import polars as pl
 
@@ -199,7 +199,7 @@ class ColumnValidator:
     def ensure_columns(
         cls,
         df: pl.DataFrame,
-        columns: list[str] | dict[str, pl.DataType],
+        columns: list[str] | dict[str, pl.DataType | None],
         fill_value=None,
         context: str | None = None,
     ) -> pl.DataFrame:
@@ -232,7 +232,7 @@ class ColumnValidator:
         ... )
         """
         if isinstance(columns, list):
-            columns = {col: None for col in columns}  # type: ignore[misc]
+            columns = {col: None for col in columns}
 
         for col_name, dtype in columns.items():
             if col_name not in df.columns:
@@ -411,7 +411,7 @@ def check_columns(
 
 def ensure_columns(
     df: pl.DataFrame,
-    columns: list[str] | dict[str, pl.DataType],
+    columns: list[str] | dict[str, pl.DataType | None],
     fill_value=None,
 ) -> pl.DataFrame:
     """
@@ -836,8 +836,7 @@ def setup_grouping_columns(
         group_cols.append("LAND_TYPE")
 
     # Remove duplicates while preserving order
-    seen: Set[str] = set()
-    group_cols = [x for x in group_cols if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
+    group_cols = list(dict.fromkeys(group_cols))
 
     return df, group_cols
 
@@ -1023,8 +1022,7 @@ def prepare_plot_groups(
         final_groups.extend(additional_groups)
 
     # Remove duplicates while preserving order
-    seen: Set[str] = set()
-    final_groups = [x for x in final_groups if not (x in seen or seen.add(x))]  # type: ignore[func-returns-value]
+    final_groups = list(dict.fromkeys(final_groups))
 
     return final_groups
 

@@ -401,7 +401,7 @@ class GrowthEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """Aggregate growth with two-stage aggregation.
 
         Returns
@@ -410,6 +410,13 @@ class GrowthEstimator(GRMBaseEstimator):
             Bundle containing results, plot_tree_data, and group_cols for
             explicit variance calculation.
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         from ..grm import apply_grm_adjustment
 
         # Apply GRM-specific adjustment factors
@@ -466,7 +473,7 @@ class GrowthEstimator(GRMBaseEstimator):
             group_cols=group_cols,
         )
 
-    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
         """Calculate variance for growth estimates using ratio-of-means formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation.

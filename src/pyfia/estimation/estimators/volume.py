@@ -104,7 +104,7 @@ class VolumeEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """Aggregate volume with two-stage aggregation for correct per-acre estimates.
 
         CRITICAL FIX: This method implements two-stage aggregation following FIA
@@ -120,6 +120,13 @@ class VolumeEstimator(BaseEstimator):
             Bundle containing results, plot_tree_data, and group_cols for
             explicit variance calculation.
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Get stratification data
         strat_data = self._get_stratification_data()
 
@@ -127,7 +134,7 @@ class VolumeEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors based on tree size
-        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
+        data_with_strat = apply_tree_adjustment_factors(
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
@@ -200,7 +207,7 @@ class VolumeEstimator(BaseEstimator):
 
     def calculate_variance(
         self,
-        agg_result: AggregationResult,  # type: ignore[override]
+        agg_result: AggregationResult,
     ) -> pl.DataFrame:
         """Calculate variance for volume estimates using domain total variance formula.
 

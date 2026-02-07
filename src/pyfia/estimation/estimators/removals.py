@@ -87,7 +87,7 @@ class RemovalsEstimator(GRMBaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> AggregationResult:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """Aggregate removals with two-stage aggregation.
 
         Returns
@@ -96,6 +96,13 @@ class RemovalsEstimator(GRMBaseEstimator):
             Bundle containing results, plot_tree_data, and group_cols for
             explicit variance calculation.
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Use shared GRM aggregation - returns AggregationResult
         agg_result = self._aggregate_grm_results(
             data,
@@ -120,7 +127,7 @@ class RemovalsEstimator(GRMBaseEstimator):
             group_cols=agg_result.group_cols,
         )
 
-    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:  # type: ignore[override]
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
         """Calculate variance for removals estimates using ratio-of-means formula.
 
         Implements Bechtold & Patterson (2005) stratified variance calculation.

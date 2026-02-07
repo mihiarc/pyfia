@@ -27,6 +27,8 @@ accurate expansion from sample plots to population estimates.
 
 from __future__ import annotations
 
+from typing import overload
+
 import polars as pl
 
 
@@ -85,6 +87,24 @@ def get_adjustment_factor_expr(
         .then(pl.col(adj_factor_subp_col))  # Subplot for medium trees
         .otherwise(pl.col(adj_factor_macr_col))  # Macroplot for large trees
     )
+
+
+@overload
+def apply_tree_adjustment_factors(
+    data: pl.DataFrame,
+    size_col: str = ...,
+    macro_breakpoint_col: str = ...,
+    output_col: str = ...,
+) -> pl.DataFrame: ...
+
+
+@overload
+def apply_tree_adjustment_factors(
+    data: pl.LazyFrame,
+    size_col: str = ...,
+    macro_breakpoint_col: str = ...,
+    output_col: str = ...,
+) -> pl.LazyFrame: ...
 
 
 def apply_tree_adjustment_factors(
@@ -334,6 +354,22 @@ def get_area_adjustment_factor_expr(
         .then(pl.col(adj_factor_macr_col))  # Macroplot conditions
         .otherwise(pl.col(adj_factor_subp_col))  # Subplot conditions (default)
     )
+
+
+@overload
+def apply_area_adjustment_factors(
+    data: pl.DataFrame,
+    prop_basis_col: str = ...,
+    output_col: str = ...,
+) -> pl.DataFrame: ...
+
+
+@overload
+def apply_area_adjustment_factors(
+    data: pl.LazyFrame,
+    prop_basis_col: str = ...,
+    output_col: str = ...,
+) -> pl.LazyFrame: ...
 
 
 def apply_area_adjustment_factors(

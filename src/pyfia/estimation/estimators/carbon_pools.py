@@ -18,7 +18,7 @@ from __future__ import annotations
 import polars as pl
 
 from ...core import FIA
-from ..base import BaseEstimator
+from ..base import AggregationResult, BaseEstimator
 from ..constants import LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import validate_required_columns
@@ -55,10 +55,8 @@ class CarbonPoolEstimator(BaseEstimator):
     """
 
     def __init__(self, db: str | FIA, config: dict) -> None:
-        """Initialize with storage for variance calculation."""
+        """Initialize carbon pool estimator."""
         super().__init__(db, config)
-        self.plot_tree_data: pl.DataFrame | None = None
-        self.group_cols: list[str] | None = None
 
     def get_required_tables(self) -> list[str]:
         """Carbon estimation requires tree, condition, and stratification tables."""
@@ -138,7 +136,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
         return data
 
-    def aggregate_results(self, data: pl.LazyFrame) -> pl.DataFrame:  # type: ignore[override]
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """
         Aggregate carbon with two-stage aggregation for correct per-acre estimates.
 
@@ -146,6 +144,13 @@ class CarbonPoolEstimator(BaseEstimator):
         Stage 1: Aggregate trees to plot-condition level
         Stage 2: Apply expansion factors and calculate population totals
         """
+        if data is None:
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
+
         # Validate required columns using shared utility
         validate_required_columns(data, ["PLT_CN", "CARBON_ACRE"], "carbon data")
 
@@ -156,7 +161,7 @@ class CarbonPoolEstimator(BaseEstimator):
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
         # Apply adjustment factors based on tree DIA
-        data_with_strat = apply_tree_adjustment_factors(  # type: ignore[assignment]
+        data_with_strat = apply_tree_adjustment_factors(
             data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
         )
 
@@ -167,10 +172,9 @@ class CarbonPoolEstimator(BaseEstimator):
 
         # Setup grouping
         group_cols = self._setup_grouping()
-        self.group_cols = group_cols
 
         # CRITICAL: Store plot-tree level data for variance calculation
-        self.plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
+        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
             metric_cols=["CARBON_ADJ"],
             group_cols=group_cols,
@@ -193,9 +197,13 @@ class CarbonPoolEstimator(BaseEstimator):
             if cols_to_drop:
                 results = results.drop(cols_to_drop)
 
-        return results
+        return AggregationResult(
+            results=results,
+            plot_tree_data=plot_tree_data,
+            group_cols=group_cols,
+        )
 
-    def calculate_variance(self, results: pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
         """
         Calculate variance for carbon estimates using domain total variance formula.
 
@@ -212,7 +220,11 @@ class CarbonPoolEstimator(BaseEstimator):
         ValueError
             If plot_tree_data is not available for variance calculation.
         """
-        if self.plot_tree_data is None:
+        results = agg_result.results
+        plot_tree_data = agg_result.plot_tree_data
+        group_cols = agg_result.group_cols
+
+        if plot_tree_data is None or plot_tree_data.is_empty():
             raise ValueError(
                 "Plot-tree data is required for carbon variance calculation. "
                 "Cannot compute statistically valid standard errors without tree-level "
@@ -222,32 +234,30 @@ class CarbonPoolEstimator(BaseEstimator):
 
         # Step 1: Aggregate to plot-condition level
         plot_group_cols = ["PLT_CN", "CONDID", "EXPNS"]
-        if "STRATUM_CN" in self.plot_tree_data.columns:
+        if "STRATUM_CN" in plot_tree_data.columns:
             plot_group_cols.insert(2, "STRATUM_CN")
-        if "CONDPROP_UNADJ" in self.plot_tree_data.columns:
+        if "CONDPROP_UNADJ" in plot_tree_data.columns:
             plot_group_cols.append("CONDPROP_UNADJ")
 
         # Add grouping columns
-        if self.group_cols:
-            for col in self.group_cols:
-                if col in self.plot_tree_data.columns and col not in plot_group_cols:
+        if group_cols:
+            for col in group_cols:
+                if col in plot_tree_data.columns and col not in plot_group_cols:
                     plot_group_cols.append(col)
 
         plot_cond_agg = [
             pl.sum("CARBON_ADJ").alias("y_carb_ic"),  # Carbon per condition
         ]
 
-        plot_cond_data = self.plot_tree_data.group_by(plot_group_cols).agg(
-            plot_cond_agg
-        )
+        plot_cond_data = plot_tree_data.group_by(plot_group_cols).agg(plot_cond_agg)
 
         # Step 2: Aggregate to plot level
         plot_level_cols = ["PLT_CN", "EXPNS"]
         if "STRATUM_CN" in plot_cond_data.columns:
             plot_level_cols.insert(1, "STRATUM_CN")
-        if self.group_cols:
+        if group_cols:
             plot_level_cols.extend(
-                [c for c in self.group_cols if c in plot_cond_data.columns]
+                [c for c in group_cols if c in plot_cond_data.columns]
             )
 
         # Include CONDPROP_UNADJ for correct area proportion (x_i)
@@ -272,14 +282,14 @@ class CarbonPoolEstimator(BaseEstimator):
         all_plots = strat_data.select(select_cols).unique().collect()
 
         # Step 4: Calculate variance using ratio-of-means
-        if self.group_cols:
+        if group_cols:
             variance_results = []
 
             for group_vals in results.iter_rows():
                 group_filter = pl.lit(True)
                 group_dict = {}
 
-                for i, col in enumerate(self.group_cols):
+                for i, col in enumerate(group_cols):
                     if col in plot_data.columns:
                         group_dict[col] = group_vals[results.columns.index(col)]
                         group_filter = group_filter & (
@@ -321,7 +331,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=self.group_cols, how="left")
+                results = results.join(var_df, on=group_cols, how="left")
         else:
             # No grouping, calculate overall variance with ALL plots
             all_plots_with_values = all_plots.join(

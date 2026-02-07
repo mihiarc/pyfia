@@ -30,6 +30,8 @@ class FIADataReader:
     - Automatic database type detection
     """
 
+    db_path: str | Path
+
     def __init__(
         self, db_path: str | Path, engine: str | None = None, **backend_kwargs
     ):
@@ -56,7 +58,7 @@ class FIADataReader:
         )
 
         if self._is_motherduck:
-            self.db_path = db_str  # type: ignore[assignment]
+            self.db_path = db_str
         else:
             self.db_path = Path(db_path)
             if not self.db_path.exists():
@@ -114,7 +116,7 @@ class FIADataReader:
         bool
             True if the column is a CN field.
         """
-        return self._backend.is_cn_column(column_name)  # type: ignore[attr-defined, no-any-return]
+        return self._backend.is_cn_column(column_name)
 
     def _is_string_column(self, table_name: str, column_name: str) -> bool:
         """
@@ -132,7 +134,7 @@ class FIADataReader:
         bool
             True if the column should be treated as a string.
         """
-        return self._backend.is_string_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
+        return self._backend.is_string_column(table_name, column_name)
 
     def _is_float_column(self, table_name: str, column_name: str) -> bool:
         """
@@ -150,7 +152,7 @@ class FIADataReader:
         bool
             True if the column should be treated as a float.
         """
-        return self._backend.is_float_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
+        return self._backend.is_float_column(table_name, column_name)
 
     def _is_integer_column(self, table_name: str, column_name: str) -> bool:
         """
@@ -168,7 +170,7 @@ class FIADataReader:
         bool
             True if the column should be treated as an integer.
         """
-        return self._backend.is_integer_column(table_name, column_name)  # type: ignore[attr-defined, no-any-return]
+        return self._backend.is_integer_column(table_name, column_name)
 
     def supports_spatial(self) -> bool:
         """
@@ -234,7 +236,7 @@ class FIADataReader:
         str
             SELECT clause with type casting.
         """
-        return self._backend.build_select_clause(table_name, columns)  # type: ignore[attr-defined, no-any-return]
+        return self._backend.build_select_clause(table_name, columns)
 
     @overload
     def read_table(
@@ -290,7 +292,7 @@ class FIADataReader:
             query += f" WHERE {where}"
 
         # Execute query using backend
-        df: pl.DataFrame = self._backend.read_dataframe(query)  # type: ignore[attr-defined]
+        df: pl.DataFrame = self._backend.read_dataframe(query)
 
         # Post-process to convert types
         for col in df.columns:

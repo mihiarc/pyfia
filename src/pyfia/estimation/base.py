@@ -206,15 +206,12 @@ class BaseEstimator(ABC):
 
         return data
 
-    def aggregate_results(
-        self, data: pl.LazyFrame | None
-    ) -> AggregationResult | pl.DataFrame:
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
         """
         Aggregate results with stratification.
 
         Subclasses should override this to return AggregationResult for proper
-        variance calculation. The base implementation returns a DataFrame for
-        backward compatibility.
+        variance calculation.
 
         Parameters
         ----------
@@ -223,16 +220,20 @@ class BaseEstimator(ABC):
 
         Returns
         -------
-        AggregationResult | pl.DataFrame
-            AggregationResult with results, plot_tree_data, and group_cols,
-            or DataFrame for backward compatibility
+        AggregationResult
+            AggregationResult with results, plot_tree_data, and group_cols
         """
         # Get stratification data
         strat_data = self._get_stratification_data()
 
         if data is None:
             # Area-only estimation
-            return self._aggregate_area_only(strat_data)
+            results = self._aggregate_area_only(strat_data)
+            return AggregationResult(
+                results=results,
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
 
         # Join with stratification
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
@@ -260,20 +261,21 @@ class BaseEstimator(ABC):
                 ]
             ).collect()
 
-        return results
+        return AggregationResult(
+            results=results,
+            plot_tree_data=pl.DataFrame(),
+            group_cols=group_cols,
+        )
 
-    def calculate_variance(
-        self, agg_result: AggregationResult | pl.DataFrame
-    ) -> pl.DataFrame:
+    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
         """
         Calculate variance for estimates.
 
         Parameters
         ----------
-        agg_result : AggregationResult | pl.DataFrame
-            Either an AggregationResult containing results, plot_tree_data,
-            and group_cols for explicit data passing, or a DataFrame for
-            backward compatibility with subclasses that haven't been updated.
+        agg_result : AggregationResult
+            AggregationResult containing results, plot_tree_data,
+            and group_cols for explicit data passing.
 
         Returns
         -------

@@ -239,7 +239,7 @@ def _scalar_flux(
     net_total = growth_c - mort_c - remv_c
     net_acre = net_total / forest_area if forest_area > 0 else 0.0
 
-    result = {
+    result: dict[str, list[float | int | None]] = {
         "NET_CARBON_FLUX_ACRE": [net_acre],
         "AREA_TOTAL": [forest_area],
     }
@@ -266,10 +266,10 @@ def _scalar_flux(
             cv_value: float | None = (
                 abs(acre_se / net_acre) * 100 if net_acre != 0 else None
             )
-            result["NET_CARBON_FLUX_CV"] = [cv_value]  # type: ignore[list-item]
+            result["NET_CARBON_FLUX_CV"] = [cv_value]
         else:
-            result["NET_CARBON_FLUX_ACRE_SE"] = [None]  # type: ignore[list-item]
-            result["NET_CARBON_FLUX_CV"] = [None]  # type: ignore[list-item]
+            result["NET_CARBON_FLUX_ACRE_SE"] = [None]
+            result["NET_CARBON_FLUX_CV"] = [None]
 
     if include_components:
         result["GROWTH_CARBON_TOTAL"] = [growth_c]

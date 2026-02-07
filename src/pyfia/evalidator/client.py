@@ -9,6 +9,7 @@ Reference: https://apps.fs.usda.gov/fiadb-api/
 
 from __future__ import annotations
 
+import json
 import logging
 import random
 import time
@@ -149,7 +150,7 @@ class EVALIDatorClient:
 
                 # Handle empty responses (server returns 200 but no content)
                 if not response.content or not response.content.strip():
-                    raise requests.exceptions.JSONDecodeError(
+                    raise json.JSONDecodeError(
                         "Empty response from EVALIDator API",
                         doc="",
                         pos=0,
@@ -167,7 +168,7 @@ class EVALIDatorClient:
             except (
                 requests.exceptions.ConnectionError,
                 requests.exceptions.Timeout,
-                requests.exceptions.JSONDecodeError,
+                json.JSONDecodeError,
             ) as e:
                 last_exception = e
                 if attempt < self.max_retries:

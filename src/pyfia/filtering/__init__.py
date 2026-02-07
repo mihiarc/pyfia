@@ -29,7 +29,6 @@ from .utils import (
     add_forest_type_group,
     add_ownership_group_name,
     add_species_info,
-    assign_forest_type_group,
     assign_size_class,
     assign_species_group,
     assign_tree_basis,
@@ -63,7 +62,6 @@ __all__ = [
     # Classification
     "assign_tree_basis",
     "assign_size_class",
-    "assign_forest_type_group",
     "assign_species_group",
     # Validation
     "ColumnValidator",

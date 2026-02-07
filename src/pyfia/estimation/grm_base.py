@@ -102,11 +102,13 @@ class GRMBaseEstimator(BaseEstimator):
 
         Uses centralized column resolution from columns.py to reduce duplication.
         GRM estimation needs additional columns for filtering and grouping.
+        Also includes columns referenced in area_domain for proper filtering.
         """
         base_cols = _get_cond_columns(
             land_type=self.config.get("land_type", "forest"),
             grp_by=self.config.get("grp_by"),
             include_prop_basis=False,
+            area_domain=self.config.get("area_domain"),
         )
 
         # GRM estimation needs these columns for aggregate_cond_to_plot()

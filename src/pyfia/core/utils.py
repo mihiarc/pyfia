@@ -58,4 +58,9 @@ def batch_query_by_values(
 
     if len(results) == 1:
         return results[0]
-    return pl.concat(results)
+    # Ensure consistent types for concat - collect LazyFrames if any exist
+    first_is_lazy = isinstance(results[0], pl.LazyFrame)
+    if first_is_lazy:
+        return pl.concat([r if isinstance(r, pl.LazyFrame) else r.lazy() for r in results])
+    else:
+        return pl.concat([r.collect() if isinstance(r, pl.LazyFrame) else r for r in results])

@@ -147,11 +147,7 @@ class EVALIDatorClient:
 
                 # Handle empty responses (server returns 200 but no content)
                 if not response.content or not response.content.strip():
-                    raise requests.exceptions.JSONDecodeError(
-                        "Empty response from EVALIDator API",
-                        doc="",
-                        pos=0,
-                    )
+                    raise ValueError("Empty response from EVALIDator API")
 
                 data = response.json()
 

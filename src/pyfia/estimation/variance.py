@@ -14,6 +14,11 @@ Where:
 - s²_yh is the sample variance within stratum h (with ddof=1)
 - n_h is the number of plots in stratum h
 
+This is algebraically equivalent to the textbook form in Bechtold &
+Patterson (2005): V(Ŷ_d) = Σ_h (N_h² / n_h) × s²_yh, because
+W_h = N_h / n_h (EXPNS = total stratum acres / plots in stratum),
+so W_h² × n_h = (N_h/n_h)² × n_h = N_h²/n_h.
+
 This is the variance formula used by EVALIDator for tree-based estimates
 (volume, biomass, TPA, GRM) and produces SE estimates within 1-3% of
 EVALIDator output.

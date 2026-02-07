@@ -1,20 +1,81 @@
 """
-Example: Accessing Plot-Level Data from FIA Database.
+Accessing Raw Plot-Level Data from FIA
+======================================
 
-This example demonstrates how to retrieve raw plot-level data from pyFIA,
-including site index, location coordinates, and stand attributes. This is
-useful for:
+This example demonstrates how to retrieve raw plot-level data from pyFIA
+for custom analyses beyond the standard estimation functions.
 
-- Building predictive models with FIA plot data
-- Spatial analysis and mapping
-- Linking FIA data with external datasets (climate, soils, etc.)
-- Custom analyses beyond the standard estimation functions
+When to Use This Approach
+-------------------------
+Use direct data access when you need to:
 
-Key Concepts:
-- PLOT table: Contains location (LAT, LON), elevation, inventory year
-- COND table: Contains stand-level attributes (site index, forest type, age)
-- A single plot can have multiple conditions (stands)
-- Site index is a condition-level (stand) variable, not plot-level
+- Build predictive models (ML/statistics) with FIA plot data
+- Create maps or perform spatial analysis
+- Link FIA data with external datasets (climate, soils, remote sensing)
+- Perform custom analyses not covered by estimation functions
+- Export data for use in other tools (R, GIS, etc.)
+
+Understanding FIA Data Structure
+--------------------------------
+FIA uses a hierarchical data model:
+
+    PLOT (1 per location)
+      |
+      +-- COND (1+ per plot, represents different "conditions" or stands)
+      |     |
+      |     +-- Forest type, ownership, site index, etc.
+      |
+      +-- TREE (many per plot)
+            |
+            +-- Species, diameter, height, volume, etc.
+
+Key insight: A single plot can have MULTIPLE conditions. For example,
+a plot might be 60% pine plantation and 40% hardwood. Each condition
+has its own site index, forest type, and ownership.
+
+Key Tables and Columns
+----------------------
+PLOT table (location information):
+    - CN: Unique plot identifier
+    - LAT, LON: Coordinates (fuzzed for privacy)
+    - ELEV: Elevation in feet
+    - INVYR: Inventory year
+    - COUNTYCD: County FIPS code
+
+COND table (stand attributes - one row per condition):
+    - PLT_CN: Links to PLOT.CN
+    - CONDID: Condition number (1, 2, 3...)
+    - SICOND: Site index (height at base age)
+    - SIBASE: Base age for site index (25 or 50 years)
+    - SISP: Species code used for site index
+    - FORTYPCD: Forest type code
+    - STDAGE: Stand age
+    - OWNGRPCD: Ownership group code
+    - CONDPROP_UNADJ: Proportion of plot in this condition
+
+TREE table (individual trees):
+    - PLT_CN: Links to PLOT.CN
+    - SPCD: Species code
+    - DIA: Diameter at breast height (inches)
+    - HT: Total height (feet)
+    - VOLCFNET: Net cubic foot volume
+    - DRYBIO_AG: Aboveground dry biomass (pounds)
+
+Usage
+-----
+    # Default: uses NC data from ~/.pyfia/
+    uv run python examples/plot_data_access.py
+
+    # With custom database
+    uv run python examples/plot_data_access.py /path/to/state.duckdb
+
+Functions Provided
+------------------
+- get_plot_locations(): Basic plot coordinates
+- get_site_index_by_condition(): Site index at condition level
+- get_site_index_with_location(): Conditions joined with plot locations
+- get_weighted_site_index_by_plot(): Area-weighted site index per plot
+- get_tree_data_by_plot(): Tree data with plot locations
 """
 
 from pyfia import FIA
@@ -24,6 +85,9 @@ import polars as pl
 def get_plot_locations(db_path: str, state_fips: int) -> pl.DataFrame:
     """
     Retrieve plot locations with basic attributes.
+
+    This is the simplest form of data access - just plot coordinates
+    and identifiers. Useful for mapping or as a starting point for joins.
 
     Parameters
     ----------
@@ -36,6 +100,11 @@ def get_plot_locations(db_path: str, state_fips: int) -> pl.DataFrame:
     -------
     pl.DataFrame
         Plot data with CN, LAT, LON, ELEV, INVYR, COUNTYCD.
+
+    Example
+    -------
+    >>> plots = get_plot_locations("data/nc.duckdb", 37)
+    >>> print(plots.head())
     """
     db = FIA(db_path)
     db.clip_by_state(state_fips)
@@ -52,8 +121,12 @@ def get_site_index_by_condition(db_path: str, state_fips: int) -> pl.DataFrame:
     """
     Retrieve site index data at the condition (stand) level.
 
-    Site index is measured per condition, not per plot. A plot can have
-    multiple conditions if it contains different forest types or ownerships.
+    Site index is a measure of site productivity - the expected height
+    of dominant trees at a base age (typically 25 or 50 years). Higher
+    site index = more productive site.
+
+    IMPORTANT: Site index is measured per CONDITION, not per plot.
+    A plot can have multiple conditions with different site indices.
 
     Parameters
     ----------
@@ -67,13 +140,18 @@ def get_site_index_by_condition(db_path: str, state_fips: int) -> pl.DataFrame:
     pl.DataFrame
         Condition data with site index and related attributes.
 
-    Notes
-    -----
-    Key columns:
+    Key Columns
+    -----------
     - SICOND: Site index for the condition (feet at base age)
     - SIBASE: Base age for site index (typically 25 or 50 years)
     - SISP: Species code used for site index determination
     - CONDPROP_UNADJ: Proportion of plot area in this condition
+
+    Example
+    -------
+    >>> conds = get_site_index_by_condition("data/nc.duckdb", 37)
+    >>> # Filter to valid site index values
+    >>> valid = conds.filter(pl.col("SICOND").is_not_null())
     """
     db = FIA(db_path)
     db.clip_by_state(state_fips)
@@ -98,7 +176,8 @@ def get_site_index_with_location(db_path: str, state_fips: int) -> pl.DataFrame:
     Join site index data with plot locations.
 
     Returns one row per condition, with both stand attributes and
-    plot location information.
+    plot location information. Useful for spatial analysis of site
+    productivity.
 
     Parameters
     ----------
@@ -111,6 +190,12 @@ def get_site_index_with_location(db_path: str, state_fips: int) -> pl.DataFrame:
     -------
     pl.DataFrame
         Combined plot location and condition site index data.
+
+    Example
+    -------
+    >>> data = get_site_index_with_location("data/nc.duckdb", 37)
+    >>> # Export for GIS analysis
+    >>> data.write_csv("site_index_locations.csv")
     """
     db = FIA(db_path)
     db.clip_by_state(state_fips)
@@ -152,6 +237,16 @@ def get_weighted_site_index_by_plot(db_path: str, state_fips: int) -> pl.DataFra
     this function computes a weighted average based on condition proportions.
     This provides a single representative site index per plot location.
 
+    The Formula
+    -----------
+    weighted_SI = sum(SICOND * CONDPROP_UNADJ) / sum(CONDPROP_UNADJ)
+
+    For example, if a plot is:
+    - 60% pine plantation with SI=80
+    - 40% hardwood with SI=70
+
+    Then: weighted_SI = (80*0.6 + 70*0.4) / (0.6 + 0.4) = 76
+
     Parameters
     ----------
     db_path : str
@@ -162,15 +257,17 @@ def get_weighted_site_index_by_plot(db_path: str, state_fips: int) -> pl.DataFra
     Returns
     -------
     pl.DataFrame
-        One row per plot with weighted site index and location.
+        One row per plot with:
+        - weighted_SICOND: Area-weighted site index
+        - dominant_SISP: Site index species from largest condition
+        - dominant_FORTYPCD: Forest type from largest condition
+        - n_conditions: Number of conditions contributing to average
 
-    Notes
-    -----
-    The weighted average formula is:
-        weighted_SI = sum(SICOND * CONDPROP_UNADJ) / sum(CONDPROP_UNADJ)
-
-    Only conditions with valid (non-null) site index values are included.
-    The dominant site index species (SISP) is taken from the largest condition.
+    Example
+    -------
+    >>> weighted = get_weighted_site_index_by_plot("data/nc.duckdb", 37)
+    >>> # Find high-productivity sites
+    >>> high_si = weighted.filter(pl.col("weighted_SICOND") > 90)
     """
     db = FIA(db_path)
     db.clip_by_state(state_fips)
@@ -236,6 +333,10 @@ def get_tree_data_by_plot(db_path: str, state_fips: int) -> pl.DataFrame:
     """
     Retrieve tree-level data with plot locations.
 
+    Returns individual tree measurements joined with their plot
+    coordinates. Useful for species distribution modeling or
+    tree-level analyses.
+
     Parameters
     ----------
     db_path : str
@@ -247,6 +348,23 @@ def get_tree_data_by_plot(db_path: str, state_fips: int) -> pl.DataFrame:
     -------
     pl.DataFrame
         Tree data joined with plot locations.
+
+    Key Tree Columns
+    ----------------
+    - SPCD: Species code
+    - DIA: Diameter at breast height (inches)
+    - HT: Total height (feet)
+    - STATUSCD: 1=live, 2=dead
+    - VOLCFNET: Net cubic foot volume
+    - DRYBIO_AG: Aboveground dry biomass (pounds)
+
+    Example
+    -------
+    >>> trees = get_tree_data_by_plot("data/nc.duckdb", 37)
+    >>> # Filter to live loblolly pine
+    >>> loblolly = trees.filter(
+    ...     (pl.col("SPCD") == 131) & (pl.col("STATUSCD") == 1)
+    ... )
     """
     db = FIA(db_path)
     db.clip_by_state(state_fips)

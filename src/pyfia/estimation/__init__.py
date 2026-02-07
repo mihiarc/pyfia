@@ -49,7 +49,7 @@ from .estimators import (
     volume,
 )
 
-__version__ = "2.0.0"
+__version__ = "1.3.0"
 
 # Only expose user-facing estimator functions
 __all__ = [

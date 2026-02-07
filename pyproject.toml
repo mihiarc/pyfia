@@ -157,6 +157,7 @@ addopts = [
     "--import-mode=importlib",
     "--strict-markers",
     "-v",
+    "-m", "not slow and not network",
 ]
 markers = [
     "unit: Fast, isolated unit tests (no external dependencies)",

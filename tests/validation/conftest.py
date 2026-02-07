@@ -118,11 +118,13 @@ SE_TOLERANCE_GRM = 0.05  # 5% tolerance for GRM estimates (growth, mortality, re
 
 
 def pytest_collection_modifyitems(items):
-    """Mark all tests in this directory as validation tests."""
+    """Mark tests in this directory as validation tests."""
+    validation_dir = Path(__file__).parent
     for item in items:
-        item.add_marker(pytest.mark.validation)
-        item.add_marker(pytest.mark.network)
-        item.add_marker(pytest.mark.slow)
+        if validation_dir in item.path.parents:
+            item.add_marker(pytest.mark.validation)
+            item.add_marker(pytest.mark.network)
+            item.add_marker(pytest.mark.slow)
 
 
 # =============================================================================

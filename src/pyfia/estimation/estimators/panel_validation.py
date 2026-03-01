@@ -72,7 +72,7 @@ def compare_panel_to_removals(
     measure: Literal["tpa", "volume"] = "tpa",
     min_invyr: int = 2000,
     verbose: bool = True,
-    expand: bool = False,
+    expand: bool = True,
 ) -> pl.DataFrame:
     """
     Compare panel-identified removals to removals() estimates.
@@ -101,9 +101,9 @@ def compare_panel_to_removals(
     verbose : bool
         Print detailed comparison table using rich
     expand : bool
-        If True, use proper per-acre expansion (ADJ_FACTOR × EXPNS) from panel().
-        This should produce results closely matching removals() (ratio ~1.0).
-        If False (default), use raw TPA_UNADJ values without expansion.
+        If True (default), use proper per-acre expansion (ADJ_FACTOR × EXPNS)
+        from panel(). This produces results closely matching removals() (ratio ~1.0).
+        If False, use raw TPA_UNADJ values without expansion.
 
     Returns
     -------
@@ -263,14 +263,14 @@ def compare_panel_to_removals(
                                 pl.col("REMPER").mean().alias("AVG_REMPER"),
                             ]
                         )
-                    # Per-acre per-year estimate:
+                    # Per-acre estimate:
                     # sum(TPA_UNADJ) gives total expansion
-                    # Divide by REMPER for annualization
+                    # TPA_UNADJ is already annualized (per removals.py:58)
                     # Divide by n_plots for per-plot (≈per-acre) average
                     panel_agg = panel_agg.with_columns(
                         [
                             (
-                                pl.col("PANEL_TPA_SUM") / pl.col("AVG_REMPER") / n_plots
+                                pl.col("PANEL_TPA_SUM") / n_plots
                             ).alias("PANEL_ANNUALIZED")
                         ]
                     )
@@ -340,9 +340,11 @@ def compare_panel_to_removals(
                                 pl.col("REMPER").mean().alias("AVG_REMPER"),
                             ]
                         )
+                    # TPA_UNADJ is already annualized (per removals.py:58)
+                    # Divide by n_plots for per-plot (≈per-acre) average
                     panel_agg = panel_agg.with_columns(
                         [
-                            (pl.col("PANEL_VOL_SUM") / pl.col("AVG_REMPER")).alias(
+                            (pl.col("PANEL_VOL_SUM") / n_plots).alias(
                                 "PANEL_ANNUALIZED"
                             )
                         ]
@@ -703,7 +705,7 @@ def validate_panel_harvest(
     db: str | FIA,
     tolerance_ratio: float = 0.8,
     verbose: bool = True,
-    expand: bool = False,
+    expand: bool = True,
 ) -> bool:
     """
     Validate that panel harvest detection is consistent with removals.
@@ -720,9 +722,9 @@ def validate_panel_harvest(
     verbose : bool
         Print validation details
     expand : bool
-        If True, use proper per-acre expansion from panel().
-        This should produce a ratio close to 1.0.
-        If False (default), use raw TPA_UNADJ values.
+        If True (default), use proper per-acre expansion from panel().
+        This produces a ratio close to 1.0.
+        If False, use raw TPA_UNADJ values.
 
     Returns
     -------

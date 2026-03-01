@@ -46,12 +46,14 @@ class TestPanelRemovalsConsistency:
             measure="tpa",
             tree_type="gs",
             land_type="forest",
+            expand=True,
             verbose=True,
         )
 
         panel_count = comparison["PANEL_CUT_TREES"][0]
         panel_estimate = comparison["PANEL_ANNUALIZED"][0]
         removals_estimate = comparison["REMOVALS_ESTIMATE"][0]
+        ratio = comparison["RATIO"][0]
 
         # Panel should find cut/diversion trees
         assert panel_count > 0, (
@@ -68,11 +70,18 @@ class TestPanelRemovalsConsistency:
             f"Removals found no trees. Check GRM data availability."
         )
 
+        # With expansion, panel and removals should agree within 5%
+        assert 0.95 <= ratio <= 1.05, (
+            f"Panel/removals ratio {ratio:.2f} outside acceptable range (0.95-1.05). "
+            f"Panel: {panel_estimate:.2f}, Removals: {removals_estimate:.2f}"
+        )
+
         # Report the comparison for diagnostic purposes
         print(
             f"\nPanel found {panel_count:,} cut/diversion trees"
-            f"\nPanel annualized: {panel_estimate:.2f} TPA per plot per year"
+            f"\nPanel annualized: {panel_estimate:.2f} TPA per acre per year"
             f"\nRemovals estimate: {removals_estimate:.2f} TPA per acre per year"
+            f"\nRatio: {ratio:.2f}"
         )
 
     def test_panel_vs_removals_volume(self, fia_db):
@@ -90,27 +99,38 @@ class TestPanelRemovalsConsistency:
             measure="volume",
             tree_type="gs",
             land_type="forest",
+            expand=True,
             verbose=True,
         )
 
         panel_count = comparison["PANEL_CUT_TREES"][0]
         panel_estimate = comparison["PANEL_ANNUALIZED"][0]
+        removals_estimate = comparison["REMOVALS_ESTIMATE"][0]
+        ratio = comparison["RATIO"][0]
 
         # Panel should find trees
         assert panel_count > 0, (
             f"Panel found no cut trees for volume analysis."
         )
 
-        # Volume should be positive (or at least non-negative if no VOLCFNET)
-        assert panel_estimate >= 0, (
-            f"Panel found negative volume for cut trees. "
+        # Volume should be positive
+        assert panel_estimate > 0, (
+            f"Panel found zero/negative volume for cut trees. "
             f"Check that volume columns are available in panel data."
+        )
+
+        # With expansion, panel and removals should agree within 5%
+        assert 0.95 <= ratio <= 1.05, (
+            f"Volume ratio {ratio:.2f} outside acceptable range (0.95-1.05). "
+            f"Panel: {panel_estimate:.2f}, Removals: {removals_estimate:.2f}"
         )
 
         # Report the comparison
         print(
             f"\nPanel found {panel_count:,} cut/diversion trees"
-            f"\nPanel annualized volume: {panel_estimate:.2f} cuft per plot per year"
+            f"\nPanel annualized volume: {panel_estimate:.2f} cuft per acre per year"
+            f"\nRemovals volume: {removals_estimate:.2f} cuft per acre per year"
+            f"\nRatio: {ratio:.2f}"
         )
 
     def test_tree_fate_categories(self, fia_db):
@@ -159,14 +179,12 @@ class TestPanelRemovalsConsistency:
     def test_validate_panel_harvest(self, fia_db):
         """Run the simple validation check.
 
-        Note: Due to methodological differences between panel and removals,
-        this test uses a lower tolerance. The key validation is that panel
-        produces positive estimates using the same GRM components.
+        Both panel (with expand=True) and removals use the same GRM data
+        and stratified estimation, so they should produce similar estimates.
         """
-        # Use lower tolerance since panel doesn't use full stratified estimation
         result = validate_panel_harvest(
             fia_db,
-            tolerance_ratio=0.01,  # Just check that it's non-zero
+            tolerance_ratio=0.95,  # Panel should be within 5% of removals
             verbose=True,
         )
 
@@ -197,8 +215,8 @@ class TestPanelRemovalsConsistency:
         assert panel_estimate > 0, f"Panel estimate is zero or negative: {panel_estimate}"
         assert removals_estimate > 0, f"Removals estimate is zero or negative: {removals_estimate}"
 
-        # With expansion, ratio should be close to 1.0 (within 20%)
-        assert 0.8 <= ratio <= 1.2, (
+        # With expansion, ratio should be close to 1.0 (within 5%)
+        assert 0.95 <= ratio <= 1.05, (
             f"Expected ratio ~1.0 with expansion, got {ratio:.2f}. "
             f"Panel: {panel_estimate:.2f}, Removals: {removals_estimate:.2f}"
         )

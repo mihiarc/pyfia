@@ -421,11 +421,13 @@ class PanelBuilder:
         midpt_cols = [c for c in midpt_cols if c in midpt_schema]
         grm_midpt = grm_midpt.select(midpt_cols)
 
-        # Join GRM_COMPONENT with GRM_MIDPT
+        # Join GRM_COMPONENT with GRM_MIDPT (inner join to match removals()
+        # behavior — trees without MIDPT data have no volume and should be
+        # excluded from both TPA and volume estimates for consistency)
         data = grm_data.join(
             grm_midpt,
             on="TRE_CN",
-            how="left",
+            how="inner",
         )
 
         # Load PLOT for remeasurement metadata
@@ -541,12 +543,20 @@ class PanelBuilder:
         if not isinstance(ppsa, pl.LazyFrame):
             ppsa = ppsa.lazy()
 
+        # Filter by EVALID to match base get_stratification_data() behavior
+        if self.db.evalid:
+            ppsa = ppsa.filter(pl.col("EVALID").is_in(self.db.evalid))
+
         ppsa = ppsa.select(["PLT_CN", "STRATUM_CN"])
 
         # Load POP_STRATUM
         pop_stratum = self.db.tables["POP_STRATUM"]
         if not isinstance(pop_stratum, pl.LazyFrame):
             pop_stratum = pop_stratum.lazy()
+
+        # Filter by EVALID to match base get_stratification_data() behavior
+        if self.db.evalid:
+            pop_stratum = pop_stratum.filter(pl.col("EVALID").is_in(self.db.evalid))
 
         strat_cols = [
             "CN",

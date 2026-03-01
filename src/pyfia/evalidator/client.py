@@ -156,6 +156,15 @@ class EVALIDatorClient:
                         pos=0,
                     )
 
+                # Detect HTML error pages (EVALIDator returns 200 + HTML
+                # for internal errors like missing data or SQL failures)
+                content_type = response.headers.get("Content-Type", "")
+                if "text/html" in content_type:
+                    raise ValueError(
+                        f"EVALIDator returned HTML error instead of JSON: "
+                        f"{response.text[:200]}"
+                    )
+
                 data = response.json()
 
                 # Check for API errors in response

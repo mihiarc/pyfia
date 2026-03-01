@@ -36,8 +36,13 @@ YEAR = 2023
 
 # Marker for flaky API tests
 flaky_api = pytest.mark.xfail(
-    reason="EVALIDator API is unreliable",
-    raises=(requests.exceptions.ConnectionError, requests.exceptions.Timeout),
+    reason="EVALIDator API is unreliable (connection errors, timeouts, or HTML error pages)",
+    raises=(
+        requests.exceptions.ConnectionError,
+        requests.exceptions.Timeout,
+        requests.exceptions.JSONDecodeError,
+        ValueError,
+    ),
     strict=False,
 )
 

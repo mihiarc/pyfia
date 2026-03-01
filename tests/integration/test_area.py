@@ -98,6 +98,16 @@ class TestAreaEstimation:
             "EVALID": [372301, 372301, 372301, 372301, 372301],
         })
 
+    @pytest.fixture
+    def sample_estn_unit_data(self):
+        """Create sample POP_ESTN_UNIT data for B&P variance formula."""
+        return pl.DataFrame({
+            "CN": ["EU1", "EU2"],
+            "EVALID": [372301, 372301],
+            "AREA_USED": [50000.0, 60000.0],
+            "P1PNTCNT_EU": [100, 150],
+        })
+
     def test_area_main_function_integration(
         self,
         mock_fia_database,
@@ -105,6 +115,7 @@ class TestAreaEstimation:
         sample_cond_data,
         sample_stratum_data,
         sample_ppsa_data,
+        sample_estn_unit_data,
     ):
         """Test main area function integration workflow."""
         # Setup mock database with realistic FIA structure
@@ -112,6 +123,7 @@ class TestAreaEstimation:
         table_data = {
             "PLOT": sample_plot_data.lazy(),
             "COND": sample_cond_data.lazy(),
+            "POP_ESTN_UNIT": sample_estn_unit_data.lazy(),
         }
 
         def load_table_side_effect(table_name, columns=None):
@@ -153,12 +165,14 @@ class TestAreaEstimation:
         sample_cond_data,
         sample_stratum_data,
         sample_ppsa_data,
+        sample_estn_unit_data,
     ):
         """Test area calculation grouped by land type (core FIA functionality)."""
         # Store data for load_table side effect
         table_data = {
             "PLOT": sample_plot_data.lazy(),
             "COND": sample_cond_data.lazy(),
+            "POP_ESTN_UNIT": sample_estn_unit_data.lazy(),
         }
 
         def load_table_side_effect(table_name, columns=None):
@@ -195,6 +209,7 @@ class TestAreaEstimation:
         sample_tree_data,
         sample_stratum_data,
         sample_ppsa_data,
+        sample_estn_unit_data,
     ):
         """Test area calculation with tree domain filter (critical FIA capability)."""
         # Store data for load_table side effect
@@ -202,6 +217,7 @@ class TestAreaEstimation:
             "PLOT": sample_plot_data.lazy(),
             "COND": sample_cond_data.lazy(),
             "TREE": sample_tree_data.lazy(),
+            "POP_ESTN_UNIT": sample_estn_unit_data.lazy(),
         }
 
         def load_table_side_effect(table_name, columns=None):
@@ -232,12 +248,14 @@ class TestAreaEstimation:
         sample_cond_data,
         sample_stratum_data,
         sample_ppsa_data,
+        sample_estn_unit_data,
     ):
         """Test timber land classification (important FIA land use definition)."""
         # Store data for load_table side effect
         table_data = {
             "PLOT": sample_plot_data.lazy(),
             "COND": sample_cond_data.lazy(),
+            "POP_ESTN_UNIT": sample_estn_unit_data.lazy(),
         }
 
         def load_table_side_effect(table_name, columns=None):
@@ -607,6 +625,7 @@ class TestAreaDomainFiltering:
         sample_cond_data,
         sample_stratum_data,
         sample_ppsa_data,
+        sample_estn_unit_data,
     ):
         """Test that different area_domain values produce different area estimates."""
         from unittest.mock import Mock
@@ -615,6 +634,7 @@ class TestAreaDomainFiltering:
         table_data = {
             "PLOT": sample_plot_data.lazy(),
             "COND": sample_cond_data.lazy(),
+            "POP_ESTN_UNIT": sample_estn_unit_data.lazy(),
         }
 
         def load_table_side_effect(table_name, columns=None):
@@ -695,4 +715,14 @@ class TestAreaDomainFiltering:
             "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
             "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
             "EVALID": [372301, 372301, 372301, 372301, 372301],
+        })
+
+    @pytest.fixture
+    def sample_estn_unit_data(self):
+        """Create sample POP_ESTN_UNIT data for B&P variance formula."""
+        return pl.DataFrame({
+            "CN": ["EU1", "EU2"],
+            "EVALID": [372301, 372301],
+            "AREA_USED": [50000.0, 60000.0],
+            "P1PNTCNT_EU": [100, 150],
         })

@@ -159,7 +159,7 @@ def _convert_csvs_to_duckdb(
                 continue
 
             # Sanitize CSV path for safe SQL interpolation
-            safe_csv_path = sanitize_sql_path(csv_file)
+            safe_csv_path = sanitize_sql_path(csv_file.as_posix())
 
             if show_progress:
                 console.print(f"  Converting {safe_table}...", end=" ")
@@ -519,7 +519,7 @@ def _download_multi_state(
                         continue
 
                     # Sanitize CSV path for safe SQL interpolation
-                    safe_csv_path = sanitize_sql_path(csv_file)
+                    safe_csv_path = sanitize_sql_path(csv_file.as_posix())
 
                     try:
                         # Check if table exists (using parameterized query - safe)

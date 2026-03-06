@@ -565,7 +565,7 @@ def _download_multi_state(
                 for table_name, csv_path in ref_tables.items():
                     try:
                         safe_table = validate_sql_identifier(table_name, "table name")
-                        safe_csv_path = sanitize_sql_path(csv_path)
+                        safe_csv_path = sanitize_sql_path(csv_path.as_posix())
                         conn.execute(f"""
                             CREATE TABLE IF NOT EXISTS "{safe_table}" AS
                             SELECT * FROM read_csv_auto('{safe_csv_path}', header=true, ignore_errors=true)

@@ -47,7 +47,9 @@ def _is_motherduck() -> bool:
         return True
     # Also check if falling back to MotherDuck (no local DB but token available)
     db_path = _get_test_db_path()
-    if isinstance(db_path, str) and (db_path.startswith("md:") or db_path.startswith("motherduck:")):
+    if isinstance(db_path, str) and (
+        db_path.startswith("md:") or db_path.startswith("motherduck:")
+    ):
         return True
     return False
 
@@ -55,7 +57,7 @@ def _is_motherduck() -> bool:
 # Skip marker for tests that require local DuckDB with spatial extension
 requires_local_duckdb = pytest.mark.skipif(
     _is_motherduck(),
-    reason="Spatial operations require local DuckDB with spatial extension"
+    reason="Spatial operations require local DuckDB with spatial extension",
 )
 
 
@@ -543,9 +545,7 @@ class TestIntersectPolygons:
 
         with FIA(db_path) as db:
             db.clip_by_state(13)
-            db.intersect_polygons(
-                counties_geojson, attributes=["NAME", "REGION_ID"]
-            )
+            db.intersect_polygons(counties_geojson, attributes=["NAME", "REGION_ID"])
 
             assert db._polygon_attributes is not None
             assert len(db._polygon_attributes.columns) == 3  # CN, NAME, REGION_ID

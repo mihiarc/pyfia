@@ -77,16 +77,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2],
-            "COMPONENT": ["SURVIVOR"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [400.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [6.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2],
+                "COMPONENT": ["SURVIVOR"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [400.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [6.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -99,16 +101,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [1],
-            "COMPONENT": ["SURVIVOR"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [400.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [6.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [1],
+                "COMPONENT": ["SURVIVOR"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [400.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [6.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -121,16 +125,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2],
-            "COMPONENT": ["INGROWTH"],
-            "TREE_VOLCFNET": [200.0],
-            "MIDPT_VOLCFNET": [None],
-            "BEGIN_VOLCFNET": [None],
-            "PTREE_VOLCFNET": [None],
-            "TPA_UNADJ": [4.0],
-            "REMPER": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2],
+                "COMPONENT": ["INGROWTH"],
+                "TREE_VOLCFNET": [200.0],
+                "MIDPT_VOLCFNET": [None],
+                "BEGIN_VOLCFNET": [None],
+                "PTREE_VOLCFNET": [None],
+                "TPA_UNADJ": [4.0],
+                "REMPER": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -143,16 +149,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [1],
-            "COMPONENT": ["INGROWTH"],
-            "TREE_VOLCFNET": [200.0],
-            "MIDPT_VOLCFNET": [None],
-            "BEGIN_VOLCFNET": [None],
-            "PTREE_VOLCFNET": [None],
-            "TPA_UNADJ": [4.0],
-            "REMPER": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [1],
+                "COMPONENT": ["INGROWTH"],
+                "TREE_VOLCFNET": [200.0],
+                "MIDPT_VOLCFNET": [None],
+                "BEGIN_VOLCFNET": [None],
+                "PTREE_VOLCFNET": [None],
+                "TPA_UNADJ": [4.0],
+                "REMPER": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -164,16 +172,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2],
-            "COMPONENT": ["CUT1"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [350.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [3.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2],
+                "COMPONENT": ["CUT1"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [350.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [3.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -186,16 +196,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [1],
-            "COMPONENT": ["CUT1"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [350.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [3.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [1],
+                "COMPONENT": ["CUT1"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [350.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [3.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -208,16 +220,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2],
-            "COMPONENT": ["MORTALITY1"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [350.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [3.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2],
+                "COMPONENT": ["MORTALITY1"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [350.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [3.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -229,16 +243,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [1],
-            "COMPONENT": ["MORTALITY1"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [350.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [3.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [1],
+                "COMPONENT": ["MORTALITY1"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [350.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [3.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -251,16 +267,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [1],
-            "COMPONENT": ["SURVIVOR"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [350.0],
-            "BEGIN_VOLCFNET": [None],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [3.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [1],
+                "COMPONENT": ["SURVIVOR"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [350.0],
+                "BEGIN_VOLCFNET": [None],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [3.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -273,12 +291,14 @@ class TestCalculateValues:
         config = {"measure": "count"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2, 1],
-            "COMPONENT": ["SURVIVOR", "SURVIVOR"],
-            "TPA_UNADJ": [5.0, 5.0],
-            "REMPER": [5.0, 5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2, 1],
+                "COMPONENT": ["SURVIVOR", "SURVIVOR"],
+                "TPA_UNADJ": [5.0, 5.0],
+                "REMPER": [5.0, 5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -291,16 +311,18 @@ class TestCalculateValues:
         config = {"measure": "biomass"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2],
-            "COMPONENT": ["SURVIVOR"],
-            "TREE_DRYBIO_AG": [2000.0],
-            "MIDPT_DRYBIO_AG": [1500.0],
-            "BEGIN_DRYBIO_AG": [1000.0],
-            "PTREE_DRYBIO_AG": [900.0],
-            "TPA_UNADJ": [1.0],
-            "REMPER": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2],
+                "COMPONENT": ["SURVIVOR"],
+                "TREE_DRYBIO_AG": [2000.0],
+                "MIDPT_DRYBIO_AG": [1500.0],
+                "BEGIN_DRYBIO_AG": [1000.0],
+                "PTREE_DRYBIO_AG": [900.0],
+                "TPA_UNADJ": [1.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -314,16 +336,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": [2],
-            "COMPONENT": ["SURVIVOR"],
-            "TREE_VOLCFNET": [500.0],
-            "MIDPT_VOLCFNET": [400.0],
-            "BEGIN_VOLCFNET": [300.0],
-            "PTREE_VOLCFNET": [280.0],
-            "TPA_UNADJ": [1.0],
-            "REMPER": [None],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2],
+                "COMPONENT": ["SURVIVOR"],
+                "TREE_VOLCFNET": [500.0],
+                "MIDPT_VOLCFNET": [400.0],
+                "BEGIN_VOLCFNET": [300.0],
+                "PTREE_VOLCFNET": [280.0],
+                "TPA_UNADJ": [1.0],
+                "REMPER": [None],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -334,16 +358,18 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = GrowthEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "ONEORTWO": pl.Series([], dtype=pl.Int64),
-            "COMPONENT": pl.Series([], dtype=pl.Utf8),
-            "TREE_VOLCFNET": pl.Series([], dtype=pl.Float64),
-            "MIDPT_VOLCFNET": pl.Series([], dtype=pl.Float64),
-            "BEGIN_VOLCFNET": pl.Series([], dtype=pl.Float64),
-            "PTREE_VOLCFNET": pl.Series([], dtype=pl.Float64),
-            "TPA_UNADJ": pl.Series([], dtype=pl.Float64),
-            "REMPER": pl.Series([], dtype=pl.Float64),
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": pl.Series([], dtype=pl.Int64),
+                "COMPONENT": pl.Series([], dtype=pl.Utf8),
+                "TREE_VOLCFNET": pl.Series([], dtype=pl.Float64),
+                "MIDPT_VOLCFNET": pl.Series([], dtype=pl.Float64),
+                "BEGIN_VOLCFNET": pl.Series([], dtype=pl.Float64),
+                "PTREE_VOLCFNET": pl.Series([], dtype=pl.Float64),
+                "TPA_UNADJ": pl.Series([], dtype=pl.Float64),
+                "REMPER": pl.Series([], dtype=pl.Float64),
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert len(result) == 0
@@ -354,16 +380,18 @@ class TestCalculateValues:
         estimator = GrowthEstimator(mock_db, config)
 
         # Same tree, two ONEORTWO rows
-        data = pl.DataFrame({
-            "ONEORTWO": [2, 1],
-            "COMPONENT": ["SURVIVOR", "SURVIVOR"],
-            "TREE_VOLCFNET": [500.0, 500.0],
-            "MIDPT_VOLCFNET": [None, None],
-            "BEGIN_VOLCFNET": [400.0, 400.0],
-            "PTREE_VOLCFNET": [380.0, 380.0],
-            "TPA_UNADJ": [6.0, 6.0],
-            "REMPER": [5.0, 5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "ONEORTWO": [2, 1],
+                "COMPONENT": ["SURVIVOR", "SURVIVOR"],
+                "TREE_VOLCFNET": [500.0, 500.0],
+                "MIDPT_VOLCFNET": [None, None],
+                "BEGIN_VOLCFNET": [400.0, 400.0],
+                "PTREE_VOLCFNET": [380.0, 380.0],
+                "TPA_UNADJ": [6.0, 6.0],
+                "REMPER": [5.0, 5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 

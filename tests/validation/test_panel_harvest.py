@@ -109,9 +109,7 @@ class TestPanelRemovalsConsistency:
         ratio = comparison["RATIO"][0]
 
         # Panel should find trees
-        assert panel_count > 0, (
-            f"Panel found no cut trees for volume analysis."
-        )
+        assert panel_count > 0, f"Panel found no cut trees for volume analysis."
 
         # Volume should be positive
         assert panel_estimate > 0, (
@@ -212,8 +210,12 @@ class TestPanelRemovalsConsistency:
         ratio = comparison["RATIO"][0]
 
         # Both estimates should be positive
-        assert panel_estimate > 0, f"Panel estimate is zero or negative: {panel_estimate}"
-        assert removals_estimate > 0, f"Removals estimate is zero or negative: {removals_estimate}"
+        assert panel_estimate > 0, (
+            f"Panel estimate is zero or negative: {panel_estimate}"
+        )
+        assert removals_estimate > 0, (
+            f"Removals estimate is zero or negative: {removals_estimate}"
+        )
 
         # With expansion, ratio should be close to 1.0 (within 5%)
         assert 0.95 <= ratio <= 1.05, (

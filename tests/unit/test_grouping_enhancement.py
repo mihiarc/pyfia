@@ -60,10 +60,12 @@ class TestEnhanceGroupingColumns:
 
     def test_enhance_fortypcd(self):
         """Test that FORTYPCD gets FOREST_TYPE_GROUP added."""
-        df = pl.DataFrame({
-            "FORTYPCD": [161, 166, 503, 504],
-            "VALUE": [100, 200, 300, 400],
-        })
+        df = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 166, 503, 504],
+                "VALUE": [100, 200, 300, 400],
+            }
+        )
 
         result = _enhance_grouping_columns(df)
 
@@ -73,10 +75,12 @@ class TestEnhanceGroupingColumns:
 
     def test_enhance_owngrpcd(self):
         """Test that OWNGRPCD gets OWNERSHIP_GROUP added."""
-        df = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 30, 40],
-            "VALUE": [100, 200, 300, 400],
-        })
+        df = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 30, 40],
+                "VALUE": [100, 200, 300, 400],
+            }
+        )
 
         result = _enhance_grouping_columns(df)
 
@@ -93,11 +97,13 @@ class TestEnhanceGroupingColumns:
 
     def test_enhance_both_columns(self):
         """Test that both FORTYPCD and OWNGRPCD are enhanced."""
-        df = pl.DataFrame({
-            "FORTYPCD": [161, 503],
-            "OWNGRPCD": [10, 40],
-            "VALUE": [100, 200],
-        })
+        df = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 503],
+                "OWNGRPCD": [10, 40],
+                "VALUE": [100, 200],
+            }
+        )
 
         result = _enhance_grouping_columns(df)
 
@@ -108,10 +114,12 @@ class TestEnhanceGroupingColumns:
 
     def test_no_enhancement_without_columns(self):
         """Test that no columns added when grouping columns not present."""
-        df = pl.DataFrame({
-            "SPCD": [131, 316],
-            "VALUE": [100, 200],
-        })
+        df = pl.DataFrame(
+            {
+                "SPCD": [131, 316],
+                "VALUE": [100, 200],
+            }
+        )
 
         result = _enhance_grouping_columns(df)
 
@@ -121,10 +129,12 @@ class TestEnhanceGroupingColumns:
 
     def test_no_double_enhancement(self):
         """Test that columns aren't enhanced twice."""
-        df = pl.DataFrame({
-            "FORTYPCD": [161],
-            "FOREST_TYPE_GROUP": ["Already present"],
-        })
+        df = pl.DataFrame(
+            {
+                "FORTYPCD": [161],
+                "FOREST_TYPE_GROUP": ["Already present"],
+            }
+        )
 
         result = _enhance_grouping_columns(df)
 
@@ -138,11 +148,13 @@ class TestFormatOutputColumnsEnhancement:
 
     def test_format_output_enhances_fortypcd(self):
         """Test that format_output_columns enhances FORTYPCD."""
-        df = pl.DataFrame({
-            "FORTYPCD": [161, 503],
-            "VOLUME_ACRE": [100.0, 200.0],
-            "VOLUME_TOTAL": [1000.0, 2000.0],
-        })
+        df = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 503],
+                "VOLUME_ACRE": [100.0, 200.0],
+                "VOLUME_TOTAL": [1000.0, 2000.0],
+            }
+        )
 
         result = format_output_columns(df, estimation_type="volume")
 
@@ -150,10 +162,12 @@ class TestFormatOutputColumnsEnhancement:
 
     def test_format_output_enhances_owngrpcd(self):
         """Test that format_output_columns enhances OWNGRPCD."""
-        df = pl.DataFrame({
-            "OWNGRPCD": [10, 40],
-            "AREA_TOTAL": [1000.0, 2000.0],
-        })
+        df = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],
+                "AREA_TOTAL": [1000.0, 2000.0],
+            }
+        )
 
         result = format_output_columns(df, estimation_type="area")
 

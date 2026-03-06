@@ -117,11 +117,13 @@ class TestCalculateValues:
         config = {"pool": "total"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [500.0, 1000.0],
-            "CARBON_BG": [100.0, 200.0],
-            "TPA_UNADJ": [5.0, 10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [500.0, 1000.0],
+                "CARBON_BG": [100.0, 200.0],
+                "TPA_UNADJ": [5.0, 10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -137,10 +139,12 @@ class TestCalculateValues:
         config = {"pool": "ag"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [600.0],
-            "TPA_UNADJ": [4.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [600.0],
+                "TPA_UNADJ": [4.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -152,10 +156,12 @@ class TestCalculateValues:
         config = {"pool": "bg"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_BG": [150.0],
-            "TPA_UNADJ": [8.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_BG": [150.0],
+                "TPA_UNADJ": [8.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -167,11 +173,13 @@ class TestCalculateValues:
         config = {"pool": "total"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [None, 500.0],
-            "CARBON_BG": [100.0, None],
-            "TPA_UNADJ": [5.0, 5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [None, 500.0],
+                "CARBON_BG": [100.0, None],
+                "TPA_UNADJ": [5.0, 5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -187,11 +195,13 @@ class TestCalculateValues:
         config = {"pool": "total"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [None],
-            "CARBON_BG": [None],
-            "TPA_UNADJ": [10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [None],
+                "CARBON_BG": [None],
+                "TPA_UNADJ": [10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["CARBON_ACRE"][0] == 0.0
@@ -200,11 +210,13 @@ class TestCalculateValues:
         config = {"pool": "total"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [1000.0],
-            "CARBON_BG": [200.0],
-            "TPA_UNADJ": [0.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [1000.0],
+                "CARBON_BG": [200.0],
+                "TPA_UNADJ": [0.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["CARBON_ACRE"][0] == 0.0
@@ -213,11 +225,13 @@ class TestCalculateValues:
         config = {"pool": "total"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [],
-            "CARBON_BG": [],
-            "TPA_UNADJ": [],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [],
+                "CARBON_BG": [],
+                "TPA_UNADJ": [],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert len(result) == 0
@@ -226,11 +240,13 @@ class TestCalculateValues:
         config = {"pool": "total"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [1e8],
-            "CARBON_BG": [2e7],
-            "TPA_UNADJ": [100.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [1e8],
+                "CARBON_BG": [2e7],
+                "TPA_UNADJ": [100.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         expected = (1e8 + 2e7) * 100.0 * LBS_TO_SHORT_TONS
@@ -241,10 +257,12 @@ class TestCalculateValues:
         config = {"pool": "ag"}
         estimator = CarbonPoolEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "CARBON_AG": [2000.0],  # Exactly 2000 lbs
-            "TPA_UNADJ": [1.0],    # 1 tree per acre
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "CARBON_AG": [2000.0],  # Exactly 2000 lbs
+                "TPA_UNADJ": [1.0],  # 1 tree per acre
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         # 2000 lbs * 1 TPA * (1/2000) = 1.0 short ton per acre

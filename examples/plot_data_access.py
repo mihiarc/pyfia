@@ -41,9 +41,9 @@ def get_plot_locations(db_path: str, state_fips: int) -> pl.DataFrame:
     db.clip_by_state(state_fips)
     db.clip_most_recent(eval_type="VOL")
 
-    plots = db.get_plots(columns=[
-        "CN", "LAT", "LON", "ELEV", "INVYR", "STATECD", "COUNTYCD"
-    ])
+    plots = db.get_plots(
+        columns=["CN", "LAT", "LON", "ELEV", "INVYR", "STATECD", "COUNTYCD"]
+    )
 
     return plots
 
@@ -82,13 +82,22 @@ def get_site_index_by_condition(db_path: str, state_fips: int) -> pl.DataFrame:
     # Load PLOT table first (required for EVALID filtering in get_conditions)
     db.load_table("PLOT")
 
-    conds = db.get_conditions(columns=[
-        "CN", "PLT_CN", "CONDID",
-        "SICOND", "SIBASE", "SISP",
-        "FORTYPCD", "STDAGE", "STDSZCD",
-        "SITECLCD", "OWNGRPCD",
-        "CONDPROP_UNADJ"
-    ])
+    conds = db.get_conditions(
+        columns=[
+            "CN",
+            "PLT_CN",
+            "CONDID",
+            "SICOND",
+            "SIBASE",
+            "SISP",
+            "FORTYPCD",
+            "STDAGE",
+            "STDSZCD",
+            "SITECLCD",
+            "OWNGRPCD",
+            "CONDPROP_UNADJ",
+        ]
+    )
 
     return conds
 
@@ -116,30 +125,39 @@ def get_site_index_with_location(db_path: str, state_fips: int) -> pl.DataFrame:
     db.clip_by_state(state_fips)
     db.clip_most_recent(eval_type="VOL")
 
-    plots = db.get_plots(columns=[
-        "CN", "LAT", "LON", "ELEV", "INVYR", "COUNTYCD"
-    ])
+    plots = db.get_plots(columns=["CN", "LAT", "LON", "ELEV", "INVYR", "COUNTYCD"])
 
-    conds = db.get_conditions(columns=[
-        "PLT_CN", "CONDID",
-        "SICOND", "SIBASE", "SISP",
-        "FORTYPCD", "STDAGE",
-        "CONDPROP_UNADJ"
-    ])
+    conds = db.get_conditions(
+        columns=[
+            "PLT_CN",
+            "CONDID",
+            "SICOND",
+            "SIBASE",
+            "SISP",
+            "FORTYPCD",
+            "STDAGE",
+            "CONDPROP_UNADJ",
+        ]
+    )
 
     # Join condition data with plot locations
-    result = conds.join(
-        plots,
-        left_on="PLT_CN",
-        right_on="CN",
-        how="inner"
-    ).select([
-        "PLT_CN", "CONDID",
-        "LAT", "LON", "ELEV", "INVYR", "COUNTYCD",
-        "SICOND", "SIBASE", "SISP",
-        "FORTYPCD", "STDAGE",
-        "CONDPROP_UNADJ"
-    ])
+    result = conds.join(plots, left_on="PLT_CN", right_on="CN", how="inner").select(
+        [
+            "PLT_CN",
+            "CONDID",
+            "LAT",
+            "LON",
+            "ELEV",
+            "INVYR",
+            "COUNTYCD",
+            "SICOND",
+            "SIBASE",
+            "SISP",
+            "FORTYPCD",
+            "STDAGE",
+            "CONDPROP_UNADJ",
+        ]
+    )
 
     return result
 
@@ -176,58 +194,81 @@ def get_weighted_site_index_by_plot(db_path: str, state_fips: int) -> pl.DataFra
     db.clip_by_state(state_fips)
     db.clip_most_recent(eval_type="VOL")
 
-    plots = db.get_plots(columns=[
-        "CN", "LAT", "LON", "ELEV", "INVYR", "COUNTYCD"
-    ])
+    plots = db.get_plots(columns=["CN", "LAT", "LON", "ELEV", "INVYR", "COUNTYCD"])
 
-    conds = db.get_conditions(columns=[
-        "PLT_CN", "CONDID",
-        "SICOND", "SIBASE", "SISP",
-        "FORTYPCD", "STDAGE",
-        "CONDPROP_UNADJ"
-    ])
+    conds = db.get_conditions(
+        columns=[
+            "PLT_CN",
+            "CONDID",
+            "SICOND",
+            "SIBASE",
+            "SISP",
+            "FORTYPCD",
+            "STDAGE",
+            "CONDPROP_UNADJ",
+        ]
+    )
 
     # Calculate area-weighted site index
     weighted_si = (
-        conds
-        .filter(pl.col("SICOND").is_not_null())
+        conds.filter(pl.col("SICOND").is_not_null())
         .group_by("PLT_CN")
-        .agg([
-            # Weighted average: sum(SI * proportion) / sum(proportion)
-            (pl.col("SICOND") * pl.col("CONDPROP_UNADJ")).sum().alias("si_x_prop"),
-            pl.col("CONDPROP_UNADJ").sum().alias("total_prop"),
-            # Track number of conditions contributing to the average
-            pl.len().alias("n_conditions"),
-            # Base age (assume consistent within plot)
-            pl.col("SIBASE").first().alias("SIBASE"),
-            # Get SI species from largest condition
-            pl.col("SISP").sort_by("CONDPROP_UNADJ", descending=True).first().alias("dominant_SISP"),
-            # Get dominant forest type
-            pl.col("FORTYPCD").sort_by("CONDPROP_UNADJ", descending=True).first().alias("dominant_FORTYPCD"),
-        ])
-        .with_columns(
-            (pl.col("si_x_prop") / pl.col("total_prop")).round(1).alias("weighted_SICOND")
+        .agg(
+            [
+                # Weighted average: sum(SI * proportion) / sum(proportion)
+                (pl.col("SICOND") * pl.col("CONDPROP_UNADJ")).sum().alias("si_x_prop"),
+                pl.col("CONDPROP_UNADJ").sum().alias("total_prop"),
+                # Track number of conditions contributing to the average
+                pl.len().alias("n_conditions"),
+                # Base age (assume consistent within plot)
+                pl.col("SIBASE").first().alias("SIBASE"),
+                # Get SI species from largest condition
+                pl.col("SISP")
+                .sort_by("CONDPROP_UNADJ", descending=True)
+                .first()
+                .alias("dominant_SISP"),
+                # Get dominant forest type
+                pl.col("FORTYPCD")
+                .sort_by("CONDPROP_UNADJ", descending=True)
+                .first()
+                .alias("dominant_FORTYPCD"),
+            ]
         )
-        .select([
-            "PLT_CN", "weighted_SICOND", "SIBASE",
-            "dominant_SISP", "dominant_FORTYPCD", "n_conditions"
-        ])
+        .with_columns(
+            (pl.col("si_x_prop") / pl.col("total_prop"))
+            .round(1)
+            .alias("weighted_SICOND")
+        )
+        .select(
+            [
+                "PLT_CN",
+                "weighted_SICOND",
+                "SIBASE",
+                "dominant_SISP",
+                "dominant_FORTYPCD",
+                "n_conditions",
+            ]
+        )
     )
 
     # Join with plot locations
     result = weighted_si.join(
-        plots,
-        left_on="PLT_CN",
-        right_on="CN",
-        how="inner"
-    ).select([
-        "PLT_CN",
-        "LAT", "LON", "ELEV",
-        "INVYR", "COUNTYCD",
-        "weighted_SICOND", "SIBASE",
-        "dominant_SISP", "dominant_FORTYPCD",
-        "n_conditions"
-    ])
+        plots, left_on="PLT_CN", right_on="CN", how="inner"
+    ).select(
+        [
+            "PLT_CN",
+            "LAT",
+            "LON",
+            "ELEV",
+            "INVYR",
+            "COUNTYCD",
+            "weighted_SICOND",
+            "SIBASE",
+            "dominant_SISP",
+            "dominant_FORTYPCD",
+            "n_conditions",
+        ]
+    )
 
     return result
 
@@ -254,18 +295,28 @@ def get_tree_data_by_plot(db_path: str, state_fips: int) -> pl.DataFrame:
 
     plots = db.get_plots(columns=["CN", "LAT", "LON", "ELEV", "INVYR"])
 
-    trees = db.get_trees(columns=[
-        "CN", "PLT_CN", "SUBP", "TREE",
-        "SPCD", "DIA", "HT", "ACTUALHT",
-        "STATUSCD", "DRYBIO_AG", "VOLCFNET"
-    ])
+    trees = db.get_trees(
+        columns=[
+            "CN",
+            "PLT_CN",
+            "SUBP",
+            "TREE",
+            "SPCD",
+            "DIA",
+            "HT",
+            "ACTUALHT",
+            "STATUSCD",
+            "DRYBIO_AG",
+            "VOLCFNET",
+        ]
+    )
 
     # Join trees with plot locations
     result = trees.join(
         plots.rename({"CN": "PLOT_CN"}),
         left_on="PLT_CN",
         right_on="PLOT_CN",
-        how="inner"
+        how="inner",
     )
 
     return result

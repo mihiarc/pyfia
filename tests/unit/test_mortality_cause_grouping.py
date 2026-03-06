@@ -182,4 +182,6 @@ class TestPlotGroupingColumns:
 
         expected = ["STATECD", "COUNTYCD", "UNITCD", "INVYR"]
         for col in expected:
-            assert col in PLOT_GROUPING_COLUMNS, f"{col} should be in PLOT_GROUPING_COLUMNS"
+            assert col in PLOT_GROUPING_COLUMNS, (
+                f"{col} should be in PLOT_GROUPING_COLUMNS"
+            )

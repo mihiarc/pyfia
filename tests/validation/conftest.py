@@ -238,14 +238,18 @@ def state_config(request):
 # =============================================================================
 
 
-def values_match(pyfia_val: float, ev_val: float, rel_tol: float = FLOAT_TOLERANCE) -> bool:
+def values_match(
+    pyfia_val: float, ev_val: float, rel_tol: float = FLOAT_TOLERANCE
+) -> bool:
     """Check if two values match within floating point tolerance."""
     if ev_val == 0:
         return pyfia_val == 0
     return abs(pyfia_val - ev_val) / abs(ev_val) < rel_tol
 
 
-def se_values_match(pyfia_se: float, ev_se: float, rel_tol: float = SE_TOLERANCE) -> bool:
+def se_values_match(
+    pyfia_se: float, ev_se: float, rel_tol: float = SE_TOLERANCE
+) -> bool:
     """Check if SE values match within tolerance."""
     if ev_se == 0:
         return pyfia_se == 0

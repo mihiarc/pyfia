@@ -86,7 +86,10 @@ class TestValidators:
         """Test valid domain expressions."""
         assert validate_domain_expression(None, "tree_domain") is None
         assert validate_domain_expression("DIA > 10.0", "tree_domain") == "DIA > 10.0"
-        assert validate_domain_expression("STATUSCD == 1", "tree_domain") == "STATUSCD == 1"
+        assert (
+            validate_domain_expression("STATUSCD == 1", "tree_domain")
+            == "STATUSCD == 1"
+        )
 
     def test_validate_domain_expression_invalid(self):
         """Test invalid domain expressions."""
@@ -103,8 +106,14 @@ class TestValidators:
             validate_domain_expression("DELETE FROM COND", "tree_domain")
 
         # Test that word boundaries work - these should be OK
-        assert validate_domain_expression("UPDATED_DATE > 2020", "tree_domain") == "UPDATED_DATE > 2020"
-        assert validate_domain_expression("CREATED_BY == 'user'", "tree_domain") == "CREATED_BY == 'user'"
+        assert (
+            validate_domain_expression("UPDATED_DATE > 2020", "tree_domain")
+            == "UPDATED_DATE > 2020"
+        )
+        assert (
+            validate_domain_expression("CREATED_BY == 'user'", "tree_domain")
+            == "CREATED_BY == 'user'"
+        )
 
         # But actual SQL keywords should still be caught
         with pytest.raises(ValueError, match="dangerous SQL keyword: UPDATE"):
@@ -113,7 +122,9 @@ class TestValidators:
     def test_validate_domain_expression_blocks_union(self):
         """Test that UNION keyword is blocked (data exfiltration vector)."""
         with pytest.raises(ValueError, match="dangerous SQL keyword: UNION"):
-            validate_domain_expression("DIA > 5 UNION SELECT * FROM passwords", "tree_domain")
+            validate_domain_expression(
+                "DIA > 5 UNION SELECT * FROM passwords", "tree_domain"
+            )
 
     def test_validate_domain_expression_blocks_into(self):
         """Test that INTO keyword is blocked."""
@@ -203,7 +214,9 @@ class TestSQLSecurityValidation:
         assert sanitize_sql_path("/tmp/test_file.geojson") == "/tmp/test_file.geojson"
         assert sanitize_sql_path("data/polygons.gpkg") == "data/polygons.gpkg"
         # Paths with spaces are valid
-        assert sanitize_sql_path("/data/my folder/file.shp") == "/data/my folder/file.shp"
+        assert (
+            sanitize_sql_path("/data/my folder/file.shp") == "/data/my folder/file.shp"
+        )
 
     def test_sanitize_sql_path_rejects_single_quotes(self):
         """Test that single quotes are rejected (SQL injection vector)."""
@@ -246,7 +259,10 @@ class TestSQLSecurityValidation:
         """Test valid SQL identifiers."""
         assert validate_sql_identifier("PLOT", "table name") == "PLOT"
         assert validate_sql_identifier("TREE", "table name") == "TREE"
-        assert validate_sql_identifier("TREE_GRM_COMPONENT", "table name") == "TREE_GRM_COMPONENT"
+        assert (
+            validate_sql_identifier("TREE_GRM_COMPONENT", "table name")
+            == "TREE_GRM_COMPONENT"
+        )
         assert validate_sql_identifier("_private", "table name") == "_private"
         assert validate_sql_identifier("Table123", "table name") == "Table123"
 

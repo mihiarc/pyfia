@@ -114,51 +114,61 @@ class TestAddLandTypeColumn:
 
     def test_forest_timber(self):
         """Test timber classification (productive, unreserved forest)."""
-        df = pl.DataFrame({
-            "COND_STATUS_CD": [LandStatus.FOREST],
-            "SITECLCD": [3],  # Productive
-            "RESERVCD": [0],  # Not reserved
-        })
+        df = pl.DataFrame(
+            {
+                "COND_STATUS_CD": [LandStatus.FOREST],
+                "SITECLCD": [3],  # Productive
+                "RESERVCD": [0],  # Not reserved
+            }
+        )
         result = add_land_type_column(df)
         assert result["LAND_TYPE"][0] == "Timber"
 
     def test_forest_non_timber(self):
         """Test non-timber forest (reserved)."""
-        df = pl.DataFrame({
-            "COND_STATUS_CD": [LandStatus.FOREST],
-            "SITECLCD": [3],
-            "RESERVCD": [1],  # Reserved
-        })
+        df = pl.DataFrame(
+            {
+                "COND_STATUS_CD": [LandStatus.FOREST],
+                "SITECLCD": [3],
+                "RESERVCD": [1],  # Reserved
+            }
+        )
         result = add_land_type_column(df)
         assert result["LAND_TYPE"][0] == "Non-timber forest"
 
     def test_nonforest(self):
         """Test non-forest land."""
-        df = pl.DataFrame({
-            "COND_STATUS_CD": [LandStatus.NONFOREST],
-            "SITECLCD": [0],
-            "RESERVCD": [0],
-        })
+        df = pl.DataFrame(
+            {
+                "COND_STATUS_CD": [LandStatus.NONFOREST],
+                "SITECLCD": [0],
+                "RESERVCD": [0],
+            }
+        )
         result = add_land_type_column(df)
         assert result["LAND_TYPE"][0] == "Non-forest"
 
     def test_water(self):
         """Test water classification."""
-        df = pl.DataFrame({
-            "COND_STATUS_CD": [LandStatus.WATER],
-            "SITECLCD": [0],
-            "RESERVCD": [0],
-        })
+        df = pl.DataFrame(
+            {
+                "COND_STATUS_CD": [LandStatus.WATER],
+                "SITECLCD": [0],
+                "RESERVCD": [0],
+            }
+        )
         result = add_land_type_column(df)
         assert result["LAND_TYPE"][0] == "Water"
 
     def test_other_status(self):
         """Test other/unknown status codes."""
-        df = pl.DataFrame({
-            "COND_STATUS_CD": [5],  # Some other code
-            "SITECLCD": [0],
-            "RESERVCD": [0],
-        })
+        df = pl.DataFrame(
+            {
+                "COND_STATUS_CD": [5],  # Some other code
+                "SITECLCD": [0],
+                "RESERVCD": [0],
+            }
+        )
         result = add_land_type_column(df)
         assert result["LAND_TYPE"][0] == "Other"
 
@@ -184,9 +194,7 @@ class TestPreparePlotGroups:
 
     def test_custom_always_include(self):
         """Test custom always_include columns."""
-        result = prepare_plot_groups(
-            ["SPCD"], always_include=["EVALID", "PLT_CN"]
-        )
+        result = prepare_plot_groups(["SPCD"], always_include=["EVALID", "PLT_CN"])
         assert result[0] == "EVALID"
         assert result[1] == "PLT_CN"
         assert "SPCD" in result
@@ -202,9 +210,7 @@ class TestPreparePlotGroups:
 
     def test_preserves_order(self):
         """Test that order is preserved."""
-        result = prepare_plot_groups(
-            ["A", "B", "C"], additional_groups=["D", "E"]
-        )
+        result = prepare_plot_groups(["A", "B", "C"], additional_groups=["D", "E"])
         assert result == ["PLT_CN", "A", "B", "C", "D", "E"]
 
 
@@ -220,11 +226,13 @@ class TestAddSpeciesInfo:
     def test_with_species_df(self):
         """Test joining species information."""
         df = pl.DataFrame({"SPCD": [131, 316], "VALUE": [100, 200]})
-        species_df = pl.DataFrame({
-            "SPCD": [131, 316],
-            "COMMON_NAME": ["Loblolly pine", "Red maple"],
-            "GENUS": ["Pinus", "Acer"],
-        })
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [131, 316],
+                "COMMON_NAME": ["Loblolly pine", "Red maple"],
+                "GENUS": ["Pinus", "Acer"],
+            }
+        )
         result = add_species_info(df, species_df)
         assert "COMMON_NAME" in result.columns
         assert result["COMMON_NAME"].to_list() == ["Loblolly pine", "Red maple"]
@@ -232,11 +240,13 @@ class TestAddSpeciesInfo:
     def test_include_genus(self):
         """Test including genus information."""
         df = pl.DataFrame({"SPCD": [131]})
-        species_df = pl.DataFrame({
-            "SPCD": [131],
-            "COMMON_NAME": ["Loblolly pine"],
-            "GENUS": ["Pinus"],
-        })
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "COMMON_NAME": ["Loblolly pine"],
+                "GENUS": ["Pinus"],
+            }
+        )
         result = add_species_info(df, species_df, include_genus=True)
         assert "GENUS" in result.columns
         assert result["GENUS"][0] == "Pinus"
@@ -656,11 +666,13 @@ class TestSetupGroupingColumns:
 
     def test_combined_groupings(self):
         """Test combining multiple grouping options."""
-        df = pl.DataFrame({
-            "SPCD": [131],
-            "DIA": [15.0],
-            "FORTYPCD": [161],
-        })
+        df = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "DIA": [15.0],
+                "FORTYPCD": [161],
+            }
+        )
         result_df, group_cols = setup_grouping_columns(
             df, grp_by="FORTYPCD", by_species=True, by_size_class=True
         )
@@ -699,11 +711,13 @@ class TestAutoEnhanceGroupingData:
 
     def test_enhance_both(self):
         """Test enhancing both FORTYPCD and OWNGRPCD."""
-        df = pl.DataFrame({
-            "FORTYPCD": [161],
-            "OWNGRPCD": [40],
-            "VALUE": [100],
-        })
+        df = pl.DataFrame(
+            {
+                "FORTYPCD": [161],
+                "OWNGRPCD": [40],
+                "VALUE": [100],
+            }
+        )
         result_df, result_cols = auto_enhance_grouping_data(
             df, ["FORTYPCD", "OWNGRPCD"]
         )
@@ -733,11 +747,13 @@ class TestAutoEnhanceGroupingData:
 
     def test_preserves_other_columns(self):
         """Test that other columns are preserved."""
-        df = pl.DataFrame({
-            "FORTYPCD": [161],
-            "OTHER_COL": ["test"],
-            "VALUE": [100],
-        })
+        df = pl.DataFrame(
+            {
+                "FORTYPCD": [161],
+                "OTHER_COL": ["test"],
+                "VALUE": [100],
+            }
+        )
         result_df, result_cols = auto_enhance_grouping_data(df, ["FORTYPCD"])
 
         assert "OTHER_COL" in result_df.columns

@@ -238,7 +238,9 @@ class DuckDBBackend(DatabaseBackend):
         safe_table = validate_sql_identifier(table_name, "table name")
 
         try:
-            result: list[tuple[Any, ...]] = self._connection.execute(f'DESCRIBE "{safe_table}"').fetchall()
+            result: list[tuple[Any, ...]] = self._connection.execute(
+                f'DESCRIBE "{safe_table}"'
+            ).fetchall()
             return result
         except duckdb.Error as e:
             logger.error(f"Failed to describe table {table_name}: {e}")

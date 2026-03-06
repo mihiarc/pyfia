@@ -44,9 +44,7 @@ def get_most_recent_evalid(state_fips: str) -> Optional[str]:
             data = response.json()
             # Find EVALIDs for this state
             state_evalids = [
-                item["value"]
-                for item in data
-                if item["value"].startswith(state_fips)
+                item["value"] for item in data if item["value"].startswith(state_fips)
             ]
             if state_evalids:
                 # Return most recent (highest year)

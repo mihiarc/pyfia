@@ -115,7 +115,9 @@ class TestCarbonFluxValidation:
         print(f"\nCarbon Fraction Validation:")
         print(f"  Growth biomass: {growth_biomass:,.0f} tons/year")
         print(f"  Growth carbon:  {growth_carbon:,.0f} tons C/year")
-        print(f"  Applied fraction: {actual_fraction:.4f} (expected: {CARBON_FRACTION})")
+        print(
+            f"  Applied fraction: {actual_fraction:.4f} (expected: {CARBON_FRACTION})"
+        )
 
         assert values_match(actual_fraction, CARBON_FRACTION, rel_tol=0.001), (
             f"Carbon fraction should be {CARBON_FRACTION}: got {actual_fraction}"
@@ -203,10 +205,12 @@ class TestCarbonFluxValidation:
         remv_c = flux_result["REMV_CARBON_TOTAL"][0]
 
         print(f"\nGeorgia Carbon Balance:")
-        print(f"  Growth:    +{growth_c/1e6:,.2f} million tons C/year")
-        print(f"  Mortality: -{mort_c/1e6:,.2f} million tons C/year")
-        print(f"  Removals:  -{remv_c/1e6:,.2f} million tons C/year")
-        print(f"  Net flux:  {'+' if net_total > 0 else ''}{net_total/1e6:,.2f} million tons C/year")
+        print(f"  Growth:    +{growth_c / 1e6:,.2f} million tons C/year")
+        print(f"  Mortality: -{mort_c / 1e6:,.2f} million tons C/year")
+        print(f"  Removals:  -{remv_c / 1e6:,.2f} million tons C/year")
+        print(
+            f"  Net flux:  {'+' if net_total > 0 else ''}{net_total / 1e6:,.2f} million tons C/year"
+        )
 
         if net_total > 0:
             print(f"  Result: CARBON SINK (sequestering carbon)")

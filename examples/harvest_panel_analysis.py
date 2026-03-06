@@ -52,7 +52,12 @@ def analyze_condition_harvest(db: FIA) -> None:
 
     harvest_by_owner = (
         cond_panel.group_by("t2_OWNGRPCD")
-        .agg([pl.len().alias("n_conditions"), pl.col("HARVEST").mean().alias("harvest_rate")])
+        .agg(
+            [
+                pl.len().alias("n_conditions"),
+                pl.col("HARVEST").mean().alias("harvest_rate"),
+            ]
+        )
         .sort("t2_OWNGRPCD")
     )
 
@@ -131,7 +136,7 @@ def analyze_tree_fates(db: FIA) -> None:
         for row in species_cut.iter_rows(named=True):
             spcd = int(row["t1_SPCD"])
             name = spcd_names.get(spcd, f"SPCD {spcd}")
-            table.add_row(name, f"{row['n_trees']:,}", f"{row['avg_dia']:.1f}\"")
+            table.add_row(name, f"{row['n_trees']:,}", f'{row["avg_dia"]:.1f}"')
 
         console.print(table)
 
@@ -164,7 +169,9 @@ def analyze_remeasurement_chains(db: FIA) -> None:
 
     # Harvest transition analysis for multi-period plots
     multi_period_plots = (
-        cond_panel.group_by("PLT_CN").agg(pl.len().alias("n")).filter(pl.col("n") > 1)["PLT_CN"]
+        cond_panel.group_by("PLT_CN")
+        .agg(pl.len().alias("n"))
+        .filter(pl.col("n") > 1)["PLT_CN"]
     )
 
     multi_period = cond_panel.filter(pl.col("PLT_CN").is_in(multi_period_plots)).sort(
@@ -212,7 +219,9 @@ def main(db_path: str = "data/nc.duckdb", state_code: int = 37):
     # Check if database exists
     if not Path(db_path).exists():
         console.print(f"[red]Database not found: {db_path}[/red]")
-        console.print("Download data first with: pyfia.download(states='NC', dir='data/')")
+        console.print(
+            "Download data first with: pyfia.download(states='NC', dir='data/')"
+        )
         return
 
     with FIA(db_path) as db:

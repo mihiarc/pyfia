@@ -39,14 +39,18 @@ class TestAssignTreeBasis:
 
     def test_with_macroplot_breakpoint(self):
         """Test macroplot assignment when tree DIA >= breakpoint."""
-        tree_df = pl.DataFrame({
-            "DIA": [5.0, 20.0, 25.0, 30.0],
-            "PLT_CN": [1, 1, 1, 1],
-        })
-        plot_df = pl.DataFrame({
-            "PLT_CN": [1],
-            "MACRO_BREAKPOINT_DIA": [24.0],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [5.0, 20.0, 25.0, 30.0],
+                "PLT_CN": [1, 1, 1, 1],
+            }
+        )
+        plot_df = pl.DataFrame(
+            {
+                "PLT_CN": [1],
+                "MACRO_BREAKPOINT_DIA": [24.0],
+            }
+        )
         result = assign_tree_basis(tree_df, plot_df, include_macro=True)
 
         basis_list = result["TREE_BASIS"].to_list()
@@ -61,42 +65,54 @@ class TestAssignTreeBasis:
 
     def test_macroplot_breakpoint_zero(self):
         """Test that zero breakpoint means no macroplot."""
-        tree_df = pl.DataFrame({
-            "DIA": [30.0],
-            "PLT_CN": [1],
-        })
-        plot_df = pl.DataFrame({
-            "PLT_CN": [1],
-            "MACRO_BREAKPOINT_DIA": [0],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [30.0],
+                "PLT_CN": [1],
+            }
+        )
+        plot_df = pl.DataFrame(
+            {
+                "PLT_CN": [1],
+                "MACRO_BREAKPOINT_DIA": [0],
+            }
+        )
         result = assign_tree_basis(tree_df, plot_df, include_macro=True)
 
         assert result["TREE_BASIS"][0] == PlotBasis.SUBPLOT
 
     def test_macroplot_breakpoint_null(self):
         """Test that null breakpoint means no macroplot."""
-        tree_df = pl.DataFrame({
-            "DIA": [30.0],
-            "PLT_CN": [1],
-        })
-        plot_df = pl.DataFrame({
-            "PLT_CN": [1],
-            "MACRO_BREAKPOINT_DIA": [None],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [30.0],
+                "PLT_CN": [1],
+            }
+        )
+        plot_df = pl.DataFrame(
+            {
+                "PLT_CN": [1],
+                "MACRO_BREAKPOINT_DIA": [None],
+            }
+        )
         result = assign_tree_basis(tree_df, plot_df, include_macro=True)
 
         assert result["TREE_BASIS"][0] == PlotBasis.SUBPLOT
 
     def test_null_diameter_returns_null(self):
         """Test that null diameter returns null tree basis."""
-        tree_df = pl.DataFrame({
-            "DIA": [None, 10.0],
-            "PLT_CN": [1, 1],
-        })
-        plot_df = pl.DataFrame({
-            "PLT_CN": [1],
-            "MACRO_BREAKPOINT_DIA": [24.0],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [None, 10.0],
+                "PLT_CN": [1, 1],
+            }
+        )
+        plot_df = pl.DataFrame(
+            {
+                "PLT_CN": [1],
+                "MACRO_BREAKPOINT_DIA": [24.0],
+            }
+        )
         result = assign_tree_basis(tree_df, plot_df, include_macro=True)
 
         assert result["TREE_BASIS"][0] is None
@@ -104,10 +120,12 @@ class TestAssignTreeBasis:
 
     def test_custom_column_names(self):
         """Test custom input and output column names."""
-        tree_df = pl.DataFrame({
-            "TREE_DIA": [3.0, 15.0],
-            "PLT_CN": [1, 1],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "TREE_DIA": [3.0, 15.0],
+                "PLT_CN": [1, 1],
+            }
+        )
         result = assign_tree_basis(
             tree_df,
             include_macro=False,
@@ -121,31 +139,41 @@ class TestAssignTreeBasis:
 
     def test_plot_with_cn_column(self):
         """Test joining plot data when plot has CN instead of PLT_CN."""
-        tree_df = pl.DataFrame({
-            "DIA": [25.0],
-            "PLT_CN": [1],
-        })
-        plot_df = pl.DataFrame({
-            "CN": [1],
-            "MACRO_BREAKPOINT_DIA": [20.0],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [25.0],
+                "PLT_CN": [1],
+            }
+        )
+        plot_df = pl.DataFrame(
+            {
+                "CN": [1],
+                "MACRO_BREAKPOINT_DIA": [20.0],
+            }
+        )
         result = assign_tree_basis(tree_df, plot_df, include_macro=True)
 
         assert result["TREE_BASIS"][0] == PlotBasis.MACROPLOT
 
     def test_macro_breakpoint_already_in_tree_df(self):
         """Test when MACRO_BREAKPOINT_DIA already in tree dataframe."""
-        tree_df = pl.DataFrame({
-            "DIA": [25.0],
-            "PLT_CN": [1],
-            "MACRO_BREAKPOINT_DIA": [20.0],
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [25.0],
+                "PLT_CN": [1],
+                "MACRO_BREAKPOINT_DIA": [20.0],
+            }
+        )
         # Need to provide plot_df for macroplot logic to be used
         # When plot_df is None, falls back to simple MICR/SUBP assignment
-        plot_df = pl.DataFrame({
-            "PLT_CN": [1],
-            "MACRO_BREAKPOINT_DIA": [20.0],  # Will be skipped since already in tree_df
-        })
+        plot_df = pl.DataFrame(
+            {
+                "PLT_CN": [1],
+                "MACRO_BREAKPOINT_DIA": [
+                    20.0
+                ],  # Will be skipped since already in tree_df
+            }
+        )
         result = assign_tree_basis(tree_df, plot_df, include_macro=True)
 
         assert result["TREE_BASIS"][0] == PlotBasis.MACROPLOT
@@ -169,7 +197,14 @@ class TestAssignSizeClass:
         result = assign_size_class(tree_df, class_system="detailed")
 
         classes = result["SIZE_CLASS"].to_list()
-        assert classes == ["Seedlings", "Saplings", "Small", "Medium", "Large", "Very Large"]
+        assert classes == [
+            "Seedlings",
+            "Saplings",
+            "Small",
+            "Medium",
+            "Large",
+            "Very Large",
+        ]
 
     def test_simple_size_classes(self):
         """Test simple size class assignment."""
@@ -227,6 +262,7 @@ class TestAssignForestTypeGroup:
     def test_deprecation_warning(self):
         """Test that deprecation warning is raised."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [100]})
 
         with warnings.catch_warnings(record=True) as w:
@@ -240,12 +276,15 @@ class TestAssignForestTypeGroup:
     def test_white_red_jack_pine(self):
         """Test 100-199 range returns White/Red/Jack Pine."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [100, 150, 199]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = assign_forest_type_group(cond_df)
 
-        assert all(g == "White/Red/Jack Pine" for g in result["FOREST_TYPE_GROUP"].to_list())
+        assert all(
+            g == "White/Red/Jack Pine" for g in result["FOREST_TYPE_GROUP"].to_list()
+        )
 
     def test_spruce_fir_and_western_types(self):
         """Test 200-299 range returns Spruce/Fir or western forest type variants.
@@ -254,6 +293,7 @@ class TestAssignForestTypeGroup:
         Code 200 returns 'Douglas-fir', 250/290 return 'Spruce/Fir'.
         """
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [250, 290]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -265,6 +305,7 @@ class TestAssignForestTypeGroup:
     def test_douglas_fir_specific(self):
         """Test code 200 returns Douglas-fir specifically."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [200]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -275,16 +316,20 @@ class TestAssignForestTypeGroup:
     def test_longleaf_slash_pine(self):
         """Test 300-399 range returns Longleaf/Slash Pine or western variants."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [350, 399]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = assign_forest_type_group(cond_df)
 
-        assert all(g == "Longleaf/Slash Pine" for g in result["FOREST_TYPE_GROUP"].to_list())
+        assert all(
+            g == "Longleaf/Slash Pine" for g in result["FOREST_TYPE_GROUP"].to_list()
+        )
 
     def test_oak_pine(self):
         """Test 400-499 range returns Oak/Pine."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [400, 450, 499]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -295,6 +340,7 @@ class TestAssignForestTypeGroup:
     def test_oak_hickory(self):
         """Test 500-599 range returns Oak/Hickory."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [500, 550, 599]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -305,32 +351,41 @@ class TestAssignForestTypeGroup:
     def test_oak_gum_cypress(self):
         """Test 600-699 range returns Oak/Gum/Cypress."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [600, 650, 699]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = assign_forest_type_group(cond_df)
 
-        assert all(g == "Oak/Gum/Cypress" for g in result["FOREST_TYPE_GROUP"].to_list())
+        assert all(
+            g == "Oak/Gum/Cypress" for g in result["FOREST_TYPE_GROUP"].to_list()
+        )
 
     def test_elm_ash_cottonwood(self):
         """Test 700-799 range returns Elm/Ash/Cottonwood."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [700, 750, 799]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = assign_forest_type_group(cond_df)
 
-        assert all(g == "Elm/Ash/Cottonwood" for g in result["FOREST_TYPE_GROUP"].to_list())
+        assert all(
+            g == "Elm/Ash/Cottonwood" for g in result["FOREST_TYPE_GROUP"].to_list()
+        )
 
     def test_maple_beech_birch(self):
         """Test 800-899 range returns Maple/Beech/Birch."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [800, 850, 899]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
             result = assign_forest_type_group(cond_df)
 
-        assert all(g == "Maple/Beech/Birch" for g in result["FOREST_TYPE_GROUP"].to_list())
+        assert all(
+            g == "Maple/Beech/Birch" for g in result["FOREST_TYPE_GROUP"].to_list()
+        )
 
     def test_900_range_has_variants(self):
         """Test 900-999 range has various western hardwood types.
@@ -339,6 +394,7 @@ class TestAssignForestTypeGroup:
         Alder/Maple, Western Oak, etc. in the 900 range.
         """
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [900, 950, 999]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -353,6 +409,7 @@ class TestAssignForestTypeGroup:
     def test_other_unknown(self):
         """Test out-of-range codes return Other."""
         import warnings
+
         cond_df = pl.DataFrame({"FORTYPCD": [50, 1000, 0]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -364,6 +421,7 @@ class TestAssignForestTypeGroup:
     def test_custom_column_names(self):
         """Test custom input and output column names."""
         import warnings
+
         cond_df = pl.DataFrame({"MY_FORTYP": [500]})
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", DeprecationWarning)
@@ -383,11 +441,15 @@ class TestAssignSpeciesGroup:
     def test_major_species_southern_pines(self):
         """Test major species grouping for southern pines."""
         tree_df = pl.DataFrame({"SPCD": [131, 132, 133]})
-        species_df = pl.DataFrame({
-            "SPCD": [131, 132, 133],
-            "GENUS": ["Pinus", "Pinus", "Pinus"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [131, 132, 133],
+                "GENUS": ["Pinus", "Pinus", "Pinus"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert "SPECIES_GROUP" in result.columns
         assert all(g == "Southern Pines" for g in result["SPECIES_GROUP"].to_list())
@@ -395,76 +457,102 @@ class TestAssignSpeciesGroup:
     def test_major_species_maples(self):
         """Test major species grouping for maples."""
         tree_df = pl.DataFrame({"SPCD": [316, 318, 319]})
-        species_df = pl.DataFrame({
-            "SPCD": [316, 318, 319],
-            "GENUS": ["Acer", "Acer", "Acer"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [316, 318, 319],
+                "GENUS": ["Acer", "Acer", "Acer"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert all(g == "Maples" for g in result["SPECIES_GROUP"].to_list())
 
     def test_major_species_oaks_by_code(self):
         """Test major species grouping for oaks by SPCD."""
         tree_df = pl.DataFrame({"SPCD": [800, 801, 802]})
-        species_df = pl.DataFrame({
-            "SPCD": [800, 801, 802],
-            "GENUS": ["Quercus", "Quercus", "Quercus"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [800, 801, 802],
+                "GENUS": ["Quercus", "Quercus", "Quercus"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert all(g == "Oaks" for g in result["SPECIES_GROUP"].to_list())
 
     def test_major_species_oaks_by_genus(self):
         """Test major species grouping for oaks by genus."""
         tree_df = pl.DataFrame({"SPCD": [812]})  # Not in 800-804 range
-        species_df = pl.DataFrame({
-            "SPCD": [812],
-            "GENUS": ["Quercus"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [812],
+                "GENUS": ["Quercus"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert result["SPECIES_GROUP"][0] == "Oaks"
 
     def test_major_species_pines_by_genus(self):
         """Test major species grouping for pines by genus."""
         tree_df = pl.DataFrame({"SPCD": [110]})  # Not in 131-133 range
-        species_df = pl.DataFrame({
-            "SPCD": [110],
-            "GENUS": ["Pinus"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [110],
+                "GENUS": ["Pinus"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert result["SPECIES_GROUP"][0] == "Pines"
 
     def test_major_species_maples_by_genus(self):
         """Test major species grouping for maples by genus."""
         tree_df = pl.DataFrame({"SPCD": [310]})  # Not in 316-319 range
-        species_df = pl.DataFrame({
-            "SPCD": [310],
-            "GENUS": ["Acer"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [310],
+                "GENUS": ["Acer"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert result["SPECIES_GROUP"][0] == "Maples"
 
     def test_major_species_other_genus(self):
         """Test major species grouping falls back to genus for others."""
         tree_df = pl.DataFrame({"SPCD": [611]})
-        species_df = pl.DataFrame({
-            "SPCD": [611],
-            "GENUS": ["Liquidambar"],
-        })
-        result = assign_species_group(tree_df, species_df, grouping_system="major_species")
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [611],
+                "GENUS": ["Liquidambar"],
+            }
+        )
+        result = assign_species_group(
+            tree_df, species_df, grouping_system="major_species"
+        )
 
         assert result["SPECIES_GROUP"][0] == "Liquidambar"
 
     def test_genus_grouping(self):
         """Test grouping by genus."""
         tree_df = pl.DataFrame({"SPCD": [131, 316]})
-        species_df = pl.DataFrame({
-            "SPCD": [131, 316],
-            "GENUS": ["Pinus", "Acer"],
-        })
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [131, 316],
+                "GENUS": ["Pinus", "Acer"],
+            }
+        )
         result = assign_species_group(tree_df, species_df, grouping_system="genus")
 
         assert result["SPECIES_GROUP"].to_list() == ["Pinus", "Acer"]
@@ -472,11 +560,13 @@ class TestAssignSpeciesGroup:
     def test_family_grouping(self):
         """Test grouping by family."""
         tree_df = pl.DataFrame({"SPCD": [131, 316]})
-        species_df = pl.DataFrame({
-            "SPCD": [131, 316],
-            "GENUS": ["Pinus", "Acer"],
-            "FAMILY": ["Pinaceae", "Sapindaceae"],
-        })
+        species_df = pl.DataFrame(
+            {
+                "SPCD": [131, 316],
+                "GENUS": ["Pinus", "Acer"],
+                "FAMILY": ["Pinaceae", "Sapindaceae"],
+            }
+        )
         result = assign_species_group(tree_df, species_df, grouping_system="family")
 
         assert result["SPECIES_GROUP"].to_list() == ["Pinaceae", "Sapindaceae"]
@@ -492,10 +582,12 @@ class TestAssignSpeciesGroup:
     def test_custom_column_names(self):
         """Test custom input and output column names."""
         tree_df = pl.DataFrame({"MY_SPCD": [131]})
-        species_df = pl.DataFrame({
-            "MY_SPCD": [131],
-            "GENUS": ["Pinus"],
-        })
+        species_df = pl.DataFrame(
+            {
+                "MY_SPCD": [131],
+                "GENUS": ["Pinus"],
+            }
+        )
         result = assign_species_group(
             tree_df,
             species_df,
@@ -586,9 +678,12 @@ class TestValidateClassificationColumns:
     def test_custom_required_columns(self):
         """Test validation with custom required columns."""
         df = pl.DataFrame({"A": [1], "B": [2]})
-        assert validate_classification_columns(
-            df, "tree_basis", required_columns=["A", "B"]
-        ) is True
+        assert (
+            validate_classification_columns(
+                df, "tree_basis", required_columns=["A", "B"]
+            )
+            is True
+        )
 
     def test_custom_required_columns_missing(self):
         """Test validation with custom required columns missing."""

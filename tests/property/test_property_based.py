@@ -36,21 +36,27 @@ def plot_dataframe_strategy(draw):
     # Generate plot data
     data = {
         "PLT_CN": [f"PLT{i:04d}" for i in range(n_plots)],
-        "STATECD": draw(st.lists(
-            st.integers(min_value=1, max_value=99),
-            min_size=n_plots,
-            max_size=n_plots
-        )),
-        "INVYR": draw(st.lists(
-            st.integers(min_value=2000, max_value=2025),
-            min_size=n_plots,
-            max_size=n_plots
-        )),
-        "PLOT": draw(st.lists(
-            st.integers(min_value=1, max_value=9999),
-            min_size=n_plots,
-            max_size=n_plots
-        )),
+        "STATECD": draw(
+            st.lists(
+                st.integers(min_value=1, max_value=99),
+                min_size=n_plots,
+                max_size=n_plots,
+            )
+        ),
+        "INVYR": draw(
+            st.lists(
+                st.integers(min_value=2000, max_value=2025),
+                min_size=n_plots,
+                max_size=n_plots,
+            )
+        ),
+        "PLOT": draw(
+            st.lists(
+                st.integers(min_value=1, max_value=9999),
+                min_size=n_plots,
+                max_size=n_plots,
+            )
+        ),
     }
 
     return pl.DataFrame(data)
@@ -63,49 +69,61 @@ def tree_dataframe_strategy(draw):
 
     if n_trees == 0:
         # Empty DataFrame with correct schema
-        return pl.DataFrame({
-            "CN": [],
-            "PLT_CN": [],
-            "STATUSCD": [],
-            "DIA": [],
-            "TPA_UNADJ": [],
-            "DRYBIO_AG": [],
-            "VOLCFNET": [],
-        })
+        return pl.DataFrame(
+            {
+                "CN": [],
+                "PLT_CN": [],
+                "STATUSCD": [],
+                "DIA": [],
+                "TPA_UNADJ": [],
+                "DRYBIO_AG": [],
+                "VOLCFNET": [],
+            }
+        )
 
     # Generate tree data
     data = {
         "CN": [f"TREE{i:06d}" for i in range(n_trees)],
-        "PLT_CN": draw(st.lists(
-            st.text(min_size=8, max_size=8),
-            min_size=n_trees,
-            max_size=n_trees
-        )),
-        "STATUSCD": draw(st.lists(
-            st.sampled_from([1, 2]),  # Live or dead
-            min_size=n_trees,
-            max_size=n_trees
-        )),
-        "DIA": draw(st.lists(
-            st.floats(min_value=1.0, max_value=100.0),
-            min_size=n_trees,
-            max_size=n_trees
-        )),
-        "TPA_UNADJ": draw(st.lists(
-            st.floats(min_value=0.1, max_value=10.0),
-            min_size=n_trees,
-            max_size=n_trees
-        )),
-        "DRYBIO_AG": draw(st.lists(
-            st.floats(min_value=0.0, max_value=10000.0),
-            min_size=n_trees,
-            max_size=n_trees
-        )),
-        "VOLCFNET": draw(st.lists(
-            st.floats(min_value=0.0, max_value=1000.0),
-            min_size=n_trees,
-            max_size=n_trees
-        )),
+        "PLT_CN": draw(
+            st.lists(
+                st.text(min_size=8, max_size=8), min_size=n_trees, max_size=n_trees
+            )
+        ),
+        "STATUSCD": draw(
+            st.lists(
+                st.sampled_from([1, 2]),  # Live or dead
+                min_size=n_trees,
+                max_size=n_trees,
+            )
+        ),
+        "DIA": draw(
+            st.lists(
+                st.floats(min_value=1.0, max_value=100.0),
+                min_size=n_trees,
+                max_size=n_trees,
+            )
+        ),
+        "TPA_UNADJ": draw(
+            st.lists(
+                st.floats(min_value=0.1, max_value=10.0),
+                min_size=n_trees,
+                max_size=n_trees,
+            )
+        ),
+        "DRYBIO_AG": draw(
+            st.lists(
+                st.floats(min_value=0.0, max_value=10000.0),
+                min_size=n_trees,
+                max_size=n_trees,
+            )
+        ),
+        "VOLCFNET": draw(
+            st.lists(
+                st.floats(min_value=0.0, max_value=1000.0),
+                min_size=n_trees,
+                max_size=n_trees,
+            )
+        ),
     }
 
     return pl.DataFrame(data)
@@ -128,25 +146,38 @@ def stratified_plot_data_strategy(draw):
     strata = [f"STRATUM_{i % n_strata}" for i in range(n_plots)]
 
     # Generate expansion factors (positive values, reasonable range)
-    expns_values = draw(st.lists(
-        st.floats(min_value=100.0, max_value=10000.0, allow_nan=False, allow_infinity=False),
-        min_size=n_plots,
-        max_size=n_plots
-    ))
+    expns_values = draw(
+        st.lists(
+            st.floats(
+                min_value=100.0,
+                max_value=10000.0,
+                allow_nan=False,
+                allow_infinity=False,
+            ),
+            min_size=n_plots,
+            max_size=n_plots,
+        )
+    )
 
     # Generate area values (proportions between 0 and 1)
-    y_values = draw(st.lists(
-        st.floats(min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False),
-        min_size=n_plots,
-        max_size=n_plots
-    ))
+    y_values = draw(
+        st.lists(
+            st.floats(
+                min_value=0.0, max_value=1.0, allow_nan=False, allow_infinity=False
+            ),
+            min_size=n_plots,
+            max_size=n_plots,
+        )
+    )
 
-    data = pl.DataFrame({
-        "PLT_CN": plot_ids,
-        "STRATUM_CN": strata,
-        "EXPNS": expns_values,
-        "y_i": y_values,  # Plot-level response variable (e.g., adjusted area proportion)
-    })
+    data = pl.DataFrame(
+        {
+            "PLT_CN": plot_ids,
+            "STRATUM_CN": strata,
+            "EXPNS": expns_values,
+            "y_i": y_values,  # Plot-level response variable (e.g., adjusted area proportion)
+        }
+    )
 
     return data
 
@@ -171,30 +202,36 @@ class TestEstimationProperties:
             return
 
         # Calculate stratum statistics similar to _calculate_variance_for_group
-        strata_stats = plot_data.group_by("STRATUM_CN").agg([
-            pl.count("PLT_CN").alias("n_h"),
-            pl.mean("y_i").alias("ybar_h"),
-            pl.var("y_i", ddof=1).alias("s2_yh"),  # Sample variance
-            pl.first("EXPNS").alias("w_h"),
-        ])
+        strata_stats = plot_data.group_by("STRATUM_CN").agg(
+            [
+                pl.count("PLT_CN").alias("n_h"),
+                pl.mean("y_i").alias("ybar_h"),
+                pl.var("y_i", ddof=1).alias("s2_yh"),  # Sample variance
+                pl.first("EXPNS").alias("w_h"),
+            ]
+        )
 
         # Handle null variance (single plot in stratum)
-        strata_stats = strata_stats.with_columns([
-            pl.when(pl.col("s2_yh").is_null())
-            .then(0.0)
-            .otherwise(pl.col("s2_yh"))
-            .alias("s2_yh")
-        ])
+        strata_stats = strata_stats.with_columns(
+            [
+                pl.when(pl.col("s2_yh").is_null())
+                .then(0.0)
+                .otherwise(pl.col("s2_yh"))
+                .alias("s2_yh")
+            ]
+        )
 
         # Calculate variance components following FIA methodology
         # For domain total estimation: V(Y_D) = sum_h [w_h^2 * s^2_yh * n_h]
-        variance_components = strata_stats.with_columns([
-            (
-                pl.col("w_h").cast(pl.Float64) ** 2
-                * pl.col("s2_yh")
-                * pl.col("n_h")
-            ).alias("v_h")
-        ])
+        variance_components = strata_stats.with_columns(
+            [
+                (
+                    pl.col("w_h").cast(pl.Float64) ** 2
+                    * pl.col("s2_yh")
+                    * pl.col("n_h")
+                ).alias("v_h")
+            ]
+        )
 
         # Sum variance components
         total_variance = variance_components["v_h"].sum()
@@ -207,19 +244,23 @@ class TestEstimationProperties:
         assert total_variance >= 0, f"Variance was negative: {total_variance}"
 
         # Also check standard error is non-negative (sqrt of variance)
-        se_total = total_variance ** 0.5 if total_variance >= 0 else 0.0
+        se_total = total_variance**0.5 if total_variance >= 0 else 0.0
         assert se_total >= 0, f"Standard error was negative: {se_total}"
 
     @given(
         numerator_values=st.lists(
-            st.floats(min_value=0.1, max_value=1e6, allow_nan=False, allow_infinity=False),
+            st.floats(
+                min_value=0.1, max_value=1e6, allow_nan=False, allow_infinity=False
+            ),
             min_size=2,
-            max_size=50
+            max_size=50,
         ),
         denominator_values=st.lists(
-            st.floats(min_value=0.1, max_value=1e6, allow_nan=False, allow_infinity=False),
+            st.floats(
+                min_value=0.1, max_value=1e6, allow_nan=False, allow_infinity=False
+            ),
             min_size=2,
-            max_size=50
+            max_size=50,
         ),
     )
     @settings(max_examples=50, deadline=2000)
@@ -264,7 +305,9 @@ class TestEstimationProperties:
 
         # Ratio variance formula (Taylor series approximation)
         # Var(R) = (1/Ybar^2) * [Var(X) + R^2*Var(Y) - 2*R*Cov(X,Y)]
-        ratio_variance = (1.0 / (ybar ** 2)) * (var_x + (ratio ** 2) * var_y - 2 * ratio * cov_xy)
+        ratio_variance = (1.0 / (ybar**2)) * (
+            var_x + (ratio**2) * var_y - 2 * ratio * cov_xy
+        )
 
         # PROPERTY: Ratio variance should be non-negative in most practical cases
         # Note: Due to negative covariance, it can theoretically go negative
@@ -277,7 +320,7 @@ class TestEstimationProperties:
         assert ratio_variance >= 0, f"Ratio variance was negative: {ratio_variance}"
 
         # Standard error is sqrt of variance
-        se_ratio = ratio_variance ** 0.5
+        se_ratio = ratio_variance**0.5
         assert se_ratio >= 0, f"Standard error was negative: {se_ratio}"
 
     @given(st.data())
@@ -294,47 +337,60 @@ class TestEstimationProperties:
         n_trees = data.draw(st.integers(min_value=2, max_value=100))
 
         # All trees in subplot range (5-20 inches) to ensure same adjustment factor
-        diameters = data.draw(st.lists(
-            st.floats(min_value=5.0, max_value=19.9, allow_nan=False, allow_infinity=False),
-            min_size=n_trees,
-            max_size=n_trees
-        ))
+        diameters = data.draw(
+            st.lists(
+                st.floats(
+                    min_value=5.0, max_value=19.9, allow_nan=False, allow_infinity=False
+                ),
+                min_size=n_trees,
+                max_size=n_trees,
+            )
+        )
 
         # Generate unique TPA values to ensure well-defined ordering
-        tpa_values = data.draw(st.lists(
-            st.floats(min_value=0.1, max_value=100.0, allow_nan=False, allow_infinity=False),
-            min_size=n_trees,
-            max_size=n_trees,
-            unique=True
-        ))
+        tpa_values = data.draw(
+            st.lists(
+                st.floats(
+                    min_value=0.1,
+                    max_value=100.0,
+                    allow_nan=False,
+                    allow_infinity=False,
+                ),
+                min_size=n_trees,
+                max_size=n_trees,
+                unique=True,
+            )
+        )
 
         # Skip if we couldn't generate enough unique values
         if len(tpa_values) < n_trees:
             return
 
         # Create tree DataFrame with required columns
-        tree_df = pl.DataFrame({
-            "DIA": diameters,
-            "TPA_UNADJ": tpa_values,
-            # Adjustment factors from stratification (realistic values)
-            "ADJ_FACTOR_MICR": [1.2] * n_trees,  # Microplot adjustment
-            "ADJ_FACTOR_SUBP": [1.0] * n_trees,  # Subplot adjustment
-            "ADJ_FACTOR_MACR": [0.25] * n_trees,  # Macroplot adjustment
-            "MACRO_BREAKPOINT_DIA": [20.0] * n_trees,  # Regional breakpoint
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": diameters,
+                "TPA_UNADJ": tpa_values,
+                # Adjustment factors from stratification (realistic values)
+                "ADJ_FACTOR_MICR": [1.2] * n_trees,  # Microplot adjustment
+                "ADJ_FACTOR_SUBP": [1.0] * n_trees,  # Subplot adjustment
+                "ADJ_FACTOR_MACR": [0.25] * n_trees,  # Macroplot adjustment
+                "MACRO_BREAKPOINT_DIA": [20.0] * n_trees,  # Regional breakpoint
+            }
+        )
 
         # Apply tree adjustment factors using the actual function
         result_df = apply_tree_adjustment_factors(
             tree_df,
             size_col="DIA",
             macro_breakpoint_col="MACRO_BREAKPOINT_DIA",
-            output_col="ADJ_FACTOR"
+            output_col="ADJ_FACTOR",
         )
 
         # Calculate adjusted TPA
-        result_df = result_df.with_columns([
-            (pl.col("TPA_UNADJ") * pl.col("ADJ_FACTOR")).alias("TPA_ADJ")
-        ])
+        result_df = result_df.with_columns(
+            [(pl.col("TPA_UNADJ") * pl.col("ADJ_FACTOR")).alias("TPA_ADJ")]
+        )
 
         # Get ordering of original and adjusted values
         original_order = result_df["TPA_UNADJ"].arg_sort().to_list()
@@ -343,8 +399,9 @@ class TestEstimationProperties:
         # PROPERTY: The relative ordering should be preserved
         # Since all trees have the same adjustment factor (all are 5-20" DBH),
         # multiplying by a constant preserves order
-        assert original_order == adjusted_order, \
+        assert original_order == adjusted_order, (
             f"Ordering changed after adjustment:\nOriginal: {original_order}\nAdjusted: {adjusted_order}"
+        )
 
 
 class TestDataIntegrity:
@@ -365,8 +422,7 @@ class TestDataIntegrity:
             plot_cns = plot_df["PLT_CN"].to_list()
             tree_df = tree_df.with_columns(
                 pl.col("PLT_CN").map_elements(
-                    lambda x: plot_cns[hash(x) % len(plot_cns)],
-                    return_dtype=pl.Utf8
+                    lambda x: plot_cns[hash(x) % len(plot_cns)], return_dtype=pl.Utf8
                 )
             )
 
@@ -380,7 +436,7 @@ class TestDataIntegrity:
         values=st.lists(
             st.floats(min_value=0.0, max_value=1000.0, allow_nan=False),
             min_size=2,
-            max_size=100
+            max_size=100,
         )
     )
     def test_cv_calculation(self, values):
@@ -406,9 +462,11 @@ class TestTreeExpansionProperties:
 
     @given(
         diameters=st.lists(
-            st.floats(min_value=1.0, max_value=100.0, allow_nan=False, allow_infinity=False),
+            st.floats(
+                min_value=1.0, max_value=100.0, allow_nan=False, allow_infinity=False
+            ),
             min_size=1,
-            max_size=100
+            max_size=100,
         )
     )
     @settings(max_examples=50)
@@ -423,24 +481,28 @@ class TestTreeExpansionProperties:
         macro_breakpoint = 20.0
 
         # Create test DataFrame
-        tree_df = pl.DataFrame({
-            "DIA": diameters,
-            "ADJ_FACTOR_MICR": [1.5] * n_trees,
-            "ADJ_FACTOR_SUBP": [1.0] * n_trees,
-            "ADJ_FACTOR_MACR": [0.25] * n_trees,
-            "MACRO_BREAKPOINT_DIA": [macro_breakpoint] * n_trees,
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": diameters,
+                "ADJ_FACTOR_MICR": [1.5] * n_trees,
+                "ADJ_FACTOR_SUBP": [1.0] * n_trees,
+                "ADJ_FACTOR_MACR": [0.25] * n_trees,
+                "MACRO_BREAKPOINT_DIA": [macro_breakpoint] * n_trees,
+            }
+        )
 
         # Apply the adjustment factor expression
-        result_df = tree_df.with_columns([
-            get_adjustment_factor_expr(
-                size_col="DIA",
-                macro_breakpoint_col="MACRO_BREAKPOINT_DIA",
-                adj_factor_micr_col="ADJ_FACTOR_MICR",
-                adj_factor_subp_col="ADJ_FACTOR_SUBP",
-                adj_factor_macr_col="ADJ_FACTOR_MACR",
-            ).alias("ADJ_FACTOR")
-        ])
+        result_df = tree_df.with_columns(
+            [
+                get_adjustment_factor_expr(
+                    size_col="DIA",
+                    macro_breakpoint_col="MACRO_BREAKPOINT_DIA",
+                    adj_factor_micr_col="ADJ_FACTOR_MICR",
+                    adj_factor_subp_col="ADJ_FACTOR_SUBP",
+                    adj_factor_macr_col="ADJ_FACTOR_MACR",
+                ).alias("ADJ_FACTOR")
+            ]
+        )
 
         # Verify each tree got the correct adjustment factor
         for row in result_df.iter_rows(named=True):
@@ -454,13 +516,20 @@ class TestTreeExpansionProperties:
             else:
                 expected = 0.25  # Macroplot
 
-            assert abs(adj - expected) < 1e-10, \
+            assert abs(adj - expected) < 1e-10, (
                 f"DIA={dia}: expected {expected}, got {adj}"
+            )
 
     @given(
-        adj_micr=st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False),
-        adj_subp=st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False),
-        adj_macr=st.floats(min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False),
+        adj_micr=st.floats(
+            min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False
+        ),
+        adj_subp=st.floats(
+            min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False
+        ),
+        adj_macr=st.floats(
+            min_value=0.1, max_value=10.0, allow_nan=False, allow_infinity=False
+        ),
     )
     def test_adjustment_factors_are_positive(self, adj_micr, adj_subp, adj_macr):
         """Adjustment factors should always produce positive results.
@@ -469,22 +538,24 @@ class TestTreeExpansionProperties:
         TPA should always be positive.
         """
         # Create a simple test case
-        tree_df = pl.DataFrame({
-            "DIA": [3.0, 10.0, 25.0],  # One tree in each size class
-            "TPA_UNADJ": [6.0, 6.0, 6.0],
-            "ADJ_FACTOR_MICR": [adj_micr] * 3,
-            "ADJ_FACTOR_SUBP": [adj_subp] * 3,
-            "ADJ_FACTOR_MACR": [adj_macr] * 3,
-            "MACRO_BREAKPOINT_DIA": [20.0] * 3,
-        })
+        tree_df = pl.DataFrame(
+            {
+                "DIA": [3.0, 10.0, 25.0],  # One tree in each size class
+                "TPA_UNADJ": [6.0, 6.0, 6.0],
+                "ADJ_FACTOR_MICR": [adj_micr] * 3,
+                "ADJ_FACTOR_SUBP": [adj_subp] * 3,
+                "ADJ_FACTOR_MACR": [adj_macr] * 3,
+                "MACRO_BREAKPOINT_DIA": [20.0] * 3,
+            }
+        )
 
         # Apply adjustment factors
         result_df = apply_tree_adjustment_factors(tree_df)
 
         # Calculate adjusted TPA
-        result_df = result_df.with_columns([
-            (pl.col("TPA_UNADJ") * pl.col("ADJ_FACTOR")).alias("TPA_ADJ")
-        ])
+        result_df = result_df.with_columns(
+            [(pl.col("TPA_UNADJ") * pl.col("ADJ_FACTOR")).alias("TPA_ADJ")]
+        )
 
         # All adjusted TPA values should be positive
         for tpa_adj in result_df["TPA_ADJ"].to_list():

@@ -22,15 +22,15 @@ class TestVolumeValidation:
         """Validate growing stock net volume matches EVALIDator (snum=15)."""
         with FIA(fia_db) as db:
             db.clip_by_evalid(GEORGIA_EVALID)
-            result = volume(db, land_type="forest", vol_type="net", tree_type="gs", totals=True)
+            result = volume(
+                db, land_type="forest", vol_type="net", tree_type="gs", totals=True
+            )
             pyfia_vol = result["VOLCFNET_TOTAL"][0]
             pyfia_se = result["VOLCFNET_TOTAL_SE"][0]
             pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_volume(
-            state_code=GEORGIA_STATE_CODE,
-            year=GEORGIA_YEAR,
-            vol_type="net"
+            state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR, vol_type="net"
         )
 
         validation = compare_estimates(
@@ -38,22 +38,28 @@ class TestVolumeValidation:
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
             tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
-            pyfia_plot_count=pyfia_plot_count
+            pyfia_plot_count=pyfia_plot_count,
         )
 
         print(f"\nGrowing Stock Volume Validation:")
         print(f"  pyFIA:      {pyfia_vol:,.0f} cu ft (SE: {pyfia_se:,.0f})")
-        print(f"  EVALIDator: {ev_result.estimate:,.0f} cu ft (SE: {ev_result.sampling_error:,.0f})")
+        print(
+            f"  EVALIDator: {ev_result.estimate:,.0f} cu ft (SE: {ev_result.sampling_error:,.0f})"
+        )
         print(f"  Difference: {validation.pct_diff:.6f}%")
-        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
+        print(
+            f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}"
+        )
 
         assert values_match(pyfia_vol, ev_result.estimate), (
             f"Volume MUST match EVALIDator exactly.\n"
             f"pyFIA: {pyfia_vol} vs EVALIDator: {ev_result.estimate}"
         )
 
-        assert se_values_match(pyfia_se, ev_result.sampling_error, rel_tol=SE_TOLERANCE_TREE), (
-            f"Volume SE should match EVALIDator within {SE_TOLERANCE_TREE*100:.0f}% tolerance.\n"
+        assert se_values_match(
+            pyfia_se, ev_result.sampling_error, rel_tol=SE_TOLERANCE_TREE
+        ), (
+            f"Volume SE should match EVALIDator within {SE_TOLERANCE_TREE * 100:.0f}% tolerance.\n"
             f"pyFIA SE: {pyfia_se:,.0f} vs EVALIDator SE: {ev_result.sampling_error:,.0f}"
         )
 
@@ -72,14 +78,12 @@ class TestVolumeValidation:
                 vol_type="net",
                 tree_type="live",
                 tree_domain="TREECLCD == 2",
-                totals=True
+                totals=True,
             )
             pyfia_vol = result["VOLCFNET_TOTAL"][0]
 
         ev_result = evalidator_client.get_volume(
-            state_code=GEORGIA_STATE_CODE,
-            year=GEORGIA_YEAR,
-            vol_type="net"
+            state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR, vol_type="net"
         )
 
         print(f"\nVolume (explicit TREECLCD=2) Validation:")

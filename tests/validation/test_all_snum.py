@@ -28,7 +28,11 @@ import pytest
 import requests
 
 from pyfia.evalidator.client import EVALIDatorClient
-from pyfia.evalidator.estimate_types import EstimateType, SNUM_DESCRIPTIONS, get_category
+from pyfia.evalidator.estimate_types import (
+    EstimateType,
+    SNUM_DESCRIPTIONS,
+    get_category,
+)
 
 # Test configuration
 STATE_CODE = 13  # Georgia
@@ -81,7 +85,9 @@ class TestAreaSnum:
     """Validate AREA estimate types (snum 2, 3, 79)."""
 
     @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("AREA", []))
-    def test_area_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    def test_area_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate AREA snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -106,8 +112,12 @@ class TestAreaSnum:
 class TestAreaChangeSnum:
     """Validate AREA_CHANGE estimate types."""
 
-    @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("AREA_CHANGE", []))
-    def test_area_change_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    @pytest.mark.parametrize(
+        "snum,description", SNUMS_BY_CATEGORY.get("AREA_CHANGE", [])
+    )
+    def test_area_change_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate AREA_CHANGE snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -132,8 +142,12 @@ class TestAreaChangeSnum:
 class TestTreeCountSnum:
     """Validate TREE_COUNT estimate types."""
 
-    @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("TREE_COUNT", []))
-    def test_tree_count_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    @pytest.mark.parametrize(
+        "snum,description", SNUMS_BY_CATEGORY.get("TREE_COUNT", [])
+    )
+    def test_tree_count_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate TREE_COUNT snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -158,8 +172,12 @@ class TestTreeCountSnum:
 class TestBasalAreaSnum:
     """Validate BASAL_AREA estimate types."""
 
-    @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("BASAL_AREA", []))
-    def test_basal_area_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    @pytest.mark.parametrize(
+        "snum,description", SNUMS_BY_CATEGORY.get("BASAL_AREA", [])
+    )
+    def test_basal_area_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate BASAL_AREA snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -185,7 +203,9 @@ class TestVolumeSnum:
     """Validate VOLUME estimate types (311 estimates)."""
 
     @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("VOLUME", []))
-    def test_volume_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    def test_volume_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate VOLUME snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -211,7 +231,9 @@ class TestBiomassSnum:
     """Validate BIOMASS estimate types (327 estimates)."""
 
     @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("BIOMASS", []))
-    def test_biomass_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    def test_biomass_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate BIOMASS snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -237,7 +259,9 @@ class TestCarbonSnum:
     """Validate CARBON estimate types (38 estimates)."""
 
     @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("CARBON", []))
-    def test_carbon_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    def test_carbon_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate CARBON snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -262,8 +286,12 @@ class TestCarbonSnum:
 class TestDownWoodySnum:
     """Validate DOWN_WOODY estimate types."""
 
-    @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("DOWN_WOODY", []))
-    def test_down_woody_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    @pytest.mark.parametrize(
+        "snum,description", SNUMS_BY_CATEGORY.get("DOWN_WOODY", [])
+    )
+    def test_down_woody_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate DOWN_WOODY snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -288,8 +316,12 @@ class TestDownWoodySnum:
 class TestTreeDynamicsSnum:
     """Validate TREE_DYNAMICS estimate types (growth, mortality, removals)."""
 
-    @pytest.mark.parametrize("snum,description", SNUMS_BY_CATEGORY.get("TREE_DYNAMICS", []))
-    def test_tree_dynamics_snum(self, evalidator_client: EVALIDatorClient, snum: int, description: str):
+    @pytest.mark.parametrize(
+        "snum,description", SNUMS_BY_CATEGORY.get("TREE_DYNAMICS", [])
+    )
+    def test_tree_dynamics_snum(
+        self, evalidator_client: EVALIDatorClient, snum: int, description: str
+    ):
         """Validate TREE_DYNAMICS snum returns valid response."""
         result = evalidator_client.get_custom_estimate(
             snum=snum,

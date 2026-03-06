@@ -36,7 +36,9 @@ class TimingResult:
     def __post_init__(self):
         if self.times_ms:
             self.mean_ms = statistics.mean(self.times_ms)
-            self.std_ms = statistics.stdev(self.times_ms) if len(self.times_ms) > 1 else 0.0
+            self.std_ms = (
+                statistics.stdev(self.times_ms) if len(self.times_ms) > 1 else 0.0
+            )
             self.min_ms = min(self.times_ms)
             self.max_ms = max(self.times_ms)
             self.median_ms = statistics.median(self.times_ms)
@@ -215,4 +217,4 @@ def print_comparison_table(suite: BenchmarkSuite):
             if speedup > 1:
                 console.print(f"  {key}: [green]{speedup:.1f}x faster[/green]")
             else:
-                console.print(f"  {key}: [yellow]{1/speedup:.1f}x slower[/yellow]")
+                console.print(f"  {key}: [yellow]{1 / speedup:.1f}x slower[/yellow]")

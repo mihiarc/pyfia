@@ -46,9 +46,13 @@ class TestValidationSummary:
                 db.clip_by_evalid(GEORGIA_EVALID)
                 r = area(db, land_type="timber", totals=True)
                 pyfia_val = r["AREA"][0]
-            ev = evalidator_client.get_forest_area(GEORGIA_STATE_CODE, GEORGIA_YEAR, land_type="timber")
+            ev = evalidator_client.get_forest_area(
+                GEORGIA_STATE_CODE, GEORGIA_YEAR, land_type="timber"
+            )
             pct_diff = abs(pyfia_val - ev.estimate) / ev.estimate * 100
-            results.append(("Timberland Area", pyfia_val, ev.estimate, pct_diff, "acres"))
+            results.append(
+                ("Timberland Area", pyfia_val, ev.estimate, pct_diff, "acres")
+            )
         except Exception as e:
             results.append(("Timberland Area", None, None, None, f"ERROR: {e}"))
 
@@ -72,7 +76,9 @@ class TestValidationSummary:
                 pyfia_val = r["BIO_TOTAL"][0]
             ev = evalidator_client.get_biomass(GEORGIA_STATE_CODE, GEORGIA_YEAR)
             pct_diff = abs(pyfia_val - ev.estimate) / ev.estimate * 100
-            results.append(("Biomass (AG)", pyfia_val, ev.estimate, pct_diff, "dry tons"))
+            results.append(
+                ("Biomass (AG)", pyfia_val, ev.estimate, pct_diff, "dry tons")
+            )
         except Exception as e:
             results.append(("Biomass (AG)", None, None, None, f"ERROR: {e}"))
 
@@ -137,7 +143,9 @@ class TestValidationSummary:
             results.append(("Removals", None, None, None, f"ERROR: {e}"))
 
         # Print summary table
-        print(f"\n{'Estimator':<18} {'pyFIA':>18} {'EVALIDator':>18} {'Diff %':>10} {'Status':>10}")
+        print(
+            f"\n{'Estimator':<18} {'pyFIA':>18} {'EVALIDator':>18} {'Diff %':>10} {'Status':>10}"
+        )
         print("-" * 80)
 
         for name, pyfia_val, ev_val, pct_diff, units in results:
@@ -145,10 +153,14 @@ class TestValidationSummary:
                 print(f"{name:<18} {units}")
             else:
                 status = "PASS" if pct_diff < 5 else "WARN" if pct_diff < 20 else "FAIL"
-                print(f"{name:<18} {pyfia_val:>15,.0f} {ev_val:>15,.0f} {pct_diff:>9.2f}% {status:>10}")
+                print(
+                    f"{name:<18} {pyfia_val:>15,.0f} {ev_val:>15,.0f} {pct_diff:>9.2f}% {status:>10}"
+                )
 
         print("-" * 80)
-        print(f"Tolerance: Exact match required (floating point tolerance: {FLOAT_TOLERANCE})")
+        print(
+            f"Tolerance: Exact match required (floating point tolerance: {FLOAT_TOLERANCE})"
+        )
         print("=" * 80)
 
         # Always passes - documentation only

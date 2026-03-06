@@ -18,6 +18,7 @@ class TestMathConstants:
         """Test basal area factor is correct."""
         # (pi/4) / 144 = 0.005454154...
         import math
+
         expected = (math.pi / 4) / 144
         assert abs(MathConstants.BASAL_AREA_FACTOR - expected) < 1e-6
 
@@ -112,6 +113,7 @@ class TestEVALIDYearParsing:
 
     def test_y2k_windowing_logic(self):
         """Test that constants support correct Y2K windowing logic."""
+
         # Simulate Y2K windowing as used in code
         def parse_evalid_year(year_part: int) -> int:
             if year_part <= EVALIDYearParsing.Y2K_WINDOW_THRESHOLD:
@@ -127,6 +129,7 @@ class TestEVALIDYearParsing:
 
     def test_legacy_year_parsing_logic(self):
         """Test legacy year parsing logic used in base estimator."""
+
         # Simulate legacy year parsing as used in _infer_evaluation_year
         def parse_legacy_year(year_part: int) -> int:
             if year_part >= EVALIDYearParsing.LEGACY_THRESHOLD:
@@ -141,6 +144,7 @@ class TestEVALIDYearParsing:
 
     def test_year_validation_logic(self):
         """Test that year validation logic works with constants."""
+
         def is_valid_year(year: int) -> bool:
             return (
                 EVALIDYearParsing.MIN_VALID_YEAR

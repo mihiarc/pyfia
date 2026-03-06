@@ -36,10 +36,7 @@ class TestDomainExpressionParserParse:
     def test_parse_and_expression(self):
         """Test parsing AND expressions."""
         expr = DomainExpressionParser.parse("DIA >= 10.0 AND STATUSCD = 1", "tree")
-        df = pl.DataFrame({
-            "DIA": [5.0, 10.0, 15.0, 20.0],
-            "STATUSCD": [1, 1, 2, 1]
-        })
+        df = pl.DataFrame({"DIA": [5.0, 10.0, 15.0, 20.0], "STATUSCD": [1, 1, 2, 1]})
         result = df.filter(expr)
         assert len(result) == 2
         assert result["DIA"].to_list() == [10.0, 20.0]
@@ -141,7 +138,10 @@ class TestDomainExpressionParserApplyToDataframe:
 
     def test_apply_to_frame_alias(self):
         """Test that apply_to_frame is an alias for apply_to_dataframe."""
-        assert DomainExpressionParser.apply_to_frame == DomainExpressionParser.apply_to_dataframe
+        assert (
+            DomainExpressionParser.apply_to_frame
+            == DomainExpressionParser.apply_to_dataframe
+        )
 
 
 class TestDomainExpressionParserCreateIndicator:
@@ -162,10 +162,7 @@ class TestDomainExpressionParserCreateIndicator:
         indicator_expr = DomainExpressionParser.create_indicator(
             "DIA >= 10.0 AND STATUSCD = 1", "tree", "live_large"
         )
-        df = pl.DataFrame({
-            "DIA": [5.0, 10.0, 15.0, 20.0],
-            "STATUSCD": [1, 1, 2, 1]
-        })
+        df = pl.DataFrame({"DIA": [5.0, 10.0, 15.0, 20.0], "STATUSCD": [1, 1, 2, 1]})
         result = df.with_columns(indicator_expr)
         assert result["live_large"].to_list() == [0, 1, 0, 1]
 
@@ -212,7 +209,9 @@ class TestDomainExpressionParserValidateExpression:
     def test_validate_ignores_sql_keywords(self):
         """Test that SQL keywords are not flagged as missing columns."""
         is_valid, error = DomainExpressionParser.validate_expression(
-            "DIA >= 10.0 AND STATUSCD = 1", "tree", available_columns=["DIA", "STATUSCD"]
+            "DIA >= 10.0 AND STATUSCD = 1",
+            "tree",
+            available_columns=["DIA", "STATUSCD"],
         )
         assert is_valid is True
         assert error is None
@@ -226,10 +225,7 @@ class TestDomainExpressionParserCombineExpressions:
         combined = DomainExpressionParser.combine_expressions(
             ["DIA >= 10.0", "STATUSCD = 1"], "AND", "tree"
         )
-        df = pl.DataFrame({
-            "DIA": [5.0, 10.0, 15.0, 20.0],
-            "STATUSCD": [1, 1, 2, 1]
-        })
+        df = pl.DataFrame({"DIA": [5.0, 10.0, 15.0, 20.0], "STATUSCD": [1, 1, 2, 1]})
         result = df.filter(combined)
         assert len(result) == 2
         assert result["DIA"].to_list() == [10.0, 20.0]
@@ -251,10 +247,7 @@ class TestDomainExpressionParserCombineExpressions:
         combined_upper = DomainExpressionParser.combine_expressions(
             ["DIA >= 10.0", "STATUSCD = 1"], "AND"
         )
-        df = pl.DataFrame({
-            "DIA": [5.0, 10.0, 15.0],
-            "STATUSCD": [1, 1, 2]
-        })
+        df = pl.DataFrame({"DIA": [5.0, 10.0, 15.0], "STATUSCD": [1, 1, 2]})
         assert len(df.filter(combined_lower)) == len(df.filter(combined_upper))
 
     def test_combine_multiple_expressions(self):
@@ -262,10 +255,9 @@ class TestDomainExpressionParserCombineExpressions:
         combined = DomainExpressionParser.combine_expressions(
             ["DIA >= 5.0", "DIA <= 15.0", "STATUSCD = 1"], "AND"
         )
-        df = pl.DataFrame({
-            "DIA": [3.0, 5.0, 10.0, 15.0, 20.0],
-            "STATUSCD": [1, 1, 1, 2, 1]
-        })
+        df = pl.DataFrame(
+            {"DIA": [3.0, 5.0, 10.0, 15.0, 20.0], "STATUSCD": [1, 1, 1, 2, 1]}
+        )
         result = df.filter(combined)
         assert len(result) == 2
         assert result["DIA"].to_list() == [5.0, 10.0]
@@ -278,9 +270,7 @@ class TestDomainExpressionParserCombineExpressions:
     def test_combine_invalid_operator_raises(self):
         """Test that invalid operator raises ValueError."""
         with pytest.raises(ValueError, match="Unsupported operator"):
-            DomainExpressionParser.combine_expressions(
-                ["DIA >= 10.0"], "XOR"
-            )
+            DomainExpressionParser.combine_expressions(["DIA >= 10.0"], "XOR")
 
     def test_combine_single_expression(self):
         """Test combining single expression returns equivalent expression."""
@@ -317,12 +307,10 @@ class TestDomainExpressionParserEdgeCases:
     def test_complex_nested_expression(self):
         """Test complex nested expressions."""
         expr = DomainExpressionParser.parse(
-            "(DIA >= 10.0 AND STATUSCD = 1) OR (DIA >= 20.0 AND STATUSCD = 2)",
-            "tree"
+            "(DIA >= 10.0 AND STATUSCD = 1) OR (DIA >= 20.0 AND STATUSCD = 2)", "tree"
         )
-        df = pl.DataFrame({
-            "DIA": [5.0, 10.0, 15.0, 20.0, 25.0],
-            "STATUSCD": [1, 1, 2, 2, 1]
-        })
+        df = pl.DataFrame(
+            {"DIA": [5.0, 10.0, 15.0, 20.0, 25.0], "STATUSCD": [1, 1, 2, 2, 1]}
+        )
         result = df.filter(expr)
         assert len(result) == 3  # 10.0/1, 20.0/2, 25.0/1

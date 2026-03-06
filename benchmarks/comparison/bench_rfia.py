@@ -19,7 +19,7 @@ from benchmarks.comparison.timing import TimingResult
 console = Console()
 
 # R script template for rFIA benchmarks
-RFIA_BENCHMARK_SCRIPT = '''
+RFIA_BENCHMARK_SCRIPT = """
 # rFIA Benchmark Script
 # This script runs equivalent benchmarks to pyFIA for fair comparison
 
@@ -230,7 +230,7 @@ tryCatch({{
 cat("\\n=== RESULTS_JSON_START ===\\n")
 cat(toJSON(results, auto_unbox = TRUE, pretty = FALSE))
 cat("\\n=== RESULTS_JSON_END ===\\n")
-'''
+"""
 
 
 def run_rfia_benchmarks(
@@ -389,7 +389,9 @@ if __name__ == "__main__":
     state = sys.argv[1] if len(sys.argv) > 1 else "RI"
 
     if not check_rfia_available():
-        console.print("[red]rFIA not available. Please install R and rFIA package.[/red]")
+        console.print(
+            "[red]rFIA not available. Please install R and rFIA package.[/red]"
+        )
         console.print("  1. Install R: https://cran.r-project.org/")
         console.print("  2. Install rFIA: install.packages('rFIA')")
         sys.exit(1)

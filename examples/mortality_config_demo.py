@@ -6,8 +6,7 @@ This script shows how to use the enhanced Pydantic-based configuration
 for mortality estimation with proper validation and type safety.
 """
 
-from pyfia import FIA, MortalityCalculator, MortalityConfig
-import polars as pl
+from pyfia import MortalityConfig
 
 
 def main():

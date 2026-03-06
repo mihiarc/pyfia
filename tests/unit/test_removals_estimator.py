@@ -7,8 +7,8 @@ No database connection required.
 import polars as pl
 import pytest
 
-from pyfia.estimation.estimators.removals import RemovalsEstimator
 from pyfia.estimation.constants import LBS_TO_SHORT_TONS
+from pyfia.estimation.estimators.removals import RemovalsEstimator
 
 
 class MockDB:

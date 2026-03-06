@@ -4,16 +4,16 @@ from pyfia import FIA, growth, mortality, removals
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID_GRM,
-    GEORGIA_YEAR,
-    EXACT_MATCH_TOLERANCE_PCT,
     DATA_SYNC_TOLERANCE,
+    EXACT_MATCH_TOLERANCE_PCT,
+    GEORGIA_EVALID_GRM,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     SE_TOLERANCE_GRM,
-    values_match,
-    se_values_match,
-    plot_counts_match,
     extract_grm_estimate,
+    plot_counts_match,
+    se_values_match,
+    values_match,
 )
 
 
@@ -53,7 +53,7 @@ class TestGRMValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nAnnual Growth Volume Validation:")
+        print("\nAnnual Growth Volume Validation:")
         print(f"  pyFIA:      {pyfia_growth:,.0f} cu ft/year (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} cu ft/year (SE: {ev_result.sampling_error:,.0f})"
@@ -118,7 +118,7 @@ class TestGRMValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nAnnual Mortality Volume Validation:")
+        print("\nAnnual Mortality Volume Validation:")
         print(f"  pyFIA:      {pyfia_mort:,.0f} cu ft/year (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} cu ft/year (SE: {ev_result.sampling_error:,.0f})"
@@ -171,7 +171,7 @@ class TestGRMValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nAnnual Removals Volume Validation:")
+        print("\nAnnual Removals Volume Validation:")
         print(f"  pyFIA:      {pyfia_rem:,.0f} cu ft/year (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} cu ft/year (SE: {ev_result.sampling_error:,.0f})"

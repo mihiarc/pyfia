@@ -1,13 +1,12 @@
 """Tests for pyFIA constants and defaults."""
 
-import pytest
 
 from pyfia.constants.defaults import (
     Defaults,
+    ErrorMessages,
     EVALIDYearParsing,
     MathConstants,
     ValidationRanges,
-    ErrorMessages,
 )
 
 

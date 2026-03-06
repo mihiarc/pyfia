@@ -189,7 +189,7 @@ def print_comparison_table(suite: BenchmarkSuite):
                 table.add_row(
                     name if i == 0 else "",
                     r.tool,
-                    f"[red]ERROR[/red]",
+                    "[red]ERROR[/red]",
                     "-",
                     "-",
                     "-",

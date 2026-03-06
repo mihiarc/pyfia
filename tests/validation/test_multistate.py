@@ -9,12 +9,12 @@ All estimates (area, volume, biomass, TPA) MUST match EVALIDator exactly.
 import os
 from pathlib import Path
 
-from pyfia import FIA, area, volume, biomass, tpa
+from pyfia import FIA, area, biomass, tpa, volume
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    StateConfig,
     EXACT_MATCH_TOLERANCE_PCT,
+    StateConfig,
     values_match,
 )
 

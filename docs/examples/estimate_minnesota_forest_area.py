@@ -7,16 +7,14 @@ various forest area statistics for Minnesota, including area by forest type,
 ownership, and land use categories.
 """
 
-from pathlib import Path
 import polars as pl
-from rich.console import Console
-from rich.table import Table
-from rich import print as rprint
-from rich.progress import Progress, SpinnerColumn, TextColumn
-
-from pyfia import FIA
 from pyfia.estimation.area import area
 from pyfia.filters.grouping import get_forest_type_group, get_ownership_group_name
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
+from pyfia import FIA
 
 console = Console()
 
@@ -238,7 +236,7 @@ def estimate_minnesota_forest_area(db_path: str = "fia.duckdb"):
             f"   Reserved forest area: {row['AREA']:,.0f} acres ({row['AREA_PERC']:.1f}% of total)"
         )
         console.print(f"   Standard error: ±{row['AREA_PERC_SE']:.2f}%")
-        console.print(f"   (Areas reserved from timber production)")
+        console.print("   (Areas reserved from timber production)")
 
     # Summary statistics
     console.print("\n[bold green]8. Summary Statistics[/bold green]")
@@ -252,7 +250,7 @@ def estimate_minnesota_forest_area(db_path: str = "fia.duckdb"):
             else 0
         )
 
-        console.print(f"\n[yellow]Forest Land Categories:[/yellow]")
+        console.print("\n[yellow]Forest Land Categories:[/yellow]")
         console.print(f"   Total forest land: {total_forest_acres:,.0f} acres")
         console.print(
             f"   Timberland (productive, unreserved): {timberland_acres:,.0f} acres ({timberland_acres / total_forest_acres * 100:.1f}%)"

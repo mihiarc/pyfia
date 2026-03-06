@@ -6,8 +6,9 @@ This script demonstrates how to use the enhanced Pydantic-based configuration
 for mortality analysis with real FIA data.
 """
 
-from pyfia import FIA, MortalityCalculator, MortalityConfig, mortality
 import polars as pl
+
+from pyfia import FIA, MortalityCalculator, MortalityConfig, mortality
 
 
 def example_basic_mortality(db_path: str):
@@ -114,7 +115,7 @@ def example_validation(db_path: str):
         tree_class="timber",
         land_type="timber",
     )
-    print(f"\n✓ Valid timber mortality config created successfully")
+    print("\n✓ Valid timber mortality config created successfully")
     print(f"  - Tree type: {valid_config.tree_type}")
     print(f"  - Tree class: {valid_config.tree_class}")
     print(f"  - Land type: {valid_config.land_type}")

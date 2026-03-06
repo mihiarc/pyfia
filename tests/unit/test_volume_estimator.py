@@ -4,7 +4,6 @@ Tests the VolumeEstimator methods in isolation using mock data.
 No database connection required.
 """
 
-import math
 
 import polars as pl
 import pytest

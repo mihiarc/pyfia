@@ -3,14 +3,13 @@ Example script demonstrating detailed mortality estimation for Georgia using pyF
 This replicates the functionality of the mortality_with_variance_detailed_groups.sql query.
 """
 
-from pathlib import Path
 import polars as pl
+from pyfia.estimation.mortality import mortality
+from pyfia.filters.grouping import get_ownership_group_name
 from rich.console import Console
 from rich.table import Table
 
 from pyfia import FIA
-from pyfia.estimation.mortality import mortality
-from pyfia.filters.grouping import get_ownership_group_name
 
 console = Console()
 

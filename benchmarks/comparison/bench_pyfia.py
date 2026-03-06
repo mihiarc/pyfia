@@ -5,7 +5,7 @@ Benchmarks pyFIA estimation functions for comparison against rFIA and EVALIDator
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from rich.console import Console
 

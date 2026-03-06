@@ -9,6 +9,7 @@ forest type groupings.
 import polars as pl
 import pytest
 
+from pyfia.constants.plot_design import PlotBasis
 from pyfia.filtering.utils import (
     assign_forest_type_group,
     assign_size_class,
@@ -16,7 +17,6 @@ from pyfia.filtering.utils import (
     assign_tree_basis,
     validate_classification_columns,
 )
-from pyfia.constants.plot_design import PlotBasis
 
 
 class TestAssignTreeBasis:

@@ -1,7 +1,7 @@
 """Tests for DomainExpressionParser."""
 
-import pytest
 import polars as pl
+import pytest
 
 from pyfia.filtering.parser import DomainExpressionParser
 

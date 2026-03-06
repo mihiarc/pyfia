@@ -8,6 +8,7 @@ like size class, species, forest type, and ownership.
 import polars as pl
 import pytest
 
+from pyfia.constants.status_codes import LandStatus
 from pyfia.filtering.utils import (
     add_forest_type_group,
     add_forest_type_group_code,
@@ -24,7 +25,6 @@ from pyfia.filtering.utils import (
     setup_grouping_columns,
     validate_grouping_columns,
 )
-from pyfia.constants.status_codes import LandStatus
 
 
 class TestCreateSizeClassExpr:

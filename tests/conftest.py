@@ -125,7 +125,7 @@ def sample_evaluation():
 
 def pytest_configure(config):
     """Configure hypothesis profiles for different test scenarios."""
-    from hypothesis import settings, Verbosity, Phase
+    from hypothesis import Phase, Verbosity, settings
 
     # Development profile - fast iteration
     settings.register_profile(

@@ -5,14 +5,14 @@ from pyfia.evalidator.estimate_types import EstimateType
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID,
-    GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
+    GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     SE_TOLERANCE_TREE,
-    values_match,
-    se_values_match,
     plot_counts_match,
+    se_values_match,
+    values_match,
 )
 
 
@@ -40,7 +40,7 @@ class TestTPAValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nTotal Tree Count Validation:")
+        print("\nTotal Tree Count Validation:")
         print(f"  pyFIA:      {pyfia_count:,.0f} trees (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} trees (SE: {ev_result.sampling_error:,.0f})"
@@ -100,7 +100,7 @@ class TestTPAValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nGrowing Stock Tree Count Validation:")
+        print("\nGrowing Stock Tree Count Validation:")
         print(f"  pyFIA:      {pyfia_count:,.0f} trees (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} trees (SE: {ev_result.sampling_error:,.0f})"

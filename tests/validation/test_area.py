@@ -1,18 +1,17 @@
 """Area estimation validation against EVALIDator."""
 
-import pytest
 
 from pyfia import FIA, area
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID,
-    GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
-    values_match,
-    se_values_match,
+    GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     plot_counts_match,
+    se_values_match,
+    values_match,
 )
 
 
@@ -40,7 +39,7 @@ class TestAreaValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nForest Area Validation:")
+        print("\nForest Area Validation:")
         print(f"  pyFIA:      {pyfia_area:,.0f} acres (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})"
@@ -86,7 +85,7 @@ class TestAreaValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nTimberland Area Validation:")
+        print("\nTimberland Area Validation:")
         print(f"  pyFIA:      {pyfia_area:,.0f} acres (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})"

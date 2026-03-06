@@ -6,16 +6,14 @@ This script demonstrates how to use pyfia's volume() function to calculate
 merchantable timber volume statistics for California, grouped by diameter classes.
 """
 
-from pathlib import Path
 import polars as pl
+from pyfia.estimation.volume import volume
+from pyfia.filters.grouping import get_ownership_group_name
 from rich.console import Console
-from rich.table import Table
-from rich import print as rprint
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
 
 from pyfia import FIA
-from pyfia.estimation.volume import volume
-from pyfia.filters.grouping import get_ownership_group_name, get_forest_type_group
 
 console = Console()
 

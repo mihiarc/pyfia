@@ -67,7 +67,7 @@ def demo_explicit_backend(db_path: Path, engine: str):
 
 def demo_fia_class_with_backend(db_path: Path, engine: str = None):
     """Demonstrate FIA class with backend support."""
-    console.print(f"\n[bold blue]FIA Class Backend Demo[/bold blue]")
+    console.print("\n[bold blue]FIA Class Backend Demo[/bold blue]")
 
     # Create FIA instance (auto-detect or explicit engine)
     fia = FIA(db_path, engine=engine)

@@ -24,9 +24,8 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-import polars as pl
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table

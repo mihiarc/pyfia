@@ -7,7 +7,6 @@ Benchmarks the USDA Forest Service EVALIDator API for comparison against pyFIA.
 import gc
 import time
 from typing import Any, Dict, List, Optional
-from urllib.parse import urlencode
 
 import requests
 from rich.console import Console
@@ -222,7 +221,7 @@ def run_evalidator_benchmarks(
     evalid = get_most_recent_evalid(state_fips)
     console.print(f"  Using EVALID: {evalid}")
     console.print(f"  Iterations: {iterations}")
-    console.print(f"  Note: Network latency included in measurements")
+    console.print("  Note: Network latency included in measurements")
 
     # ==========================================================================
     # Benchmark 1: Area Total

@@ -7,8 +7,8 @@ No database connection required.
 import polars as pl
 import pytest
 
-from pyfia.estimation.estimators.mortality import MortalityEstimator
 from pyfia.estimation.constants import BASAL_AREA_FACTOR, LBS_TO_SHORT_TONS
+from pyfia.estimation.estimators.mortality import MortalityEstimator
 
 
 class MockDB:

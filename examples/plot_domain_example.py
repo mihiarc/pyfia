@@ -8,7 +8,7 @@ The plot_domain parameter is useful when you need to filter by attributes that
 are stored in the PLOT table rather than the COND table.
 """
 
-from pyfia import FIA, area, volume, biomass, tpa
+from pyfia import FIA, area, biomass, tpa, volume
 
 
 # Example 1: Filter by county

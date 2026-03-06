@@ -212,7 +212,7 @@ def main(db_path: str = "data/nc.duckdb", state_code: int = 37):
         db_path: Path to FIA DuckDB database
         state_code: FIPS state code (default 37 = North Carolina)
     """
-    console.print(f"[bold green]Harvest Panel Analysis[/bold green]")
+    console.print("[bold green]Harvest Panel Analysis[/bold green]")
     console.print(f"Database: {db_path}")
     console.print(f"State code: {state_code}")
 

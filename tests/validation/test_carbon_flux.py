@@ -52,7 +52,7 @@ class TestCarbonFluxValidation:
         manual_remv_c = remv_biomass * CARBON_FRACTION
         manual_net = manual_growth_c - manual_mort_c - manual_remv_c
 
-        print(f"\nCarbon Flux Component Validation:")
+        print("\nCarbon Flux Component Validation:")
         print(f"  Growth carbon:    {growth_c:,.0f} (manual: {manual_growth_c:,.0f})")
         print(f"  Mortality carbon: {mort_c:,.0f} (manual: {manual_mort_c:,.0f})")
         print(f"  Removals carbon:  {remv_c:,.0f} (manual: {manual_remv_c:,.0f})")
@@ -89,7 +89,7 @@ class TestCarbonFluxValidation:
 
         calculated_acre = net_total / area if area > 0 else 0
 
-        print(f"\nPer-Acre Consistency Validation:")
+        print("\nPer-Acre Consistency Validation:")
         print(f"  Net total:  {net_total:,.0f} tons C/year")
         print(f"  Area:       {area:,.0f} acres")
         print(f"  Net/acre:   {net_acre:.6f} (calculated: {calculated_acre:.6f})")
@@ -112,7 +112,7 @@ class TestCarbonFluxValidation:
         expected_carbon = growth_biomass * CARBON_FRACTION
         actual_fraction = growth_carbon / growth_biomass if growth_biomass > 0 else 0
 
-        print(f"\nCarbon Fraction Validation:")
+        print("\nCarbon Fraction Validation:")
         print(f"  Growth biomass: {growth_biomass:,.0f} tons/year")
         print(f"  Growth carbon:  {growth_carbon:,.0f} tons C/year")
         print(
@@ -143,7 +143,7 @@ class TestCarbonFluxValidation:
             # Get grouped by ownership
             grouped_result = carbon_flux(db, grp_by="OWNGRPCD")
 
-        print(f"\nGrouped Results Structure Validation:")
+        print("\nGrouped Results Structure Validation:")
         print(f"  Total (ungrouped): {total_net:,.0f} tons C/year")
         print(f"  Number of groups:  {len(grouped_result)}")
         print(f"  Groups: {grouped_result['OWNGRPCD'].to_list()}")
@@ -179,7 +179,7 @@ class TestCarbonFluxValidation:
         # Sum of variances (conservative estimate)
         expected_se = (g_se**2 + m_se**2 + r_se**2) ** 0.5
 
-        print(f"\nVariance Propagation Validation:")
+        print("\nVariance Propagation Validation:")
         print(f"  Growth SE (C):    {g_se:,.0f}")
         print(f"  Mortality SE (C): {m_se:,.0f}")
         print(f"  Removals SE (C):  {r_se:,.0f}")
@@ -204,7 +204,7 @@ class TestCarbonFluxValidation:
         mort_c = flux_result["MORT_CARBON_TOTAL"][0]
         remv_c = flux_result["REMV_CARBON_TOTAL"][0]
 
-        print(f"\nGeorgia Carbon Balance:")
+        print("\nGeorgia Carbon Balance:")
         print(f"  Growth:    +{growth_c / 1e6:,.2f} million tons C/year")
         print(f"  Mortality: -{mort_c / 1e6:,.2f} million tons C/year")
         print(f"  Removals:  -{remv_c / 1e6:,.2f} million tons C/year")
@@ -213,9 +213,9 @@ class TestCarbonFluxValidation:
         )
 
         if net_total > 0:
-            print(f"  Result: CARBON SINK (sequestering carbon)")
+            print("  Result: CARBON SINK (sequestering carbon)")
         else:
-            print(f"  Result: CARBON SOURCE (emitting carbon)")
+            print("  Result: CARBON SOURCE (emitting carbon)")
 
         # Georgia should be a carbon sink
         assert net_total > 0, (

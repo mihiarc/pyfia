@@ -346,8 +346,9 @@ class TestVarianceCalculation:
 
     def test_variance_calculation_single_stratum(self, mock_fia_database):
         """Test variance calculation for a single stratum."""
-        from pyfia.estimation.estimators.area import AreaEstimator
         import numpy as np
+
+        from pyfia.estimation.estimators.area import AreaEstimator
 
         # Create synthetic plot data for controlled variance testing
         plot_data = pl.DataFrame(

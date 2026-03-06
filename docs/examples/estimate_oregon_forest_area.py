@@ -6,16 +6,14 @@ This script demonstrates how to use pyfia's area() function to calculate
 forest area statistics for Oregon.
 """
 
-from pathlib import Path
 import polars as pl
-from rich.console import Console
-from rich.table import Table
-from rich import print as rprint
-from rich.progress import Progress, SpinnerColumn, TextColumn
-
-from pyfia import FIA
 from pyfia.estimation.area import area
 from pyfia.filters.grouping import get_forest_type_group, get_ownership_group_name
+from rich.console import Console
+from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.table import Table
+
+from pyfia import FIA
 
 console = Console()
 

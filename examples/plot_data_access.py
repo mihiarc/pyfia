@@ -17,8 +17,9 @@ Key Concepts:
 - Site index is a condition-level (stand) variable, not plot-level
 """
 
-from pyfia import FIA
 import polars as pl
+
+from pyfia import FIA
 
 
 def get_plot_locations(db_path: str, state_fips: int) -> pl.DataFrame:

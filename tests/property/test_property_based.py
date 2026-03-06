@@ -8,8 +8,7 @@ require external databases.
 
 import numpy as np
 import polars as pl
-import pytest
-from hypothesis import assume, given, settings, HealthCheck
+from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 from pyfia.estimation.tree_expansion import (

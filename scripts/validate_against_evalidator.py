@@ -6,16 +6,15 @@ This script compares pyFIA estimation results with EVALIDator API responses
 to verify statistical accuracy.
 """
 
-from pathlib import Path
 from typing import Tuple
+
 import polars as pl
+from rich import box
 from rich.console import Console
 from rich.table import Table
-from rich import box
 
-from pyfia import FIA, area, volume, biomass, tpa
+from pyfia import FIA, area, biomass, tpa, volume
 from pyfia.evalidator.client import EVALIDatorClient
-from pyfia.evalidator.estimate_types import EstimateType
 from pyfia.evalidator.validation import compare_estimates
 
 console = Console()

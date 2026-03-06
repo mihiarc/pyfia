@@ -7,8 +7,8 @@ No database connection required.
 import polars as pl
 import pytest
 
-from pyfia.estimation.estimators.carbon_pools import CarbonPoolEstimator
 from pyfia.estimation.constants import LBS_TO_SHORT_TONS
+from pyfia.estimation.estimators.carbon_pools import CarbonPoolEstimator
 
 
 class MockDB:
@@ -297,7 +297,6 @@ class TestPoolValidation:
 
     def test_pool_case_insensitive(self):
         """Pool parameter should be case-insensitive."""
-        from pyfia.estimation.estimators.carbon_pools import carbon_pool
 
         # This should not raise on validation (will fail on DB access later)
         # We just verify the pool validation passes

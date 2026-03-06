@@ -5,11 +5,11 @@ from pyfia.estimation.estimators.carbon import carbon
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID,
-    GEORGIA_YEAR,
-    EXACT_MATCH_TOLERANCE_PCT,
     DATA_SYNC_TOLERANCE,
+    EXACT_MATCH_TOLERANCE_PCT,
+    GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     values_match,
 )
 
@@ -40,7 +40,7 @@ class TestCarbonValidation:
             tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
         )
 
-        print(f"\nLive Tree Carbon Validation:")
+        print("\nLive Tree Carbon Validation:")
         print(f"  pyFIA:      {pyfia_carbon:,.0f} metric tons (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} metric tons (SE: {ev_result.sampling_error:,.0f})"

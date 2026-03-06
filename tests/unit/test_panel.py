@@ -5,8 +5,8 @@ Tests creation of t1/t2 remeasurement panels at both condition
 and tree levels for harvest analysis and change detection.
 """
 
-import pytest
 import polars as pl
+import pytest
 
 from pyfia import FIA, panel
 

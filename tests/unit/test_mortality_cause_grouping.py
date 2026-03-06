@@ -12,9 +12,8 @@ import polars as pl
 import pytest
 
 from pyfia.estimation.columns import (
-    TREE_GROUPING_COLUMNS,
     COND_GROUPING_COLUMNS,
-    get_tree_columns,
+    TREE_GROUPING_COLUMNS,
     get_cond_columns,
 )
 from pyfia.estimation.grm import aggregate_cond_to_plot

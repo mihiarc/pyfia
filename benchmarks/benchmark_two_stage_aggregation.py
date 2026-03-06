@@ -5,11 +5,13 @@ This script compares performance of the refactored estimators to ensure
 no regressions were introduced by the shared aggregation method.
 """
 
-import time
 import statistics
-import polars as pl
-import numpy as np
+import time
 from typing import Dict, List, Tuple
+
+import numpy as np
+import polars as pl
+
 from pyfia.estimation.base import BaseEstimator
 
 
@@ -261,7 +263,7 @@ def run_benchmarks():
     print("Schema Caching: Eliminated repeated collect_schema() calls")
     print("  - Before: O(n) schema collections for n group columns")
     print("  - After: O(1) single schema collection")
-    print(f"  - Estimated savings: ~5-10ms per avoided collection")
+    print("  - Estimated savings: ~5-10ms per avoided collection")
 
     # Overall performance assessment
     print("\n📋 Summary:")
@@ -278,10 +280,10 @@ def run_benchmarks():
         print(f"❌ SLOW: Average {mean_ops:.1f} operations/second")
 
     # Memory efficiency (approximate)
-    print(f"\n💾 Memory Efficiency:")
-    print(f"  - Lazy evaluation maintained throughout")
-    print(f"  - Single collect() at end of aggregation")
-    print(f"  - Schema cached to avoid redundant operations")
+    print("\n💾 Memory Efficiency:")
+    print("  - Lazy evaluation maintained throughout")
+    print("  - Single collect() at end of aggregation")
+    print("  - Schema cached to avoid redundant operations")
 
     return results
 

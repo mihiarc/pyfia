@@ -6,14 +6,14 @@ from pyfia import FIA, biomass
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID,
-    GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
+    GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     SE_TOLERANCE_TREE,
-    values_match,
-    se_values_match,
     plot_counts_match,
+    se_values_match,
+    values_match,
 )
 
 
@@ -41,7 +41,7 @@ class TestBiomassValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nAboveground Biomass Validation:")
+        print("\nAboveground Biomass Validation:")
         print(f"  pyFIA:      {pyfia_bio:,.0f} dry tons (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} dry tons (SE: {ev_result.sampling_error:,.0f})"
@@ -91,7 +91,7 @@ class TestBiomassValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nBelowground Biomass Validation:")
+        print("\nBelowground Biomass Validation:")
         print(f"  pyFIA:      {pyfia_bio:,.0f} dry tons (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} dry tons (SE: {ev_result.sampling_error:,.0f})"

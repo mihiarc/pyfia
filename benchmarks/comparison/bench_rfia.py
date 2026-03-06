@@ -300,7 +300,7 @@ def run_rfia_benchmarks(
         script_path = f.name
 
     try:
-        console.print(f"  Running R script...")
+        console.print("  Running R script...")
         start_time = time.perf_counter()
 
         # Run R script
@@ -315,7 +315,7 @@ def run_rfia_benchmarks(
         console.print(f"  Total R execution time: {total_time:.1f}s")
 
         if process.returncode != 0:
-            console.print(f"[red]R script failed:[/red]")
+            console.print("[red]R script failed:[/red]")
             console.print(process.stderr)
             return results
 

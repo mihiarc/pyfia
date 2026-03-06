@@ -4,14 +4,14 @@ from pyfia import FIA, volume
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID,
-    GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
+    GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     SE_TOLERANCE_TREE,
-    values_match,
-    se_values_match,
     plot_counts_match,
+    se_values_match,
+    values_match,
 )
 
 
@@ -41,7 +41,7 @@ class TestVolumeValidation:
             pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nGrowing Stock Volume Validation:")
+        print("\nGrowing Stock Volume Validation:")
         print(f"  pyFIA:      {pyfia_vol:,.0f} cu ft (SE: {pyfia_se:,.0f})")
         print(
             f"  EVALIDator: {ev_result.estimate:,.0f} cu ft (SE: {ev_result.sampling_error:,.0f})"
@@ -86,7 +86,7 @@ class TestVolumeValidation:
             state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR, vol_type="net"
         )
 
-        print(f"\nVolume (explicit TREECLCD=2) Validation:")
+        print("\nVolume (explicit TREECLCD=2) Validation:")
         print(f"  pyFIA:      {pyfia_vol:,.0f} cu ft")
         print(f"  EVALIDator: {ev_result.estimate:,.0f} cu ft")
 

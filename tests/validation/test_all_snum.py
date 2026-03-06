@@ -29,8 +29,8 @@ import requests
 
 from pyfia.evalidator.client import EVALIDatorClient
 from pyfia.evalidator.estimate_types import (
-    EstimateType,
     SNUM_DESCRIPTIONS,
+    EstimateType,
     get_category,
 )
 

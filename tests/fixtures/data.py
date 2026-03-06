@@ -8,7 +8,6 @@ filtering, and aggregation functions.
 import polars as pl
 import pytest
 
-
 # =============================================================================
 # Standard FIA Table Fixtures
 # =============================================================================

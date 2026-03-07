@@ -12,7 +12,11 @@ from typing import TYPE_CHECKING
 
 import polars as pl
 
-from ...validation import validate_domain_expression, validate_grp_by, validate_land_type
+from ...validation import (
+    validate_domain_expression,
+    validate_grp_by,
+    validate_land_type,
+)
 from ..base import AggregationResult, BaseEstimator
 from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
@@ -65,17 +69,13 @@ def _build_metric_expressions(
                     (pl.col("HT").cast(pl.Float64) * pl.col("TPA_UNADJ"))
                     .filter(pl.col("HT").is_not_null())
                     .sum()
-                    / pl.col("TPA_UNADJ")
-                    .filter(pl.col("HT").is_not_null())
-                    .sum()
+                    / pl.col("TPA_UNADJ").filter(pl.col("HT").is_not_null()).sum()
                 ).alias("MEAN_HT")
             )
         elif metric == "softwood_prop":
             exprs.append(
                 (
-                    pl.col("DRYBIO_BOLE")
-                    .filter(pl.col("SPCD") < 300)
-                    .sum()
+                    pl.col("DRYBIO_BOLE").filter(pl.col("SPCD") < 300).sum()
                     / pl.col("DRYBIO_BOLE").sum()
                 ).alias("SOFTWOOD_PROP")
             )
@@ -92,19 +92,18 @@ def _build_metric_expressions(
             exprs.append(pl.col("DIA").cast(pl.Float64).max().alias("MAX_DIA"))
         elif metric == "stocking":
             exprs.append(
-                (
-                    pl.col("TPA_UNADJ")
-                    * (pl.col("DIA").cast(pl.Float64) / 10.0).pow(1.6)
-                )
+                (pl.col("TPA_UNADJ") * (pl.col("DIA").cast(pl.Float64) / 10.0).pow(1.6))
                 .sum()
                 .alias("STOCKING")
             )
 
     # Always include diagnostic counts
-    exprs.extend([
-        pl.n_unique("PLT_CN").alias("N_PLOTS"),
-        pl.len().alias("N_TREES"),
-    ])
+    exprs.extend(
+        [
+            pl.n_unique("PLT_CN").alias("N_PLOTS"),
+            pl.len().alias("N_TREES"),
+        ]
+    )
 
     return exprs
 
@@ -182,13 +181,10 @@ class TreeMetricsEstimator(BaseEstimator):
 
         # Fill nulls for proportion metrics
         fill_cols = [
-            c for c in ("SOFTWOOD_PROP", "SAWTIMBER_PROP")
-            if c in result.columns
+            c for c in ("SOFTWOOD_PROP", "SAWTIMBER_PROP") if c in result.columns
         ]
         if fill_cols:
-            result = result.with_columns(
-                [pl.col(c).fill_null(0.0) for c in fill_cols]
-            )
+            result = result.with_columns([pl.col(c).fill_null(0.0) for c in fill_cols])
 
         return AggregationResult(
             results=result,

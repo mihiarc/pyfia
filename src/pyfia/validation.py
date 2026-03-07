@@ -231,7 +231,8 @@ def sanitize_sql_path(path: str | Path) -> str:
     >>> sanitize_sql_path("data'; DROP TABLE PLOT; --")
     ValueError: Path contains characters that are not allowed in SQL queries
     """
-    path_str = str(path)
+    # Convert Path objects to posix format (forward slashes) for cross-platform support
+    path_str = path.as_posix() if isinstance(path, Path) else str(path)
 
     # Check for dangerous characters that could enable SQL injection
     if SQL_DANGEROUS_CHARS.search(path_str):

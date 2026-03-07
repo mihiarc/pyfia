@@ -254,7 +254,7 @@ class TestSQLSecurityValidation:
         """Test that pathlib.Path objects are handled."""
         from pathlib import Path
 
-        assert sanitize_sql_path(Path("/data/file.shp").as_posix()) == "/data/file.shp"
+        assert sanitize_sql_path(Path("/data/file.shp")) == "/data/file.shp"
 
     def test_validate_sql_identifier_valid(self):
         """Test valid SQL identifiers."""

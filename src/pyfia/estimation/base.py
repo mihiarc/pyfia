@@ -698,7 +698,7 @@ class BaseEstimator(ABC):
         # Step 2: Aggregate to plot level
         plot_level_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"]
         plot_level_cols = [c for c in plot_level_cols if c in plot_cond_data.columns]
-        plot_level_cols.extend([c for c in group_cols if c in plot_cond_data.columns])
+        plot_level_cols.extend([c for c in group_cols if c in plot_cond_data.columns and c not in plot_level_cols])
 
         plot_data = plot_cond_data.group_by(plot_level_cols).agg(
             [
@@ -1024,7 +1024,7 @@ class BaseEstimator(ABC):
             plot_level_cols.insert(1, "STRATUM_CN")
         if group_cols:
             plot_level_cols.extend(
-                [c for c in group_cols if c in plot_cond_data.columns]
+                [c for c in group_cols if c in plot_cond_data.columns and c not in plot_level_cols]
             )
 
         # Build plot-level aggregation

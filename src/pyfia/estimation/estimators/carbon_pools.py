@@ -257,7 +257,7 @@ class CarbonPoolEstimator(BaseEstimator):
             plot_level_cols.insert(1, "STRATUM_CN")
         if group_cols:
             plot_level_cols.extend(
-                [c for c in group_cols if c in plot_cond_data.columns]
+                [c for c in group_cols if c in plot_cond_data.columns and c not in plot_level_cols]
             )
 
         # Include CONDPROP_UNADJ for correct area proportion (x_i)

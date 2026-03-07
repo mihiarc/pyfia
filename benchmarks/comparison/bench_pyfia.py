@@ -5,11 +5,15 @@ Benchmarks pyFIA estimation functions for comparison against rFIA and EVALIDator
 """
 
 from pathlib import Path
-from typing import List, Optional
+from typing import List
 
 from rich.console import Console
 
-from benchmarks.comparison.timing import BenchmarkSuite, TimingResult, benchmark_function
+from benchmarks.comparison.timing import (
+    BenchmarkSuite,
+    TimingResult,
+    benchmark_function,
+)
 
 console = Console()
 
@@ -57,7 +61,9 @@ def run_pyfia_benchmarks(
             return area(db)
 
         results.append(
-            benchmark_function(bench_area_total, "area_total", "pyfia", iterations=iterations)
+            benchmark_function(
+                bench_area_total, "area_total", "pyfia", iterations=iterations
+            )
         )
 
         # ==========================================================================
@@ -70,7 +76,10 @@ def run_pyfia_benchmarks(
 
         results.append(
             benchmark_function(
-                bench_area_by_ownership, "area_by_ownership", "pyfia", iterations=iterations
+                bench_area_by_ownership,
+                "area_by_ownership",
+                "pyfia",
+                iterations=iterations,
             )
         )
 
@@ -83,7 +92,9 @@ def run_pyfia_benchmarks(
             return volume(db)
 
         results.append(
-            benchmark_function(bench_volume_total, "volume_total", "pyfia", iterations=iterations)
+            benchmark_function(
+                bench_volume_total, "volume_total", "pyfia", iterations=iterations
+            )
         )
 
         # ==========================================================================
@@ -96,7 +107,10 @@ def run_pyfia_benchmarks(
 
         results.append(
             benchmark_function(
-                bench_volume_by_species, "volume_by_species", "pyfia", iterations=iterations
+                bench_volume_by_species,
+                "volume_by_species",
+                "pyfia",
+                iterations=iterations,
             )
         )
 
@@ -110,7 +124,10 @@ def run_pyfia_benchmarks(
 
         results.append(
             benchmark_function(
-                bench_volume_by_sizeclass, "volume_by_sizeclass", "pyfia", iterations=iterations
+                bench_volume_by_sizeclass,
+                "volume_by_sizeclass",
+                "pyfia",
+                iterations=iterations,
             )
         )
 
@@ -123,7 +140,9 @@ def run_pyfia_benchmarks(
             return tpa(db)
 
         results.append(
-            benchmark_function(bench_tpa_total, "tpa_total", "pyfia", iterations=iterations)
+            benchmark_function(
+                bench_tpa_total, "tpa_total", "pyfia", iterations=iterations
+            )
         )
 
         # ==========================================================================
@@ -149,7 +168,9 @@ def run_pyfia_benchmarks(
             return biomass(db)
 
         results.append(
-            benchmark_function(bench_biomass_total, "biomass_total", "pyfia", iterations=iterations)
+            benchmark_function(
+                bench_biomass_total, "biomass_total", "pyfia", iterations=iterations
+            )
         )
 
         # ==========================================================================
@@ -176,14 +197,19 @@ def run_pyfia_benchmarks(
 
         results.append(
             benchmark_function(
-                bench_mortality_by_species, "mortality_by_species", "pyfia", iterations=iterations
+                bench_mortality_by_species,
+                "mortality_by_species",
+                "pyfia",
+                iterations=iterations,
             )
         )
 
         # ==========================================================================
         # Benchmark 11: Complex Query - Volume by Species, Size Class, and Ownership
         # ==========================================================================
-        console.print("  [cyan]11. Complex: Volume by species + size class + ownership[/cyan]")
+        console.print(
+            "  [cyan]11. Complex: Volume by species + size class + ownership[/cyan]"
+        )
 
         def bench_volume_complex():
             return volume(db, by_species=True, by_size_class=True, grp_by="OWNGRPCD")
@@ -204,7 +230,10 @@ def run_pyfia_benchmarks(
 
         results.append(
             benchmark_function(
-                bench_volume_timberland, "volume_timberland", "pyfia", iterations=iterations
+                bench_volume_timberland,
+                "volume_timberland",
+                "pyfia",
+                iterations=iterations,
             )
         )
 
@@ -251,14 +280,20 @@ if __name__ == "__main__":
                 break
 
         if db_path is None:
-            console.print("[red]No database found. Please provide a path or download data.[/red]")
-            console.print("Usage: python -m benchmarks.comparison.bench_pyfia <db_path>")
+            console.print(
+                "[red]No database found. Please provide a path or download data.[/red]"
+            )
+            console.print(
+                "Usage: python -m benchmarks.comparison.bench_pyfia <db_path>"
+            )
             console.print("\nTo download data:")
             console.print("  from pyfia import download")
             console.print("  download('RI')  # or any state")
             sys.exit(1)
 
-    suite = create_pyfia_suite(db_path, state_fips=44, iterations=10)  # 44 = Rhode Island
+    suite = create_pyfia_suite(
+        db_path, state_fips=44, iterations=10
+    )  # 44 = Rhode Island
 
     # Print results
     table = Table(title="pyFIA Benchmark Results")

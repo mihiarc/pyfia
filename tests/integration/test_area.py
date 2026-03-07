@@ -25,46 +25,85 @@ class TestAreaEstimation:
     @pytest.fixture
     def sample_plot_data(self):
         """Create sample PLOT data matching FIA schema."""
-        return pl.DataFrame({
-            "CN": ["P1", "P2", "P3", "P4", "P5"],
-            "INVYR": [2023, 2023, 2023, 2023, 2023],
-            "STATECD": [37, 37, 37, 37, 37],
-            "PLOT": [1, 2, 3, 4, 5],
-            "ELEV": [100.0, 200.0, 150.0, 300.0, 125.0],
-            "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
-            "LON": [-78.5, -78.6, -78.7, -78.8, -78.9],
-            "ECOSUBCD": ["231A", "231A", "231B", "231A", "231A"],
-            "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0],
-            "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0],  # Standard macroplot breakpoint
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["P1", "P2", "P3", "P4", "P5"],
+                "INVYR": [2023, 2023, 2023, 2023, 2023],
+                "STATECD": [37, 37, 37, 37, 37],
+                "PLOT": [1, 2, 3, 4, 5],
+                "ELEV": [100.0, 200.0, 150.0, 300.0, 125.0],
+                "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
+                "LON": [-78.5, -78.6, -78.7, -78.8, -78.9],
+                "ECOSUBCD": ["231A", "231A", "231B", "231A", "231A"],
+                "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0],
+                "MACRO_BREAKPOINT_DIA": [
+                    24.0,
+                    24.0,
+                    24.0,
+                    24.0,
+                    24.0,
+                ],  # Standard macroplot breakpoint
+            }
+        )
 
     @pytest.fixture
     def sample_cond_data(self):
         """Create sample COND data with various land types and PROP_BASIS."""
-        return pl.DataFrame({
-            "CN": ["C1", "C2", "C3", "C4", "C5", "C6"],
-            "PLT_CN": ["P1", "P1", "P2", "P3", "P4", "P5"],  # Fixed to match PLOT.CN
-            "CONDID": [1, 2, 1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1, 2, 3, 1],  # Forest, Forest, Forest, Non-forest, Water, Forest
-            "CONDPROP_UNADJ": [0.7, 0.3, 1.0, 1.0, 0.2, 1.0],  # Reduce water proportion to fix >100% issue
-            "PROP_BASIS": ["SUBP", "SUBP", "MACR", "SUBP", "SUBP", "MACR"],
-            "FORTYPCD": [171, 171, 162, 0, 0, 182],
-            "SITECLCD": [2, 2, 1, 7, 7, 3],
-            "RESERVCD": [0, 0, 0, 0, 0, 0]
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["C1", "C2", "C3", "C4", "C5", "C6"],
+                "PLT_CN": [
+                    "P1",
+                    "P1",
+                    "P2",
+                    "P3",
+                    "P4",
+                    "P5",
+                ],  # Fixed to match PLOT.CN
+                "CONDID": [1, 2, 1, 1, 1, 1],
+                "COND_STATUS_CD": [
+                    1,
+                    1,
+                    1,
+                    2,
+                    3,
+                    1,
+                ],  # Forest, Forest, Forest, Non-forest, Water, Forest
+                "CONDPROP_UNADJ": [
+                    0.7,
+                    0.3,
+                    1.0,
+                    1.0,
+                    0.2,
+                    1.0,
+                ],  # Reduce water proportion to fix >100% issue
+                "PROP_BASIS": ["SUBP", "SUBP", "MACR", "SUBP", "SUBP", "MACR"],
+                "FORTYPCD": [171, 171, 162, 0, 0, 182],
+                "SITECLCD": [2, 2, 1, 7, 7, 3],
+                "RESERVCD": [0, 0, 0, 0, 0, 0],
+            }
+        )
 
     @pytest.fixture
     def sample_tree_data(self):
         """Create sample TREE data."""
-        return pl.DataFrame({
-            "CN": ["T1", "T2", "T3", "T4", "T5"],
-            "PLT_CN": ["P1", "P1", "P2", "P3", "P5"],  # Fixed to match PLOT.CN
-            "CONDID": [1, 2, 1, 1, 1],
-            "STATUSCD": [1, 1, 1, 2, 1],  # Live, Live, Live, Dead, Live
-            "SPCD": [131, 316, 131, 131, 621],  # Loblolly, Red maple, Loblolly, Loblolly, Yellow-poplar
-            "DIA": [10.5, 8.2, 15.3, 12.0, 6.5],
-            "TPA_UNADJ": [5.0, 5.0, 5.0, 5.0, 5.0],
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["T1", "T2", "T3", "T4", "T5"],
+                "PLT_CN": ["P1", "P1", "P2", "P3", "P5"],  # Fixed to match PLOT.CN
+                "CONDID": [1, 2, 1, 1, 1],
+                "STATUSCD": [1, 1, 1, 2, 1],  # Live, Live, Live, Dead, Live
+                "SPCD": [
+                    131,
+                    316,
+                    131,
+                    131,
+                    621,
+                ],  # Loblolly, Red maple, Loblolly, Loblolly, Yellow-poplar
+                "DIA": [10.5, 8.2, 15.3, 12.0, 6.5],
+                "TPA_UNADJ": [5.0, 5.0, 5.0, 5.0, 5.0],
+            }
+        )
 
     @pytest.fixture
     def sample_stratum_data(self):
@@ -76,37 +115,46 @@ class TestAreaEstimation:
         - ADJ_FACTOR_MACR: 0.0 for strata without macroplot sampling
         - ADJ_FACTOR_MICR: Standard 1.0 for microplot trees
         """
-        return pl.DataFrame({
-            "CN": ["S1", "S2"],
-            "EVALID": [372301, 372301],
-            "ESTN_UNIT_CN": ["EU1", "EU2"],
-            "ADJ_FACTOR_SUBP": [1.0, 1.0],  # Realistic: no adjustment
-            "ADJ_FACTOR_MACR": [0.0, 0.0],  # Realistic: no macroplot sampling
-            "ADJ_FACTOR_MICR": [1.0, 1.0],  # Realistic: standard microplot adjustment
-            "EXPNS": [6234.58, 5968.86],  # Realistic: ~6K acres per plot
-            "P2POINTCNT": [100, 200],
-            "STRATUM_CN": ["S1", "S2"],
-            "P1POINTCNT": [50, 150]
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["S1", "S2"],
+                "EVALID": [372301, 372301],
+                "ESTN_UNIT_CN": ["EU1", "EU2"],
+                "ADJ_FACTOR_SUBP": [1.0, 1.0],  # Realistic: no adjustment
+                "ADJ_FACTOR_MACR": [0.0, 0.0],  # Realistic: no macroplot sampling
+                "ADJ_FACTOR_MICR": [
+                    1.0,
+                    1.0,
+                ],  # Realistic: standard microplot adjustment
+                "EXPNS": [6234.58, 5968.86],  # Realistic: ~6K acres per plot
+                "P2POINTCNT": [100, 200],
+                "STRATUM_CN": ["S1", "S2"],
+                "P1POINTCNT": [50, 150],
+            }
+        )
 
     @pytest.fixture
     def sample_ppsa_data(self):
         """Create sample POP_PLOT_STRATUM_ASSGN data."""
-        return pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],  # Fixed to match PLOT.CN
-            "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
-            "EVALID": [372301, 372301, 372301, 372301, 372301],
-        })
+        return pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],  # Fixed to match PLOT.CN
+                "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
+                "EVALID": [372301, 372301, 372301, 372301, 372301],
+            }
+        )
 
     @pytest.fixture
     def sample_estn_unit_data(self):
         """Create sample POP_ESTN_UNIT data for B&P variance formula."""
-        return pl.DataFrame({
-            "CN": ["EU1", "EU2"],
-            "EVALID": [372301, 372301],
-            "AREA_USED": [50000.0, 60000.0],
-            "P1PNTCNT_EU": [100, 150],
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["EU1", "EU2"],
+                "EVALID": [372301, 372301],
+                "AREA_USED": [50000.0, 60000.0],
+                "P1PNTCNT_EU": [100, 150],
+            }
+        )
 
     def test_area_main_function_integration(
         self,
@@ -234,7 +282,9 @@ class TestAreaEstimation:
         }
 
         # Test filtering for specific forest types using area_domain
-        result = area(mock_fia_database, area_domain="FORTYPCD == 171", land_type="forest")
+        result = area(
+            mock_fia_database, area_domain="FORTYPCD == 171", land_type="forest"
+        )
 
         assert isinstance(result, pl.DataFrame)
         assert "AREA_PERC" in result.columns
@@ -296,17 +346,20 @@ class TestVarianceCalculation:
 
     def test_variance_calculation_single_stratum(self, mock_fia_database):
         """Test variance calculation for a single stratum."""
-        from pyfia.estimation.estimators.area import AreaEstimator
         import numpy as np
 
+        from pyfia.estimation.estimators.area import AreaEstimator
+
         # Create synthetic plot data for controlled variance testing
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "y_i": [0.8, 1.0, 0.6, 0.9],  # Plot-level proportions
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0]  # Expansion factors
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "y_i": [0.8, 1.0, 0.6, 0.9],  # Plot-level proportions
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],  # Expansion factors
+            }
+        )
 
         strat_cols = ["ESTN_UNIT", "STRATUM"]
 
@@ -328,7 +381,7 @@ class TestVarianceCalculation:
         # V(Y_D) = w_h^2 * s2_yh * n_h = 1000^2 * s2_yh * 4
 
         expected_var = np.var([0.8, 1.0, 0.6, 0.9], ddof=1)
-        expected_total_var = (1000.0 ** 2) * expected_var * 4
+        expected_total_var = (1000.0**2) * expected_var * 4
 
         assert abs(var_stats["variance"] - expected_total_var) < 1e-6
 
@@ -336,13 +389,15 @@ class TestVarianceCalculation:
         """Test variance calculation across multiple strata."""
         from pyfia.estimation.estimators.area import AreaEstimator
 
-        plot_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
-            "ESTN_UNIT": [1, 1, 1, 2, 2, 2],
-            "STRATUM": [1, 1, 2, 1, 1, 2],
-            "y_i": [0.8, 1.0, 0.6, 0.9, 0.7, 0.5],
-            "EXPNS": [1000.0, 1000.0, 1500.0, 1500.0, 1500.0, 2000.0]
-        })
+        plot_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5", "P6"],
+                "ESTN_UNIT": [1, 1, 1, 2, 2, 2],
+                "STRATUM": [1, 1, 2, 1, 1, 2],
+                "y_i": [0.8, 1.0, 0.6, 0.9, 0.7, 0.5],
+                "EXPNS": [1000.0, 1000.0, 1500.0, 1500.0, 1500.0, 2000.0],
+            }
+        )
 
         strat_cols = ["ESTN_UNIT", "STRATUM"]
 
@@ -365,29 +420,31 @@ class TestVarianceCalculation:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Mock plot-condition data
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "AREA_VALUE": [1.0, 0.8, 1.0, 0.6],
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
-            "ESTN_UNIT": [1, 1, 1, 1],
-            "STRATUM": [1, 1, 1, 1],
-            "FORTYPCD": [161, 161, 406, 406]  # Two forest types
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "AREA_VALUE": [1.0, 0.8, 1.0, 0.6],
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0, 1000.0],
+                "ESTN_UNIT": [1, 1, 1, 1],
+                "STRATUM": [1, 1, 1, 1],
+                "FORTYPCD": [161, 161, 406, 406],  # Two forest types
+            }
+        )
         group_cols = ["FORTYPCD"]
 
         # Mock main results for each group
-        results = pl.DataFrame({
-            "FORTYPCD": [161, 406],
-            "AREA_TOTAL": [1800.0, 1600.0],  # Dummy totals
-            "N_PLOTS": [2, 2]
-        })
+        results = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 406],
+                "AREA_TOTAL": [1800.0, 1600.0],  # Dummy totals
+                "N_PLOTS": [2, 2],
+            }
+        )
 
         # Create AggregationResult bundle
         agg_result = AggregationResult(
-            results=results,
-            plot_tree_data=plot_condition_data,
-            group_cols=group_cols
+            results=results, plot_tree_data=plot_condition_data, group_cols=group_cols
         )
 
         variance_results = estimator.calculate_variance(agg_result)
@@ -413,27 +470,24 @@ class TestVarianceCalculation:
         estimator = AreaEstimator(mock_fia_database, config)
 
         # Mock plot-condition data
-        plot_condition_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3"],
-            "AREA_VALUE": [1.0, 0.8, 1.0],
-            "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0],
-            "EXPNS": [1000.0, 1000.0, 1000.0],
-            "ESTN_UNIT": [1, 1, 1],
-            "STRATUM": [1, 1, 1]
-        })
+        plot_condition_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3"],
+                "AREA_VALUE": [1.0, 0.8, 1.0],
+                "ADJ_FACTOR_AREA": [1.0, 1.0, 1.0],
+                "EXPNS": [1000.0, 1000.0, 1000.0],
+                "ESTN_UNIT": [1, 1, 1],
+                "STRATUM": [1, 1, 1],
+            }
+        )
         group_cols = []
 
         # Mock main results
-        results = pl.DataFrame({
-            "AREA_TOTAL": [2800.0],
-            "N_PLOTS": [3]
-        })
+        results = pl.DataFrame({"AREA_TOTAL": [2800.0], "N_PLOTS": [3]})
 
         # Create AggregationResult bundle
         agg_result = AggregationResult(
-            results=results,
-            plot_tree_data=plot_condition_data,
-            group_cols=group_cols
+            results=results, plot_tree_data=plot_condition_data, group_cols=group_cols
         )
 
         variance_results = estimator.calculate_variance(agg_result)
@@ -449,13 +503,15 @@ class TestVarianceCalculation:
         from pyfia.estimation.estimators.area import AreaEstimator
 
         # Create test data with mixed land types
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 2, 3],  # Forest, Forest, Non-forest, Water
-            "CONDPROP_UNADJ": [1.0, 0.8, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"]
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 2, 3],  # Forest, Forest, Non-forest, Water
+                "CONDPROP_UNADJ": [1.0, 0.8, 1.0, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+            }
+        )
 
         config = {"land_type": "forest"}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -475,13 +531,15 @@ class TestVarianceCalculation:
         """Test domain indicator for 'all' land type."""
         from pyfia.estimation.estimators.area import AreaEstimator
 
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3"],
-            "CONDID": [1, 1, 1],
-            "COND_STATUS_CD": [1, 2, 3],  # Mixed land types
-            "CONDPROP_UNADJ": [1.0, 0.8, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP"]
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3"],
+                "CONDID": [1, 1, 1],
+                "COND_STATUS_CD": [1, 2, 3],  # Mixed land types
+                "CONDPROP_UNADJ": [1.0, 0.8, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP"],
+            }
+        )
 
         config = {"land_type": "all"}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -496,11 +554,13 @@ class TestVarianceCalculation:
         """Test area value calculation with domain indicator."""
         from pyfia.estimation.estimators.area import AreaEstimator
 
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3"],
-            "CONDPROP_UNADJ": [1.0, 0.8, 1.0],
-            "DOMAIN_IND": [1.0, 0.0, 1.0]  # Mixed domain indicator
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3"],
+                "CONDPROP_UNADJ": [1.0, 0.8, 1.0],
+                "DOMAIN_IND": [1.0, 0.0, 1.0],  # Mixed domain indicator
+            }
+        )
 
         config = {}
         estimator = AreaEstimator(mock_fia_database, config)
@@ -524,14 +584,21 @@ class TestAreaDomainFiltering:
         from pyfia.estimation.estimators.area import AreaEstimator
 
         # Create test data with multiple forest types
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1, 1],  # All forest
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
-            "FORTYPCD": [161, 162, 161, 406],  # Loblolly, Shortleaf, Loblolly, Other
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 1, 1],  # All forest
+                "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+                "FORTYPCD": [
+                    161,
+                    162,
+                    161,
+                    406,
+                ],  # Loblolly, Shortleaf, Loblolly, Other
+            }
+        )
 
         # Test filtering for FORTYPCD == 161 (Loblolly pine)
         config = {"land_type": "forest", "area_domain": "FORTYPCD == 161"}
@@ -551,14 +618,21 @@ class TestAreaDomainFiltering:
         """Test area_domain with IN clause for multiple values."""
         from pyfia.estimation.estimators.area import AreaEstimator
 
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1, 1],
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
-            "FORTYPCD": [161, 162, 141, 406],  # Loblolly, Shortleaf, Longleaf, Other
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 1, 1],
+                "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+                "FORTYPCD": [
+                    161,
+                    162,
+                    141,
+                    406,
+                ],  # Loblolly, Shortleaf, Longleaf, Other
+            }
+        )
 
         # Test filtering for multiple SYP forest types
         config = {"land_type": "forest", "area_domain": "FORTYPCD IN (161, 162, 141)"}
@@ -574,14 +648,16 @@ class TestAreaDomainFiltering:
         """Test that area_domain is ANDed with land_type filter."""
         from pyfia.estimation.estimators.area import AreaEstimator
 
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 2, 1, 1],  # Forest, Non-forest, Forest, Forest
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
-            "FORTYPCD": [161, 161, 162, 161],  # All could match FORTYPCD filter
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 2, 1, 1],  # Forest, Non-forest, Forest, Forest
+                "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+                "FORTYPCD": [161, 161, 162, 161],  # All could match FORTYPCD filter
+            }
+        )
 
         # land_type="forest" AND area_domain="FORTYPCD == 161"
         config = {"land_type": "forest", "area_domain": "FORTYPCD == 161"}
@@ -600,14 +676,16 @@ class TestAreaDomainFiltering:
         """Test area_domain with various comparison operators."""
         from pyfia.estimation.estimators.area import AreaEstimator
 
-        test_data = pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4"],
-            "CONDID": [1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1, 1],
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
-            "STDAGE": [10, 25, 50, 75],  # Various ages
-        })
+        test_data = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4"],
+                "CONDID": [1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 1, 1],
+                "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "SUBP"],
+                "STDAGE": [10, 25, 50, 75],  # Various ages
+            }
+        )
 
         # Test STDAGE > 30 (only ages 50 and 75 should match)
         config = {"land_type": "forest", "area_domain": "STDAGE > 30"}
@@ -651,8 +729,12 @@ class TestAreaDomainFiltering:
 
         # Get results for two different forest types that exist in sample data
         # sample_cond_data has FORTYPCD values: 171, 171, 162, 0, 0, 182
-        result_171 = area(mock_fia_database, area_domain="FORTYPCD == 171", land_type="forest")
-        result_162 = area(mock_fia_database, area_domain="FORTYPCD == 162", land_type="forest")
+        result_171 = area(
+            mock_fia_database, area_domain="FORTYPCD == 171", land_type="forest"
+        )
+        result_162 = area(
+            mock_fia_database, area_domain="FORTYPCD == 162", land_type="forest"
+        )
 
         # Results should be different DataFrames (different forest types)
         assert isinstance(result_171, pl.DataFrame)
@@ -664,65 +746,75 @@ class TestAreaDomainFiltering:
     @pytest.fixture
     def sample_plot_data(self):
         """Create sample PLOT data matching FIA schema."""
-        return pl.DataFrame({
-            "CN": ["P1", "P2", "P3", "P4", "P5"],
-            "INVYR": [2023, 2023, 2023, 2023, 2023],
-            "STATECD": [37, 37, 37, 37, 37],
-            "PLOT": [1, 2, 3, 4, 5],
-            "ELEV": [100.0, 200.0, 150.0, 300.0, 125.0],
-            "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
-            "LON": [-78.5, -78.6, -78.7, -78.8, -78.9],
-            "ECOSUBCD": ["231A", "231A", "231B", "231A", "231A"],
-            "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0],
-            "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0],
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["P1", "P2", "P3", "P4", "P5"],
+                "INVYR": [2023, 2023, 2023, 2023, 2023],
+                "STATECD": [37, 37, 37, 37, 37],
+                "PLOT": [1, 2, 3, 4, 5],
+                "ELEV": [100.0, 200.0, 150.0, 300.0, 125.0],
+                "LAT": [35.5, 35.6, 35.7, 35.8, 35.9],
+                "LON": [-78.5, -78.6, -78.7, -78.8, -78.9],
+                "ECOSUBCD": ["231A", "231A", "231B", "231A", "231A"],
+                "P2POINTCNT": [1.0, 1.0, 1.0, 1.0, 1.0],
+                "MACRO_BREAKPOINT_DIA": [24.0, 24.0, 24.0, 24.0, 24.0],
+            }
+        )
 
     @pytest.fixture
     def sample_cond_data(self):
         """Create sample COND data with various forest types."""
-        return pl.DataFrame({
-            "CN": ["C1", "C2", "C3", "C4", "C5", "C6"],
-            "PLT_CN": ["P1", "P1", "P2", "P3", "P4", "P5"],
-            "CONDID": [1, 2, 1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1, 2, 3, 1],
-            "CONDPROP_UNADJ": [0.7, 0.3, 1.0, 1.0, 0.2, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "MACR", "SUBP", "SUBP", "MACR"],
-            "FORTYPCD": [171, 171, 162, 0, 0, 182],
-            "SITECLCD": [2, 2, 1, 7, 7, 3],
-            "RESERVCD": [0, 0, 0, 0, 0, 0]
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["C1", "C2", "C3", "C4", "C5", "C6"],
+                "PLT_CN": ["P1", "P1", "P2", "P3", "P4", "P5"],
+                "CONDID": [1, 2, 1, 1, 1, 1],
+                "COND_STATUS_CD": [1, 1, 1, 2, 3, 1],
+                "CONDPROP_UNADJ": [0.7, 0.3, 1.0, 1.0, 0.2, 1.0],
+                "PROP_BASIS": ["SUBP", "SUBP", "MACR", "SUBP", "SUBP", "MACR"],
+                "FORTYPCD": [171, 171, 162, 0, 0, 182],
+                "SITECLCD": [2, 2, 1, 7, 7, 3],
+                "RESERVCD": [0, 0, 0, 0, 0, 0],
+            }
+        )
 
     @pytest.fixture
     def sample_stratum_data(self):
         """Create sample POP_STRATUM data."""
-        return pl.DataFrame({
-            "CN": ["S1", "S2"],
-            "EVALID": [372301, 372301],
-            "ESTN_UNIT_CN": ["EU1", "EU2"],
-            "ADJ_FACTOR_SUBP": [1.0, 1.0],
-            "ADJ_FACTOR_MACR": [0.0, 0.0],
-            "ADJ_FACTOR_MICR": [1.0, 1.0],
-            "EXPNS": [6234.58, 5968.86],
-            "P2POINTCNT": [100, 200],
-            "STRATUM_CN": ["S1", "S2"],
-            "P1POINTCNT": [50, 150]
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["S1", "S2"],
+                "EVALID": [372301, 372301],
+                "ESTN_UNIT_CN": ["EU1", "EU2"],
+                "ADJ_FACTOR_SUBP": [1.0, 1.0],
+                "ADJ_FACTOR_MACR": [0.0, 0.0],
+                "ADJ_FACTOR_MICR": [1.0, 1.0],
+                "EXPNS": [6234.58, 5968.86],
+                "P2POINTCNT": [100, 200],
+                "STRATUM_CN": ["S1", "S2"],
+                "P1POINTCNT": [50, 150],
+            }
+        )
 
     @pytest.fixture
     def sample_ppsa_data(self):
         """Create sample POP_PLOT_STRATUM_ASSGN data."""
-        return pl.DataFrame({
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
-            "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
-            "EVALID": [372301, 372301, 372301, 372301, 372301],
-        })
+        return pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
+                "STRATUM_CN": ["S1", "S1", "S1", "S2", "S2"],
+                "EVALID": [372301, 372301, 372301, 372301, 372301],
+            }
+        )
 
     @pytest.fixture
     def sample_estn_unit_data(self):
         """Create sample POP_ESTN_UNIT data for B&P variance formula."""
-        return pl.DataFrame({
-            "CN": ["EU1", "EU2"],
-            "EVALID": [372301, 372301],
-            "AREA_USED": [50000.0, 60000.0],
-            "P1PNTCNT_EU": [100, 150],
-        })
+        return pl.DataFrame(
+            {
+                "CN": ["EU1", "EU2"],
+                "EVALID": [372301, 372301],
+                "AREA_USED": [50000.0, 60000.0],
+                "P1PNTCNT_EU": [100, 150],
+            }
+        )

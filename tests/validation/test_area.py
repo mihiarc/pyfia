@@ -1,18 +1,17 @@
 """Area estimation validation against EVALIDator."""
 
-import pytest
 
 from pyfia import FIA, area
 from pyfia.evalidator.validation import compare_estimates
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
-    GEORGIA_EVALID,
-    GEORGIA_YEAR,
     EXACT_MATCH_TOLERANCE_PCT,
-    values_match,
-    se_values_match,
+    GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
+    GEORGIA_YEAR,
     plot_counts_match,
+    se_values_match,
+    values_match,
 )
 
 
@@ -29,8 +28,7 @@ class TestAreaValidation:
             pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_forest_area(
-            state_code=GEORGIA_STATE_CODE,
-            year=GEORGIA_YEAR
+            state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR
         )
 
         validation = compare_estimates(
@@ -38,14 +36,18 @@ class TestAreaValidation:
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
             tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
-            pyfia_plot_count=pyfia_plot_count
+            pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nForest Area Validation:")
+        print("\nForest Area Validation:")
         print(f"  pyFIA:      {pyfia_area:,.0f} acres (SE: {pyfia_se:,.0f})")
-        print(f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})")
+        print(
+            f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})"
+        )
         print(f"  Difference: {validation.pct_diff:.6f}%")
-        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
+        print(
+            f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}"
+        )
 
         assert values_match(pyfia_area, ev_result.estimate), (
             f"Forest area MUST match EVALIDator exactly.\n"
@@ -72,9 +74,7 @@ class TestAreaValidation:
             pyfia_plot_count = int(result["N_PLOTS"][0])
 
         ev_result = evalidator_client.get_forest_area(
-            state_code=GEORGIA_STATE_CODE,
-            year=GEORGIA_YEAR,
-            land_type="timber"
+            state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR, land_type="timber"
         )
 
         validation = compare_estimates(
@@ -82,14 +82,18 @@ class TestAreaValidation:
             pyfia_se=pyfia_se,
             evalidator_result=ev_result,
             tolerance_pct=EXACT_MATCH_TOLERANCE_PCT,
-            pyfia_plot_count=pyfia_plot_count
+            pyfia_plot_count=pyfia_plot_count,
         )
 
-        print(f"\nTimberland Area Validation:")
+        print("\nTimberland Area Validation:")
         print(f"  pyFIA:      {pyfia_area:,.0f} acres (SE: {pyfia_se:,.0f})")
-        print(f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})")
+        print(
+            f"  EVALIDator: {ev_result.estimate:,.0f} acres (SE: {ev_result.sampling_error:,.0f})"
+        )
         print(f"  Difference: {validation.pct_diff:.6f}%")
-        print(f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}")
+        print(
+            f"  Plot count: pyFIA={pyfia_plot_count}, EVALIDator={ev_result.plot_count}"
+        )
 
         assert values_match(pyfia_area, ev_result.estimate), (
             f"Timberland area MUST match EVALIDator exactly.\n"

@@ -34,6 +34,7 @@ pytest_plugins = [
 # Database Fixtures
 # =============================================================================
 
+
 @pytest.fixture(scope="session")
 def georgia_db_path():
     """Path to the Georgia DuckDB database for testing.
@@ -69,7 +70,9 @@ def georgia_db_path():
 def georgia_db(georgia_db_path):
     """Session-scoped FIA database connection for Georgia data."""
     # Handle both Path objects and MotherDuck connection strings
-    db_path = georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    db_path = (
+        georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    )
     db = FIA(db_path)
     yield db
     db.close()
@@ -78,7 +81,9 @@ def georgia_db(georgia_db_path):
 @pytest.fixture
 def fia_db(georgia_db_path):
     """Function-scoped FIA database for tests that modify state."""
-    db_path = georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    db_path = (
+        georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    )
     db = FIA(db_path)
     yield db
     db.close()
@@ -87,7 +92,9 @@ def fia_db(georgia_db_path):
 @pytest.fixture
 def georgia_fia(georgia_db_path):
     """FIA instance clipped to Georgia most recent evaluation."""
-    db_path = georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    db_path = (
+        georgia_db_path if isinstance(georgia_db_path, str) else str(georgia_db_path)
+    )
     db = FIA(db_path)
     db.clip_by_state(13, most_recent=True)
     yield db
@@ -97,6 +104,7 @@ def georgia_fia(georgia_db_path):
 # =============================================================================
 # Test Configuration
 # =============================================================================
+
 
 @pytest.fixture
 def sample_evaluation():
@@ -114,9 +122,10 @@ def sample_evaluation():
 # Hypothesis Configuration
 # =============================================================================
 
+
 def pytest_configure(config):
     """Configure hypothesis profiles for different test scenarios."""
-    from hypothesis import settings, Verbosity, Phase
+    from hypothesis import Phase, Verbosity, settings
 
     # Development profile - fast iteration
     settings.register_profile(

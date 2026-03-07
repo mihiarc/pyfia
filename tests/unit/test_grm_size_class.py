@@ -192,8 +192,9 @@ class TestGRMSizeClassConfig:
 
     def test_mortality_invalid_size_class_type(self):
         """Test that mortality rejects invalid size_class_type."""
-        from pyfia.estimation.estimators.mortality import mortality
         from unittest.mock import MagicMock
+
+        from pyfia.estimation.estimators.mortality import mortality
 
         mock_db = MagicMock()
 
@@ -202,8 +203,9 @@ class TestGRMSizeClassConfig:
 
     def test_growth_invalid_size_class_type(self):
         """Test that growth rejects invalid size_class_type."""
-        from pyfia.estimation.estimators.growth import growth
         from unittest.mock import MagicMock
+
+        from pyfia.estimation.estimators.growth import growth
 
         mock_db = MagicMock()
 
@@ -212,8 +214,9 @@ class TestGRMSizeClassConfig:
 
     def test_removals_invalid_size_class_type(self):
         """Test that removals rejects invalid size_class_type."""
-        from pyfia.estimation.estimators.removals import removals
         from unittest.mock import MagicMock
+
+        from pyfia.estimation.estimators.removals import removals
 
         mock_db = MagicMock()
 

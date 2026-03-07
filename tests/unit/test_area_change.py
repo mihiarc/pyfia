@@ -128,9 +128,11 @@ class TestIsForestCondition:
         estimator = AreaChangeEstimator(MockDB(), config)
 
         # Create test data
-        df = pl.DataFrame({
-            "STATUS": [1, 2, 3, 4, 5, 1],
-        })
+        df = pl.DataFrame(
+            {
+                "STATUS": [1, 2, 3, 4, 5, 1],
+            }
+        )
 
         # Apply expression
         expr = estimator._is_forest_condition("STATUS")
@@ -177,11 +179,23 @@ class TestCalculateValues:
         estimator = AreaChangeEstimator(mock_estimator, config)
 
         # Create test data
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, 2, 1, 2],  # Current: forest, non-forest, forest, non-forest
-            "PREV_COND_STATUS_CD": [2, 1, 1, 2],  # Previous: non-forest, forest, forest, non-forest
-            "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [
+                    1,
+                    2,
+                    1,
+                    2,
+                ],  # Current: forest, non-forest, forest, non-forest
+                "PREV_COND_STATUS_CD": [
+                    2,
+                    1,
+                    1,
+                    2,
+                ],  # Previous: non-forest, forest, forest, non-forest
+                "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(df).collect()
 
@@ -197,11 +211,13 @@ class TestCalculateValues:
         config = {"change_type": "gross_gain", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, 2, 1, 2],
-            "PREV_COND_STATUS_CD": [2, 1, 1, 2],
-            "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, 2, 1, 2],
+                "PREV_COND_STATUS_CD": [2, 1, 1, 2],
+                "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(df).collect()
 
@@ -214,11 +230,13 @@ class TestCalculateValues:
         config = {"change_type": "gross_loss", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, 2, 1, 2],
-            "PREV_COND_STATUS_CD": [2, 1, 1, 2],
-            "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, 2, 1, 2],
+                "PREV_COND_STATUS_CD": [2, 1, 1, 2],
+                "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(df).collect()
 
@@ -231,11 +249,13 @@ class TestCalculateValues:
         config = {"change_type": "net", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, 1],
-            "PREV_COND_STATUS_CD": [2, 2],
-            "SUBPTYP_PROP_CHNG": [0.5, 0.25],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, 1],
+                "PREV_COND_STATUS_CD": [2, 2],
+                "SUBPTYP_PROP_CHNG": [0.5, 0.25],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(df).collect()
 
@@ -248,11 +268,13 @@ class TestCalculateValues:
         config = {"change_type": "net", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1],
-            "PREV_COND_STATUS_CD": [2],
-            "SUBPTYP_PROP_CHNG": [None],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1],
+                "PREV_COND_STATUS_CD": [2],
+                "SUBPTYP_PROP_CHNG": [None],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(df).collect()
 
@@ -278,10 +300,12 @@ class TestApplyFilters:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, None, 1],
-            "PREV_COND_STATUS_CD": [2, 2, 2],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, None, 1],
+                "PREV_COND_STATUS_CD": [2, 2, 2],
+            }
+        ).lazy()
 
         result = estimator.apply_filters(df).collect()
         assert len(result) == 2
@@ -291,10 +315,12 @@ class TestApplyFilters:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, 1, 1],
-            "PREV_COND_STATUS_CD": [2, None, 2],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, 1, 1],
+                "PREV_COND_STATUS_CD": [2, None, 2],
+            }
+        ).lazy()
 
         result = estimator.apply_filters(df).collect()
         assert len(result) == 2
@@ -304,10 +330,12 @@ class TestApplyFilters:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "CURR_COND_STATUS_CD": [1, None, 1],
-            "PREV_COND_STATUS_CD": [2, None, 2],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, None, 1],
+                "PREV_COND_STATUS_CD": [2, None, 2],
+            }
+        ).lazy()
 
         result = estimator.apply_filters(df).collect()
         assert len(result) == 2
@@ -331,16 +359,18 @@ class TestAggregateToPlot:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "A", "A", "A", "B", "B", "B", "B"],
-            "STATECD": [13] * 8,
-            "INVYR": [2023] * 8,
-            "REMPER": [5.0] * 8,
-            "STRATUM_CN": ["S1"] * 8,
-            "EXPNS": [6000.0] * 8,
-            "ADJ_FACTOR_SUBP": [1.0] * 8,
-            "CHANGE_VALUE": [1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "A", "A", "A", "B", "B", "B", "B"],
+                "STATECD": [13] * 8,
+                "INVYR": [2023] * 8,
+                "REMPER": [5.0] * 8,
+                "STRATUM_CN": ["S1"] * 8,
+                "EXPNS": [6000.0] * 8,
+                "ADJ_FACTOR_SUBP": [1.0] * 8,
+                "CHANGE_VALUE": [1.0, 0.0, 0.0, -1.0, 0.0, 0.0, 0.0, 0.0],
+            }
+        ).lazy()
 
         result = estimator.aggregate_to_plot(df).collect()
 
@@ -362,16 +392,18 @@ class TestAggregateToPlot:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "A", "A", "A"],
-            "STATECD": [13] * 4,
-            "INVYR": [2023] * 4,
-            "REMPER": [5.0] * 4,
-            "STRATUM_CN": ["S1"] * 4,
-            "EXPNS": [6000.0] * 4,
-            "ADJ_FACTOR_SUBP": [1.0] * 4,
-            "CHANGE_VALUE": [1.0, 1.0, 1.0, 1.0],  # All 4 subplots gained
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "A", "A", "A"],
+                "STATECD": [13] * 4,
+                "INVYR": [2023] * 4,
+                "REMPER": [5.0] * 4,
+                "STRATUM_CN": ["S1"] * 4,
+                "EXPNS": [6000.0] * 4,
+                "ADJ_FACTOR_SUBP": [1.0] * 4,
+                "CHANGE_VALUE": [1.0, 1.0, 1.0, 1.0],  # All 4 subplots gained
+            }
+        ).lazy()
 
         result = estimator.aggregate_to_plot(df).collect()
 
@@ -383,17 +415,19 @@ class TestAggregateToPlot:
         config = {"land_type": "forest", "grp_by": "OWNGRPCD"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "A", "B", "B"],
-            "STATECD": [13] * 4,
-            "INVYR": [2023] * 4,
-            "REMPER": [5.0] * 4,
-            "STRATUM_CN": ["S1"] * 4,
-            "EXPNS": [6000.0] * 4,
-            "ADJ_FACTOR_SUBP": [1.0] * 4,
-            "OWNGRPCD": [10, 10, 40, 40],
-            "CHANGE_VALUE": [1.0, 0.0, 0.0, 0.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "A", "B", "B"],
+                "STATECD": [13] * 4,
+                "INVYR": [2023] * 4,
+                "REMPER": [5.0] * 4,
+                "STRATUM_CN": ["S1"] * 4,
+                "EXPNS": [6000.0] * 4,
+                "ADJ_FACTOR_SUBP": [1.0] * 4,
+                "OWNGRPCD": [10, 10, 40, 40],
+                "CHANGE_VALUE": [1.0, 0.0, 0.0, 0.0],
+            }
+        ).lazy()
 
         result = estimator.aggregate_to_plot(df).collect()
 
@@ -418,12 +452,14 @@ class TestApplyExpansionFactors:
         config = {"annual": False}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLOT_CHANGE_NORM": [1.0],  # 1 normalized change
-            "EXPNS": [6000.0],
-            "ADJ_FACTOR_SUBP": [1.0],
-            "REMPER": [5.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLOT_CHANGE_NORM": [1.0],  # 1 normalized change
+                "EXPNS": [6000.0],
+                "ADJ_FACTOR_SUBP": [1.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.apply_expansion_factors(df).collect()
 
@@ -435,12 +471,14 @@ class TestApplyExpansionFactors:
         config = {"annual": True}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLOT_CHANGE_NORM": [1.0],
-            "EXPNS": [6000.0],
-            "ADJ_FACTOR_SUBP": [1.0],
-            "REMPER": [5.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLOT_CHANGE_NORM": [1.0],
+                "EXPNS": [6000.0],
+                "ADJ_FACTOR_SUBP": [1.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.apply_expansion_factors(df).collect()
 
@@ -452,12 +490,14 @@ class TestApplyExpansionFactors:
         config = {"annual": False}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLOT_CHANGE_NORM": [1.0],
-            "EXPNS": [6000.0],
-            "ADJ_FACTOR_SUBP": [1.0],
-            "REMPER": [5.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLOT_CHANGE_NORM": [1.0],
+                "EXPNS": [6000.0],
+                "ADJ_FACTOR_SUBP": [1.0],
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.apply_expansion_factors(df).collect()
 
@@ -469,12 +509,14 @@ class TestApplyExpansionFactors:
         config = {"annual": False}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLOT_CHANGE_NORM": [1.0],
-            "EXPNS": [6000.0],
-            "ADJ_FACTOR_SUBP": [1.1],  # 10% adjustment
-            "REMPER": [5.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLOT_CHANGE_NORM": [1.0],
+                "EXPNS": [6000.0],
+                "ADJ_FACTOR_SUBP": [1.1],  # 10% adjustment
+                "REMPER": [5.0],
+            }
+        ).lazy()
 
         result = estimator.apply_expansion_factors(df).collect()
 
@@ -500,11 +542,13 @@ class TestCalculateTotals:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "B", "C"],
-            "STATECD": [13, 13, 13],
-            "AREA_CHANGE": [1000.0, -500.0, 200.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "B", "C"],
+                "STATECD": [13, 13, 13],
+                "AREA_CHANGE": [1000.0, -500.0, 200.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_totals(df)
 
@@ -516,11 +560,13 @@ class TestCalculateTotals:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "B", "C"],
-            "STATECD": [13, 13, 13],
-            "AREA_CHANGE": [1000.0, -500.0, 200.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "B", "C"],
+                "STATECD": [13, 13, 13],
+                "AREA_CHANGE": [1000.0, -500.0, 200.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_totals(df)
 
@@ -531,11 +577,13 @@ class TestCalculateTotals:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "B", "C", "D"],
-            "STATECD": [13, 13, 47, 47],
-            "AREA_CHANGE": [1000.0, -500.0, 200.0, 300.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "B", "C", "D"],
+                "STATECD": [13, 13, 47, 47],
+                "AREA_CHANGE": [1000.0, -500.0, 200.0, 300.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_totals(df)
 
@@ -547,12 +595,14 @@ class TestCalculateTotals:
         config = {"land_type": "forest", "grp_by": "OWNGRPCD"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame({
-            "PLT_CN": ["A", "B", "C", "D"],
-            "STATECD": [13, 13, 13, 13],
-            "OWNGRPCD": [10, 10, 40, 40],
-            "AREA_CHANGE": [1000.0, 500.0, -200.0, -300.0],
-        }).lazy()
+        df = pl.DataFrame(
+            {
+                "PLT_CN": ["A", "B", "C", "D"],
+                "STATECD": [13, 13, 13, 13],
+                "OWNGRPCD": [10, 10, 40, 40],
+                "AREA_CHANGE": [1000.0, 500.0, -200.0, -300.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_totals(df)
 

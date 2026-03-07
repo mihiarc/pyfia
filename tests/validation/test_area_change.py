@@ -26,14 +26,12 @@ References:
 - EVALIDator snum table: https://apps.fs.usda.gov/fiadb-api/fullreport/parameters/snum
 """
 
-import pytest
 
 from pyfia import FIA, area_change
-from pyfia.evalidator.client import EVALIDatorClient
 
 from .conftest import (
-    GEORGIA_STATE_CODE,
     GEORGIA_EVALID,
+    GEORGIA_STATE_CODE,
     GEORGIA_YEAR,
 )
 
@@ -60,7 +58,7 @@ class TestAreaChangeValidation:
 
             calculated_net = gain - loss
 
-            print(f"\nInternal Consistency Check:")
+            print("\nInternal Consistency Check:")
             print(f"  Gross Gain:     {gain:+,.0f} acres/year")
             print(f"  Gross Loss:     {loss:+,.0f} acres/year")
             print(f"  Net (computed): {calculated_net:+,.0f} acres/year")
@@ -110,7 +108,7 @@ class TestAreaChangeValidation:
             if annual > 0:
                 ratio = total / annual
 
-                print(f"\nAnnual vs Total Relationship:")
+                print("\nAnnual vs Total Relationship:")
                 print(f"  Annual: {annual:,.0f} acres/year")
                 print(f"  Total:  {total:,.0f} acres")
                 print(f"  Ratio (implied REMPER): {ratio:.1f} years")
@@ -161,31 +159,49 @@ class TestAreaChangeValidation:
 
         ev_transition_area = ev_either.estimate - ev_both.estimate
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print("Area Change Comparison: pyFIA vs EVALIDator")
-        print(f"{'='*60}")
-        print(f"\nEVALIDator (snum 136, 137):")
-        print(f"  Forest at BOTH measurements (snum 136):   {ev_both.estimate:,.0f} acres/year")
-        print(f"  Forest at EITHER measurement (snum 137): {ev_either.estimate:,.0f} acres/year")
-        print(f"  Difference (transition area):            {ev_transition_area:,.0f} acres/year")
+        print(f"{'=' * 60}")
+        print("\nEVALIDator (snum 136, 137):")
+        print(
+            f"  Forest at BOTH measurements (snum 136):   {ev_both.estimate:,.0f} acres/year"
+        )
+        print(
+            f"  Forest at EITHER measurement (snum 137): {ev_either.estimate:,.0f} acres/year"
+        )
+        print(
+            f"  Difference (transition area):            {ev_transition_area:,.0f} acres/year"
+        )
 
-        print(f"\npyFIA area_change():")
-        print(f"  Gross Gain (non-forest → forest):        {pyfia_gain:+,.0f} acres/year")
-        print(f"  Gross Loss (forest → non-forest):        {pyfia_loss:+,.0f} acres/year")
-        print(f"  Net Change (gain - loss):                {pyfia_net:+,.0f} acres/year")
-        print(f"  Total Transitions (gain + loss):         {pyfia_total_transitions:,.0f} acres/year")
+        print("\npyFIA area_change():")
+        print(
+            f"  Gross Gain (non-forest → forest):        {pyfia_gain:+,.0f} acres/year"
+        )
+        print(
+            f"  Gross Loss (forest → non-forest):        {pyfia_loss:+,.0f} acres/year"
+        )
+        print(
+            f"  Net Change (gain - loss):                {pyfia_net:+,.0f} acres/year"
+        )
+        print(
+            f"  Total Transitions (gain + loss):         {pyfia_total_transitions:,.0f} acres/year"
+        )
 
-        print(f"\nMethodology Note:")
-        print(f"  EVALIDator measures TOTAL AREA meeting criteria on remeasured plots.")
-        print(f"  pyFIA measures NET TRANSITIONS between forest/non-forest status.")
-        print(f"  These are fundamentally different metrics.")
+        print("\nMethodology Note:")
+        print("  EVALIDator measures TOTAL AREA meeting criteria on remeasured plots.")
+        print("  pyFIA measures NET TRANSITIONS between forest/non-forest status.")
+        print("  These are fundamentally different metrics.")
 
         # Calculate comparison metrics
         if ev_transition_area > 0:
             ratio = pyfia_total_transitions / ev_transition_area
-            pct_diff = abs(pyfia_total_transitions - ev_transition_area) / ev_transition_area * 100
+            pct_diff = (
+                abs(pyfia_total_transitions - ev_transition_area)
+                / ev_transition_area
+                * 100
+            )
 
-            print(f"\nComparison (pyFIA transitions vs EVALIDator difference):")
+            print("\nComparison (pyFIA transitions vs EVALIDator difference):")
             print(f"  Ratio: {ratio:.2f}")
             print(f"  Percent difference: {pct_diff:.1f}%")
 
@@ -211,7 +227,7 @@ class TestAreaChangeValidation:
             db.clip_by_evalid(GEORGIA_EVALID)
             result = area_change(db, grp_by="OWNGRPCD")
 
-            print(f"\nArea change by ownership:")
+            print("\nArea change by ownership:")
             print(result)
 
             assert len(result) > 1, "Should have multiple ownership groups"
@@ -239,28 +255,40 @@ class TestAreaChangeValidation:
             measurement="either",
         )
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")
         print("GEORGIA FOREST AREA CHANGE SUMMARY")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
         print(f"EVALID: {GEORGIA_EVALID} | Year: {GEORGIA_YEAR}")
-        print(f"{'='*70}")
+        print(f"{'=' * 70}")
 
-        print(f"\npyFIA Estimates (using SUBP_COND_CHNG_MTRX table):")
-        print(f"  Net annual change:    {net['AREA_CHANGE_TOTAL'][0]:+12,.0f} acres/year")
-        print(f"  Gross annual gain:    {gain['AREA_CHANGE_TOTAL'][0]:+12,.0f} acres/year")
-        print(f"  Gross annual loss:    {loss['AREA_CHANGE_TOTAL'][0]:+12,.0f} acres/year")
+        print("\npyFIA Estimates (using SUBP_COND_CHNG_MTRX table):")
+        print(
+            f"  Net annual change:    {net['AREA_CHANGE_TOTAL'][0]:+12,.0f} acres/year"
+        )
+        print(
+            f"  Gross annual gain:    {gain['AREA_CHANGE_TOTAL'][0]:+12,.0f} acres/year"
+        )
+        print(
+            f"  Gross annual loss:    {loss['AREA_CHANGE_TOTAL'][0]:+12,.0f} acres/year"
+        )
         print(f"  Remeasured plots:     {net['N_PLOTS'][0]:12,}")
 
-        print(f"\nEVALIDator Estimates (different methodology):")
+        print("\nEVALIDator Estimates (different methodology):")
         print(f"  Forest at BOTH (snum 136):    {ev_both.estimate:12,.0f} acres/year")
         print(f"  Forest at EITHER (snum 137):  {ev_either.estimate:12,.0f} acres/year")
-        print(f"  Difference:                   {ev_either.estimate - ev_both.estimate:12,.0f} acres/year")
+        print(
+            f"  Difference:                   {ev_either.estimate - ev_both.estimate:12,.0f} acres/year"
+        )
 
-        print(f"\nInterpretation:")
-        net_val = net['AREA_CHANGE_TOTAL'][0]
+        print("\nInterpretation:")
+        net_val = net["AREA_CHANGE_TOTAL"][0]
         if net_val < 0:
-            print(f"  Georgia is experiencing NET FOREST LOSS of ~{abs(net_val):,.0f} acres/year")
+            print(
+                f"  Georgia is experiencing NET FOREST LOSS of ~{abs(net_val):,.0f} acres/year"
+            )
         else:
-            print(f"  Georgia is experiencing NET FOREST GAIN of ~{net_val:,.0f} acres/year")
+            print(
+                f"  Georgia is experiencing NET FOREST GAIN of ~{net_val:,.0f} acres/year"
+            )
 
-        print(f"\n{'='*70}")
+        print(f"\n{'=' * 70}")

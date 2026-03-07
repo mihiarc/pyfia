@@ -24,14 +24,17 @@ import json
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List
 
-import polars as pl
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 
-from benchmarks.comparison.timing import BenchmarkSuite, TimingResult, print_comparison_table
+from benchmarks.comparison.timing import (
+    BenchmarkSuite,
+    TimingResult,
+    print_comparison_table,
+)
 
 console = Console()
 
@@ -39,10 +42,10 @@ console = Console()
 STATE_FIPS = {
     "RI": 44,  # Rhode Island
     "DE": 10,  # Delaware
-    "CT": 9,   # Connecticut
+    "CT": 9,  # Connecticut
     "NC": 37,  # North Carolina
     "GA": 13,  # Georgia
-    "CA": 6,   # California
+    "CA": 6,  # California
     "TX": 48,  # Texas
 }
 
@@ -61,16 +64,23 @@ def download_data_if_needed(state: str, data_dir: Path) -> Path:
     return download(state, dir=data_dir)
 
 
-def run_pyfia_benchmarks(db_path: Path, state_fips: int, iterations: int) -> List[TimingResult]:
+def run_pyfia_benchmarks(
+    db_path: Path, state_fips: int, iterations: int
+) -> List[TimingResult]:
     """Run pyFIA benchmarks."""
     from benchmarks.comparison.bench_pyfia import run_pyfia_benchmarks
 
     return run_pyfia_benchmarks(db_path, state_fips, iterations)
 
 
-def run_rfia_benchmarks(state: str, data_dir: Path, iterations: int) -> List[TimingResult]:
+def run_rfia_benchmarks(
+    state: str, data_dir: Path, iterations: int
+) -> List[TimingResult]:
     """Run rFIA benchmarks if R is available."""
-    from benchmarks.comparison.bench_rfia import check_rfia_available, run_rfia_benchmarks
+    from benchmarks.comparison.bench_rfia import (
+        check_rfia_available,
+        run_rfia_benchmarks,
+    )
 
     if not check_rfia_available():
         console.print("[yellow]rFIA not available - skipping R benchmarks[/yellow]")
@@ -159,12 +169,14 @@ def compute_speedup_statistics(results: List[TimingResult]) -> Dict:
 def print_publication_summary(stats: Dict, state: str):
     """Print publication-ready summary."""
     console.print("\n")
-    console.print(Panel.fit(
-        "[bold]Publication Summary[/bold]\n\n"
-        f"State: {state}\n"
-        f"Date: {datetime.now().strftime('%Y-%m-%d')}",
-        title="pyFIA Performance Benchmarks"
-    ))
+    console.print(
+        Panel.fit(
+            "[bold]Publication Summary[/bold]\n\n"
+            f"State: {state}\n"
+            f"Date: {datetime.now().strftime('%Y-%m-%d')}",
+            title="pyFIA Performance Benchmarks",
+        )
+    )
 
     if "summary" in stats and stats["summary"]:
         console.print("\n[bold]Speedup Summary (pyFIA vs alternatives):[/bold]\n")
@@ -184,7 +196,9 @@ def print_publication_summary(stats: Dict, state: str):
 
             table.add_row(
                 f"pyFIA vs {tool}",
-                f"[green]{mean_sp:.1f}x[/green]" if mean_sp > 1 else f"[red]{mean_sp:.2f}x[/red]",
+                f"[green]{mean_sp:.1f}x[/green]"
+                if mean_sp > 1
+                else f"[red]{mean_sp:.2f}x[/red]",
                 f"{median_sp:.1f}x",
                 f"{min_sp:.1f}x - {max_sp:.1f}x",
                 str(tool_stats["n_benchmarks"]),
@@ -208,10 +222,12 @@ def print_publication_summary(stats: Dict, state: str):
             else:
                 tool_name = tool
 
-            console.print(f'  "pyFIA demonstrated a mean speedup of {mean_sp:.1f}x '
-                         f'(median: {median_sp:.1f}x, range: {min_sp:.1f}x-{max_sp:.1f}x) '
-                         f'compared to {tool_name} across {tool_stats["n_benchmarks"]} '
-                         f'benchmark operations."')
+            console.print(
+                f'  "pyFIA demonstrated a mean speedup of {mean_sp:.1f}x '
+                f"(median: {median_sp:.1f}x, range: {min_sp:.1f}x-{max_sp:.1f}x) "
+                f"compared to {tool_name} across {tool_stats['n_benchmarks']} "
+                f'benchmark operations."'
+            )
 
 
 def export_results(
@@ -224,16 +240,36 @@ def export_results(
     if format == "csv":
         with open(output_path, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "benchmark", "tool", "mean_ms", "std_ms", "min_ms", "max_ms",
-                "median_ms", "cold_start_ms", "iterations", "error"
-            ])
+            writer.writerow(
+                [
+                    "benchmark",
+                    "tool",
+                    "mean_ms",
+                    "std_ms",
+                    "min_ms",
+                    "max_ms",
+                    "median_ms",
+                    "cold_start_ms",
+                    "iterations",
+                    "error",
+                ]
+            )
 
             for r in results:
-                writer.writerow([
-                    r.name, r.tool, r.mean_ms, r.std_ms, r.min_ms, r.max_ms,
-                    r.median_ms, r.cold_start_ms or "", r.iterations, r.error or ""
-                ])
+                writer.writerow(
+                    [
+                        r.name,
+                        r.tool,
+                        r.mean_ms,
+                        r.std_ms,
+                        r.min_ms,
+                        r.max_ms,
+                        r.median_ms,
+                        r.cold_start_ms or "",
+                        r.iterations,
+                        r.error or "",
+                    ]
+                )
 
         console.print(f"[green]Results exported to {output_path}[/green]")
 
@@ -258,7 +294,7 @@ def export_results(
             "metadata": {
                 "date": datetime.now().isoformat(),
                 "pyfia_version": _get_pyfia_version(),
-            }
+            },
         }
 
         with open(output_path, "w") as f:
@@ -282,7 +318,8 @@ def main():
         description="Run pyFIA performance benchmark comparison"
     )
     parser.add_argument(
-        "--state", "-s",
+        "--state",
+        "-s",
         required=True,
         help="State abbreviation (e.g., RI, DE, NC)",
     )
@@ -308,7 +345,8 @@ def main():
         help="Comma-separated list of tools to benchmark",
     )
     parser.add_argument(
-        "--iterations", "-n",
+        "--iterations",
+        "-n",
         type=int,
         default=10,
         help="Number of benchmark iterations (default: 10)",
@@ -319,7 +357,8 @@ def main():
         help="Export results to file (CSV or JSON based on extension)",
     )
     parser.add_argument(
-        "--quiet", "-q",
+        "--quiet",
+        "-q",
         action="store_true",
         help="Reduce output verbosity",
     )
@@ -335,13 +374,15 @@ def main():
     state_fips = STATE_FIPS[state]
     tools = [t.strip().lower() for t in args.tools.split(",")]
 
-    console.print(Panel.fit(
-        f"[bold]pyFIA Performance Benchmark[/bold]\n\n"
-        f"State: {state} (FIPS: {state_fips})\n"
-        f"Tools: {', '.join(tools)}\n"
-        f"Iterations: {args.iterations}",
-        title="Configuration"
-    ))
+    console.print(
+        Panel.fit(
+            f"[bold]pyFIA Performance Benchmark[/bold]\n\n"
+            f"State: {state} (FIPS: {state_fips})\n"
+            f"Tools: {', '.join(tools)}\n"
+            f"Iterations: {args.iterations}",
+            title="Configuration",
+        )
+    )
 
     # Get or download database
     if args.db:

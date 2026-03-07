@@ -268,11 +268,7 @@ def compare_panel_to_removals(
                     # TPA_UNADJ is already annualized (per removals.py:58)
                     # Divide by n_plots for per-plot (≈per-acre) average
                     panel_agg = panel_agg.with_columns(
-                        [
-                            (
-                                pl.col("PANEL_TPA_SUM") / n_plots
-                            ).alias("PANEL_ANNUALIZED")
-                        ]
+                        [(pl.col("PANEL_TPA_SUM") / n_plots).alias("PANEL_ANNUALIZED")]
                     )
                 else:
                     # Fallback to raw counts if no TPA column
@@ -343,11 +339,7 @@ def compare_panel_to_removals(
                     # TPA_UNADJ is already annualized (per removals.py:58)
                     # Divide by n_plots for per-plot (≈per-acre) average
                     panel_agg = panel_agg.with_columns(
-                        [
-                            (pl.col("PANEL_VOL_SUM") / n_plots).alias(
-                                "PANEL_ANNUALIZED"
-                            )
-                        ]
+                        [(pl.col("PANEL_VOL_SUM") / n_plots).alias("PANEL_ANNUALIZED")]
                     )
                 else:
                     # Fallback without TPA

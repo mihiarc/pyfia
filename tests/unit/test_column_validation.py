@@ -31,9 +31,7 @@ class TestColumnValidatorValidateColumns:
     def test_valid_columns_string(self):
         """Test validation with single column name as string."""
         df = pl.DataFrame({"A": [1], "B": [2]})
-        is_valid, missing = ColumnValidator.validate_columns(
-            df, required_columns="A"
-        )
+        is_valid, missing = ColumnValidator.validate_columns(df, required_columns="A")
         assert is_valid is True
         assert missing == []
 
@@ -112,7 +110,9 @@ class TestColumnValidatorValidateColumns:
     def test_no_columns_specified_raises(self):
         """Test that no columns specified raises ValueError."""
         df = pl.DataFrame({"A": [1]})
-        with pytest.raises(ValueError, match="Either required_columns or column_set must be specified"):
+        with pytest.raises(
+            ValueError, match="Either required_columns or column_set must be specified"
+        ):
             ColumnValidator.validate_columns(df)
 
 
@@ -122,18 +122,14 @@ class TestColumnValidatorValidateOneOf:
     def test_first_column_exists(self):
         """Test when first column in group exists."""
         df = pl.DataFrame({"PLT_CN": [1], "OTHER": [2]})
-        is_valid, found = ColumnValidator.validate_one_of(
-            df, [["PLT_CN", "CN"]]
-        )
+        is_valid, found = ColumnValidator.validate_one_of(df, [["PLT_CN", "CN"]])
         assert is_valid is True
         assert found == ["PLT_CN"]
 
     def test_second_column_exists(self):
         """Test when second column in group exists."""
         df = pl.DataFrame({"CN": [1], "OTHER": [2]})
-        is_valid, found = ColumnValidator.validate_one_of(
-            df, [["PLT_CN", "CN"]]
-        )
+        is_valid, found = ColumnValidator.validate_one_of(df, [["PLT_CN", "CN"]])
         assert is_valid is True
         assert found == ["CN"]
 
@@ -210,9 +206,7 @@ class TestColumnValidatorEnsureColumns:
     def test_add_column_with_dtype(self):
         """Test adding column with specific dtype."""
         df = pl.DataFrame({"A": [1, 2, 3]})
-        result = ColumnValidator.ensure_columns(
-            df, {"B": pl.Boolean}, fill_value=False
-        )
+        result = ColumnValidator.ensure_columns(df, {"B": pl.Boolean}, fill_value=False)
         assert "B" in result.columns
         assert result["B"].dtype == pl.Boolean
         assert result["B"].to_list() == [False, False, False]
@@ -256,7 +250,9 @@ class TestColumnValidatorGetMissingColumns:
     def test_some_missing_columns(self):
         """Test when some columns are missing."""
         df = pl.DataFrame({"A": [1]})
-        missing = ColumnValidator.get_missing_columns(df, required_columns=["A", "B", "C"])
+        missing = ColumnValidator.get_missing_columns(
+            df, required_columns=["A", "B", "C"]
+        )
         assert set(missing) == {"B", "C"}
 
     def test_with_column_set(self):
@@ -303,17 +299,13 @@ class TestColumnValidatorPrivateMethods:
     def test_get_columns_to_check_with_list(self):
         """Test _get_columns_to_check with list input."""
         df = pl.DataFrame({"A": [1], "B": [2]})
-        is_valid, _ = ColumnValidator.validate_columns(
-            df, required_columns=["A", "B"]
-        )
+        is_valid, _ = ColumnValidator.validate_columns(df, required_columns=["A", "B"])
         assert is_valid is True
 
     def test_get_columns_to_check_with_string(self):
         """Test _get_columns_to_check with string input."""
         df = pl.DataFrame({"DIA": [10.0]})
-        is_valid, _ = ColumnValidator.validate_columns(
-            df, required_columns="DIA"
-        )
+        is_valid, _ = ColumnValidator.validate_columns(df, required_columns="DIA")
         assert is_valid is True
 
     def test_build_error_message_with_context(self):

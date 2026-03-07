@@ -4,7 +4,6 @@ Tests the VolumeEstimator methods in isolation using mock data.
 No database connection required.
 """
 
-import math
 
 import polars as pl
 import pytest
@@ -190,10 +189,12 @@ class TestCalculateValues:
         estimator = VolumeEstimator(mock_db, config)
 
         # Create test data with known values
-        data = pl.DataFrame({
-            "VOLCFNET": [100.0, 200.0, 150.0],
-            "TPA_UNADJ": [5.0, 10.0, 7.5],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [100.0, 200.0, 150.0],
+                "TPA_UNADJ": [5.0, 10.0, 7.5],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -206,10 +207,12 @@ class TestCalculateValues:
         config = {"vol_type": "gross"}
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLCFGRS": [120.0, 250.0],
-            "TPA_UNADJ": [5.0, 10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFGRS": [120.0, 250.0],
+                "TPA_UNADJ": [5.0, 10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -221,10 +224,12 @@ class TestCalculateValues:
         config = {"vol_type": "sound"}
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLCFSND": [110.0, 220.0],
-            "TPA_UNADJ": [5.0, 10.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFSND": [110.0, 220.0],
+                "TPA_UNADJ": [5.0, 10.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -236,10 +241,12 @@ class TestCalculateValues:
         config = {"vol_type": "sawlog"}
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLBFNET": [500.0, 1000.0],
-            "TPA_UNADJ": [2.0, 3.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLBFNET": [500.0, 1000.0],
+                "TPA_UNADJ": [2.0, 3.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -252,10 +259,12 @@ class TestCalculateValues:
         config = {"vol_type": "net"}
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [100.0, None, 150.0],
-            "TPA_UNADJ": [5.0, 10.0, 7.5],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [100.0, None, 150.0],
+                "TPA_UNADJ": [5.0, 10.0, 7.5],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -269,10 +278,12 @@ class TestCalculateValues:
         config = {"vol_type": "net"}
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [100.0, 200.0],
-            "TPA_UNADJ": [5.0, None],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [100.0, 200.0],
+                "TPA_UNADJ": [5.0, None],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -284,10 +295,12 @@ class TestCalculateValues:
         config = {"vol_type": "net"}
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [0.0, 100.0],
-            "TPA_UNADJ": [5.0, 0.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [0.0, 100.0],
+                "TPA_UNADJ": [5.0, 0.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -299,10 +312,12 @@ class TestCalculateValues:
         config = {}  # No vol_type specified
         estimator = VolumeEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [100.0],
-            "TPA_UNADJ": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [100.0],
+                "TPA_UNADJ": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["VOLUME_ACRE"][0] == 500.0
@@ -316,10 +331,12 @@ class TestEdgeCases:
         config = {"vol_type": "net"}
         estimator = VolumeEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [],
-            "TPA_UNADJ": [],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [],
+                "TPA_UNADJ": [],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert len(result) == 0
@@ -329,10 +346,12 @@ class TestEdgeCases:
         config = {"vol_type": "net"}
         estimator = VolumeEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [1e10],
-            "TPA_UNADJ": [100.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [1e10],
+                "TPA_UNADJ": [100.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["VOLUME_ACRE"][0] == 1e12
@@ -342,10 +361,12 @@ class TestEdgeCases:
         config = {"vol_type": "net"}
         estimator = VolumeEstimator(MockDB(), config)
 
-        data = pl.DataFrame({
-            "VOLCFNET": [0.001],
-            "TPA_UNADJ": [0.01],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [0.001],
+                "TPA_UNADJ": [0.01],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert abs(result["VOLUME_ACRE"][0] - 0.00001) < 1e-10
@@ -356,10 +377,12 @@ class TestEdgeCases:
         estimator = VolumeEstimator(MockDB(), config)
 
         # Negative volumes shouldn't happen in real data but test handling
-        data = pl.DataFrame({
-            "VOLCFNET": [-100.0],
-            "TPA_UNADJ": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "VOLCFNET": [-100.0],
+                "TPA_UNADJ": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["VOLUME_ACRE"][0] == -500.0
@@ -382,4 +405,3 @@ class TestConfigStorage:
         assert estimator.config["vol_type"] == "net"
         assert estimator.config["land_type"] == "timber"
         assert estimator.config["grp_by"] == ["SPCD", "FORTYPCD"]
-

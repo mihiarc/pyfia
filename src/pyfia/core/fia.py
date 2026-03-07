@@ -739,7 +739,7 @@ class FIA:
         self._polygon_path = str(polygon_path)
 
         # Sanitize the path for safe SQL interpolation (prevents SQL injection)
-        safe_path = sanitize_sql_path(polygon_path)
+        safe_path = sanitize_sql_path(polygon_path.as_posix())
 
         # Build the spatial query
         # Note: FIA stores coordinates as LAT, LON but we need to create POINT(LON, LAT)
@@ -910,7 +910,7 @@ class FIA:
             )
 
         # Sanitize the path for safe SQL interpolation (prevents SQL injection)
-        safe_path = sanitize_sql_path(polygon_path)
+        safe_path = sanitize_sql_path(polygon_path.as_posix())
 
         # First, check what columns exist in the polygon file
         try:

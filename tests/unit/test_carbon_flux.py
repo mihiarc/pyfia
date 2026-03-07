@@ -108,7 +108,9 @@ class TestEmptyResult:
 
     def test_empty_result_no_totals(self):
         """Test empty result without totals."""
-        result = _empty_result([], totals=False, variance=False, include_components=False)
+        result = _empty_result(
+            [], totals=False, variance=False, include_components=False
+        )
         assert "NET_CARBON_FLUX_TOTAL" not in result.columns
 
     def test_empty_result_with_components(self):
@@ -132,24 +134,35 @@ class TestScalarFlux:
     def test_basic_calculation(self):
         """Test basic carbon flux calculation."""
         area_result = pl.DataFrame({"AREA": [1000000.0]})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [1000000.0],
-            "GROWTH_TOTAL_SE": [50000.0],
-            "N_PLOTS": [100],
-            "YEAR": [2023],
-        })
-        mort_result = pl.DataFrame({
-            "MORT_TOTAL": [200000.0],
-            "MORT_TOTAL_SE": [20000.0],
-        })
-        remv_result = pl.DataFrame({
-            "REMOVALS_TOTAL": [300000.0],
-            "REMOVALS_TOTAL_SE": [30000.0],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [1000000.0],
+                "GROWTH_TOTAL_SE": [50000.0],
+                "N_PLOTS": [100],
+                "YEAR": [2023],
+            }
+        )
+        mort_result = pl.DataFrame(
+            {
+                "MORT_TOTAL": [200000.0],
+                "MORT_TOTAL_SE": [20000.0],
+            }
+        )
+        remv_result = pl.DataFrame(
+            {
+                "REMOVALS_TOTAL": [300000.0],
+                "REMOVALS_TOTAL_SE": [30000.0],
+            }
+        )
 
         result = _scalar_flux(
-            area_result, growth_result, mort_result, remv_result,
-            totals=True, variance=True, include_components=True
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            totals=True,
+            variance=True,
+            include_components=True,
         )
 
         # Net = (1M - 0.2M - 0.3M) * 0.47 = 0.5M * 0.47 = 235,000
@@ -163,17 +176,24 @@ class TestScalarFlux:
     def test_zero_area(self):
         """Test handling of zero area."""
         area_result = pl.DataFrame({"AREA": [0.0]})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [1000.0],
-            "N_PLOTS": [10],
-            "YEAR": [2023],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [1000.0],
+                "N_PLOTS": [10],
+                "YEAR": [2023],
+            }
+        )
         mort_result = pl.DataFrame({"MORT_TOTAL": [200.0]})
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [300.0]})
 
         result = _scalar_flux(
-            area_result, growth_result, mort_result, remv_result,
-            totals=True, variance=False, include_components=False
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         # Per acre should be 0 when area is 0
@@ -183,17 +203,24 @@ class TestScalarFlux:
     def test_carbon_source(self):
         """Test carbon source (negative flux) scenario."""
         area_result = pl.DataFrame({"AREA": [1000000.0]})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [100000.0],
-            "N_PLOTS": [100],
-            "YEAR": [2023],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [100000.0],
+                "N_PLOTS": [100],
+                "YEAR": [2023],
+            }
+        )
         mort_result = pl.DataFrame({"MORT_TOTAL": [200000.0]})
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [300000.0]})
 
         result = _scalar_flux(
-            area_result, growth_result, mort_result, remv_result,
-            totals=True, variance=False, include_components=False
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         # Net = (0.1M - 0.2M - 0.3M) * 0.47 = -0.4M * 0.47 < 0
@@ -203,17 +230,24 @@ class TestScalarFlux:
     def test_components_output(self):
         """Test component columns are included when requested."""
         area_result = pl.DataFrame({"AREA": [1000000.0]})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [1000000.0],
-            "N_PLOTS": [100],
-            "YEAR": [2023],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [1000000.0],
+                "N_PLOTS": [100],
+                "YEAR": [2023],
+            }
+        )
         mort_result = pl.DataFrame({"MORT_TOTAL": [200000.0]})
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [300000.0]})
 
         result = _scalar_flux(
-            area_result, growth_result, mort_result, remv_result,
-            totals=True, variance=False, include_components=True
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            totals=True,
+            variance=False,
+            include_components=True,
         )
 
         assert "GROWTH_CARBON_TOTAL" in result.columns
@@ -231,32 +265,45 @@ class TestGroupedFlux:
 
     def test_basic_grouped_calculation(self):
         """Test grouped carbon flux calculation."""
-        area_result = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 40],
-            "AREA": [100000.0, 200000.0, 500000.0],
-        })
-        growth_result = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 40],
-            "GROWTH_TOTAL": [50000.0, 80000.0, 200000.0],
-            "GROWTH_TOTAL_SE": [5000.0, 8000.0, 20000.0],
-            "N_PLOTS": [50, 80, 200],
-            "YEAR": [2023, 2023, 2023],
-        })
-        mort_result = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 40],
-            "MORT_TOTAL": [10000.0, 30000.0, 50000.0],
-            "MORT_TOTAL_SE": [1000.0, 3000.0, 5000.0],
-        })
-        remv_result = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 40],
-            "REMOVALS_TOTAL": [20000.0, 60000.0, 100000.0],
-            "REMOVALS_TOTAL_SE": [2000.0, 6000.0, 10000.0],
-        })
+        area_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 40],
+                "AREA": [100000.0, 200000.0, 500000.0],
+            }
+        )
+        growth_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 40],
+                "GROWTH_TOTAL": [50000.0, 80000.0, 200000.0],
+                "GROWTH_TOTAL_SE": [5000.0, 8000.0, 20000.0],
+                "N_PLOTS": [50, 80, 200],
+                "YEAR": [2023, 2023, 2023],
+            }
+        )
+        mort_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 40],
+                "MORT_TOTAL": [10000.0, 30000.0, 50000.0],
+                "MORT_TOTAL_SE": [1000.0, 3000.0, 5000.0],
+            }
+        )
+        remv_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 40],
+                "REMOVALS_TOTAL": [20000.0, 60000.0, 100000.0],
+                "REMOVALS_TOTAL_SE": [2000.0, 6000.0, 10000.0],
+            }
+        )
 
         result = _grouped_flux(
-            area_result, growth_result, mort_result, remv_result,
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
             group_cols=["OWNGRPCD"],
-            totals=True, variance=True, include_components=False
+            totals=True,
+            variance=True,
+            include_components=False,
         )
 
         assert len(result) == 3
@@ -267,29 +314,42 @@ class TestGroupedFlux:
 
     def test_partial_data(self):
         """Test grouped calculation with partial data (some groups missing)."""
-        area_result = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 40],
-            "AREA": [100000.0, 200000.0, 500000.0],
-        })
-        growth_result = pl.DataFrame({
-            "OWNGRPCD": [10, 40],  # Missing 20
-            "GROWTH_TOTAL": [50000.0, 200000.0],
-            "N_PLOTS": [50, 200],
-            "YEAR": [2023, 2023],
-        })
-        mort_result = pl.DataFrame({
-            "OWNGRPCD": [10, 20, 40],
-            "MORT_TOTAL": [10000.0, 30000.0, 50000.0],
-        })
-        remv_result = pl.DataFrame({
-            "OWNGRPCD": [10, 40],  # Missing 20
-            "REMOVALS_TOTAL": [20000.0, 100000.0],
-        })
+        area_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 40],
+                "AREA": [100000.0, 200000.0, 500000.0],
+            }
+        )
+        growth_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],  # Missing 20
+                "GROWTH_TOTAL": [50000.0, 200000.0],
+                "N_PLOTS": [50, 200],
+                "YEAR": [2023, 2023],
+            }
+        )
+        mort_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 20, 40],
+                "MORT_TOTAL": [10000.0, 30000.0, 50000.0],
+            }
+        )
+        remv_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],  # Missing 20
+                "REMOVALS_TOTAL": [20000.0, 100000.0],
+            }
+        )
 
         result = _grouped_flux(
-            area_result, growth_result, mort_result, remv_result,
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
             group_cols=["OWNGRPCD"],
-            totals=True, variance=False, include_components=False
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         # Should have results for groups with growth data
@@ -307,8 +367,14 @@ class TestCalculateCarbonFlux:
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [300000.0]})
 
         result = _calculate_carbon_flux(
-            area_result, growth_result, mort_result, remv_result,
-            group_cols=[], totals=True, variance=False, include_components=False
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            group_cols=[],
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         assert result.is_empty()
@@ -316,17 +382,25 @@ class TestCalculateCarbonFlux:
     def test_empty_area_result(self):
         """Test handling of empty area result."""
         area_result = pl.DataFrame(schema={"AREA": pl.Float64})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [1000000.0],
-            "N_PLOTS": [100],
-            "YEAR": [2023],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [1000000.0],
+                "N_PLOTS": [100],
+                "YEAR": [2023],
+            }
+        )
         mort_result = pl.DataFrame({"MORT_TOTAL": [200000.0]})
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [300000.0]})
 
         result = _calculate_carbon_flux(
-            area_result, growth_result, mort_result, remv_result,
-            group_cols=[], totals=True, variance=False, include_components=False
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            group_cols=[],
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         assert result.is_empty()
@@ -334,17 +408,25 @@ class TestCalculateCarbonFlux:
     def test_dispatches_to_scalar(self):
         """Test that empty group_cols dispatches to scalar calculation."""
         area_result = pl.DataFrame({"AREA": [1000000.0]})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [1000000.0],
-            "N_PLOTS": [100],
-            "YEAR": [2023],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [1000000.0],
+                "N_PLOTS": [100],
+                "YEAR": [2023],
+            }
+        )
         mort_result = pl.DataFrame({"MORT_TOTAL": [200000.0]})
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [300000.0]})
 
         result = _calculate_carbon_flux(
-            area_result, growth_result, mort_result, remv_result,
-            group_cols=[], totals=True, variance=False, include_components=False
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            group_cols=[],
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         assert len(result) == 1
@@ -352,28 +434,42 @@ class TestCalculateCarbonFlux:
 
     def test_dispatches_to_grouped(self):
         """Test that non-empty group_cols dispatches to grouped calculation."""
-        area_result = pl.DataFrame({
-            "OWNGRPCD": [10, 40],
-            "AREA": [100000.0, 500000.0],
-        })
-        growth_result = pl.DataFrame({
-            "OWNGRPCD": [10, 40],
-            "GROWTH_TOTAL": [50000.0, 200000.0],
-            "N_PLOTS": [50, 200],
-            "YEAR": [2023, 2023],
-        })
-        mort_result = pl.DataFrame({
-            "OWNGRPCD": [10, 40],
-            "MORT_TOTAL": [10000.0, 50000.0],
-        })
-        remv_result = pl.DataFrame({
-            "OWNGRPCD": [10, 40],
-            "REMOVALS_TOTAL": [20000.0, 100000.0],
-        })
+        area_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],
+                "AREA": [100000.0, 500000.0],
+            }
+        )
+        growth_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],
+                "GROWTH_TOTAL": [50000.0, 200000.0],
+                "N_PLOTS": [50, 200],
+                "YEAR": [2023, 2023],
+            }
+        )
+        mort_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],
+                "MORT_TOTAL": [10000.0, 50000.0],
+            }
+        )
+        remv_result = pl.DataFrame(
+            {
+                "OWNGRPCD": [10, 40],
+                "REMOVALS_TOTAL": [20000.0, 100000.0],
+            }
+        )
 
         result = _calculate_carbon_flux(
-            area_result, growth_result, mort_result, remv_result,
-            group_cols=["OWNGRPCD"], totals=True, variance=False, include_components=False
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            group_cols=["OWNGRPCD"],
+            totals=True,
+            variance=False,
+            include_components=False,
         )
 
         assert len(result) == 2
@@ -390,17 +486,24 @@ class TestCarbonFraction:
     def test_carbon_fraction_applied(self):
         """Test carbon fraction is correctly applied in calculations."""
         area_result = pl.DataFrame({"AREA": [1000000.0]})
-        growth_result = pl.DataFrame({
-            "GROWTH_TOTAL": [1000000.0],  # 1M tons biomass
-            "N_PLOTS": [100],
-            "YEAR": [2023],
-        })
+        growth_result = pl.DataFrame(
+            {
+                "GROWTH_TOTAL": [1000000.0],  # 1M tons biomass
+                "N_PLOTS": [100],
+                "YEAR": [2023],
+            }
+        )
         mort_result = pl.DataFrame({"MORT_TOTAL": [0.0]})
         remv_result = pl.DataFrame({"REMOVALS_TOTAL": [0.0]})
 
         result = _scalar_flux(
-            area_result, growth_result, mort_result, remv_result,
-            totals=True, variance=False, include_components=True
+            area_result,
+            growth_result,
+            mort_result,
+            remv_result,
+            totals=True,
+            variance=False,
+            include_components=True,
         )
 
         # Growth carbon should be biomass * 0.47

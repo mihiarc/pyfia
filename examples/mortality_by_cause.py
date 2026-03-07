@@ -20,6 +20,7 @@ Usage:
 """
 
 import argparse
+
 from rich.console import Console
 from rich.table import Table
 
@@ -41,8 +42,8 @@ AGENTCD_NAMES = {
 
 # Tax classification by AGENTCD
 TAX_CLASSIFICATION = {
-    30: "Casualty",      # Fire - sudden event
-    50: "Casualty",      # Weather - sudden event
+    30: "Casualty",  # Fire - sudden event
+    50: "Casualty",  # Weather - sudden event
     10: "Non-Casualty",  # Insect - gradual
     20: "Non-Casualty",  # Disease - gradual
     40: "Non-Deductible",  # Animal
@@ -115,8 +116,12 @@ def run_mortality_by_agentcd(db):
             non_deductible_total += volume
 
     console.print(f"  Casualty (tax-deductible):     {casualty_total:>15,.0f} cuft/yr")
-    console.print(f"  Non-Casualty (limited deduct): {non_casualty_total:>15,.0f} cuft/yr")
-    console.print(f"  Non-Deductible:                {non_deductible_total:>15,.0f} cuft/yr")
+    console.print(
+        f"  Non-Casualty (limited deduct): {non_casualty_total:>15,.0f} cuft/yr"
+    )
+    console.print(
+        f"  Non-Deductible:                {non_deductible_total:>15,.0f} cuft/yr"
+    )
 
     return result
 
@@ -165,11 +170,13 @@ def main():
         description="Demonstrate mortality grouping by cause of death"
     )
     parser.add_argument(
-        "--motherduck", "-m",
+        "--motherduck",
+        "-m",
         help="MotherDuck database name (e.g., fia_va)",
     )
     parser.add_argument(
-        "--duckdb", "-d",
+        "--duckdb",
+        "-d",
         help="Path to local DuckDB file",
     )
     parser.add_argument(
@@ -188,10 +195,12 @@ def main():
     # Connect to database
     if args.motherduck:
         from pyfia import MotherDuckFIA
+
         console.print(f"[cyan]Connecting to MotherDuck: {args.motherduck}[/cyan]")
         db = MotherDuckFIA(args.motherduck)
     else:
         from pyfia import FIA
+
         console.print(f"[cyan]Connecting to DuckDB: {args.duckdb}[/cyan]")
         db = FIA(args.duckdb)
 

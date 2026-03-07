@@ -13,7 +13,7 @@ Run these tests:
 
 import pytest
 
-from pyfia import FIA, panel, removals
+from pyfia import FIA, panel
 from pyfia.estimation.estimators.panel_validation import (
     compare_panel_to_removals,
     diagnose_panel_removals_diff,
@@ -57,7 +57,7 @@ class TestPanelRemovalsConsistency:
 
         # Panel should find cut/diversion trees
         assert panel_count > 0, (
-            f"Panel found no cut/diversion trees. Check GRM component mapping."
+            "Panel found no cut/diversion trees. Check GRM component mapping."
         )
 
         # Panel estimate should be positive
@@ -67,7 +67,7 @@ class TestPanelRemovalsConsistency:
 
         # Removals estimate should be positive
         assert removals_estimate > 0, (
-            f"Removals found no trees. Check GRM data availability."
+            "Removals found no trees. Check GRM data availability."
         )
 
         # With expansion, panel and removals should agree within 5%
@@ -109,14 +109,12 @@ class TestPanelRemovalsConsistency:
         ratio = comparison["RATIO"][0]
 
         # Panel should find trees
-        assert panel_count > 0, (
-            f"Panel found no cut trees for volume analysis."
-        )
+        assert panel_count > 0, "Panel found no cut trees for volume analysis."
 
         # Volume should be positive
         assert panel_estimate > 0, (
-            f"Panel found zero/negative volume for cut trees. "
-            f"Check that volume columns are available in panel data."
+            "Panel found zero/negative volume for cut trees. "
+            "Check that volume columns are available in panel data."
         )
 
         # With expansion, panel and removals should agree within 5%
@@ -172,7 +170,7 @@ class TestPanelRemovalsConsistency:
         )
 
         # Report fate distribution
-        print(f"\nTree fate distribution:")
+        print("\nTree fate distribution:")
         for row in fate_counts.sort("TREE_FATE").iter_rows(named=True):
             print(f"  {row['TREE_FATE']}: {row['len']:,}")
 
@@ -212,8 +210,12 @@ class TestPanelRemovalsConsistency:
         ratio = comparison["RATIO"][0]
 
         # Both estimates should be positive
-        assert panel_estimate > 0, f"Panel estimate is zero or negative: {panel_estimate}"
-        assert removals_estimate > 0, f"Removals estimate is zero or negative: {removals_estimate}"
+        assert panel_estimate > 0, (
+            f"Panel estimate is zero or negative: {panel_estimate}"
+        )
+        assert removals_estimate > 0, (
+            f"Removals estimate is zero or negative: {removals_estimate}"
+        )
 
         # With expansion, ratio should be close to 1.0 (within 5%)
         assert 0.95 <= ratio <= 1.05, (

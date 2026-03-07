@@ -5,16 +5,19 @@ This script compares performance of the refactored estimators to ensure
 no regressions were introduced by the shared aggregation method.
 """
 
-import time
 import statistics
-import polars as pl
-import numpy as np
+import time
 from typing import Dict, List, Tuple
+
+import numpy as np
+import polars as pl
+
 from pyfia.estimation.base import BaseEstimator
 
 
 class MockFIA:
     """Mock FIA database for testing."""
+
     def __init__(self):
         self.evalid = None
         self.tables = {}
@@ -53,7 +56,9 @@ class BenchmarkEstimator(BaseEstimator):
         return results
 
 
-def generate_test_data(n_plots: int, n_trees_per_plot: int, n_conditions: int = 2) -> pl.LazyFrame:
+def generate_test_data(
+    n_plots: int, n_trees_per_plot: int, n_conditions: int = 2
+) -> pl.LazyFrame:
     """Generate realistic test data for benchmarking."""
     data = []
 
@@ -71,27 +76,35 @@ def generate_test_data(n_plots: int, n_trees_per_plot: int, n_conditions: int = 
 
             # Generate trees for this condition
             for tree_id in range(n_trees_per_plot // n_conditions):
-                data.append({
-                    "PLT_CN": plot_id,
-                    "CONDID": cond_id,
-                    "STRATUM_CN": stratum_cn,
-                    "EXPNS": expns,
-                    "CONDPROP_UNADJ": condprop,
-                    "METRIC_ADJ": np.random.uniform(5.0, 50.0),  # Random metric value
-                    "METRIC2_ADJ": np.random.uniform(10.0, 100.0),
-                    "SPCD": np.random.choice([131, 110, 833, 802]),  # Common species
-                    "FORTYPCD": np.random.choice([161, 162, 163, 171]),
-                    "DIA": np.random.uniform(5.0, 30.0)
-                })
+                data.append(
+                    {
+                        "PLT_CN": plot_id,
+                        "CONDID": cond_id,
+                        "STRATUM_CN": stratum_cn,
+                        "EXPNS": expns,
+                        "CONDPROP_UNADJ": condprop,
+                        "METRIC_ADJ": np.random.uniform(
+                            5.0, 50.0
+                        ),  # Random metric value
+                        "METRIC2_ADJ": np.random.uniform(10.0, 100.0),
+                        "SPCD": np.random.choice(
+                            [131, 110, 833, 802]
+                        ),  # Common species
+                        "FORTYPCD": np.random.choice([161, 162, 163, 171]),
+                        "DIA": np.random.uniform(5.0, 30.0),
+                    }
+                )
 
     return pl.DataFrame(data).lazy()
 
 
-def benchmark_aggregation(estimator: BaseEstimator,
-                         data: pl.LazyFrame,
-                         metric_mappings: Dict[str, str],
-                         group_cols: List[str],
-                         iterations: int = 10) -> Tuple[float, float]:
+def benchmark_aggregation(
+    estimator: BaseEstimator,
+    data: pl.LazyFrame,
+    metric_mappings: Dict[str, str],
+    group_cols: List[str],
+    iterations: int = 10,
+) -> Tuple[float, float]:
     """Run benchmark and return mean and std dev of execution times."""
     times = []
 
@@ -102,7 +115,7 @@ def benchmark_aggregation(estimator: BaseEstimator,
             data_with_strat=data,
             metric_mappings=metric_mappings,
             group_cols=group_cols,
-            use_grm_adjustment=False
+            use_grm_adjustment=False,
         )
 
         # Force computation
@@ -137,13 +150,17 @@ def run_benchmarks():
     # Test with different numbers of metrics
     metric_configs = {
         "Single": {"METRIC_ADJ": "CONDITION_METRIC"},
-        "Double": {"METRIC_ADJ": "CONDITION_METRIC",
-                   "METRIC2_ADJ": "CONDITION_METRIC2"}
+        "Double": {
+            "METRIC_ADJ": "CONDITION_METRIC",
+            "METRIC2_ADJ": "CONDITION_METRIC2",
+        },
     }
 
     print("\n📊 Benchmark Results:")
     print("-" * 70)
-    print(f"{'Scenario':<20} {'Metrics':<10} {'Trees':<10} {'Mean (ms)':<12} {'Std Dev':<10} {'Ops/sec':<10}")
+    print(
+        f"{'Scenario':<20} {'Metrics':<10} {'Trees':<10} {'Mean (ms)':<12} {'Std Dev':<10} {'Ops/sec':<10}"
+    )
     print("-" * 70)
 
     for scenario_name, n_plots, n_trees, n_conds, group_cols in scenarios:
@@ -156,24 +173,31 @@ def run_benchmarks():
                 continue
 
             mean_time, std_time = benchmark_aggregation(
-                estimator, data, metric_mappings, group_cols,
-                iterations=10 if total_trees < 50000 else 5
+                estimator,
+                data,
+                metric_mappings,
+                group_cols,
+                iterations=10 if total_trees < 50000 else 5,
             )
 
             ops_per_sec = 1.0 / mean_time if mean_time > 0 else 0
 
-            print(f"{scenario_name:<20} {metric_name:<10} {total_trees:<10,} "
-                  f"{mean_time*1000:>10.2f}ms {std_time*1000:>8.2f}ms "
-                  f"{ops_per_sec:>8.1f}/s")
+            print(
+                f"{scenario_name:<20} {metric_name:<10} {total_trees:<10,} "
+                f"{mean_time * 1000:>10.2f}ms {std_time * 1000:>8.2f}ms "
+                f"{ops_per_sec:>8.1f}/s"
+            )
 
-            results.append({
-                "scenario": scenario_name,
-                "metrics": metric_name,
-                "total_trees": total_trees,
-                "mean_ms": mean_time * 1000,
-                "std_ms": std_time * 1000,
-                "ops_per_sec": ops_per_sec
-            })
+            results.append(
+                {
+                    "scenario": scenario_name,
+                    "metrics": metric_name,
+                    "total_trees": total_trees,
+                    "mean_ms": mean_time * 1000,
+                    "std_ms": std_time * 1000,
+                    "ops_per_sec": ops_per_sec,
+                }
+            )
 
     print("-" * 70)
 
@@ -182,7 +206,11 @@ def run_benchmarks():
     print("-" * 70)
 
     # Check scaling behavior
-    base_scenarios = [r for r in results if r["metrics"] == "Single" and not r["scenario"].endswith("+Group")]
+    base_scenarios = [
+        r
+        for r in results
+        if r["metrics"] == "Single" and not r["scenario"].endswith("+Group")
+    ]
     if len(base_scenarios) >= 3:
         # Calculate scaling factor
         small = base_scenarios[0]
@@ -208,15 +236,26 @@ def run_benchmarks():
         # Compare same size with/without grouping
         for g in grouped:
             base_name = g["scenario"].replace("+Group", "")
-            base = next((u for u in ungrouped if u["scenario"] == base_name and u["metrics"] == g["metrics"]), None)
+            base = next(
+                (
+                    u
+                    for u in ungrouped
+                    if u["scenario"] == base_name and u["metrics"] == g["metrics"]
+                ),
+                None,
+            )
             if base:
                 overhead = (g["mean_ms"] / base["mean_ms"] - 1) * 100
                 if overhead < 20:
                     print(f"✅ Low grouping overhead for {base_name}: +{overhead:.1f}%")
                 elif overhead < 50:
-                    print(f"⚠️  Moderate grouping overhead for {base_name}: +{overhead:.1f}%")
+                    print(
+                        f"⚠️  Moderate grouping overhead for {base_name}: +{overhead:.1f}%"
+                    )
                 else:
-                    print(f"❌ High grouping overhead for {base_name}: +{overhead:.1f}%")
+                    print(
+                        f"❌ High grouping overhead for {base_name}: +{overhead:.1f}%"
+                    )
 
     # Schema caching benefit estimate
     print("\n🚀 Optimization Impact:")
@@ -224,7 +263,7 @@ def run_benchmarks():
     print("Schema Caching: Eliminated repeated collect_schema() calls")
     print("  - Before: O(n) schema collections for n group columns")
     print("  - After: O(1) single schema collection")
-    print(f"  - Estimated savings: ~5-10ms per avoided collection")
+    print("  - Estimated savings: ~5-10ms per avoided collection")
 
     # Overall performance assessment
     print("\n📋 Summary:")
@@ -241,10 +280,10 @@ def run_benchmarks():
         print(f"❌ SLOW: Average {mean_ops:.1f} operations/second")
 
     # Memory efficiency (approximate)
-    print(f"\n💾 Memory Efficiency:")
-    print(f"  - Lazy evaluation maintained throughout")
-    print(f"  - Single collect() at end of aggregation")
-    print(f"  - Schema cached to avoid redundant operations")
+    print("\n💾 Memory Efficiency:")
+    print("  - Lazy evaluation maintained throughout")
+    print("  - Single collect() at end of aggregation")
+    print("  - Schema cached to avoid redundant operations")
 
     return results
 

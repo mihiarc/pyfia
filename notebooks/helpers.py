@@ -14,7 +14,9 @@ from rich.console import Console
 from rich.table import Table
 
 
-def ensure_ri_data(data_dir: Optional[Path] = None, force_download: bool = False) -> Path:
+def ensure_ri_data(
+    data_dir: Optional[Path] = None, force_download: bool = False
+) -> Path:
     """
     Ensure Rhode Island FIA data is downloaded and return the database path.
 
@@ -59,6 +61,7 @@ def ensure_ri_data(data_dir: Optional[Path] = None, force_download: bool = False
     if db_path.exists():
         try:
             import duckdb
+
             con = duckdb.connect(str(db_path), read_only=True)
             tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
             con.close()
@@ -123,7 +126,12 @@ def display_estimate(
 
     # Add columns
     for col in df.columns:
-        table.add_column(col, justify="right" if df[col].dtype in [pl.Float64, pl.Int64, pl.Int32] else "left")
+        table.add_column(
+            col,
+            justify="right"
+            if df[col].dtype in [pl.Float64, pl.Int64, pl.Int32]
+            else "left",
+        )
 
     # Add rows (limited)
     display_df = df.head(max_rows)
@@ -214,7 +222,11 @@ def plot_by_category(
     # Convert to lists for matplotlib
     categories = sorted_df[category_col].to_list()
     values = sorted_df[value_col].to_list()
-    errors = sorted_df[error_col].to_list() if error_col and error_col in df.columns else None
+    errors = (
+        sorted_df[error_col].to_list()
+        if error_col and error_col in df.columns
+        else None
+    )
 
     # Create figure
     fig, ax = plt.subplots(figsize=figsize)
@@ -226,25 +238,31 @@ def plot_by_category(
         if errors:
             errors = errors[::-1]
 
-        bars = ax.barh(categories, values, color=color, edgecolor='white', linewidth=0.5)
+        bars = ax.barh(
+            categories, values, color=color, edgecolor="white", linewidth=0.5
+        )
         if errors:
-            ax.errorbar(values, categories, xerr=errors, fmt='none', color='black', capsize=3)
+            ax.errorbar(
+                values, categories, xerr=errors, fmt="none", color="black", capsize=3
+            )
         ax.set_xlabel(xlabel or value_col)
         ax.set_ylabel(ylabel or category_col)
     else:
-        bars = ax.bar(categories, values, color=color, edgecolor='white', linewidth=0.5)
+        bars = ax.bar(categories, values, color=color, edgecolor="white", linewidth=0.5)
         if errors:
-            ax.errorbar(categories, values, yerr=errors, fmt='none', color='black', capsize=3)
+            ax.errorbar(
+                categories, values, yerr=errors, fmt="none", color="black", capsize=3
+            )
         ax.set_xlabel(xlabel or category_col)
         ax.set_ylabel(ylabel or value_col)
-        plt.xticks(rotation=45, ha='right')
+        plt.xticks(rotation=45, ha="right")
 
     if title:
-        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_title(title, fontsize=14, fontweight="bold")
 
     # Clean up
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
     plt.tight_layout()
 
     return fig
@@ -296,7 +314,7 @@ def plot_time_series(
 
     fig, ax = plt.subplots(figsize=figsize)
 
-    ax.plot(years, values, color=color, linewidth=2, marker='o', markersize=6)
+    ax.plot(years, values, color=color, linewidth=2, marker="o", markersize=6)
 
     if error_col and error_col in df.columns:
         errors = sorted_df[error_col].to_list()
@@ -305,12 +323,12 @@ def plot_time_series(
         ax.fill_between(years, lower, upper, color=color, alpha=0.2)
 
     if title:
-        ax.set_title(title, fontsize=14, fontweight='bold')
+        ax.set_title(title, fontsize=14, fontweight="bold")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel or value_col)
 
-    ax.spines['top'].set_visible(False)
-    ax.spines['right'].set_visible(False)
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
     plt.tight_layout()
 
     return fig
@@ -340,11 +358,11 @@ def format_large_number(value: Union[int, float], precision: int = 1) -> str:
     '5.4K'
     """
     if abs(value) >= 1e9:
-        return f"{value/1e9:.{precision}f}B"
+        return f"{value / 1e9:.{precision}f}B"
     elif abs(value) >= 1e6:
-        return f"{value/1e6:.{precision}f}M"
+        return f"{value / 1e6:.{precision}f}M"
     elif abs(value) >= 1e3:
-        return f"{value/1e3:.{precision}f}K"
+        return f"{value / 1e3:.{precision}f}K"
     else:
         return f"{value:.{precision}f}"
 
@@ -372,6 +390,8 @@ def summarize_estimate(df: pl.DataFrame, estimate_col: str, se_col: str) -> dict
         "mean": df[estimate_col].mean(),
         "min": df[estimate_col].min(),
         "max": df[estimate_col].max(),
-        "mean_cv": (df[se_col].mean() / df[estimate_col].mean() * 100) if df[estimate_col].mean() else None,
+        "mean_cv": (df[se_col].mean() / df[estimate_col].mean() * 100)
+        if df[estimate_col].mean()
+        else None,
         "n_groups": len(df),
     }

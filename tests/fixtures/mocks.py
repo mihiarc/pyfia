@@ -34,25 +34,29 @@ def mock_database_query_interface():
     return mock_interface
 
 
-
-
 @pytest.fixture
 def mock_evalidator_client():
     """Create a mock EVALIDator client for testing without network calls."""
     client = Mock()
-    client.get_estimate = Mock(return_value={
-        "estimate": 24000000.0,
-        "se": 120000.0,
-        "se_percent": 0.5,
-    })
-    client.get_forest_area = Mock(return_value={
-        "estimate": 24500000.0,
-        "se": 125000.0,
-    })
-    client.get_volume = Mock(return_value={
-        "estimate": 50000000000.0,
-        "se": 500000000.0,
-    })
+    client.get_estimate = Mock(
+        return_value={
+            "estimate": 24000000.0,
+            "se": 120000.0,
+            "se_percent": 0.5,
+        }
+    )
+    client.get_forest_area = Mock(
+        return_value={
+            "estimate": 24500000.0,
+            "se": 125000.0,
+        }
+    )
+    client.get_volume = Mock(
+        return_value={
+            "estimate": 50000000000.0,
+            "se": 500000000.0,
+        }
+    )
     return client
 
 
@@ -61,11 +65,13 @@ def mock_data_reader():
     """Create a mock FIADataReader for testing."""
     reader = Mock()
     reader.engine = "duckdb"
-    reader.get_table_schema = Mock(return_value={
-        "CN": "VARCHAR",
-        "PLT_CN": "VARCHAR",
-        "DIA": "DOUBLE",
-    })
+    reader.get_table_schema = Mock(
+        return_value={
+            "CN": "VARCHAR",
+            "PLT_CN": "VARCHAR",
+            "DIA": "DOUBLE",
+        }
+    )
     reader.read_table = Mock()
     reader.table_exists = Mock(return_value=True)
     return reader

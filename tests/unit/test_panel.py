@@ -5,8 +5,8 @@ Tests creation of t1/t2 remeasurement panels at both condition
 and tree levels for harvest analysis and change detection.
 """
 
-import pytest
 import polars as pl
+import pytest
 
 from pyfia import FIA, panel
 
@@ -116,7 +116,15 @@ class TestPanelTreeLevel:
             fate_values = result["TREE_FATE"].unique().to_list()
 
             # Should have at least some of these categories
-            expected_fates = {"survivor", "mortality", "ingrowth", "cut", "other", "tracked", "unknown"}
+            expected_fates = {
+                "survivor",
+                "mortality",
+                "ingrowth",
+                "cut",
+                "other",
+                "tracked",
+                "unknown",
+            }
             assert len(set(fate_values) & expected_fates) > 0
 
     def test_tree_type_filter(self, db_path):

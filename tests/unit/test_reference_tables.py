@@ -66,10 +66,12 @@ class TestJoinSpeciesNames:
     def test_join_species_names_basic(self, fia_db):
         """Test basic species name joining."""
         # Create sample data with species codes
-        data = pl.DataFrame({
-            "SPCD": [131, 316, 802],  # Loblolly pine, Red maple, White oak
-            "VALUE": [100, 200, 300],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131, 316, 802],  # Loblolly pine, Red maple, White oak
+                "VALUE": [100, 200, 300],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_species_names(data, db)
@@ -81,9 +83,11 @@ class TestJoinSpeciesNames:
 
     def test_join_species_names_with_scientific(self, fia_db):
         """Test joining with scientific names included."""
-        data = pl.DataFrame({
-            "SPCD": [131, 316],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131, 316],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_species_names(data, db, include_scientific=True)
@@ -94,9 +98,11 @@ class TestJoinSpeciesNames:
 
     def test_join_species_names_custom_columns(self, fia_db):
         """Test joining with custom column names."""
-        data = pl.DataFrame({
-            "SPCD": [131],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_species_names(
@@ -113,9 +119,11 @@ class TestJoinSpeciesNames:
 
     def test_join_species_names_missing_column(self, fia_db):
         """Test that missing SPCD column returns data unchanged."""
-        data = pl.DataFrame({
-            "OTHER_COL": [1, 2, 3],
-        })
+        data = pl.DataFrame(
+            {
+                "OTHER_COL": [1, 2, 3],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_species_names(data, db)
@@ -126,9 +134,11 @@ class TestJoinSpeciesNames:
 
     def test_join_species_names_with_path(self, fia_db):
         """Test that passing db path string works."""
-        data = pl.DataFrame({
-            "SPCD": [131],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+            }
+        )
 
         # Pass path as string instead of FIA object
         result = join_species_names(data, fia_db)
@@ -141,10 +151,12 @@ class TestJoinForestTypeNames:
 
     def test_join_forest_type_names_basic(self, fia_db):
         """Test basic forest type name joining."""
-        data = pl.DataFrame({
-            "FORTYPCD": [161, 166, 503],  # Various forest types
-            "AREA": [1000, 2000, 3000],
-        })
+        data = pl.DataFrame(
+            {
+                "FORTYPCD": [161, 166, 503],  # Various forest types
+                "AREA": [1000, 2000, 3000],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_forest_type_names(data, db)
@@ -155,9 +167,11 @@ class TestJoinForestTypeNames:
 
     def test_join_forest_type_names_custom_column(self, fia_db):
         """Test joining with custom output column name."""
-        data = pl.DataFrame({
-            "FORTYPCD": [161],
-        })
+        data = pl.DataFrame(
+            {
+                "FORTYPCD": [161],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_forest_type_names(
@@ -171,9 +185,11 @@ class TestJoinForestTypeNames:
 
     def test_join_forest_type_names_missing_column(self, fia_db):
         """Test that missing FORTYPCD column returns data unchanged."""
-        data = pl.DataFrame({
-            "OTHER_COL": [1, 2],
-        })
+        data = pl.DataFrame(
+            {
+                "OTHER_COL": [1, 2],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_forest_type_names(data, db)
@@ -207,10 +223,12 @@ class TestJoinStateNames:
         if not _has_ref_state_table(fia_db):
             pytest.skip("REF_STATE table not available in database")
 
-        data = pl.DataFrame({
-            "STATECD": [13, 12, 1],  # Georgia, Florida, Alabama
-            "VALUE": [100, 200, 300],
-        })
+        data = pl.DataFrame(
+            {
+                "STATECD": [13, 12, 1],  # Georgia, Florida, Alabama
+                "VALUE": [100, 200, 300],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_state_names(data, db)
@@ -224,9 +242,11 @@ class TestJoinStateNames:
         if not _has_ref_state_table(fia_db):
             pytest.skip("REF_STATE table not available in database")
 
-        data = pl.DataFrame({
-            "STATECD": [13],
-        })
+        data = pl.DataFrame(
+            {
+                "STATECD": [13],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_state_names(data, db, include_abbr=False)
@@ -239,9 +259,11 @@ class TestJoinStateNames:
         if not _has_ref_state_table(fia_db):
             pytest.skip("REF_STATE table not available in database")
 
-        data = pl.DataFrame({
-            "STATECD": [13],
-        })
+        data = pl.DataFrame(
+            {
+                "STATECD": [13],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_state_names(
@@ -256,9 +278,11 @@ class TestJoinStateNames:
 
     def test_join_state_names_missing_column(self, fia_db):
         """Test that missing STATECD column returns data unchanged."""
-        data = pl.DataFrame({
-            "OTHER_COL": [1],
-        })
+        data = pl.DataFrame(
+            {
+                "OTHER_COL": [1],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_state_names(data, db)
@@ -273,11 +297,13 @@ class TestJoinMultipleReferences:
         """Test joining all available reference tables."""
         has_state = _has_ref_state_table(fia_db)
 
-        data = pl.DataFrame({
-            "SPCD": [131],
-            "FORTYPCD": [161],
-            "STATECD": [13],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "FORTYPCD": [161],
+                "STATECD": [13],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_multiple_references(
@@ -295,10 +321,12 @@ class TestJoinMultipleReferences:
 
     def test_join_multiple_species_and_forest_type(self, fia_db):
         """Test joining species and forest type tables."""
-        data = pl.DataFrame({
-            "SPCD": [131],
-            "FORTYPCD": [161],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "FORTYPCD": [161],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_multiple_references(
@@ -315,11 +343,13 @@ class TestJoinMultipleReferences:
 
     def test_join_multiple_selective(self, fia_db):
         """Test joining only some reference tables."""
-        data = pl.DataFrame({
-            "SPCD": [131],
-            "FORTYPCD": [161],
-            "STATECD": [13],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "FORTYPCD": [161],
+                "STATECD": [13],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_multiple_references(
@@ -336,9 +366,11 @@ class TestJoinMultipleReferences:
 
     def test_join_multiple_none(self, fia_db):
         """Test with no reference tables selected."""
-        data = pl.DataFrame({
-            "SPCD": [131],
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_multiple_references(
@@ -354,10 +386,12 @@ class TestJoinMultipleReferences:
 
     def test_join_multiple_missing_columns(self, fia_db):
         """Test joining when some columns are missing."""
-        data = pl.DataFrame({
-            "SPCD": [131],
-            # No FORTYPCD or STATECD
-        })
+        data = pl.DataFrame(
+            {
+                "SPCD": [131],
+                # No FORTYPCD or STATECD
+            }
+        )
 
         with FIA(fia_db) as db:
             result = join_multiple_references(

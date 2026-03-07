@@ -7,8 +7,8 @@ No database connection required.
 import polars as pl
 import pytest
 
-from pyfia.estimation.estimators.mortality import MortalityEstimator
 from pyfia.estimation.constants import BASAL_AREA_FACTOR, LBS_TO_SHORT_TONS
+from pyfia.estimation.estimators.mortality import MortalityEstimator
 
 
 class MockDB:
@@ -47,12 +47,18 @@ class TestGetComponentFilter:
         assert filter_expr is not None
 
         # Apply the filter to test data
-        data = pl.DataFrame({
-            "COMPONENT": [
-                "MORTALITY1", "MORTALITY2", "SURVIVOR",
-                "CUT1", "INGROWTH", "MORTALITY3"
-            ]
-        })
+        data = pl.DataFrame(
+            {
+                "COMPONENT": [
+                    "MORTALITY1",
+                    "MORTALITY2",
+                    "SURVIVOR",
+                    "CUT1",
+                    "INGROWTH",
+                    "MORTALITY3",
+                ]
+            }
+        )
         result = data.filter(filter_expr)
 
         # Should only keep MORTALITY* rows
@@ -73,10 +79,12 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [5.0, 10.0, 2.5],
-            "VOLCFNET": [100.0, 200.0, 50.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [5.0, 10.0, 2.5],
+                "VOLCFNET": [100.0, 200.0, 50.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
 
@@ -91,10 +99,12 @@ class TestCalculateValues:
         config = {"measure": "sawlog"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [3.0],
-            "VOLCSNET": [400.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [3.0],
+                "VOLCSNET": [400.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_VALUE"][0] == 1200.0
@@ -104,11 +114,13 @@ class TestCalculateValues:
         config = {"measure": "biomass"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [4.0],
-            "DRYBIO_BOLE": [1000.0],
-            "DRYBIO_BRANCH": [500.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [4.0],
+                "DRYBIO_BOLE": [1000.0],
+                "DRYBIO_BRANCH": [500.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         expected = 4.0 * (1000.0 + 500.0) * LBS_TO_SHORT_TONS
@@ -119,10 +131,12 @@ class TestCalculateValues:
         config = {"measure": "basal_area"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [6.0],
-            "DIA": [12.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [6.0],
+                "DIA": [12.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         expected = 6.0 * (12.0**2 * BASAL_AREA_FACTOR)
@@ -133,9 +147,11 @@ class TestCalculateValues:
         config = {"measure": "tpa"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [7.5, 3.2],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [7.5, 3.2],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_VALUE"][0] == 7.5
@@ -146,9 +162,11 @@ class TestCalculateValues:
         config = {"measure": "count"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [5.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [5.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_VALUE"][0] == 5.0
@@ -158,10 +176,12 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [5.0, 10.0],
-            "VOLCFNET": [None, 200.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [5.0, 10.0],
+                "VOLCFNET": [None, 200.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_VALUE"][0] is None
@@ -171,10 +191,12 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [0.0],
-            "VOLCFNET": [100.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [0.0],
+                "VOLCFNET": [100.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_VALUE"][0] == 0.0
@@ -183,10 +205,12 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [],
-            "VOLCFNET": [],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [],
+                "VOLCFNET": [],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert len(result) == 0
@@ -196,10 +220,12 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [5.0, 10.0],
-            "VOLCFNET": [100.0, 200.0],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [5.0, 10.0],
+                "VOLCFNET": [100.0, 200.0],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_ANNUAL"].to_list() == result["MORT_VALUE"].to_list()
@@ -208,10 +234,12 @@ class TestCalculateValues:
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
 
-        data = pl.DataFrame({
-            "TPA_UNADJ": [1e6],
-            "VOLCFNET": [1e4],
-        }).lazy()
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [1e6],
+                "VOLCFNET": [1e4],
+            }
+        ).lazy()
 
         result = estimator.calculate_values(data).collect()
         assert result["MORT_VALUE"][0] == 1e10

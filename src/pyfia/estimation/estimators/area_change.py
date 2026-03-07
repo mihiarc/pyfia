@@ -414,7 +414,9 @@ class AreaChangeEstimator(BaseEstimator):
 
         return result
 
-    def calculate_variance(self, result: AggregationResult | pl.DataFrame) -> pl.DataFrame:
+    def calculate_variance(
+        self, result: AggregationResult | pl.DataFrame
+    ) -> pl.DataFrame:
         """
         Calculate variance for area change estimates.
 

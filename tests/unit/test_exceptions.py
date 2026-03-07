@@ -314,7 +314,7 @@ class TestExceptionCatching:
         for error in errors:
             try:
                 raise error
-            except PyFIAError as e:
+            except PyFIAError:
                 assert True  # Successfully caught
             except Exception:
                 pytest.fail(f"{type(error).__name__} was not caught by PyFIAError")

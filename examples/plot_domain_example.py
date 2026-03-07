@@ -8,7 +8,8 @@ The plot_domain parameter is useful when you need to filter by attributes that
 are stored in the PLOT table rather than the COND table.
 """
 
-from pyfia import FIA, area, volume, biomass, tpa
+from pyfia import FIA, area, biomass, tpa, volume
+
 
 # Example 1: Filter by county
 # This was not possible before without custom SQL - now it's simple!
@@ -18,11 +19,7 @@ def example_county_filter():
         db.clip_by_state(37)  # North Carolina
 
         # Get area for Wake County (COUNTYCD == 183)
-        results = area(
-            db,
-            plot_domain="COUNTYCD == 183",
-            land_type="forest"
-        )
+        results = area(db, plot_domain="COUNTYCD == 183", land_type="forest")
         print("Forest area in Wake County, NC:")
         print(results)
 
@@ -38,7 +35,7 @@ def example_multiple_counties():
             db,
             plot_domain="COUNTYCD IN (183, 185, 187)",  # Wake, Warren, Washington
             grp_by="COUNTYCD",
-            land_type="forest"
+            land_type="forest",
         )
         print("Forest area by county:")
         print(results)
@@ -52,10 +49,7 @@ def example_survey_unit():
 
         # Get volume for a specific survey unit
         results = volume(
-            db,
-            plot_domain="UNITCD == 1",
-            land_type="forest",
-            tree_type="live"
+            db, plot_domain="UNITCD == 1", land_type="forest", tree_type="live"
         )
         print("Live tree volume in survey unit 1:")
         print(results)
@@ -72,7 +66,7 @@ def example_geographic_filter():
             db,
             plot_domain="LAT >= 35.0 AND LAT <= 36.0 AND LON >= -80.0 AND LON <= -79.0",
             land_type="forest",
-            tree_type="live"
+            tree_type="live",
         )
         print("Biomass within geographic bounds:")
         print(results)
@@ -89,7 +83,7 @@ def example_elevation_filter():
             db,
             plot_domain="ELEV > 2000",  # Above 2000 feet
             land_type="forest",
-            tree_type="live"
+            tree_type="live",
         )
         print("Trees per acre above 2000 feet elevation:")
         print(results)
@@ -105,9 +99,9 @@ def example_combined_filters():
         results = area(
             db,
             plot_domain="COUNTYCD == 183",  # Wake County
-            area_domain="OWNGRPCD == 40",   # Private land
+            area_domain="OWNGRPCD == 40",  # Private land
             grp_by="FORTYPCD",
-            land_type="forest"
+            land_type="forest",
         )
         print("Private forest area in Wake County by forest type:")
         print(results)
@@ -123,7 +117,7 @@ def example_temporal_filter():
         results = area(
             db,
             plot_domain="MEASYEAR >= 2015",  # Plots measured since 2015
-            land_type="forest"
+            land_type="forest",
         )
         print("Forest area from plots measured since 2015:")
         print(results)
@@ -145,7 +139,7 @@ def example_complex_plot_filter():
             ),
             land_type="forest",
             tree_type="live",
-            grp_by="COUNTYCD"
+            grp_by="COUNTYCD",
         )
         print("Volume in specific counties, elevation range, and time period:")
         print(results)
@@ -165,4 +159,6 @@ if __name__ == "__main__":
     print("  - MEASYEAR: Measurement year")
     print("  - MEASMON: Measurement month")
     print("  - PLOT: Plot number")
-    print("\nFor COND-level attributes (ownership, forest type, etc.), use area_domain instead.")
+    print(
+        "\nFor COND-level attributes (ownership, forest type, etc.), use area_domain instead."
+    )

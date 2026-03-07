@@ -12,9 +12,8 @@ import polars as pl
 import pytest
 
 from pyfia.estimation.columns import (
-    TREE_GROUPING_COLUMNS,
     COND_GROUPING_COLUMNS,
-    get_tree_columns,
+    TREE_GROUPING_COLUMNS,
     get_cond_columns,
 )
 from pyfia.estimation.grm import aggregate_cond_to_plot
@@ -182,4 +181,6 @@ class TestPlotGroupingColumns:
 
         expected = ["STATECD", "COUNTYCD", "UNITCD", "INVYR"]
         for col in expected:
-            assert col in PLOT_GROUPING_COLUMNS, f"{col} should be in PLOT_GROUPING_COLUMNS"
+            assert col in PLOT_GROUPING_COLUMNS, (
+                f"{col} should be in PLOT_GROUPING_COLUMNS"
+            )

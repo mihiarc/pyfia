@@ -5,7 +5,6 @@ classification functions using named constants instead of magic numbers.
 """
 
 import polars as pl
-import pytest
 
 from pyfia.constants.status_codes import LandStatus, ReserveStatus, SiteClass
 from pyfia.filtering.indicators import (

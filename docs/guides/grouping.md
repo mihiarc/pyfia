@@ -202,6 +202,23 @@ result = mortality(db, grp_by=["STATECD", "UNITCD"])
 | `CYCLE` | Inventory cycle number |
 | `SUBCYCLE` | Inventory subcycle number |
 
+## Plot-Condition Level Grouping
+
+You can group by `PLT_CN` and `CONDID` to get plot-condition level estimates. This is useful for linking pyFIA estimates to external plot-level models (e.g., harvest probability predictions, growth models).
+
+```python
+from pyfia import FIA, biomass
+
+with FIA("georgia.duckdb") as db:
+    db.clip_by_evalid(132301)
+
+    # Plot-condition level biomass
+    result = biomass(db, grp_by=["PLT_CN", "CONDID", "FORTYPCD"])
+    # Returns one row per plot-condition with biomass estimate
+```
+
+Each row represents a single plot-condition's contribution to the population estimate. This enables direct integration with external models keyed by PLT_CN + CONDID without needing raw SQL.
+
 ## Mortality-Specific Groupings
 
 For mortality estimation, you can group by cause of death:
@@ -237,5 +254,7 @@ This is useful for timber casualty loss analysis where losses must be classified
 | `COUNTYCD` | No | N/A | PLOT |
 | `UNITCD` | No | N/A | PLOT |
 | `INVYR` | No | N/A | PLOT |
+| `PLT_CN` | No | N/A | TREE/COND (plot-condition detail) |
+| `CONDID` | No | N/A | TREE/COND (plot-condition detail) |
 | `AGENTCD` | No | N/A | TREE (mortality only) |
 | `DSTRBCD1` | No | N/A | COND (mortality only) |

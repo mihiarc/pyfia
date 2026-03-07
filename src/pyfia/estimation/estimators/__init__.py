@@ -24,6 +24,7 @@ from .panel_validation import (
 from .removals import RemovalsEstimator, removals
 from .site_index import SiteIndexEstimator, site_index
 from .tpa import TPAEstimator, tpa
+from .tree_metrics import TreeMetricsEstimator, tree_metrics
 from .volume import VolumeEstimator, volume
 
 __all__ = [
@@ -40,6 +41,7 @@ __all__ = [
     "removals",
     "site_index",
     "tpa",
+    "tree_metrics",
     "volume",
     # Panel validation functions
     "compare_panel_to_removals",
@@ -57,5 +59,6 @@ __all__ = [
     "RemovalsEstimator",
     "SiteIndexEstimator",
     "TPAEstimator",
+    "TreeMetricsEstimator",
     "VolumeEstimator",
 ]

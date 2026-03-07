@@ -46,6 +46,7 @@ from .estimators import (
     removals,
     site_index,
     tpa,
+    tree_metrics,
     volume,
 )
 
@@ -64,5 +65,6 @@ __all__ = [
     "removals",
     "site_index",
     "tpa",
+    "tree_metrics",
     "volume",
 ]

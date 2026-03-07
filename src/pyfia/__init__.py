@@ -61,6 +61,7 @@ from pyfia.estimation.estimators.panel import panel
 from pyfia.estimation.estimators.removals import removals
 from pyfia.estimation.estimators.site_index import site_index
 from pyfia.estimation.estimators.tpa import tpa
+from pyfia.estimation.estimators.tree_metrics import tree_metrics
 from pyfia.estimation.estimators.volume import volume
 
 # EVALIDator API client - For validation against official USFS estimates
@@ -119,6 +120,7 @@ __all__ = [
     "panel",
     "removals",
     "site_index",
+    "tree_metrics",
     # Reference table utilities
     "join_forest_type_names",
     "join_species_names",

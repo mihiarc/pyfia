@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 import polars as pl
 
 from ...validation import validate_domain_expression, validate_grp_by, validate_land_type
-from ..base import BaseEstimator
+from ..base import AggregationResult, BaseEstimator
 from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
 from ..utils import ensure_evalid_set, ensure_fia_instance
@@ -147,10 +147,14 @@ class TreeMetricsEstimator(BaseEstimator):
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         return data  # No pre-calculation needed
 
-    def aggregate_results(self, data: pl.LazyFrame | None) -> pl.DataFrame:
-        """Compute metrics via group_by aggregation. Returns DataFrame directly."""
+    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
+        """Compute metrics via group_by aggregation."""
         if data is None:
-            return pl.DataFrame()
+            return AggregationResult(
+                results=pl.DataFrame(),
+                plot_tree_data=pl.DataFrame(),
+                group_cols=[],
+            )
 
         metrics = self.config.get("metrics", [])
         sawtimber_threshold = self.config.get("sawtimber_threshold", 9.0)
@@ -186,7 +190,11 @@ class TreeMetricsEstimator(BaseEstimator):
                 [pl.col(c).fill_null(0.0) for c in fill_cols]
             )
 
-        return result
+        return AggregationResult(
+            results=result,
+            plot_tree_data=pl.DataFrame(),
+            group_cols=effective_grp,
+        )
 
     def estimate(self) -> pl.DataFrame:
         """Simplified pipeline: load -> filter -> aggregate. No variance."""
@@ -194,7 +202,7 @@ class TreeMetricsEstimator(BaseEstimator):
         if data is not None:
             data = self.apply_filters(data)
             data = self.calculate_values(data)
-        return self.aggregate_results(data)
+        return self.aggregate_results(data).results
 
 
 def tree_metrics(

@@ -207,6 +207,40 @@ class FIA:
         # Connection cleanup handled by FIADataReader
         pass
 
+    def query(self, sql: str) -> pl.DataFrame:
+        """Execute a read-only SQL query against the FIA database.
+
+        Runs a raw SQL query against the underlying database connection.
+        Only SELECT statements are allowed.
+
+        Parameters
+        ----------
+        sql : str
+            SQL SELECT query to execute.
+
+        Returns
+        -------
+        pl.DataFrame
+            Query results as a Polars DataFrame.
+
+        Raises
+        ------
+        ValueError
+            If the query is not a SELECT statement.
+
+        Examples
+        --------
+        >>> with FIA("data/georgia.duckdb") as db:
+        ...     result = db.query("SELECT FORTYPCD, COUNT(*) as n FROM COND GROUP BY FORTYPCD")
+        """
+        stripped = sql.strip().upper()
+        if not stripped.startswith("SELECT") and not stripped.startswith("WITH"):
+            raise ValueError(
+                "Only SELECT queries are allowed. "
+                "Use SELECT or WITH ... SELECT statements."
+            )
+        return self._reader._backend.execute_query(sql)
+
     # Connection management moved to FIADataReader with backend support
 
     def _get_valid_plot_cns(self) -> list[str] | None:

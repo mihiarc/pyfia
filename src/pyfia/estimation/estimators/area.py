@@ -360,6 +360,21 @@ class AreaEstimator(BaseEstimator):
             ]
         )
 
+        # Get ALL plots from stratification for proper variance calculation
+        # (rare categories need zeros for plots without that category)
+        try:
+            strat_data = self._get_stratification_data()
+            strat_schema = strat_data.collect_schema().names()
+            select_cols = ["PLT_CN"] + [
+                c for c in strat_cols if c in strat_schema
+            ] + ["EXPNS"]
+            all_plots = strat_data.select(select_cols).unique().collect()
+        except (KeyError, AttributeError):
+            # Fallback: derive all plots from the plot data itself
+            all_plots = plot_data.select(
+                ["PLT_CN"] + strat_cols + ["EXPNS"]
+            ).unique()
+
         # If we have grouping variables, calculate variance for each group
         if group_cols:
             # Calculate variance for each group separately
@@ -381,16 +396,34 @@ class AreaEstimator(BaseEstimator):
 
                 group_plot_data = plot_data.filter(group_filter)
 
-                if len(group_plot_data) > 0:
-                    # Calculate variance for this group
+                # Include ALL plots with zeros for non-matching ones
+                # This is critical for rare categories (issue #68)
+                all_plots_group = all_plots.join(
+                    group_plot_data.select(["PLT_CN", "y_i"]),
+                    on="PLT_CN",
+                    how="left",
+                ).with_columns(pl.col("y_i").fill_null(0.0))
+
+                if len(all_plots_group) > 0:
+                    # Calculate variance for this group using all plots
                     var_stats = self._calculate_variance_for_group(
-                        group_plot_data, strat_cols
+                        all_plots_group, strat_cols
+                    )
+                    # Calculate SE% from the area total in results
+                    area_col = "AREA_TOTAL" if "AREA_TOTAL" in results.columns else "AREA"
+                    area_idx = results.columns.index(area_col)
+                    area_total = group_vals[area_idx]
+                    se_total = var_stats["se_total"]
+                    se_pct = (
+                        100 * se_total / area_total
+                        if area_total and area_total > 0 and se_total
+                        else 0.0
                     )
                     variance_results.append(
                         {
                             **group_dict,
-                            "AREA_SE": var_stats["se_total"],
-                            "AREA_SE_PERCENT": var_stats["se_percent"],
+                            "AREA_SE": se_total,
+                            "AREA_SE_PERCENT": se_pct,
                             "AREA_VARIANCE": var_stats["variance"],
                         }
                     )

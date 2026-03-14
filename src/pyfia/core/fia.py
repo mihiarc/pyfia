@@ -10,11 +10,10 @@ from __future__ import annotations
 import logging
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 import polars as pl
 
-from ..constants.defaults import EVALIDYearParsing
 from ..validation import sanitize_sql_path
 from .data_reader import FIADataReader
 from .exceptions import (
@@ -30,49 +29,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-
-@overload
-def _add_parsed_evalid_columns(
-    df: pl.DataFrame,
-) -> pl.DataFrame: ...
-
-
-@overload
-def _add_parsed_evalid_columns(
-    df: pl.LazyFrame,
-) -> pl.LazyFrame: ...
-
-
-def _add_parsed_evalid_columns(
-    df: pl.DataFrame | pl.LazyFrame,
-) -> pl.DataFrame | pl.LazyFrame:
-    """
-    Add parsed EVALID columns to a DataFrame for sorting.
-
-    EVALID format: SSYYTT (State, Year 2-digit, Type)
-    Year uses Y2K windowing based on EVALIDYearParsing constants.
-
-    See EVALIDYearParsing for details on year interpretation.
-    """
-    year_expr = pl.col("EVALID").cast(pl.Utf8).str.slice(2, 2).cast(pl.Int32)
-    return df.with_columns(
-        [
-            pl.when(year_expr <= EVALIDYearParsing.Y2K_WINDOW_THRESHOLD)
-            .then(EVALIDYearParsing.CENTURY_2000 + year_expr)
-            .otherwise(EVALIDYearParsing.CENTURY_1900 + year_expr)
-            .alias("EVALID_YEAR"),
-            pl.col("EVALID")
-            .cast(pl.Utf8)
-            .str.slice(0, 2)
-            .cast(pl.Int32)
-            .alias("EVALID_STATE"),
-            pl.col("EVALID")
-            .cast(pl.Utf8)
-            .str.slice(4, 2)
-            .cast(pl.Int32)
-            .alias("EVALID_TYPE"),
-        ]
-    )
 
 
 class FIA:
@@ -512,8 +468,10 @@ class FIA:
             df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
 
         if most_recent:
-            # Add parsed EVALID columns for robust year sorting
-            df = _add_parsed_evalid_columns(df)
+            # Sort by END_INVYR from POP_EVAL to find the most recent evaluation.
+            # END_INVYR is an unambiguous 4-digit year, unlike EVALID which encodes
+            # the year as 2 digits with variable-width state codes (single-digit
+            # FIPS codes like AL=1 produce 5-digit EVALIDs that break positional parsing).
 
             # Special handling for Texas (STATECD=48)
             # Texas has separate East/West evaluations, but we want the full state
@@ -532,45 +490,33 @@ class FIA:
                         .otherwise(0)
                         .alias("IS_FULL_STATE")
                     )
-                    # Sort using parsed year for robust chronological ordering
                     df_texas = (
                         df_texas.sort(
-                            ["EVAL_TYP", "IS_FULL_STATE", "EVALID_YEAR", "EVALID_TYPE"],
-                            descending=[False, True, True, False],
+                            ["EVAL_TYP", "IS_FULL_STATE", "END_INVYR", "EVALID"],
+                            descending=[False, True, True, True],
                         )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
-                        .drop(
-                            [
-                                "IS_FULL_STATE",
-                                "EVALID_YEAR",
-                                "EVALID_STATE",
-                                "EVALID_TYPE",
-                            ]
-                        )
+                        .drop(["IS_FULL_STATE"])
                     )
                 else:
-                    # Fallback if LOCATION_NM not available - use parsed year
                     df_texas = (
                         df_texas.sort(
-                            ["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
-                            descending=[False, False, True, False],
+                            ["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"],
+                            descending=[False, False, True, True],
                         )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
-                        .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
                     )
 
-            # For other states, use robust year sorting
             if not df_other.is_empty():
                 df_other = (
                     df_other.sort(
-                        ["STATECD", "EVAL_TYP", "EVALID_YEAR", "EVALID_TYPE"],
-                        descending=[False, False, True, False],
+                        ["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"],
+                        descending=[False, False, True, True],
                     )
                     .group_by(["STATECD", "EVAL_TYP"])
                     .first()
-                    .drop(["EVALID_YEAR", "EVALID_STATE", "EVALID_TYPE"])
                 )
 
             # Combine Texas and other states

@@ -292,7 +292,9 @@ class FIA:
             return df
         if table_name == "PLOT":
             return df.filter(pl.col("CN").is_in(self._spatial_plot_cns))
-        elif table_name in ["TREE", "COND"]:
+        # Filter any table with a PLT_CN column by the spatial plot CNs
+        schema = self._reader.get_table_schema(table_name)
+        if "PLT_CN" in schema:
             return df.filter(pl.col("PLT_CN").is_in(self._spatial_plot_cns))
         return df
 

@@ -13,7 +13,6 @@ from dataclasses import dataclass
 
 import polars as pl
 
-from ..constants.defaults import EVALIDYearParsing
 from ..core import FIA
 from ..filtering import (
     apply_area_filters,
@@ -574,10 +573,10 @@ class BaseEstimator(ABC):
 
     def _extract_evaluation_year(self) -> int:
         """
-        Extract evaluation year from EVALID or INVYR.
+        Extract evaluation year from POP_EVAL.END_INVYR or PLOT.INVYR.
 
-        The year extraction follows FIA conventions:
-        1. Primary: Extract from EVALID (SSYYTT format where YY is year)
+        The year extraction follows this priority:
+        1. Primary: END_INVYR from POP_EVAL table (unambiguous 4-digit year)
         2. Fallback: Use max INVYR from PLOT table
         3. Default: Current year minus 2 (typical FIA processing lag)
 
@@ -588,60 +587,39 @@ class BaseEstimator(ABC):
         """
         year = None
 
-        # Primary source: EVALID encodes the evaluation reference year
-        # EVALIDs are 6-digit codes: SSYYTT where YY is the evaluation year
-        if hasattr(self.db, "evalids") and self.db.evalids:
-            evalid = self.db.evalids[0]  # Use first EVALID
-            evalid_str = str(evalid)
-
-            # Validate EVALID format: must be exactly 6 digits (SSYYTT)
-            if len(evalid_str) != 6:
-                logger.debug(
-                    f"Invalid EVALID format: '{evalid_str}' has {len(evalid_str)} "
-                    f"characters, expected 6 (SSYYTT format)"
+        # Primary source: END_INVYR from POP_EVAL for the current EVALID
+        if hasattr(self.db, "evalid") and self.db.evalid:
+            try:
+                if "POP_EVAL" not in self.db.tables:
+                    self.db.load_table("POP_EVAL")
+                pop_eval_data = self.db.tables["POP_EVAL"]
+                pop_eval_df: pl.DataFrame = (
+                    pop_eval_data.collect()
+                    if isinstance(pop_eval_data, pl.LazyFrame)
+                    else pop_eval_data
                 )
-            elif not evalid_str.isdigit():
-                logger.debug(
-                    f"Invalid EVALID format: '{evalid_str}' contains non-digit "
-                    f"characters, expected 6 digits (SSYYTT format)"
-                )
-            else:
-                try:
-                    year_part = int(evalid_str[2:4])  # Extract YY portion
-
-                    # Handle century using Y2K windowing
-                    # Years >= 90 are 1990s, years < 90 are 2000s
-                    if year_part >= EVALIDYearParsing.LEGACY_THRESHOLD:
-                        year = EVALIDYearParsing.CENTURY_1900 + year_part
-                    else:
-                        year = EVALIDYearParsing.CENTURY_2000 + year_part
-
-                    # Validate year is within reasonable range
-                    if (
-                        year < EVALIDYearParsing.MIN_VALID_YEAR
-                        or year > EVALIDYearParsing.MAX_VALID_YEAR
-                    ):
-                        logger.debug(
-                            f"EVALID year {year} outside valid range "
-                            f"({EVALIDYearParsing.MIN_VALID_YEAR}-"
-                            f"{EVALIDYearParsing.MAX_VALID_YEAR}), using fallback"
-                        )
-                        year = None  # Fall back to other methods
-                except ValueError as e:
-                    logger.debug(
-                        f"Could not parse year from EVALID '{evalid_str}': {e}"
+                if "END_INVYR" in pop_eval_df.columns:
+                    filtered = pop_eval_df.filter(
+                        pl.col("EVALID").is_in(self.db.evalid)
                     )
+                    if not filtered.is_empty():
+                        max_year = filtered["END_INVYR"].max()
+                        if max_year is not None:
+                            year = int(max_year)  # type: ignore[arg-type]
+            except Exception as e:
+                logger.debug(f"Could not extract year from POP_EVAL: {e}")
 
-        # Fallback: If no EVALID, use most recent INVYR as approximation
+        # Fallback: use most recent INVYR from PLOT table
         if year is None and "PLOT" in self.db.tables:
             try:
                 plot_data = self.db.tables["PLOT"]
-                if isinstance(plot_data, pl.LazyFrame):
-                    plot_years = plot_data.select("INVYR").collect()
-                else:
-                    plot_years = plot_data.select("INVYR")
+                plot_df: pl.DataFrame = (
+                    plot_data.collect()
+                    if isinstance(plot_data, pl.LazyFrame)
+                    else plot_data
+                )
+                plot_years = plot_df.select("INVYR")
                 if not plot_years.is_empty():
-                    # Use max year as it best represents the evaluation period
                     max_year = plot_years["INVYR"].max()
                     if max_year is not None:
                         year = int(max_year)  # type: ignore[arg-type]
@@ -652,7 +630,7 @@ class BaseEstimator(ABC):
         if year is None:
             from datetime import datetime
 
-            year = datetime.now().year - EVALIDYearParsing.DEFAULT_YEAR_OFFSET
+            year = datetime.now().year - 2
 
         return year
 

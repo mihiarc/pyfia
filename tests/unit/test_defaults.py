@@ -4,7 +4,6 @@
 from pyfia.constants.defaults import (
     Defaults,
     ErrorMessages,
-    EVALIDYearParsing,
     MathConstants,
     ValidationRanges,
 )
@@ -82,85 +81,6 @@ class TestValidationRanges:
         assert ValidationRanges.MIN_PLOTS < ValidationRanges.MAX_PLOTS
 
 
-class TestEVALIDYearParsing:
-    """Tests for EVALID year parsing constants."""
-
-    def test_y2k_window_threshold(self):
-        """Test Y2K windowing threshold."""
-        # Years 00-30 should be interpreted as 2000-2030
-        assert EVALIDYearParsing.Y2K_WINDOW_THRESHOLD == 30
-
-    def test_century_constants(self):
-        """Test century base constants."""
-        assert EVALIDYearParsing.CENTURY_2000 == 2000
-        assert EVALIDYearParsing.CENTURY_1900 == 1900
-
-    def test_legacy_threshold(self):
-        """Test legacy threshold for 1990s detection."""
-        # Years 90-99 should be interpreted as 1990-1999
-        assert EVALIDYearParsing.LEGACY_THRESHOLD == 90
-
-    def test_valid_year_range(self):
-        """Test valid year range for FIA evaluations."""
-        assert EVALIDYearParsing.MIN_VALID_YEAR == 1990
-        assert EVALIDYearParsing.MAX_VALID_YEAR == 2050
-        assert EVALIDYearParsing.MIN_VALID_YEAR < EVALIDYearParsing.MAX_VALID_YEAR
-
-    def test_default_year_offset(self):
-        """Test default year offset for processing lag."""
-        assert EVALIDYearParsing.DEFAULT_YEAR_OFFSET == 2
-
-    def test_y2k_windowing_logic(self):
-        """Test that constants support correct Y2K windowing logic."""
-
-        # Simulate Y2K windowing as used in code
-        def parse_evalid_year(year_part: int) -> int:
-            if year_part <= EVALIDYearParsing.Y2K_WINDOW_THRESHOLD:
-                return EVALIDYearParsing.CENTURY_2000 + year_part
-            else:
-                return EVALIDYearParsing.CENTURY_1900 + year_part
-
-        # Test boundary cases
-        assert parse_evalid_year(0) == 2000
-        assert parse_evalid_year(30) == 2030
-        assert parse_evalid_year(31) == 1931
-        assert parse_evalid_year(99) == 1999
-
-    def test_legacy_year_parsing_logic(self):
-        """Test legacy year parsing logic used in base estimator."""
-
-        # Simulate legacy year parsing as used in _infer_evaluation_year
-        def parse_legacy_year(year_part: int) -> int:
-            if year_part >= EVALIDYearParsing.LEGACY_THRESHOLD:
-                return EVALIDYearParsing.CENTURY_1900 + year_part
-            else:
-                return EVALIDYearParsing.CENTURY_2000 + year_part
-
-        # Test boundary cases
-        assert parse_legacy_year(89) == 2089  # Below threshold
-        assert parse_legacy_year(90) == 1990  # At threshold
-        assert parse_legacy_year(99) == 1999  # 1990s
-
-    def test_year_validation_logic(self):
-        """Test that year validation logic works with constants."""
-
-        def is_valid_year(year: int) -> bool:
-            return (
-                EVALIDYearParsing.MIN_VALID_YEAR
-                <= year
-                <= EVALIDYearParsing.MAX_VALID_YEAR
-            )
-
-        # Valid years
-        assert is_valid_year(1990) is True
-        assert is_valid_year(2000) is True
-        assert is_valid_year(2024) is True
-        assert is_valid_year(2050) is True
-
-        # Invalid years
-        assert is_valid_year(1989) is False
-        assert is_valid_year(2051) is False
-
 
 class TestErrorMessages:
     """Tests for standard error messages."""
@@ -204,27 +124,6 @@ class TestErrorMessages:
 
 class TestConstantsIntegration:
     """Integration tests verifying constants work together."""
-
-    def test_evalid_year_range_covers_valid_years(self):
-        """Test that EVALID parsing produces years within valid range."""
-        # All years from Y2K windowing should be validatable
-        # Years 00-30 -> 2000-2030 (all within MIN_VALID_YEAR to MAX_VALID_YEAR)
-        for year_part in range(0, EVALIDYearParsing.Y2K_WINDOW_THRESHOLD + 1):
-            year = EVALIDYearParsing.CENTURY_2000 + year_part
-            assert (
-                EVALIDYearParsing.MIN_VALID_YEAR
-                <= year
-                <= EVALIDYearParsing.MAX_VALID_YEAR
-            ), f"Year {year} from year_part {year_part} is outside valid range"
-
-        # Years 90-99 -> 1990-1999 (all within MIN_VALID_YEAR to MAX_VALID_YEAR)
-        for year_part in range(EVALIDYearParsing.LEGACY_THRESHOLD, 100):
-            year = EVALIDYearParsing.CENTURY_1900 + year_part
-            assert (
-                EVALIDYearParsing.MIN_VALID_YEAR
-                <= year
-                <= EVALIDYearParsing.MAX_VALID_YEAR
-            ), f"Year {year} from year_part {year_part} is outside valid range"
 
     def test_defaults_are_reasonable(self):
         """Test that default values are reasonable for FIA analysis."""

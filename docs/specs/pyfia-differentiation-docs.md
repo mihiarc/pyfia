@@ -44,7 +44,7 @@ FIA data is organized into **evaluation groups (EVALIDs)**—6-digit codes that 
 ```python
 with FIA(db_path) as db:
     db.clip_by_state(37)  # North Carolina
-    db.clip_most_recent(eval_type="EXPVOL")  # Most recent volume evaluation
+    db.clip_most_recent(eval_type="VOL")  # Most recent volume evaluation
     result = volume(db)
 ```
 
@@ -231,7 +231,7 @@ from pyfia import FIA, area, volume, tpa, biomass
 with FIA(db_path) as db:
     # Filter to state and most recent evaluation
     db.clip_by_state("NC")
-    db.clip_most_recent(eval_type="EXPVOL")
+    db.clip_most_recent(eval_type="VOL")
     
     # Forest area
     area_result = area(db, land_type="forest")

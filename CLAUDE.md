@@ -68,10 +68,14 @@ uv run ruff format && uv run ruff check --fix && uv run mypy src/pyfia/
 ```
 pyfia/
 ├── src/pyfia/           # Library source code
-│   ├── core/            # Database and settings
+│   ├── core/            # Database, backends, and settings
 │   ├── estimation/      # Statistical estimation
 │   ├── filtering/       # Domain filtering
-│   └── downloader/      # FIA data download from DataMart
+│   ├── downloader/      # FIA data download from DataMart
+│   ├── evalidator/      # EVALIDator API client for validation
+│   ├── validation.py    # Input validation utilities
+│   ├── utils/           # Reference table helpers
+│   └── constants/       # FIA constants and standard values
 ├── tests/               # Test suite
 ├── docs/                # Technical documentation
 ├── ../business/         # Business docs (outside repo)

@@ -37,7 +37,7 @@ from pyfia import FIA, biomass, tpa, volume, area
 
 with FIA("path/to/FIA_database.duckdb") as db:
     db.clip_by_state(37)  # North Carolina
-    db.clip_most_recent(eval_type="EXPVOL")
+    db.clip_most_recent(eval_type="VOL")
 
     # Core estimates
     trees = tpa(db, tree_domain="STATUSCD == 1")

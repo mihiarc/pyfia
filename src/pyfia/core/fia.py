@@ -292,7 +292,9 @@ class FIA:
             return df
         if table_name == "PLOT":
             return df.filter(pl.col("CN").is_in(self._spatial_plot_cns))
-        elif table_name in ["TREE", "COND"]:
+        # Filter any table with a PLT_CN column by the spatial plot CNs
+        schema = self._reader.get_table_schema(table_name)
+        if "PLT_CN" in schema:
             return df.filter(pl.col("PLT_CN").is_in(self._spatial_plot_cns))
         return df
 
@@ -346,9 +348,15 @@ class FIA:
         pl.LazyFrame
             Polars LazyFrame of the requested table.
         """
-        # Build base WHERE clause for state filter
+        # Inspect table schema to determine which filters apply
+        table_schema = self._reader.get_table_schema(table_name)
+        table_columns = set(table_schema.keys())
+        has_plt_cn = "PLT_CN" in table_columns
+        has_statecd = "STATECD" in table_columns
+
+        # Build base WHERE clause for state filter (any table with STATECD)
         base_where_clause = None
-        if self.state_filter and table_name in ["PLOT", "COND", "TREE"]:
+        if self.state_filter and has_statecd:
             state_list = ", ".join(str(s) for s in self.state_filter)
             base_where_clause = f"STATECD IN ({state_list})"
 
@@ -359,9 +367,9 @@ class FIA:
             else:
                 base_where_clause = where
 
-        # EVALID filter via PLT_CN for TREE, COND tables
-        # This is a critical optimization - it reduces data load by 90%+ for GRM estimates
-        if self.evalid and table_name in ["TREE", "COND"]:
+        # EVALID filter via PLT_CN for any table that has a PLT_CN column
+        # This is a critical optimization - it reduces data load by 90%+
+        if self.evalid and has_plt_cn:
             valid_plot_cns = self._get_valid_plot_cns()
             if valid_plot_cns:
                 from .utils import batch_query_by_values
@@ -404,7 +412,7 @@ class FIA:
                 self.tables[table_name] = result
                 return self.tables[table_name]
 
-        # Default path - no EVALID filtering or not a filterable table
+        # Default path - no EVALID filtering or table has no PLT_CN column
         df = self._reader.read_table(
             table_name,
             columns=columns,

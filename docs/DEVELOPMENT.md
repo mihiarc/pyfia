@@ -45,21 +45,35 @@ uv run mkdocs build   # Build for deployment
 pyfia/
 ├── core/               # Database and reader functionality
 │   ├── fia.py         # Main FIA database class
-│   └── data_reader.py # Efficient data loading
-├── estimation/         # Statistical estimation (~2,000 lines)
+│   ├── data_reader.py # Efficient data loading
+│   └── backends/      # DuckDB, SQLite, MotherDuck backends
+├── estimation/         # Statistical estimation
 │   ├── base.py        # BaseEstimator with Template Method pattern
-│   └── estimators/    # Individual estimators (~300 lines each)
+│   ├── grm.py         # GRM data loading and adjustment
+│   ├── grm_base.py    # GRM base estimator (mortality, growth, removals)
+│   ├── variance.py    # Shared variance calculations
+│   └── estimators/    # Individual estimators
 │       ├── area.py
+│       ├── area_change.py
 │       ├── biomass.py
+│       ├── carbon_pools.py
 │       ├── growth.py
 │       ├── mortality.py
+│       ├── panel.py
+│       ├── removals.py
+│       ├── site_index.py
 │       ├── tpa.py
+│       ├── tree_metrics.py
 │       └── volume.py
 ├── filtering/          # Domain filtering and indicators
 │   ├── core/parser.py # Centralized domain expression parser
 │   ├── tree/filters.py
 │   ├── area/filters.py
 │   └── indicators/    # Land type classification
+├── evalidator/         # EVALIDator API client for validation
+├── downloader/         # FIA data download from DataMart
+├── validation.py       # Input validation utilities
+├── utils/              # Reference table helpers
 └── constants/          # FIA constants and standard values
 ```
 
@@ -71,7 +85,7 @@ pyfia/
 - Key methods: `clip_by_evalid()`, `clip_by_state()`, `clip_most_recent()`
 
 **Estimation Functions**
-- Simple API: `area()`, `biomass()`, `volume()`, `tpa()`, `mortality()`, `growth()`
+- Simple API: `area()`, `biomass()`, `volume()`, `tpa()`, `mortality()`, `growth()`, `removals()`, `area_change()`, `site_index()`, `tree_metrics()`, `carbon_pools()`
 - All support domain filtering, grouping, variance calculations
 - BaseEstimator uses Template Method for consistent workflow
 
@@ -109,12 +123,13 @@ pyfia/
 > Full details in [fia_technical_context.md](./fia_technical_context.md)
 
 ### EVALID System
-6-digit codes (SSYYTT) for statistically valid plot groupings.
+Codes in SSYYTT format for statistically valid plot groupings.
+Note: state codes with single-digit FIPS (e.g., AL=1) produce 5-digit EVALIDs.
 
 ```python
 with FIA("data/nfi_south.duckdb") as db:
-    db.clip_by_state(37)                    # North Carolina
-    db.clip_most_recent(eval_type="EXPVOL") # Most recent volume evaluation
+    db.clip_by_state(37)                   # North Carolina
+    db.clip_most_recent(eval_type="VOL")   # Most recent volume evaluation
     results = volume(db)
 ```
 

@@ -492,8 +492,8 @@ class FIA:
                     )
                     df_texas = (
                         df_texas.sort(
-                            ["EVAL_TYP", "IS_FULL_STATE", "END_INVYR"],
-                            descending=[False, True, True],
+                            ["EVAL_TYP", "IS_FULL_STATE", "END_INVYR", "EVALID"],
+                            descending=[False, True, True, True],
                         )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
@@ -502,8 +502,8 @@ class FIA:
                 else:
                     df_texas = (
                         df_texas.sort(
-                            ["STATECD", "EVAL_TYP", "END_INVYR"],
-                            descending=[False, False, True],
+                            ["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"],
+                            descending=[False, False, True, True],
                         )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
@@ -512,8 +512,8 @@ class FIA:
             if not df_other.is_empty():
                 df_other = (
                     df_other.sort(
-                        ["STATECD", "EVAL_TYP", "END_INVYR"],
-                        descending=[False, False, True],
+                        ["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"],
+                        descending=[False, False, True, True],
                     )
                     .group_by(["STATECD", "EVAL_TYP"])
                     .first()

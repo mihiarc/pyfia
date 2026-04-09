@@ -72,23 +72,54 @@ rotten-cull trees.
   Phase 1 quality) when ``PLOTGEOM`` is missing from older test
   databases.
 
-**Still pending in Phase 1.5:**
+- *Phase 1.6 — validation scope correction* (this commit): the original
+  Phase 1.6 task was framed as a TREECLCD=4 rotten-cull methodology
+  investigation because the top-10 worst per-tree disagreements were all
+  CULL ≥ 95% TREECLCD=4 hardwoods with pyfia predicting 46×-125× more
+  carbon than FIADB. After fetching FIADB User Guide v9.1 Appendix K and
+  cross-checking against the Georgia data, the actual root cause was
+  **the validation test scope, not the cull formula**:
 
-- **TREECLCD=4 rotten-cull methodology investigation (Phase 1.6)**: the
-  top-10 worst per-tree disagreements are all CULL ≥ 95%, TREECLCD=4
-  (rotten cull), with pyfia predicting 46×-125× more carbon than FIADB.
-  The literal GTR-WO-104 formula in
-  ``pyfia.carbon.nsvb.equations.compute_nsvb_biomass``::
+  - Pyfia's cull formula
+    ``(1 - (1 - DENSITY_PROP) * CULL / 100) * Stem Wood`` matches
+    Appendix K (page K-3) verbatim. There is no TREECLCD-based dispatch
+    in FIADB's NSVB cull adjustment.
+  - The validation test was loading ``STATUSCD=1`` trees with no EVALID
+    filter, pulling in 575k pre-1989 periodic-inventory trees from
+    1972/1982/1989 panels. Those trees have FIADB ``CARBON_AG`` /
+    ``DRYBIO_AG`` computed via the legacy Component Ratio Method (CRM,
+    flat 0.5 carbon fraction), not NSVB. Comparing pyfia's NSVB
+    recompute against legacy-CRM data was producing the spurious
+    1,000-12,000% rel_err outliers.
+  - 100% of TREECLCD=4 high-CULL outliers traced back to the 1972/1982/
+    1989 periodic panels — confirmed by the implied carbon fraction
+    being exactly 0.5 (CRM) rather than the S10a [0.42, 0.53] range.
+  - **Fix:** the validation test now joins ``POP_PLOT_STRATUM_ASSGN``
+    and filters to ``EVALID = 132401`` (the official Georgia 2024
+    EXPVOL evaluation, 130,952 NSVB-era trees). On the EVALID-filtered
+    set the gap collapses dramatically:
 
-      W_wood_red = V_wood_ib × [1 - CULL/100 × (1 - DensProp)] × WDSG × 62.4
+  ===================  =================  ===============  ============
+  Metric               No EVALID filter   EVALID 132401    Improvement
+  ===================  =================  ===============  ============
+  Trees compared       1,252,938          130,952          scope fix
+  Median rel_err       3.55%              0.0846%          42x
+  Mean rel_err         9.57%              4.40%            2.2x
+  p99 rel_err          65.55%             40.37%           1.6x
+  Max rel_err          12,425%            478%             26x
+  Within 0.1%          38.83%             58.20%           +50% rel
+  Within 1%            43.07%             62.91%           +46% rel
+  Within 5%            53.90%             73.32%           +36% rel
+  Biomass ratio med    1.0000             1.0000           exact
+  ===================  =================  ===============  ============
 
-  uses DensProp = 0.54 (hardwood) / 0.92 (softwood) from Harmon et al. 2011
-  Table 1 DECAYCD=3. For CULL=95% hardwood this retains 56.3% of wood
-  weight; FIADB's implied retention is ~5%. Needs FIA Appendix K of the
-  user guide (not yet in the Schmidt references library) to resolve —
-  likely a TREECLCD-based dispatch or a different DensProp model for
-  rotten cull. This disagreement dominates the p99/max tail of the
-  validation but only affects ~9,354 trees (0.75%) in the Georgia sample.
+  Validation ratchets tightened to the EVALID baseline (median < 0.5%,
+  within-1% > 60%, within-0.1% > 55%, p99 < 50%). The remaining ~1% tail
+  in the EVALID set (40% p99, 478% max) is small and not from a single
+  methodology bug; deferred to Phase 2+ if it ever proves to matter for
+  the production aggregate.
+
+**Phase 1.5 is complete.** Phase 2+ pool work can proceed.
 
 Phase 2+ — deferred
 -------------------
@@ -160,20 +191,24 @@ All six blockers from the PR 1/PR 2 critical reviews are closed:
 
 Pointers for the next session
 ==============================
-- **Current gap-closure work**: PR 3 at
+- **Phase 1 / 1.5 / 1.6 / 1.7 are all complete.** PR 3 at
   ``https://github.com/ctrees-products/pyfia/pull/3`` (branch
-  ``feat/carbon-live-tree-validation``).
+  ``feat/carbon-live-tree-validation``) is ready for review/merge.
 - **Validation measurement instrument**:
-  ``tests/validation/test_live_tree_nsvb.py`` — runs on the Georgia
-  EVALID 132401 database, reports layered diagnostics (carbon rel_error
-  + biomass ratio + FIADB implied fraction) and asserts against ratchet
-  thresholds. Locks the Phase 1.5 baseline.
+  ``tests/validation/test_live_tree_nsvb.py`` — now scoped to EVALID
+  132401, reports layered diagnostics (carbon rel_error + biomass ratio
+  + FIADB implied fraction) and asserts against the Phase 1.6 ratchet
+  thresholds. Median rel_err is now 0.085% on the EVALID set.
 - **Schmidt references library**:
   ``/Users/cmihiar/Documents/Claude/Projects/schmidt/references_md/`` —
   ``tier1_fcaf/gtr_wo104_westfall2023.md`` for the NSVB equations,
   ``tier3_fiadb/fiadb_database_description_v9_2/fia_section_3_1_tree_table.md``
-  for FIADB column definitions. Appendix K is NOT yet in the library
-  and would need to be fetched for the Phase 1.6 TREECLCD investigation.
+  for FIADB column definitions. **FIADB User Guide v9.1 Appendix K**
+  was fetched in the Phase 1.6 work — confirmed pyfia's cull formula
+  matches the FIADB cull formula verbatim. The PDF is at
+  ``https://research.fs.usda.gov/sites/default/files/2023-11/wo-fiadb_user_guide_p2_9-1_final.pdf``;
+  pages 1049-1052 contain Appendix K. Worth importing into the Schmidt
+  references library at some point.
 
 References
 ----------

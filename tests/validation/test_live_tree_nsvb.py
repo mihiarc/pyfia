@@ -4,12 +4,12 @@ This is the PR 2+ validation gate — see PR 2 (``pyfia.carbon.live_tree``)
 and the ongoing PR 3 closure work. The test answers the question the
 in-repo unit/equivalence suite cannot: *how closely does the NSVB
 pipeline agree with FIADB's pre-computed carbon values on real inventory
-data?*
+data for the official Georgia 2024 EXPVOL evaluation (EVALID 132401)?*
 
 History of the ratchet thresholds in this file:
 
-**Phase 1 baseline** (species-level fallback only, measured before the
-ECOSUBCD lookup landed — commit e1f0254 on Georgia EVALID 132401):
+**Phase 1 baseline** (species-level fallback only, no EVALID filter,
+measured before the ECOSUBCD lookup landed — commit e1f0254):
 
 - Biomass ratio (pyfia NSVB AGB / FIADB DRYBIO_AG):
   median **1.030**, mean **1.093**, p95 **1.411**
@@ -17,18 +17,42 @@ ECOSUBCD lookup landed — commit e1f0254 on Georgia EVALID 132401):
 - Rooted in the PR 2 Phase 1 choice to skip DIVISION-specific
   coefficient rows (S1a-S8a columns keyed on Bailey ecoprovince)
 
-**Phase 1.5 closure** (ECOSUBCD → DIVISION lookup wired in, current):
+**Phase 1.5 closure** (no EVALID filter, ECOSUBCD → DIVISION lookup
+wired in — commit adf3635):
 
 - Joins ``PLOTGEOM.ECOSUBCD`` → derives the Bailey DIVISION via
   :func:`pyfia.carbon.nsvb.coefficients.ecosubcd_to_division` →
   passes the ``DIVISION`` column through ``compute_nsvb_biomass``, which
   then activates the Level 2 coalesce.
-- The thresholds below are ratcheted to the Phase 1.5 baseline.
+- median rel_err 4.87% → 3.55%, biomass ratio median 1.0179 → 1.0000.
 
-FIADB implied carbon fraction (``CARBON_AG / DRYBIO_AG``) is **0.42-0.53**
-with median 0.478, exactly the S10a range — confirming FIADB uses
-species-specific NSVB carbon fractions, so the fraction layer is not
-the source of any residual gap.
+**Phase 1.6 finding — validation scope correction** (this commit):
+
+- The Phase 1 / 1.5 numbers above were measured on the FULL Georgia DB
+  (1.46M live trees), which includes 575k pre-1989 periodic-inventory
+  trees (1972, 1982, 1989 panels) NOT in the current annual evaluation.
+- Those periodic-era trees have FIADB ``CARBON_AG`` / ``DRYBIO_AG``
+  computed via the legacy Component Ratio Method (CRM, flat 0.5 carbon
+  fraction; see Appendix K of FIADB User Guide v9.1, K-1) rather than
+  NSVB. Comparing pyfia's NSVB recompute against legacy-CRM data was
+  producing spurious 1,000-12,000% rel_err outliers — almost all
+  CULL ≥ 90 TREECLCD=4 hardwoods from the periodic panels.
+- The Phase 1.6 task as originally framed (TREECLCD=4 cull formula
+  investigation) was misdiagnosed: the pyfia cull formula
+  ``(1 - (1 - DENSITY_PROP) * CULL/100) * Stem Wood`` matches Appendix K
+  exactly, with no TREECLCD dispatch. The actual fix is to scope the
+  validation test to the EVALID set, which we now do via
+  ``JOIN POP_PLOT_STRATUM_ASSGN ppsa ON t.PLT_CN = ppsa.PLT_CN
+  AND ppsa.EVALID = 132401`` in the SQL above.
+- Massive measured improvement on the EVALID-filtered set
+  (130,952 trees): median rel_err **3.55% → 0.085%** (42x), within-1%
+  **43% → 63%**, within-0.1% **39% → 58%**, max rel_err
+  **12,425% → 478%**, mean **9.6% → 4.4%**.
+
+FIADB implied carbon fraction (``CARBON_AG / DRYBIO_AG``) on the
+EVALID-filtered set is **0.42-0.53** with median 0.477, exactly the
+S10a range — confirming the EVALID 132401 trees are all NSVB-era and
+the fraction layer is not the source of any residual gap.
 
 **Requires** the ``PLOTGEOM`` table in the test database. ``PLOTGEOM``
 is in ``pyfia.downloader.COMMON_TABLES`` as of the Phase 1.5 PR, so any
@@ -71,33 +95,39 @@ from pyfia.carbon.nsvb.carbon_fractions import (
 from pyfia.carbon.nsvb.coefficients import ecosubcd_to_division
 from pyfia.carbon.nsvb.equations import compute_nsvb_biomass
 
-# Ratchet thresholds — locked at the Phase 1.5 baseline (ECOSUBCD →
-# DIVISION lookup active). Any commit that LOOSENS these is a regression;
-# any commit that tightens them is a measurable improvement.
+# Ratchet thresholds — locked at the Phase 1.6 baseline (EVALID-filtered
+# scope, ECOSUBCD → DIVISION lookup active). Any commit that LOOSENS these
+# is a regression; any commit that tightens them is a measurable improvement.
 #
-# Phase 1 baseline (before DIVISION lookup, commit e1f0254):
+# Phase 1 baseline (no EVALID filter, before DIVISION lookup, commit e1f0254):
 #   median rel_err = 4.87%, p99 = 65.23%, within 5% = 50.36%,
 #   biomass ratio median = 1.0179
 #
-# Phase 1.5 baseline (DIVISION lookup wired in, this commit):
-#   median rel_err = 3.55% (-27%), p99 = 65.55% (~unchanged, TREECLCD=4
-#   tail),  within 5% = 53.90%, biomass ratio median = 1.0000 (exact)
-#   within 1% = 43.07%, within 0.1% = 38.83%
+# Phase 1.5 baseline (no EVALID filter, DIVISION lookup wired, commit adf3635):
+#   median rel_err = 3.55% (-27%), p99 = 65.55% (~unchanged), within 5% = 53.90%
+#   biomass ratio median = 1.0000, within 1% = 43.07%, within 0.1% = 38.83%
 #
-# Next expected improvement: TREECLCD=4 rotten-cull methodology fix
-# should compress p99/max dramatically without moving the median much.
-_BASELINE_MEDIAN_REL_ERR = 0.040  # Phase 1.5: 0.0355
-_BASELINE_P99_REL_ERR = 0.70  # Phase 1.5: 0.6555 (tail dominated by TREECLCD=4)
-_BASELINE_WITHIN_5PCT_FRAC = 0.50  # Phase 1.5: 0.5390 (lower bound)
-_BASELINE_WITHIN_1PCT_FRAC = 0.40  # Phase 1.5: 0.4307 (lower bound)
-_BASELINE_WITHIN_0P1PCT_FRAC = 0.35  # Phase 1.5: 0.3883 (lower bound)
-_BASELINE_BIOMASS_RATIO_MEDIAN_MIN = 0.99  # Phase 1.5: 1.0000
-_BASELINE_BIOMASS_RATIO_MEDIAN_MAX = 1.01  # Phase 1.5: 1.0000
+# Phase 1.6 baseline (EVALID 132401 filter applied, this commit):
+#   The unfiltered baselines above were polluted by 575k pre-1989
+#   periodic-inventory trees that FIADB computed via legacy CRM. Filtering
+#   to the official EVALID 132401 evaluation (130,952 NSVB-era trees)
+#   reveals the real Phase 1.5/1.7 quality:
+#   median rel_err = 0.0846% (42x better), p99 = 40.37% (1.6x better),
+#   within 5% = 73.32%, within 1% = 62.91%, within 0.1% = 58.20%,
+#   max rel_err = 478.62% (down from 12,425%), biomass ratio median = 1.0000
+_BASELINE_MEDIAN_REL_ERR = 0.005  # Phase 1.6: 0.000846
+_BASELINE_P99_REL_ERR = 0.50  # Phase 1.6: 0.4037
+_BASELINE_WITHIN_5PCT_FRAC = 0.70  # Phase 1.6: 0.7332 (lower bound)
+_BASELINE_WITHIN_1PCT_FRAC = 0.60  # Phase 1.6: 0.6291 (lower bound)
+_BASELINE_WITHIN_0P1PCT_FRAC = 0.55  # Phase 1.6: 0.5820 (lower bound)
+_BASELINE_BIOMASS_RATIO_MEDIAN_MIN = 0.999  # Phase 1.6: 1.0000
+_BASELINE_BIOMASS_RATIO_MEDIAN_MAX = 1.001  # Phase 1.6: 1.0000
 
 # Trees with SPCD not covered by any NSVB coefficient path (species-level
 # OR Jenkins fallback) will get ``agb=None`` from compute_nsvb_biomass.
-# Currently ~0.17% on Georgia; allow a little headroom.
-_MAX_NULL_FRAC = 0.01  # Phase 1.5: 0.00173
+# Allow a little headroom — the EVALID-filtered set has even fewer null
+# trees than the unfiltered set since it's all annual-inventory data.
+_MAX_NULL_FRAC = 0.005  # Phase 1.6 EVALID-filtered: well below 0.001
 
 
 class TestLiveTreeNSVBParity:
@@ -144,8 +174,20 @@ class TestLiveTreeNSVBParity:
                     "PLOTGEOM import script."
                 )
 
+            # Phase 1.6 fix: filter to EVALID 132401 (the official Georgia
+            # 2024 EXPVOL evaluation, ~131k trees). Without this filter, the
+            # query pulled in 575k pre-1989 periodic-inventory trees from
+            # 1972/1982/1989 panels — those have FIADB CARBON_AG/DRYBIO_AG
+            # computed via the legacy Component Ratio Method (CRM, flat 0.5
+            # carbon fraction; see Appendix K of FIADB User Guide v9.1, K-1)
+            # rather than NSVB. Comparing pyfia's NSVB recompute against
+            # legacy-CRM data was producing spurious 1,000-12,000% rel_err
+            # outliers (almost all CULL ≥ 90 TREECLCD=4 hardwoods from the
+            # periodic inventory) that masked the real Phase 1.5/1.7 quality.
+            # The DISTINCT is required because POP_PLOT_STRATUM_ASSGN can
+            # have duplicate (PLT_CN, EVALID) rows in some states.
             trees = conn.execute("""
-                SELECT
+                SELECT DISTINCT
                     t.CN,
                     t.SPCD,
                     t.DIA,
@@ -157,9 +199,12 @@ class TestLiveTreeNSVBParity:
                     rs.WOOD_SPGR_GREENVOL_DRYWT AS WDSG,
                     pg.ECOSUBCD
                 FROM TREE t
+                JOIN POP_PLOT_STRATUM_ASSGN ppsa
+                  ON t.PLT_CN = ppsa.PLT_CN
                 LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
                 LEFT JOIN PLOTGEOM pg ON t.PLT_CN = pg.CN
-                WHERE t.STATUSCD = 1
+                WHERE ppsa.EVALID = 132401
+                  AND t.STATUSCD = 1
                   AND t.DIA IS NOT NULL AND t.DIA >= 1.0
                   AND t.HT IS NOT NULL
                   AND t.SPCD IS NOT NULL

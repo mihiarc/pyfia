@@ -9,105 +9,178 @@ engine for the Schmidt Sciences "Synthetic Inventory" project, a publicly
 auditable Python reconstruction of the U.S. NGHGI LULUCF forest carbon time
 series.
 
-Currently in this PR (PR 1)
----------------------------
-The math and data layer only — no estimator entry points yet:
+Status roadmap
+==============
+
+Phase 1 — merged (PR 1 + PR 2)
+-------------------------------
+The NSVB equation library, coefficient loaders, and the live-tree estimator
+are in place:
 
 - :mod:`pyfia.carbon.nsvb.equations` — pure-math NSVB Models 1, 2, 4, 5 plus
-  the harmonization algorithm and the ``predict_tree_biomass`` orchestrator
+  the harmonization algorithm, a scalar reference ``predict_tree_biomass``,
+  and the vectorized ``compute_nsvb_biomass`` polars pipeline.
 - :mod:`pyfia.carbon.nsvb.coefficients` — vendored S1a–S8b coefficient table
-  loaders and the lookup precedence resolver
+  loaders, species-level and Jenkins lookups, and the lookup precedence
+  resolver.
 - :mod:`pyfia.carbon.nsvb.carbon_fractions` — vendored S10a/S10b carbon
-  fraction loaders with species-specific lookup and warn-once fallback
+  fraction loaders with species-specific lookup, a PEP 562 lazy default,
+  and a warn-once fallback for unknown SPCDs.
+- :mod:`pyfia.carbon.live_tree` — ``live_tree(db, pool='ag'|'bg'|'total')``
+  public function + ``LiveTreeEstimator(BaseEstimator)``. Re-exported from
+  ``pyfia``. Uses NSVB for AG; bridges to FIADB ``TREE.CARBON_BG`` for BG.
 
-``pyfia.carbon`` does not yet expose any public functions. Until PR 2 lands,
-callers wanting carbon pool estimates should continue to use ``pyfia.biomass``
-which reads FIA's pre-computed ``CARBON_AG``/``CARBON_BG`` columns directly.
+Phase 1.5 — in progress (PR 3: carbon live-tree validation gate)
+-----------------------------------------------------------------
+Real-data validation against FIADB ``TREE.CARBON_AG`` on the Georgia
+EVALID 132401 database (end_invyr 2024, NSVB-era, ~1.25M live trees) is
+wired into ``tests/validation/test_live_tree_nsvb.py``. The initial baseline
+measurement (commit ``e1f0254``) surfaced a systematic 3.2% biomass
+overestimate for growing-stock trees and a catastrophic disagreement on
+rotten-cull trees.
 
-PR 2 contract — what the next PR adds
---------------------------------------
-PR 2 (``feat/carbon-nsvb-live-tree-estimator``) wires the live tree pool:
+**Landed:**
 
-- ``pyfia.carbon.live_tree(db, ...)`` — public function, signature mirrors
-  ``pyfia.biomass()``: ``grp_by``, ``by_species``, ``by_size_class``,
-  ``land_type``, ``tree_domain``, ``area_domain``, ``totals``, ``variance``,
-  ``most_recent``, plus ``pool='ag'|'bg'|'total'``.
-- Internal ``LiveTreeEstimator(BaseEstimator)`` class in
-  ``src/pyfia/carbon/live_tree.py``, following the existing
-  ``pyfia.estimation.estimators.biomass.BiomassEstimator`` template.
-- Re-export ``live_tree`` from ``pyfia/__init__.py`` alongside ``biomass``,
-  ``mortality``, etc.
-- Real-data validation gate in PR 3 against FIADB ``CARBON_AG``.
+- *DIVISION coefficient lookup* (commit ``adf3635``): implements Level 2 of
+  the NSVB lookup precedence. ``build_division_lookup`` emits DIVISION-keyed
+  rows from the ``*_spcd`` tables, ``ecosubcd_to_division`` is the Bailey
+  subsection→division crosswalk, and ``_join_and_eval_component`` now does a
+  3-way coalesce (DIVISION → species-level → Jenkins) when the trees frame
+  has a ``DIVISION`` column. Activates ~63% of the vendored coefficient rows
+  that Phase 1 was skipping as dead code. Measured gap closure on Georgia:
+  median rel_err 4.87% → 3.55%, biomass ratio median 1.0179 → **1.0000
+  exact**, within-1% coverage 34% → 43%.
 
-Architectural rules for PR 2 (and beyond)
-------------------------------------------
+- *PLOTGEOM in COMMON_TABLES* (this commit): adds ``PLOTGEOM`` to
+  ``pyfia.downloader.tables.COMMON_TABLES`` so fresh ``pyfia.download()``
+  calls pull ECOSUBCD automatically; avoids the one-off import script that
+  the Phase 1.5 validation test previously required.
+
+**Still pending in Phase 1.5:**
+
+- **TREECLCD=4 rotten-cull methodology investigation (Phase 1.6)**: the
+  top-10 worst per-tree disagreements are all CULL ≥ 95%, TREECLCD=4
+  (rotten cull), with pyfia predicting 46×-125× more carbon than FIADB.
+  The literal GTR-WO-104 formula in
+  ``pyfia.carbon.nsvb.equations.compute_nsvb_biomass``::
+
+      W_wood_red = V_wood_ib × [1 - CULL/100 × (1 - DensProp)] × WDSG × 62.4
+
+  uses DensProp = 0.54 (hardwood) / 0.92 (softwood) from Harmon et al. 2011
+  Table 1 DECAYCD=3. For CULL=95% hardwood this retains 56.3% of wood
+  weight; FIADB's implied retention is ~5%. Needs FIA Appendix K of the
+  user guide (not yet in the Schmidt references library) to resolve —
+  likely a TREECLCD-based dispatch or a different DensProp model for
+  rotten cull. This disagreement dominates the p99/max tail of the
+  validation but only affects ~9,354 trees (0.75%) in the Georgia sample.
+
+- **Thread ECOSUBCD through ``LiveTreeEstimator.calculate_values``
+  (Phase 1.7)**: the DIVISION lookup landed as coefficient+pipeline
+  infrastructure and is exercised by the validation test directly, but
+  ``LiveTreeEstimator`` does not yet load ``PLOTGEOM`` in
+  :meth:`get_required_tables`, does not join it in
+  :meth:`calculate_values`, and does not build a ``DIVISION`` column on
+  the trees LazyFrame. Consequently the production estimator path —
+  what ``pyfia.carbon.live_tree()`` calls, what the smoke tests in
+  ``tests/unit/test_live_tree_estimator.py::TestLiveTreeEndToEnd``
+  exercise — still sees the Phase 1 3.2% growing-stock bias. Wiring
+  this is a ~20-line change in ``live_tree.py`` (add ``PLOTGEOM`` to
+  ``get_required_tables``, join on ``PLT_CN``, map ECOSUBCD→DIVISION).
+  The bigger effort is deciding how ``DataLoader`` loads ``PLOTGEOM``,
+  because ``PLOTGEOM`` doesn't fit the standard condition/tree/plot
+  join graph — ``DataLoader.load_data`` currently does not know about
+  ``PLOTGEOM``.
+
+Phase 2+ — deferred
+-------------------
+Each additional IPCC pool will land as its own ``pyfia.carbon.<pool>(db, ...)``
+function on the flat ``pyfia.carbon/`` layout, following the same
+architectural rules.
+
+- Standing dead trees (uses S10b dead-tree carbon fractions, already loaded
+  by :func:`pyfia.carbon.nsvb.carbon_fractions.load_carbon_fractions_dead`)
+- Understory (Birdsey 1992 ratios, EPA NGHGI Annex 3.13)
+- Downed dead wood (Domke et al. 2013)
+- Litter + duff (Domke et al. 2016)
+- Soil organic carbon (Domke et al. 2017)
+- Native NSVB belowground (coarse-root) model (replaces the Phase 1 FIADB
+  ``CARBON_BG`` bridge; Heath et al. 2009)
+
+Architectural rules (frozen in Phase 1, preserved going forward)
+=================================================================
 1. **Public API is functions, not classes.** Match the pyfia convention
-   (``biomass(db, ...)``, ``mortality(db, ...)``). The convention is captured
-   in CLAUDE.md ("Direct functions: ``volume(db)`` not
-   ``VolumeEstimatorFactory.create().estimate()``"). No ``CarbonEstimator``
-   container class.
+   (``biomass(db, ...)``, ``mortality(db, ...)``). No ``CarbonEstimator``
+   container class. Captured in CLAUDE.md.
 
 2. **Vectorize coefficient lookups via polars joins.** The scalar
-   ``lookup_coefficients`` and ``predict_tree_biomass`` functions in PR 1 are
-   *reference implementations* used to lock in numerical correctness against
+   ``lookup_coefficients`` and ``predict_tree_biomass`` functions are
+   *reference implementations* used to lock numerical correctness against
    the GTR-WO-104 worked examples. They are NOT the production data path.
-   PR 2 must implement equation evaluation as polars expressions on a
-   ``LazyFrame`` joined to the coefficient tables on ``SPCD``, not by calling
-   ``predict_tree_biomass`` per tree. At FIA scale (1M+ trees per state) the
-   scalar path is too slow.
+   The production path is ``compute_nsvb_biomass``, a pure polars pipeline
+   over a LazyFrame joined to the coefficient tables.
 
-3. **Inherit from ``BaseEstimator``.** ``LiveTreeEstimator`` must follow the
-   template-method pattern in :mod:`pyfia.estimation.base`: ``load_data →
-   apply_filters → calculate_values → aggregate_results → calculate_variance →
-   format_output``. Take ``(db: str | FIA, config: dict)`` in ``__init__``,
-   not ``(db, *, year)``.
+3. **Inherit from ``BaseEstimator``.** New pool estimators must follow the
+   template-method pattern in :mod:`pyfia.estimation.base`
+   (``load_data → apply_filters → calculate_values → aggregate_results →
+   calculate_variance → format_output``). Take ``(db: str | FIA, config: dict)``
+   in ``__init__``, not ``(db, *, year)``.
 
-4. **Match the ``mortality()`` docstring quality.** Per CLAUDE.md,
-   ``mortality`` is the documentation gold standard. Follow its parameter
-   section, return value table, examples block, and notes layout.
+4. **Match the ``mortality()`` docstring quality.** ``mortality`` is the
+   documentation gold standard per CLAUDE.md. Follow its parameter section,
+   return value table, examples block, and notes layout.
 
 5. **Bridge belowground (BG) carbon to FIADB ``CARBON_BG`` for now.** Phase 1
-   does not implement the Heath et al. (2009) coarse-root model. Use FIADB's
-   pre-computed ``CARBON_BG`` column directly when ``pool='bg'`` or
-   ``pool='total'``. The bridge is acknowledged tech debt; revisit if PR 3's
-   validation gate flags it.
+   does not implement the Heath et al. (2009) coarse-root model. The bridge
+   is acknowledged tech debt; revisit when the native BG model lands.
 
-Items deferred from PR 1 review (address in PR 2 unless noted)
----------------------------------------------------------------
-- **Schema fragility** *(resolved in PR 2)*: ``load_nsvb_coefficients`` now
-  passes explicit ``schema_overrides`` so DIVISION is always ``Utf8`` and
-  STDORGCD is always ``Int64``. The ``infer_schema_length=10_000`` workaround
-  is removed.
-- **Boundary types** *(resolved in PR 2)*: ``predict_tree_biomass`` now
-  validates ``dia >= 1.0`` with a clear ``ValueError``, normalizes ``hw_sw``
-  casing at the function boundary (``"Hardwood"`` / ``"SOFTWOOD"`` are both
-  accepted), and types ``hw_sw`` as ``Literal["hardwood", "softwood"]``.
-- **Default carbon fraction** *(resolved in PR 2)*: ``DEFAULT_LIVE_CARBON_FRACTION``
-  is now a lazily-computed module attribute (PEP 562 ``__getattr__``) that
-  reports the arithmetic mean of the S10a table (~0.4741). Previously it was
-  hardcoded at 0.4716, which had drifted from the actual population mean.
-- **SPCD 10 (``fir spp.``) misclassification** *(resolved in PR 2)*: S10a
-  lists SPCD=10 as hardwood, but the SPCD<300 rule used by ``_model_k``
-  correctly classifies it as softwood. PR 2's architectural decision: derive
-  ``hw_sw`` from the ``SPCD < 300`` rule rather than reading S10a's ``hw_sw``
-  column. This is internally consistent with NSVB's own Model 2 base-constant
-  selection and sidesteps the S10a classification error entirely.
-- **Null coercion**: ``_row_to_dict`` silently maps null coefficients to
-  ``0.0``. The vectorized path validates that required parameters are non-null
-  after joining. Addressed in the vectorized pipeline contract.
-- **Lookup precedence Levels 1–2 are dead code in PR 1** (STDORGCD is null in
-  396/406 ``volib_spcd`` rows; Phase 1 always passes ``division=None``).
-  The vectorized path in PR 2 skips levels 1-2 entirely and works directly
-  against the species-level + Jenkins fallback rows. A future PR that adds
-  the ``PLOT.ECOSUBCD → DIVISION`` mapping will re-enable levels 1-2.
-- **Phase 2+ pools** (standing dead, understory, downed dead, litter, SOC):
-  no skeleton in this PR. Add ``pyfia.carbon.<pool>(db, ...)`` functions
-  incrementally as each phase lands, following the same architectural rules.
+Items resolved from Phase 1 review
+===================================
+All six blockers from the PR 1/PR 2 critical reviews are closed:
+
+- **Schema fragility** — ``load_nsvb_coefficients`` passes explicit
+  ``schema_overrides`` so DIVISION is always ``Utf8`` and STDORGCD is
+  always ``Int64``.
+- **Boundary types** — ``predict_tree_biomass`` validates ``dia >= 1.0``
+  with a clear ``ValueError``, normalizes ``hw_sw`` casing, and types
+  ``hw_sw`` as ``Literal["hardwood", "softwood"]``.
+- **Default carbon fraction** — ``DEFAULT_LIVE_CARBON_FRACTION`` is a
+  PEP 562 ``__getattr__`` lazy module attribute (~0.4741, computed from
+  the current S10a CSV), replacing the hardcoded 0.4716 that had drifted.
+- **SPCD 10 misclassification** — resolved by deriving ``hw_sw`` from the
+  ``SPCD < 300`` rule (consistent with ``_model_k``), sidestepping S10a's
+  hardwood/softwood column which had SPCD=10 wrong.
+- **Lookup precedence Level 2 (DIVISION)** — implemented in Phase 1.5
+  (this file's "in progress" section above).
+- **Lookup precedence Level 1 (STDORGCD)** — still unused, only ~10 rows
+  across all 5 tables. Revisit once the full Phase 1.5 validation is
+  complete.
+- **SPCD Float64 join mismatch** — ``LiveTreeEstimator.calculate_values``
+  casts SPCD to Int64 at the entry to match the coefficient-table dtype
+  (FIA CSV-loaded TREE.SPCD lands as Float64 when the raw data has any
+  null). See PR 2 follow-up commit ``12a87c9``.
+
+Pointers for the next session
+==============================
+- **Current gap-closure work**: PR 3 at
+  ``https://github.com/ctrees-products/pyfia/pull/3`` (branch
+  ``feat/carbon-live-tree-validation``).
+- **Validation measurement instrument**:
+  ``tests/validation/test_live_tree_nsvb.py`` — runs on the Georgia
+  EVALID 132401 database, reports layered diagnostics (carbon rel_error
+  + biomass ratio + FIADB implied fraction) and asserts against ratchet
+  thresholds. Locks the Phase 1.5 baseline.
+- **Schmidt references library**:
+  ``/Users/cmihiar/Documents/Claude/Projects/schmidt/references_md/`` —
+  ``tier1_fcaf/gtr_wo104_westfall2023.md`` for the NSVB equations,
+  ``tier3_fiadb/fiadb_database_description_v9_2/fia_section_3_1_tree_table.md``
+  for FIADB column definitions. Appendix K is NOT yet in the library
+  and would need to be fetched for the Phase 1.6 TREECLCD investigation.
 
 References
 ----------
 - Westfall, J.A. et al. (2023). GTR-WO-104. DOI: 10.2737/WO-GTR-104
 - Woodall, C.W. et al. (2015). GTR-NRS-154 (FCAF methodology blueprint).
+- Harmon, M.E. et al. (2011). GTR-WO-104 Table 1 (dead-tree density).
 - USEPA (2024). NGHGI Annex 3.13.
 """
 

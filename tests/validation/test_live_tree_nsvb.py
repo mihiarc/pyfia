@@ -31,10 +31,14 @@ species-specific NSVB carbon fractions, so the fraction layer is not
 the source of any residual gap.
 
 **Requires** the ``PLOTGEOM`` table in the test database. ``PLOTGEOM``
-is not in pyfia.downloader.COMMON_TABLES — pull it separately via:
+is in ``pyfia.downloader.COMMON_TABLES`` as of the Phase 1.5 PR, so any
+fresh ``pyfia.download(state)`` call pulls it automatically. Existing
+test databases downloaded *before* that change need a one-off import:
 
 .. code-block:: python
 
+    # Only needed for test databases downloaded before PLOTGEOM was
+    # added to COMMON_TABLES. New downloads include it automatically.
     from pyfia.downloader.client import DataMartClient
     import duckdb, tempfile
     from pathlib import Path
@@ -132,10 +136,12 @@ class TestLiveTreeNSVBParity:
             if "PLOTGEOM" not in existing:
                 pytest.skip(
                     "PLOTGEOM table missing from the test database. "
-                    "Phase 1.5 validation requires ECOSUBCD, which pyfia's "
-                    "COMMON_TABLES download does not include. See this "
-                    "file's module docstring for the one-off PLOTGEOM "
-                    "import script."
+                    "Phase 1.5 validation requires ECOSUBCD. As of the "
+                    "Phase 1.5 PR, PLOTGEOM is in pyfia.downloader"
+                    ".COMMON_TABLES and new pyfia.download() calls "
+                    "include it automatically. For older test databases, "
+                    "see this file's module docstring for the one-off "
+                    "PLOTGEOM import script."
                 )
 
             trees = conn.execute("""

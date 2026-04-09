@@ -1,66 +1,99 @@
 """NSVB live tree carbon parity validation against FIADB TREE.CARBON_AG.
 
-This is the PR 2 validation gate — see PR 2 (``pyfia.carbon.live_tree``).
-The test here answers the question PR 2's in-repo unit/equivalence suite
-cannot: *how closely does the NSVB pipeline agree with FIADB's pre-computed
-carbon values on real inventory data?*
+This is the PR 2+ validation gate — see PR 2 (``pyfia.carbon.live_tree``)
+and the ongoing PR 3 closure work. The test answers the question the
+in-repo unit/equivalence suite cannot: *how closely does the NSVB
+pipeline agree with FIADB's pre-computed carbon values on real inventory
+data?*
 
-Baseline finding (Georgia EVALID 132401, end_invyr 2024, ~1.25M live trees):
+History of the ratchet thresholds in this file:
+
+**Phase 1 baseline** (species-level fallback only, measured before the
+ECOSUBCD lookup landed — commit e1f0254 on Georgia EVALID 132401):
 
 - Biomass ratio (pyfia NSVB AGB / FIADB DRYBIO_AG):
   median **1.030**, mean **1.093**, p95 **1.411**
-- Carbon ratio (pyfia CARBON_AG / FIADB CARBON_AG):
-  median **1.015**, p95 **1.360**
 - ~50% of trees agree within 5%; ~34% within 1%; ~29% within 0.1%
-- ~0.2% of trees (SPCD coverage gaps) get ``agb=None`` from the vectorized
-  NSVB pipeline and are excluded from the aggregated stats
+- Rooted in the PR 2 Phase 1 choice to skip DIVISION-specific
+  coefficient rows (S1a-S8a columns keyed on Bailey ecoprovince)
 
-The systematic 3% median biomass overestimate is consistent with PR 2's
-Phase 1 choice to skip the DIVISION-specific coefficient rows (S1a-S8a
-columns keyed on Bailey ecoprovince) and use only species-level rows.
-FIADB applies the appropriate DIVISION row for trees in each ecoprovince,
-producing small systematic differences. Closing the gap requires the
-``PLOT.ECOSUBCD → Bailey DIVISION`` mapping that the PR 2 contract
-defers to a Phase 1.5 PR.
+**Phase 1.5 closure** (ECOSUBCD → DIVISION lookup wired in, current):
 
-The assertion thresholds here are **ratchet thresholds** — set slightly
-looser than the current baseline so the test passes today, but tight
-enough that any regression surfaces. As the DIVISION gap closes
-(Phase 1.5), the test should be re-run and the thresholds tightened
-commit-by-commit. Each ratchet is a measurable improvement.
+- Joins ``PLOTGEOM.ECOSUBCD`` → derives the Bailey DIVISION via
+  :func:`pyfia.carbon.nsvb.coefficients.ecosubcd_to_division` →
+  passes the ``DIVISION`` column through ``compute_nsvb_biomass``, which
+  then activates the Level 2 coalesce.
+- The thresholds below are ratcheted to the Phase 1.5 baseline.
 
 FIADB implied carbon fraction (``CARBON_AG / DRYBIO_AG``) is **0.42-0.53**
 with median 0.478, exactly the S10a range — confirming FIADB uses
 species-specific NSVB carbon fractions, so the fraction layer is not
-the source of the gap.
+the source of any residual gap.
+
+**Requires** the ``PLOTGEOM`` table in the test database. ``PLOTGEOM``
+is not in pyfia.downloader.COMMON_TABLES — pull it separately via:
+
+.. code-block:: python
+
+    from pyfia.downloader.client import DataMartClient
+    import duckdb, tempfile
+    from pathlib import Path
+
+    client = DataMartClient()
+    with tempfile.TemporaryDirectory() as tmp:
+        p = Path(tmp)
+        client.download_tables("GA", tables=["PLOTGEOM"], common=False, dest_dir=p)
+        conn = duckdb.connect("data/georgia.duckdb")
+        csv = next(p.glob("*.csv"))
+        conn.execute(f\"\"\"
+            CREATE OR REPLACE TABLE PLOTGEOM AS
+            SELECT * FROM read_csv_auto('{csv}', header=true, ignore_errors=true)
+        \"\"\")
+        conn.close()
+
+If ``PLOTGEOM`` is missing the test skips with a helpful message.
 """
 
 from __future__ import annotations
 
 import duckdb
 import polars as pl
+import pytest
 
 from pyfia.carbon.nsvb.carbon_fractions import (
     _compute_default_live_carbon_fraction,
     load_carbon_fractions_live_df,
 )
+from pyfia.carbon.nsvb.coefficients import ecosubcd_to_division
 from pyfia.carbon.nsvb.equations import compute_nsvb_biomass
 
-# Ratchet thresholds — set to pass at the current Phase 1 (species-level
-# only) baseline measured on Georgia EVALID 132401. Tighten as the Phase
-# 1.5 DIVISION-level lookup lands. Any future commit that LOOSENS these
-# is a regression; any commit that tightens them is a measurable
-# improvement.
-_BASELINE_MEDIAN_REL_ERR = 0.060  # current: 0.0487
-_BASELINE_P99_REL_ERR = 0.70  # current: 0.6523
-_BASELINE_WITHIN_5PCT_FRAC = 0.45  # current: 0.5036 (lower bound)
-_BASELINE_BIOMASS_RATIO_MEDIAN_MIN = 1.00  # current: 1.0298
-_BASELINE_BIOMASS_RATIO_MEDIAN_MAX = 1.05  # current: 1.0298
+# Ratchet thresholds — locked at the Phase 1.5 baseline (ECOSUBCD →
+# DIVISION lookup active). Any commit that LOOSENS these is a regression;
+# any commit that tightens them is a measurable improvement.
+#
+# Phase 1 baseline (before DIVISION lookup, commit e1f0254):
+#   median rel_err = 4.87%, p99 = 65.23%, within 5% = 50.36%,
+#   biomass ratio median = 1.0179
+#
+# Phase 1.5 baseline (DIVISION lookup wired in, this commit):
+#   median rel_err = 3.55% (-27%), p99 = 65.55% (~unchanged, TREECLCD=4
+#   tail),  within 5% = 53.90%, biomass ratio median = 1.0000 (exact)
+#   within 1% = 43.07%, within 0.1% = 38.83%
+#
+# Next expected improvement: TREECLCD=4 rotten-cull methodology fix
+# should compress p99/max dramatically without moving the median much.
+_BASELINE_MEDIAN_REL_ERR = 0.040  # Phase 1.5: 0.0355
+_BASELINE_P99_REL_ERR = 0.70  # Phase 1.5: 0.6555 (tail dominated by TREECLCD=4)
+_BASELINE_WITHIN_5PCT_FRAC = 0.50  # Phase 1.5: 0.5390 (lower bound)
+_BASELINE_WITHIN_1PCT_FRAC = 0.40  # Phase 1.5: 0.4307 (lower bound)
+_BASELINE_WITHIN_0P1PCT_FRAC = 0.35  # Phase 1.5: 0.3883 (lower bound)
+_BASELINE_BIOMASS_RATIO_MEDIAN_MIN = 0.99  # Phase 1.5: 1.0000
+_BASELINE_BIOMASS_RATIO_MEDIAN_MAX = 1.01  # Phase 1.5: 1.0000
 
 # Trees with SPCD not covered by any NSVB coefficient path (species-level
 # OR Jenkins fallback) will get ``agb=None`` from compute_nsvb_biomass.
-# Currently ~0.2% on Georgia; allow a little headroom.
-_MAX_NULL_FRAC = 0.01  # current: 0.0020
+# Currently ~0.17% on Georgia; allow a little headroom.
+_MAX_NULL_FRAC = 0.01  # Phase 1.5: 0.00173
 
 
 class TestLiveTreeNSVBParity:
@@ -84,10 +117,27 @@ class TestLiveTreeNSVBParity:
         diagnostic layers — if future validation reveals a regression,
         the layered stats localize which layer moved.
         """
-        # Load every eligible live tree in one go. Polars handles 1.5M
-        # rows comfortably in a single LazyFrame pass.
+        # Load every eligible live tree in one go, joined to PLOTGEOM to
+        # get ECOSUBCD for the Phase 1.5 DIVISION lookup. Skip the test
+        # gracefully when PLOTGEOM is missing so CI runs without it don't
+        # fail — this file is gated on the ``validation`` marker and is
+        # opt-in by design.
         conn = duckdb.connect(fia_db, read_only=True)
         try:
+            existing = set(
+                conn.execute("SELECT table_name FROM information_schema.tables")
+                .pl()["table_name"]
+                .to_list()
+            )
+            if "PLOTGEOM" not in existing:
+                pytest.skip(
+                    "PLOTGEOM table missing from the test database. "
+                    "Phase 1.5 validation requires ECOSUBCD, which pyfia's "
+                    "COMMON_TABLES download does not include. See this "
+                    "file's module docstring for the one-off PLOTGEOM "
+                    "import script."
+                )
+
             trees = conn.execute("""
                 SELECT
                     t.CN,
@@ -98,9 +148,11 @@ class TestLiveTreeNSVBParity:
                     t.CARBON_AG AS FIADB_CARBON_AG,
                     t.DRYBIO_AG AS FIADB_DRYBIO_AG,
                     rs.JENKINS_SPGRPCD,
-                    rs.WOOD_SPGR_GREENVOL_DRYWT AS WDSG
+                    rs.WOOD_SPGR_GREENVOL_DRYWT AS WDSG,
+                    pg.ECOSUBCD
                 FROM TREE t
                 LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
+                LEFT JOIN PLOTGEOM pg ON t.PLT_CN = pg.CN
                 WHERE t.STATUSCD = 1
                   AND t.DIA IS NOT NULL AND t.DIA >= 1.0
                   AND t.HT IS NOT NULL
@@ -114,6 +166,17 @@ class TestLiveTreeNSVBParity:
 
         n_total = trees.height
         assert n_total > 0, f"no eligible trees found in {fia_db}"
+
+        # Derive the Bailey DIVISION from ECOSUBCD. ``ecosubcd_to_division``
+        # returns None for null/malformed ECOSUBCDs, which the downstream
+        # coalesce handles correctly by falling through to species-level
+        # and Jenkins.
+        trees = trees.with_columns(
+            pl.col("ECOSUBCD")
+            .map_elements(ecosubcd_to_division, return_dtype=pl.Utf8)
+            .alias("DIVISION")
+        )
+        n_with_division = int(trees["DIVISION"].is_not_null().sum())
 
         # Normalize dtypes — see PR 2 commit 12a87c9 for why SPCD must be
         # cast to Int64 here (CSV-loaded TREE.SPCD lands as Float64).
@@ -138,6 +201,10 @@ class TestLiveTreeNSVBParity:
         n_null = int(result["agb"].null_count())
         null_frac = n_null / n_total
         print(f"\n=== Live tree NSVB parity vs FIADB (Georgia, {n_total:,} trees) ===")
+        print(
+            f"  trees with DIVISION resolved from ECOSUBCD: "
+            f"{n_with_division:,} ({n_with_division / n_total:.2%})"
+        )
         print(
             f"  trees with null NSVB agb (SPCD coverage gap): "
             f"{n_null:,} ({null_frac:.3%})"
@@ -273,9 +340,11 @@ class TestLiveTreeNSVBParity:
                     f"{row['rel_error']:>8.2%}"
                 )
 
-        # === Ratchet assertions — loosely above baseline so this commit ===
-        # passes at the current Phase 1 (species-level only) behavior. Each
-        # Phase 1.5 improvement should tighten these constants.
+        # === Ratchet assertions — locked at the Phase 1.5 baseline. ===
+        # Each assertion failure should be interpreted as either a
+        # regression (if the violation is on the wrong side) or an
+        # opportunity to tighten the constant (if the new measurement
+        # beats the baseline).
         assert null_frac < _MAX_NULL_FRAC, (
             f"SPCD coverage null rate {null_frac:.3%} exceeds "
             f"{_MAX_NULL_FRAC:.1%} — new SPCDs falling out of the "
@@ -292,6 +361,15 @@ class TestLiveTreeNSVBParity:
         assert n_within_5 / n_compared > _BASELINE_WITHIN_5PCT_FRAC, (
             f"only {n_within_5 / n_compared:.2%} of trees agree within 5% "
             f"(baseline: ≥{_BASELINE_WITHIN_5PCT_FRAC:.0%}) — regression?"
+        )
+        assert n_within_1 / n_compared > _BASELINE_WITHIN_1PCT_FRAC, (
+            f"only {n_within_1 / n_compared:.2%} of trees agree within 1% "
+            f"(baseline: ≥{_BASELINE_WITHIN_1PCT_FRAC:.0%}) — regression?"
+        )
+        assert n_within_0p1 / n_compared > _BASELINE_WITHIN_0P1PCT_FRAC, (
+            f"only {n_within_0p1 / n_compared:.2%} of trees agree within "
+            f"0.1% (baseline: ≥{_BASELINE_WITHIN_0P1PCT_FRAC:.0%}) — "
+            "regression?"
         )
         assert (
             _BASELINE_BIOMASS_RATIO_MEDIAN_MIN

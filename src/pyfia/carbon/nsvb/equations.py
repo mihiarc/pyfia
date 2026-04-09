@@ -527,24 +527,39 @@ def _join_and_eval_component(
     trees: pl.LazyFrame,
     spcd_table: pl.DataFrame,
     jen_table: pl.DataFrame,
+    div_table: pl.DataFrame,
     out_col: str,
+    *,
+    has_division: bool,
 ) -> pl.LazyFrame:
-    """Join a LazyFrame to one (species-level, Jenkins) coefficient pair and
-    evaluate the NSVB biomass expression for that component.
+    """Join a LazyFrame to the (division, species-level, Jenkins) coefficient
+    triple for one component and evaluate the NSVB biomass expression.
 
-    Implementation of NSVB lookup precedence Levels 3 + 4 as polars joins:
+    Implementation of NSVB lookup precedence Levels 2 → 3 → 4 as polars
+    joins:
 
-    1. Left-join ``spcd_table`` on ``SPCD`` (species-level fallback, Level 3).
-    2. Left-join ``jen_table`` on ``JENKINS_SPGRPCD`` (Jenkins fallback, Level 4).
-    3. Coalesce the two coefficient rows, preferring species-level.
-    4. Evaluate :func:`nsvb_biomass_expr` to produce ``out_col``.
-    5. Drop the temporary coefficient columns.
+    1. If ``has_division`` is True: left-join ``div_table`` on
+       ``(SPCD, DIVISION)`` (Level 2).
+    2. Left-join ``spcd_table`` on ``SPCD`` (species-level fallback, Level 3).
+    3. Left-join ``jen_table`` on ``JENKINS_SPGRPCD`` (Jenkins fallback,
+       Level 4).
+    4. Coalesce the three coefficient rows in precedence order:
+       division → species-level → Jenkins.
+    5. Evaluate :func:`nsvb_biomass_expr` to produce ``out_col``.
+    6. Drop the temporary coefficient columns.
+
+    When ``has_division`` is False (the trees frame has no ``DIVISION``
+    column — backward-compatible path for synthetic tests and for callers
+    that haven't yet wired the ``PLOTGEOM.ECOSUBCD`` join), the division
+    join is skipped entirely and the behavior matches the old 2-way
+    coalesce exactly.
 
     Parameters
     ----------
     trees : pl.LazyFrame
         Input frame with at least ``SPCD``, ``DIA``, ``HT``, ``WDSG``,
-        ``JENKINS_SPGRPCD`` columns.
+        ``JENKINS_SPGRPCD`` columns. If ``has_division`` is True, must also
+        have a ``DIVISION`` column (Utf8/String, nullable).
     spcd_table : pl.DataFrame
         Species-level lookup from
         :func:`pyfia.carbon.nsvb.coefficients.build_species_level_lookup`
@@ -553,8 +568,16 @@ def _join_and_eval_component(
         Jenkins fallback from
         :func:`pyfia.carbon.nsvb.coefficients.build_jenkins_lookup` with
         columns ``(JENKINS_SPGRPCD, model, a, b, b1, c)``.
+    div_table : pl.DataFrame
+        DIVISION-specific lookup from
+        :func:`pyfia.carbon.nsvb.coefficients.build_division_lookup` with
+        columns ``(SPCD, DIVISION, model, a, b, b1, c)``. Only consulted
+        when ``has_division`` is True.
     out_col : str
         Name for the output column (e.g., ``"v_wood_ib"``).
+    has_division : bool
+        Whether the caller has populated a ``DIVISION`` column on the trees
+        frame. When False, skip the division join entirely.
 
     Returns
     -------
@@ -562,7 +585,7 @@ def _join_and_eval_component(
         The input frame with ``out_col`` appended. Temporary coefficient
         columns are dropped before return.
     """
-    # Rename coefficient columns on both sides so they don't collide with the
+    # Rename coefficient columns on each side so they don't collide with the
     # trees frame or with each other.
     spcd_lf = spcd_table.lazy().rename(
         {
@@ -583,17 +606,46 @@ def _join_and_eval_component(
         }
     )
 
+    if has_division:
+        div_lf = div_table.lazy().rename(
+            {
+                "model": "_model_d",
+                "a": "_a_d",
+                "b": "_b_d",
+                "b1": "_b1_d",
+                "c": "_c_d",
+            }
+        )
+        trees = trees.join(div_lf, on=["SPCD", "DIVISION"], how="left")
+
     trees = trees.join(spcd_lf, on="SPCD", how="left")
     trees = trees.join(jen_lf, on="JENKINS_SPGRPCD", how="left")
 
-    # Coalesce species-level first (Level 3), Jenkins second (Level 4).
+    # Coalesce: division (Level 2) → species-level (Level 3) → Jenkins (Level 4).
+    # When has_division=False, the _*_d columns don't exist and we fall back
+    # to the 2-way coalesce matching the original implementation.
+    if has_division:
+        model_expr = pl.coalesce(
+            pl.col("_model_d"), pl.col("_model_s"), pl.col("_model_j")
+        )
+        a_expr = pl.coalesce(pl.col("_a_d"), pl.col("_a_s"), pl.col("_a_j"))
+        b_expr = pl.coalesce(pl.col("_b_d"), pl.col("_b_s"), pl.col("_b_j"))
+        b1_expr = pl.coalesce(pl.col("_b1_d"), pl.col("_b1_s"), pl.col("_b1_j"))
+        c_expr = pl.coalesce(pl.col("_c_d"), pl.col("_c_s"), pl.col("_c_j"))
+    else:
+        model_expr = pl.coalesce(pl.col("_model_s"), pl.col("_model_j"))
+        a_expr = pl.coalesce(pl.col("_a_s"), pl.col("_a_j"))
+        b_expr = pl.coalesce(pl.col("_b_s"), pl.col("_b_j"))
+        b1_expr = pl.coalesce(pl.col("_b1_s"), pl.col("_b1_j"))
+        c_expr = pl.coalesce(pl.col("_c_s"), pl.col("_c_j"))
+
     trees = trees.with_columns(
         nsvb_biomass_expr(
-            model=pl.coalesce(pl.col("_model_s"), pl.col("_model_j")),
-            a=pl.coalesce(pl.col("_a_s"), pl.col("_a_j")),
-            b=pl.coalesce(pl.col("_b_s"), pl.col("_b_j")),
-            b1=pl.coalesce(pl.col("_b1_s"), pl.col("_b1_j")),
-            c=pl.coalesce(pl.col("_c_s"), pl.col("_c_j")),
+            model=model_expr,
+            a=a_expr,
+            b=b_expr,
+            b1=b1_expr,
+            c=c_expr,
             d=pl.col("DIA").cast(pl.Float64),
             h=pl.col("HT").cast(pl.Float64),
             spcd=pl.col("SPCD"),
@@ -601,20 +653,21 @@ def _join_and_eval_component(
         ).alias(out_col)
     )
 
-    return trees.drop(
-        [
-            "_model_s",
-            "_a_s",
-            "_b_s",
-            "_b1_s",
-            "_c_s",
-            "_model_j",
-            "_a_j",
-            "_b_j",
-            "_b1_j",
-            "_c_j",
-        ]
-    )
+    drop_cols = [
+        "_model_s",
+        "_a_s",
+        "_b_s",
+        "_b1_s",
+        "_c_s",
+        "_model_j",
+        "_a_j",
+        "_b_j",
+        "_b1_j",
+        "_c_j",
+    ]
+    if has_division:
+        drop_cols.extend(["_model_d", "_a_d", "_b_d", "_b1_d", "_c_d"])
+    return trees.drop(drop_cols)
 
 
 def compute_nsvb_biomass(
@@ -649,6 +702,18 @@ def compute_nsvb_biomass(
         - ``JENKINS_SPGRPCD`` (Int): Jenkins species group for the Level 4
           fallback (``REF_SPECIES.JENKINS_SPGRPCD``)
 
+        Optional:
+
+        - ``DIVISION`` (Utf8, nullable): Bailey ecoprovince DIVISION code
+          (e.g., ``"230"``, ``"M230"``, computed from ``PLOT.ECOSUBCD`` via
+          :func:`pyfia.carbon.nsvb.coefficients.ecosubcd_to_division`).
+          When present, the orchestrator activates Level 2 of the NSVB
+          lookup precedence: the ``(SPCD, DIVISION)`` lookup runs first,
+          falling through to species-level (Level 3) and Jenkins (Level 4)
+          per-row via coalesce. When absent, only Levels 3 + 4 are used
+          (backward-compatible with callers that haven't wired the
+          PLOTGEOM join).
+
         Additional columns (grouping variables, plot identifiers, etc.)
         pass through untouched.
     lookup : VectorizedLookupTables, optional
@@ -676,29 +741,58 @@ def compute_nsvb_biomass(
 
         lookup = get_vectorized_lookup_tables()
 
+    # Probe the schema once so the 5 per-component joins don't each re-collect
+    # it. DIVISION column detection activates the Level 2 lookup path.
+    has_division = "DIVISION" in trees.collect_schema().names()
+
     # Step 1 — Total stem inside-bark wood volume (cubic feet).
     trees = _join_and_eval_component(
-        trees, lookup.volib_spcd, lookup.volib_jen, "v_wood_ib"
+        trees,
+        lookup.volib_spcd,
+        lookup.volib_jen,
+        lookup.volib_div,
+        "v_wood_ib",
+        has_division=has_division,
     )
 
     # Step 2 — Total stem bark volume (cubic feet).
     trees = _join_and_eval_component(
-        trees, lookup.volbk_spcd, lookup.volbk_jen, "v_bark"
+        trees,
+        lookup.volbk_spcd,
+        lookup.volbk_jen,
+        lookup.volbk_div,
+        "v_bark",
+        has_division=has_division,
     )
 
     # Step 5 — Stem bark biomass (lb).
     trees = _join_and_eval_component(
-        trees, lookup.bark_bio_spcd, lookup.bark_bio_jen, "_w_bark_pre"
+        trees,
+        lookup.bark_bio_spcd,
+        lookup.bark_bio_jen,
+        lookup.bark_bio_div,
+        "_w_bark_pre",
+        has_division=has_division,
     )
 
     # Step 6 — Branch biomass (lb).
     trees = _join_and_eval_component(
-        trees, lookup.branch_bio_spcd, lookup.branch_bio_jen, "_w_branch_pre"
+        trees,
+        lookup.branch_bio_spcd,
+        lookup.branch_bio_jen,
+        lookup.branch_bio_div,
+        "_w_branch_pre",
+        has_division=has_division,
     )
 
     # Step 7 — Directly-predicted total AGB (lb).
     trees = _join_and_eval_component(
-        trees, lookup.total_agb_spcd, lookup.total_agb_jen, "_agb_predicted"
+        trees,
+        lookup.total_agb_spcd,
+        lookup.total_agb_jen,
+        lookup.total_agb_div,
+        "_agb_predicted",
+        has_division=has_division,
     )
 
     # Step 3-4 — Convert wood volume to weight, with a cull-reduced variant.

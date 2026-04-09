@@ -69,31 +69,44 @@ class CoefficientTables:
 class VectorizedLookupTables:
     """Bundle of join-ready NSVB coefficient lookup tables for the vectorized path.
 
-    Each pair consists of:
+    Each component is represented by three parallel lookups for Levels 2–4 of
+    the NSVB precedence:
 
+    - ``*_div``: DIVISION-specific rows (DIVISION non-null + STDORGCD null) with
+      the columns ``(SPCD, DIVISION, model, a, b, b1, c)`` — joined on the
+      ``(SPCD, DIVISION)`` composite key (Level 2).
     - ``*_spcd``: species-level rows (DIVISION null + STDORGCD null) with the
-      columns ``(SPCD, model, a, b, b1, c)`` — ready for a left join on ``SPCD``.
+      columns ``(SPCD, model, a, b, b1, c)`` — ready for a left join on
+      ``SPCD`` (Level 3).
     - ``*_jen``: Jenkins-group fallback rows with the columns
       ``(JENKINS_SPGRPCD, model, a, b, b1, c)`` — ready for a left join on
-      ``JENKINS_SPGRPCD``. ``b1`` is synthesized as ``0.0`` because the Jenkins
-      tables only have ``(a, b, c)`` and Model 5 (the only form that Jenkins
-      rows dispatch to) does not use ``b1``.
+      ``JENKINS_SPGRPCD`` (Level 4). ``b1`` is synthesized as ``0.0`` because
+      the Jenkins tables only carry ``(a, b, c)`` and Model 5 (the only form
+      Jenkins rows dispatch to) does not use ``b1``.
 
-    The vectorized orchestrator runs the two joins per component and then
-    coalesces species-level first, Jenkins second, which replicates the
-    NSVB lookup precedence (Level 3 → Level 4) without any Python-level loops.
+    The vectorized orchestrator runs all three joins per component and then
+    coalesces DIVISION first, species-level second, Jenkins third, replicating
+    the NSVB lookup precedence (Level 2 → Level 3 → Level 4) without any
+    Python-level loops. Level 1 (SPCD + DIVISION + STDORGCD) is still dead
+    code in Phase 1.5 — only ~10 rows across all 5 tables — and is deferred
+    until the validation gate justifies it.
     """
 
     volib_spcd: pl.DataFrame
     volib_jen: pl.DataFrame
+    volib_div: pl.DataFrame
     volbk_spcd: pl.DataFrame
     volbk_jen: pl.DataFrame
+    volbk_div: pl.DataFrame
     bark_bio_spcd: pl.DataFrame
     bark_bio_jen: pl.DataFrame
+    bark_bio_div: pl.DataFrame
     branch_bio_spcd: pl.DataFrame
     branch_bio_jen: pl.DataFrame
+    branch_bio_div: pl.DataFrame
     total_agb_spcd: pl.DataFrame
     total_agb_jen: pl.DataFrame
+    total_agb_div: pl.DataFrame
 
 
 # Common coefficient columns used by the vectorized path. Matches the inputs
@@ -174,30 +187,141 @@ def build_jenkins_lookup(table_jenkins: pl.DataFrame) -> pl.DataFrame:
     )
 
 
+def build_division_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
+    """Prepare a ``*_spcd`` coefficient table for vectorized ``(SPCD, DIVISION)``
+    joins (Level 2 of the NSVB lookup precedence).
+
+    Filters to rows where ``DIVISION`` is non-null AND ``STDORGCD`` is null
+    (the DIVISION-specific Bailey ecoprovince refinements that Phase 1 of
+    the carbon estimator skipped). Returns a DataFrame keyed on the
+    composite ``(SPCD, DIVISION)``; the vectorized orchestrator joins this
+    first, then falls through to the species-level lookup (Level 3) and
+    the Jenkins fallback (Level 4) via a 3-way coalesce.
+
+    Level 1 of the NSVB precedence (``SPCD + DIVISION + STDORGCD``) is still
+    deliberately excluded — across all 5 coefficient tables it is only ~10
+    rows and would require threading ``COND.STDORGCD`` through the pipeline.
+    Revisit once the DIVISION closure has been measured.
+
+    Applies the same defensive null-``b1`` filter as
+    :func:`build_species_level_lookup`: a Model 2 / Model 4 row with a null
+    ``b1`` would silently mix rows in the downstream coalesce, so such rows
+    are dropped from the lookup.
+
+    Parameters
+    ----------
+    table_spcd : pl.DataFrame
+        One of the 5 ``*_spcd`` coefficient tables from
+        :class:`CoefficientTables`.
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns ``(SPCD, DIVISION, model, a, b, b1, c)``. One row per
+        unique ``(SPCD, DIVISION)`` pair with a Level-2 entry.
+    """
+    return table_spcd.filter(
+        pl.col("DIVISION").is_not_null()
+        & pl.col("STDORGCD").is_null()
+        & ~(pl.col("model").is_in([2, 4]) & pl.col("b1").is_null())
+    ).select(["SPCD", "DIVISION", *_VECTORIZED_COEF_COLS])
+
+
+def ecosubcd_to_division(ecosubcd: str | None) -> str | None:
+    """Extract the Bailey DIVISION code from a ``PLOTGEOM.ECOSUBCD`` value.
+
+    ``ECOSUBCD`` is a 5-7 character Bailey ecoprovince subsection code
+    (e.g., ``"231Ae"`` for the Southeastern Mixed Forest section 231A,
+    subsection 231Ae, or ``"M231Aa"`` for the Ouachita Mixed Forest
+    mountain variant). The Bailey hierarchy is:
+
+    ::
+
+        Domain → Division → Province → Section → Subsection
+        200    → 230      → 231      → 231A    → 231Ae
+
+    This function walks one level up the hierarchy from Subsection to
+    Division by:
+
+    - extracting the 3-digit Province code (first 3 chars after any ``M``)
+    - replacing its last digit with ``"0"`` to obtain the Division
+    - preserving the ``"M"`` prefix for mountain Divisions
+
+    Examples
+    --------
+    >>> ecosubcd_to_division("231Ae")
+    '230'
+    >>> ecosubcd_to_division("232Bh")
+    '230'
+    >>> ecosubcd_to_division("M231Aa")
+    'M230'
+    >>> ecosubcd_to_division("220Eb")
+    '220'
+    >>> ecosubcd_to_division(None) is None
+    True
+    >>> ecosubcd_to_division("") is None
+    True
+    >>> ecosubcd_to_division("XYZ") is None
+    True
+
+    Parameters
+    ----------
+    ecosubcd : str or None
+        The ECOSUBCD value from ``PLOTGEOM.ECOSUBCD`` or ``PLOT.ECOSUBCD``
+        (the column exists on both tables — pyfia's DataMart CSV downloads
+        pull it reliably from ``PLOTGEOM``).
+
+    Returns
+    -------
+    str or None
+        The Bailey DIVISION code matching the ``DIVISION`` column in the
+        NSVB coefficient tables (e.g., ``"230"``, ``"M230"``, ``"240"``),
+        or ``None`` if the input is null, empty, or malformed.
+    """
+    if ecosubcd is None:
+        return None
+    s = ecosubcd.strip().upper()
+    if not s:
+        return None
+    m_prefix = ""
+    if s.startswith("M"):
+        m_prefix = "M"
+        s = s[1:]
+    if len(s) < 3 or not s[:2].isdigit() or not s[2].isdigit():
+        return None
+    return m_prefix + s[:2] + "0"
+
+
 @functools.lru_cache(maxsize=1)
 def get_vectorized_lookup_tables() -> VectorizedLookupTables:
     """Return the full bundle of join-ready NSVB lookup tables.
 
-    Calls :func:`build_species_level_lookup` and :func:`build_jenkins_lookup`
-    on each of the 5 component table pairs from :func:`load_nsvb_coefficients`
-    and caches the result at process level. This is the single entry point
-    the vectorized live-tree biomass orchestrator uses.
+    Calls :func:`build_species_level_lookup`, :func:`build_jenkins_lookup`,
+    and :func:`build_division_lookup` on each of the 5 component table
+    pairs from :func:`load_nsvb_coefficients` and caches the result at
+    process level. This is the single entry point the vectorized live-tree
+    biomass orchestrator uses.
 
-    The bundle is small (~500 rows across all 10 DataFrames) and is shared
+    The bundle is small (~1200 rows across all 15 DataFrames) and is shared
     across every ``LiveTreeEstimator`` invocation in the process.
     """
     raw = load_nsvb_coefficients()
     return VectorizedLookupTables(
         volib_spcd=build_species_level_lookup(raw.volib_spcd),
         volib_jen=build_jenkins_lookup(raw.volib_jenkins),
+        volib_div=build_division_lookup(raw.volib_spcd),
         volbk_spcd=build_species_level_lookup(raw.volbk_spcd),
         volbk_jen=build_jenkins_lookup(raw.volbk_jenkins),
+        volbk_div=build_division_lookup(raw.volbk_spcd),
         bark_bio_spcd=build_species_level_lookup(raw.bark_biomass_spcd),
         bark_bio_jen=build_jenkins_lookup(raw.bark_biomass_jenkins),
+        bark_bio_div=build_division_lookup(raw.bark_biomass_spcd),
         branch_bio_spcd=build_species_level_lookup(raw.branch_biomass_spcd),
         branch_bio_jen=build_jenkins_lookup(raw.branch_biomass_jenkins),
+        branch_bio_div=build_division_lookup(raw.branch_biomass_spcd),
         total_agb_spcd=build_species_level_lookup(raw.total_biomass_spcd),
         total_agb_jen=build_jenkins_lookup(raw.total_biomass_jenkins),
+        total_agb_div=build_division_lookup(raw.total_biomass_spcd),
     )
 
 

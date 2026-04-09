@@ -373,3 +373,153 @@ class TestVectorizedMatchesScalarOracle:
         # Match the scalar oracle exactly
         scalar = _scalar_per_tree(trees)
         assert math.isclose(result["agb"][0], scalar["agb"][0], rel_tol=1e-9)
+
+
+class TestDivisionLookupPath:
+    """Level 2 (DIVISION-specific) lookup path.
+
+    The synthetic-tree equivalence suite above covers only Levels 3-4
+    because the scalar oracle ``predict_tree_biomass`` (via its
+    ``lookup_coefficients`` backend) always passes ``division=None``.
+    These tests exercise the new DIVISION coalesce path directly.
+    """
+
+    def test_division_lookup_produces_non_null_agb(self):
+        """A tree with a DIVISION that has a matching S1a/S6a/S7a/S8a row
+        should still produce a valid AGB (proving the 3-way coalesce
+        doesn't silently emit nulls when DIVISION is set)."""
+        # SPCD=131 (loblolly pine, the dominant Georgia species) in
+        # DIVISION 230 (Subtropical).
+        trees = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "DIA": [15.0],
+                "HT": [80.0],
+                "CULL": [0.0],
+                "WDSG": [0.47],
+                "JENKINS_SPGRPCD": [4],
+                "DIVISION": ["230"],
+            }
+        )
+        result = compute_nsvb_biomass(trees.lazy()).collect()
+        assert result["agb"][0] is not None
+        assert result["agb"][0] > 0
+        # Harmonization invariant still holds
+        assert math.isclose(
+            result["agb"][0],
+            result["w_wood"][0] + result["w_bark"][0] + result["w_branch"][0],
+            rel_tol=1e-12,
+        )
+
+    def test_division_null_falls_back_to_species_level(self):
+        """A tree with DIVISION=null should produce the same result as a
+        tree without the DIVISION column at all — falling back to the
+        species-level lookup via coalesce."""
+        trees_with_null = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "DIA": [15.0],
+                "HT": [80.0],
+                "CULL": [0.0],
+                "WDSG": [0.47],
+                "JENKINS_SPGRPCD": [4],
+                "DIVISION": [None],
+            },
+            schema={
+                "SPCD": pl.Int64,
+                "DIA": pl.Float64,
+                "HT": pl.Float64,
+                "CULL": pl.Float64,
+                "WDSG": pl.Float64,
+                "JENKINS_SPGRPCD": pl.Int64,
+                "DIVISION": pl.Utf8,
+            },
+        )
+        trees_without = trees_with_null.drop("DIVISION")
+
+        with_null = compute_nsvb_biomass(trees_with_null.lazy()).collect()
+        without = compute_nsvb_biomass(trees_without.lazy()).collect()
+
+        for col in ("v_wood_ib", "v_bark", "w_wood", "w_bark", "w_branch", "agb"):
+            assert math.isclose(with_null[col][0], without[col][0], rel_tol=1e-12), (
+                f"{col}: with_null={with_null[col][0]} != without={without[col][0]}"
+            )
+
+    def test_division_changes_result_for_species_with_division_row(self):
+        """Positive control: for a species with a DIVISION-specific row,
+        specifying the DIVISION should change the output vs the
+        species-level fallback. Proves the DIVISION lookup actually takes
+        effect rather than silently falling through to species-level.
+
+        Uses SPCD=316 (red maple) in DIVISION=230 — verified via a direct
+        diff of ``bundle.total_agb_div`` vs ``bundle.total_agb_spcd`` that
+        this SPCD has a DIVISION=230 S8a row with coefficients differing
+        from the species-level row by a material amount (total_diff
+        ~0.36 across a, b, c).
+        """
+        base_data = {
+            "SPCD": [316],
+            "DIA": [11.1],
+            "HT": [38.0],
+            "CULL": [0.0],
+            "WDSG": [0.49],
+            "JENKINS_SPGRPCD": [8],
+        }
+        trees_species_level = pl.DataFrame(base_data)
+        trees_division = pl.DataFrame({**base_data, "DIVISION": ["230"]})
+
+        species_result = compute_nsvb_biomass(trees_species_level.lazy()).collect()
+        division_result = compute_nsvb_biomass(trees_division.lazy()).collect()
+
+        # At least one of the 5 components should differ materially
+        # (confirming the DIVISION lookup produced a different coefficient).
+        # If they all match exactly, the DIVISION row doesn't exist or the
+        # coalesce is silently bypassing it.
+        differs = any(
+            not math.isclose(
+                species_result[col][0], division_result[col][0], rel_tol=1e-6
+            )
+            for col in ("v_wood_ib", "v_bark", "w_wood", "w_bark", "w_branch", "agb")
+        )
+        assert differs, (
+            "species-level and DIVISION=230 results are identical — "
+            "SPCD=316 should have a differing DIVISION=230 row or the "
+            "DIVISION coalesce is not taking effect"
+        )
+
+        # Also assert that the directly-predicted total AGB actually
+        # responds to DIVISION (not just a noise-level component change).
+        assert not math.isclose(
+            species_result["agb"][0], division_result["agb"][0], rel_tol=1e-3
+        ), (
+            f"AGB essentially unchanged by DIVISION lookup: "
+            f"species={species_result['agb'][0]:.4f}, "
+            f"division={division_result['agb'][0]:.4f}"
+        )
+
+    def test_division_with_no_matching_row_falls_through(self):
+        """A tree with DIVISION set to a value that doesn't have a matching
+        row should fall through to species-level, matching a tree without
+        DIVISION set at all."""
+        trees_bogus = pl.DataFrame(
+            {
+                "SPCD": [131],
+                "DIA": [15.0],
+                "HT": [80.0],
+                "CULL": [0.0],
+                "WDSG": [0.47],
+                "JENKINS_SPGRPCD": [4],
+                "DIVISION": ["NOPE"],
+            }
+        )
+        trees_no_div = trees_bogus.drop("DIVISION")
+
+        bogus_result = compute_nsvb_biomass(trees_bogus.lazy()).collect()
+        no_div_result = compute_nsvb_biomass(trees_no_div.lazy()).collect()
+
+        for col in ("v_wood_ib", "v_bark", "w_wood", "w_bark", "w_branch", "agb"):
+            assert math.isclose(
+                bogus_result[col][0], no_div_result[col][0], rel_tol=1e-12
+            ), (
+                f"{col}: bogus_div={bogus_result[col][0]} != no_div={no_div_result[col][0]}"
+            )

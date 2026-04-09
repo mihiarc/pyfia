@@ -544,6 +544,43 @@ class TestPredictTreeBiomass:
 # CSV → pipeline regression sentinels (the production data path)
 # ---------------------------------------------------------------------------
 
+# Species-level (DIVISION=null) expected pipeline outputs for the worked-example
+# trees, computed once from the vendored CSVs. These constants are sentinels
+# for the 5 component CSVs — any change to volib_spcd, volbk_spcd,
+# bark_biomass_spcd, branch_biomass_spcd, or total_biomass_spcd that affects
+# SPCD=202 or SPCD=316 will perturb one of these values and break the test.
+#
+# Locked at f64-tight precision (math.isclose rel_tol=1e-9). The CSV stores
+# coefficients at ~9 significant figures, but the pipeline output is purely
+# deterministic given the CSV — same CSV in, same float out. If a future
+# re-vendor changes the CSV intentionally, the failure shows the exact diff
+# and the maintainer updates the constants here.
+#
+# Note: harmonization rescales (w_wood, w_bark, w_branch) proportionally to
+# hit the directly-predicted total AGB, so individual component CSV
+# corruption only shows up via these per-component checks — the AGB total
+# alone cannot detect it because harmonization compensates. v_wood_ib and
+# v_bark are the only signals for volib_spcd and volbk_spcd corruption since
+# volbk feeds nothing in the Phase 1 AGB path (its value is stored for
+# Phase 2+ adjusted-density use).
+DOUGFIR_CSV_EXPECTED = {
+    "agb": 3151.7844814148,
+    "w_wood": 2442.4991973909,
+    "w_bark": 387.9115217065,
+    "w_branch": 321.3737623174,
+    "v_wood_ib": 83.6844822743,  # locks volib_spcd.csv (SPCD=202 species-level row)
+    "v_bark": 18.1718836702,  # locks volbk_spcd.csv (SPCD=202 species-level row)
+}
+
+REDMAPLE_CSV_EXPECTED = {
+    "agb": 528.1359652182,
+    "w_wood": 317.9304736164,
+    "w_bark": 59.2156546044,
+    "w_branch": 150.9898369973,
+    "v_wood_ib": 9.4271133316,  # locks volib_spcd.csv (SPCD=316 species-level row)
+    "v_bark": 2.1551061437,  # locks volbk_spcd.csv (SPCD=316 species-level row)
+}
+
 
 def _bundle_via_csv(spcd: int, jenkins_spgrpcd: int) -> Coefficients:
     """Build a ``Coefficients`` bundle by walking the real CSV lookup path.
@@ -594,23 +631,25 @@ class TestPipelineViaCSV:
 
     Unlike :class:`TestPredictTreeBiomass` above — which uses hand-coded
     high-precision coefficients to verify the equation form — these tests
-    walk the full ``lookup_coefficients`` → ``predict_tree_biomass`` path so a
-    CSV corruption, schema drift, or species-level row recalibration will
-    fail the suite.
+    walk the full ``lookup_coefficients`` → ``predict_tree_biomass`` path so
+    a CSV corruption, schema drift, or species-level row recalibration in
+    *any* of the five vendored coefficient tables will fail the suite.
 
-    **Tolerance: 0.5%.** Currently measured agreement is:
+    Each test makes assertions at two layers:
 
-    - Douglas-fir (SPCD=202): ~0.09% — Phase 1 uses the species-level
-      (DIVISION=null) row, while the worked example uses DIVISION=240. The
-      species-level row is well-calibrated such that the harmonized AGB
-      lands within 0.1% of the DIVISION=240 result.
-    - Red maple (SPCD=316): ~0.00% — the worked example itself uses the
-      species-level fallback, so the CSV path matches exactly modulo the
-      ~9-significant-figure storage precision in the CSV.
+    1. **Worked-example agreement** (``agb`` vs WO-104, ~0.5% tolerance) —
+       documents the per-PR contract that Phase 1 reproduces the GTR-WO-104
+       worked-example AGB to within 0.5% even with the deferred ECOSUBCD
+       lookup. Currently measured: Douglas-fir 0.09%, red maple 0.00%.
 
-    The 0.5% tolerance leaves ~5x headroom over the Douglas-fir species-level
-    fallback gap. PR 2 (which adds the ``ECOSUBCD → DIVISION`` mapping if
-    PR 3's validation gate flags it) can tighten this if appropriate.
+    2. **CSV regression sentinels** (``v_wood_ib``, ``v_bark``, ``w_wood``,
+       ``w_bark``, ``w_branch``, ``agb`` vs the species-level CSV expected
+       constants, f64-tight ``rel_tol=1e-9``) — locks each of the five
+       vendored coefficient CSVs against unintended modification. Without
+       per-component locks, the harmonization step washes out corruption to
+       four of the five tables (it proportionally rescales components to hit
+       the directly-predicted total AGB), so a single AGB assertion would
+       only catch ``total_biomass_spcd.csv`` regressions.
 
     See ``pyfia/carbon/__init__.py`` "Items deferred from PR 1 review" for
     why the species-level fallback is used in Phase 1.
@@ -620,9 +659,9 @@ class TestPipelineViaCSV:
         """Worked example expected AGB: 3154.55 lb (DIVISION=240).
 
         With Phase 1's species-level fallback the CSV pipeline lands at
-        ~3151.78 lb — within 0.1% of the worked example. Asserting at 0.5%
-        tolerance gives headroom for re-vendoring rounding noise while still
-        catching any catastrophic CSV corruption or species-level row drift.
+        3151.78 lb — within 0.09% of the worked example. AGB asserted at
+        0.5% tolerance against WO-104; full result vector locked at
+        f64-tight tolerance against the species-level CSV expected values.
 
         Also asserts every component of the bundle was resolved at the
         ``"spcd"`` precedence level (not Jenkins fallback) — catches
@@ -637,12 +676,40 @@ class TestPipelineViaCSV:
         assert bundle.total_agb["source"] == "spcd"
 
         result = predict_tree_biomass(coefficients=bundle, **DOUGFIR_INPUTS)
-        expected = DOUGFIR_EXPECTED["agb_predicted"]
-        rel_err = abs(result.agb - expected) / expected
+
+        # Layer 1: worked-example agreement (the PR contract)
+        expected_worked = DOUGFIR_EXPECTED["agb_predicted"]
+        rel_err = abs(result.agb - expected_worked) / expected_worked
         assert rel_err < 0.005, (
             f"CSV pipeline AGB={result.agb:.4f} differs from worked-example "
-            f"{expected:.4f} by {rel_err * 100:.3f}% (>0.5% tolerance)"
+            f"{expected_worked:.4f} by {rel_err * 100:.3f}% (>0.5% tolerance)"
         )
+
+        # Layer 2: per-CSV regression sentinels (locks all 5 component tables)
+        assert math.isclose(result.agb, DOUGFIR_CSV_EXPECTED["agb"], rel_tol=1e-9), (
+            f"agb={result.agb} drifted from CSV-expected {DOUGFIR_CSV_EXPECTED['agb']}"
+        )
+        assert math.isclose(
+            result.w_wood, DOUGFIR_CSV_EXPECTED["w_wood"], rel_tol=1e-9
+        ), (
+            f"w_wood={result.w_wood} drifted — bark_biomass_spcd or "
+            f"branch_biomass_spcd CSV may have changed"
+        )
+        assert math.isclose(
+            result.w_bark, DOUGFIR_CSV_EXPECTED["w_bark"], rel_tol=1e-9
+        ), f"w_bark={result.w_bark} drifted — bark_biomass_spcd CSV may have changed"
+        assert math.isclose(
+            result.w_branch, DOUGFIR_CSV_EXPECTED["w_branch"], rel_tol=1e-9
+        ), (
+            f"w_branch={result.w_branch} drifted — branch_biomass_spcd CSV "
+            f"may have changed"
+        )
+        assert math.isclose(
+            result.v_wood_ib, DOUGFIR_CSV_EXPECTED["v_wood_ib"], rel_tol=1e-9
+        ), f"v_wood_ib={result.v_wood_ib} drifted — volib_spcd CSV may have changed"
+        assert math.isclose(
+            result.v_bark, DOUGFIR_CSV_EXPECTED["v_bark"], rel_tol=1e-9
+        ), f"v_bark={result.v_bark} drifted — volbk_spcd CSV may have changed"
 
     def test_red_maple_pipeline_via_csv(self):
         """Worked example expected AGB (cull-reduced): 528.14 lb.
@@ -650,7 +717,9 @@ class TestPipelineViaCSV:
         The red maple worked example uses the species-level fallback for
         both volib (Model 1) and total_agb (Model 4), so this test exercises
         the cull-reduction path AND the Model 4 dispatch via the real CSV
-        lookup — not just the equation form.
+        lookup — not just the equation form. Full result vector is locked
+        against the species-level CSV expected constants at f64-tight
+        precision.
         """
         bundle = _bundle_via_csv(spcd=316, jenkins_spgrpcd=8)
         assert bundle.volib["source"] == "spcd"
@@ -662,9 +731,34 @@ class TestPipelineViaCSV:
         assert bundle.total_agb["model"] == 4
 
         result = predict_tree_biomass(coefficients=bundle, **REDMAPLE_INPUTS)
-        expected = REDMAPLE_EXPECTED["agb_predicted_red"]
-        rel_err = abs(result.agb - expected) / expected
+
+        # Layer 1: worked-example agreement (the PR contract)
+        expected_worked = REDMAPLE_EXPECTED["agb_predicted_red"]
+        rel_err = abs(result.agb - expected_worked) / expected_worked
         assert rel_err < 0.005, (
             f"CSV pipeline AGB={result.agb:.4f} differs from worked-example "
-            f"{expected:.4f} by {rel_err * 100:.3f}% (>0.5% tolerance)"
+            f"{expected_worked:.4f} by {rel_err * 100:.3f}% (>0.5% tolerance)"
         )
+
+        # Layer 2: per-CSV regression sentinels (locks all 5 component tables)
+        assert math.isclose(result.agb, REDMAPLE_CSV_EXPECTED["agb"], rel_tol=1e-9), (
+            f"agb={result.agb} drifted from CSV-expected {REDMAPLE_CSV_EXPECTED['agb']}"
+        )
+        assert math.isclose(
+            result.w_wood, REDMAPLE_CSV_EXPECTED["w_wood"], rel_tol=1e-9
+        ), f"w_wood={result.w_wood} drifted from CSV-expected"
+        assert math.isclose(
+            result.w_bark, REDMAPLE_CSV_EXPECTED["w_bark"], rel_tol=1e-9
+        ), f"w_bark={result.w_bark} drifted — bark_biomass_spcd CSV may have changed"
+        assert math.isclose(
+            result.w_branch, REDMAPLE_CSV_EXPECTED["w_branch"], rel_tol=1e-9
+        ), (
+            f"w_branch={result.w_branch} drifted — branch_biomass_spcd CSV "
+            f"may have changed"
+        )
+        assert math.isclose(
+            result.v_wood_ib, REDMAPLE_CSV_EXPECTED["v_wood_ib"], rel_tol=1e-9
+        ), f"v_wood_ib={result.v_wood_ib} drifted — volib_spcd CSV may have changed"
+        assert math.isclose(
+            result.v_bark, REDMAPLE_CSV_EXPECTED["v_bark"], rel_tol=1e-9
+        ), f"v_bark={result.v_bark} drifted — volbk_spcd CSV may have changed"

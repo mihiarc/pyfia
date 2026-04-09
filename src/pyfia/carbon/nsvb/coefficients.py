@@ -74,6 +74,11 @@ def load_nsvb_coefficients() -> CoefficientTables:
     so it works in dev installs, installed wheels, zip-imported wheels, and
     PyOxidizer-style frozen builds without ``__file__`` path tricks.
     """
+    # TODO(PR 2): Pass explicit dtypes={"DIVISION": pl.Utf8, "STDORGCD": pl.Int64}
+    # to pl.read_csv before wiring the ECOSUBCD → DIVISION lookup. Schema
+    # inference currently works because letters appear in the first 10k rows
+    # of every table, but it's fragile under re-vendoring. See
+    # `pyfia/carbon/__init__.py` "Items deferred from PR 1 review".
     data_pkg = resources.files("pyfia.carbon.nsvb.data")
     loaded: dict[str, pl.DataFrame] = {}
     for key, filename in _CSV_FILES.items():
@@ -146,6 +151,10 @@ def lookup_coefficients(
     KeyError
         If neither the SPCD nor any Jenkins fallback can be resolved.
     """
+    # TODO(PR 2): Scalar reference implementation. The vectorized
+    # LiveTreeEstimator must replace per-tree calls with a polars join on
+    # SPCD against the coefficient tables, not call this function in a loop.
+    # See `pyfia/carbon/__init__.py` "Architectural rules" rule 2.
     df = table_spcd.filter(pl.col("SPCD") == spcd)
 
     # Level 1: SPCD + DIVISION + STDORGCD exact match

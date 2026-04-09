@@ -31,6 +31,10 @@ import math
 
 import pytest
 
+from pyfia.carbon.nsvb.coefficients import (
+    load_nsvb_coefficients,
+    lookup_coefficients,
+)
 from pyfia.carbon.nsvb.equations import (
     Coefficients,
     _model_k,
@@ -534,3 +538,133 @@ class TestPredictTreeBiomass:
         assert result.agb > 0
         # Sapling AGB should be much smaller than the 20" mature tree AGB
         assert result.agb < 100  # 20" tree was 3154 lb; 2.5" sapling should be << 100
+
+
+# ---------------------------------------------------------------------------
+# CSV → pipeline regression sentinels (the production data path)
+# ---------------------------------------------------------------------------
+
+
+def _bundle_via_csv(spcd: int, jenkins_spgrpcd: int) -> Coefficients:
+    """Build a ``Coefficients`` bundle by walking the real CSV lookup path.
+
+    This is exactly what PR 2's ``LiveTreeEstimator`` will reach for at
+    runtime (modulo the planned vectorization). Reusing it here ensures the
+    regression sentinels exercise the same code path the production estimator
+    will hit, not a hand-coded shortcut.
+    """
+    tables = load_nsvb_coefficients()
+    return Coefficients(
+        volib=lookup_coefficients(
+            tables.volib_spcd,
+            tables.volib_jenkins,
+            spcd=spcd,
+            jenkins_spgrpcd=jenkins_spgrpcd,
+        ),
+        volbk=lookup_coefficients(
+            tables.volbk_spcd,
+            tables.volbk_jenkins,
+            spcd=spcd,
+            jenkins_spgrpcd=jenkins_spgrpcd,
+        ),
+        bark_bio=lookup_coefficients(
+            tables.bark_biomass_spcd,
+            tables.bark_biomass_jenkins,
+            spcd=spcd,
+            jenkins_spgrpcd=jenkins_spgrpcd,
+        ),
+        branch_bio=lookup_coefficients(
+            tables.branch_biomass_spcd,
+            tables.branch_biomass_jenkins,
+            spcd=spcd,
+            jenkins_spgrpcd=jenkins_spgrpcd,
+        ),
+        total_agb=lookup_coefficients(
+            tables.total_biomass_spcd,
+            tables.total_biomass_jenkins,
+            spcd=spcd,
+            jenkins_spgrpcd=jenkins_spgrpcd,
+        ),
+    )
+
+
+class TestPipelineViaCSV:
+    """End-to-end NSVB pipeline regression vs the worked examples using the
+    actual CSV-loaded coefficients (the production data path).
+
+    Unlike :class:`TestPredictTreeBiomass` above — which uses hand-coded
+    high-precision coefficients to verify the equation form — these tests
+    walk the full ``lookup_coefficients`` → ``predict_tree_biomass`` path so a
+    CSV corruption, schema drift, or species-level row recalibration will
+    fail the suite.
+
+    **Tolerance: 0.5%.** Currently measured agreement is:
+
+    - Douglas-fir (SPCD=202): ~0.09% — Phase 1 uses the species-level
+      (DIVISION=null) row, while the worked example uses DIVISION=240. The
+      species-level row is well-calibrated such that the harmonized AGB
+      lands within 0.1% of the DIVISION=240 result.
+    - Red maple (SPCD=316): ~0.00% — the worked example itself uses the
+      species-level fallback, so the CSV path matches exactly modulo the
+      ~9-significant-figure storage precision in the CSV.
+
+    The 0.5% tolerance leaves ~5x headroom over the Douglas-fir species-level
+    fallback gap. PR 2 (which adds the ``ECOSUBCD → DIVISION`` mapping if
+    PR 3's validation gate flags it) can tighten this if appropriate.
+
+    See ``pyfia/carbon/__init__.py`` "Items deferred from PR 1 review" for
+    why the species-level fallback is used in Phase 1.
+    """
+
+    def test_douglas_fir_pipeline_via_csv(self):
+        """Worked example expected AGB: 3154.55 lb (DIVISION=240).
+
+        With Phase 1's species-level fallback the CSV pipeline lands at
+        ~3151.78 lb — within 0.1% of the worked example. Asserting at 0.5%
+        tolerance gives headroom for re-vendoring rounding noise while still
+        catching any catastrophic CSV corruption or species-level row drift.
+
+        Also asserts every component of the bundle was resolved at the
+        ``"spcd"`` precedence level (not Jenkins fallback) — catches
+        mis-routing through Level 4 if the SPCD-keyed tables get truncated.
+        """
+        bundle = _bundle_via_csv(spcd=202, jenkins_spgrpcd=10)
+        # Every component must hit the species-level row, not the Jenkins fallback
+        assert bundle.volib["source"] == "spcd"
+        assert bundle.volbk["source"] == "spcd"
+        assert bundle.bark_bio["source"] == "spcd"
+        assert bundle.branch_bio["source"] == "spcd"
+        assert bundle.total_agb["source"] == "spcd"
+
+        result = predict_tree_biomass(coefficients=bundle, **DOUGFIR_INPUTS)
+        expected = DOUGFIR_EXPECTED["agb_predicted"]
+        rel_err = abs(result.agb - expected) / expected
+        assert rel_err < 0.005, (
+            f"CSV pipeline AGB={result.agb:.4f} differs from worked-example "
+            f"{expected:.4f} by {rel_err * 100:.3f}% (>0.5% tolerance)"
+        )
+
+    def test_red_maple_pipeline_via_csv(self):
+        """Worked example expected AGB (cull-reduced): 528.14 lb.
+
+        The red maple worked example uses the species-level fallback for
+        both volib (Model 1) and total_agb (Model 4), so this test exercises
+        the cull-reduction path AND the Model 4 dispatch via the real CSV
+        lookup — not just the equation form.
+        """
+        bundle = _bundle_via_csv(spcd=316, jenkins_spgrpcd=8)
+        assert bundle.volib["source"] == "spcd"
+        assert bundle.volbk["source"] == "spcd"
+        assert bundle.bark_bio["source"] == "spcd"
+        assert bundle.branch_bio["source"] == "spcd"
+        assert bundle.total_agb["source"] == "spcd"
+        # Critical regression: total_agb for SPCD=316 must dispatch to Model 4
+        assert bundle.total_agb["model"] == 4
+
+        result = predict_tree_biomass(coefficients=bundle, **REDMAPLE_INPUTS)
+        expected = REDMAPLE_EXPECTED["agb_predicted_red"]
+        rel_err = abs(result.agb - expected) / expected
+        assert rel_err < 0.005, (
+            f"CSV pipeline AGB={result.agb:.4f} differs from worked-example "
+            f"{expected:.4f} by {rel_err * 100:.3f}% (>0.5% tolerance)"
+        )

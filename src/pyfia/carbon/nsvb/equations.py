@@ -352,6 +352,10 @@ def predict_tree_biomass(
         If a coefficient row specifies a Model 3 or Model 6 (not implemented
         in Phase 1).
     """
+    # TODO(PR 2): Scalar reference implementation. PR 2's LiveTreeEstimator
+    # must implement this pipeline as polars expressions on a LazyFrame
+    # joined to the coefficient tables on SPCD, not by calling this function
+    # per tree. See `pyfia/carbon/__init__.py` "Architectural rules" rule 2.
     # Step 1: Total stem inside-bark wood volume (cubic feet)
     v_wood_ib = _eval_component(coefficients.volib, dia, ht, spcd, wdsg)
 

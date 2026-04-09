@@ -40,6 +40,7 @@ from .nsvb.carbon_fractions import (
     _compute_default_live_carbon_fraction,
     load_carbon_fractions_live_df,
 )
+from .nsvb.coefficients import ecosubcd_to_division
 from .nsvb.equations import compute_nsvb_biomass
 
 logger = logging.getLogger(__name__)
@@ -55,6 +56,13 @@ class LiveTreeEstimator(BaseEstimator):
     pipeline and does the per-tree biomass → carbon conversion) and in the
     column mapping used by :meth:`format_output`.
 
+    Reference tables (``REF_SPECIES``, ``PLOTGEOM``) are loaded inside
+    :meth:`calculate_values` rather than via :meth:`get_required_tables`
+    because pyfia's :class:`~pyfia.estimation.data_loading.DataLoader` only
+    knows how to wire ``TREE``/``COND``/``PLOT`` join graphs. ``PLOTGEOM``
+    in particular powers the Phase 1.5 ``ECOSUBCD → DIVISION`` lookup that
+    activates Level 2 of the NSVB coefficient precedence.
+
     Config keys consumed from ``self.config``:
 
     - ``pool`` : ``"ag"`` | ``"bg"`` | ``"total"`` — which live tree carbon
@@ -68,14 +76,22 @@ class LiveTreeEstimator(BaseEstimator):
 
     def __init__(self, db: str | FIA, config: dict) -> None:
         super().__init__(db, config)
+        # PLOTGEOM cache: ``None`` = not yet loaded, an empty DataFrame =
+        # tried-and-failed sentinel (so we don't retry per call), a non-empty
+        # DataFrame = the loaded ``(PLT_CN, ECOSUBCD)`` lookup.
+        self._plotgeom_cache: pl.DataFrame | None = None
 
     def get_required_tables(self) -> list[str]:
         """Live tree carbon requires tree, condition, and stratification tables.
 
-        ``REF_SPECIES`` is loaded separately inside :meth:`calculate_values`
-        because pyFIA's DataLoader does not support reference tables as
-        part of the main join; we need ``JENKINS_SPGRPCD`` and
-        ``WOOD_SPGR_GREENVOL_DRYWT`` from it for the NSVB pipeline.
+        ``REF_SPECIES`` and ``PLOTGEOM`` are loaded separately inside
+        :meth:`calculate_values` (via :meth:`_load_ref_species` and
+        :meth:`_load_plotgeom`) because pyFIA's DataLoader does not know how
+        to plumb reference / spatial tables into the standard tree-cond-plot
+        join graph. ``REF_SPECIES`` provides ``JENKINS_SPGRPCD`` and
+        ``WOOD_SPGR_GREENVOL_DRYWT`` for the NSVB pipeline; ``PLOTGEOM``
+        provides ``ECOSUBCD`` for the Phase 1.5 DIVISION lookup that
+        activates Level 2 of the NSVB coefficient precedence.
         """
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
@@ -134,21 +150,78 @@ class LiveTreeEstimator(BaseEstimator):
         self._ref_species_cache = df
         return df
 
+    def _load_plotgeom(self) -> pl.DataFrame | None:
+        """Load ``PLOTGEOM.ECOSUBCD`` for the Phase 1.5 DIVISION lookup.
+
+        Reads ``CN`` and ``ECOSUBCD`` from ``PLOTGEOM``, renames ``CN`` to
+        ``PLT_CN`` for the downstream tree join, deduplicates by ``PLT_CN``,
+        and caches the result on the instance.
+
+        Returns ``None`` (and logs a one-shot warning) if the database does
+        not have a ``PLOTGEOM`` table — typically older test databases that
+        were downloaded before ``PLOTGEOM`` was added to
+        :data:`pyfia.downloader.tables.COMMON_TABLES`. In that case
+        :meth:`calculate_values` skips the ``DIVISION`` join and the NSVB
+        pipeline falls back to species-level + Jenkins coefficient lookups
+        (Phase 1 behavior, ~3% high biomass bias on growing-stock trees).
+
+        The negative result is cached as an empty DataFrame sentinel so we
+        don't retry the failing read on every call.
+        """
+        if self._plotgeom_cache is not None:
+            # Cached: empty df = tried-and-failed sentinel; otherwise the
+            # real lookup table.
+            return self._plotgeom_cache if self._plotgeom_cache.height > 0 else None
+
+        try:
+            df = self.db._reader.read_table(
+                "PLOTGEOM",
+                columns=["CN", "ECOSUBCD"],
+            )
+        except Exception as exc:  # noqa: BLE001 — backend-specific errors vary
+            logger.warning(
+                "PLOTGEOM not available (%s) — Phase 1.5 DIVISION lookup "
+                "disabled, falling back to Phase 1 species-level + Jenkins "
+                "coefficient precedence (~3%% high biomass bias on "
+                "growing-stock trees). To enable the DIVISION lookup, "
+                "re-download the database via pyfia.download() to pull the "
+                "PLOTGEOM table (added to COMMON_TABLES in Phase 1.5).",
+                exc,
+            )
+            self._plotgeom_cache = pl.DataFrame()  # negative sentinel
+            return None
+
+        if hasattr(df, "collect"):
+            df = df.collect()
+        df = df.select(
+            [
+                pl.col("CN").alias("PLT_CN"),
+                pl.col("ECOSUBCD"),
+            ]
+        ).unique(subset=["PLT_CN"])  # belt-and-braces against duplicate plot rows
+        self._plotgeom_cache = df
+        return df
+
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Run the NSVB pipeline and produce per-acre carbon columns.
 
         Steps:
 
         1. Join ``REF_SPECIES`` for ``WDSG`` and ``JENKINS_SPGRPCD``.
-        2. Filter out any trees with ``DIA < 1.0`` (the NSVB parameter
+        2. (Phase 1.5) Join ``PLOTGEOM`` on ``PLT_CN`` and derive ``DIVISION``
+           from ``ECOSUBCD`` via :func:`ecosubcd_to_division`. This activates
+           Level 2 of the NSVB lookup precedence inside
+           :func:`compute_nsvb_biomass`. Skipped silently when ``PLOTGEOM``
+           is missing from the database (older test databases).
+        3. Filter out any trees with ``DIA < 1.0`` (the NSVB parameter
            space starts at 1.0 inch; anything below would produce
            numerically unsafe values).
-        3. Call :func:`compute_nsvb_biomass` to get ``agb`` (lb) per tree.
-        4. Join ``CARBON_FRAC_LIVE`` from S10a and compute
+        4. Call :func:`compute_nsvb_biomass` to get ``agb`` (lb) per tree.
+        5. Join ``CARBON_FRAC_LIVE`` from S10a and compute
            ``CARBON_AG = agb × CARBON_FRAC_LIVE``.
-        5. For ``pool in ("bg", "total")``, bridge to FIADB ``CARBON_BG``
+        6. For ``pool in ("bg", "total")``, bridge to FIADB ``CARBON_BG``
            directly and include it in the total.
-        6. Convert lb → short tons and multiply by ``TPA_UNADJ`` to get
+        7. Convert lb → short tons and multiply by ``TPA_UNADJ`` to get
            per-acre carbon.
         """
         pool = self.config.get("pool", "ag").lower()
@@ -165,6 +238,22 @@ class LiveTreeEstimator(BaseEstimator):
         # Step 1: Join REF_SPECIES for WDSG + JENKINS_SPGRPCD
         ref_species = self._load_ref_species()
         data = data.join(ref_species.lazy(), on="SPCD", how="left")
+
+        # Step 1b (Phase 1.5): Join PLOTGEOM and derive DIVISION. This adds
+        # a ``DIVISION`` column to the trees frame, which compute_nsvb_biomass
+        # auto-detects to activate Level 2 (SPCD + DIVISION) of the NSVB
+        # coefficient precedence — closing the ~3% growing-stock biomass bias
+        # that the species-level-only fallback produces. When PLOTGEOM is
+        # missing, we silently skip the join and the NSVB pipeline falls
+        # back to Phase 1 species-level + Jenkins lookups.
+        plotgeom = self._load_plotgeom()
+        if plotgeom is not None:
+            data = data.join(plotgeom.lazy(), on="PLT_CN", how="left")
+            data = data.with_columns(
+                pl.col("ECOSUBCD")
+                .map_elements(ecosubcd_to_division, return_dtype=pl.Utf8)
+                .alias("DIVISION")
+            )
 
         # Step 2: Filter out sub-inch trees (NSVB not parameterized below 1.0")
         # This is a hard floor; the standard FIA tally threshold is 1.0" d.b.h.
@@ -501,6 +590,11 @@ def live_tree(
     - REF_SPECIES: SPCD, JENKINS_SPGRPCD, WOOD_SPGR_GREENVOL_DRYWT
     - POP_PLOT_STRATUM_ASSGN: PLT_CN, STRATUM_CN
     - POP_STRATUM: CN, EXPNS, ADJ_FACTOR_*
+    - PLOTGEOM (optional): CN, ECOSUBCD — used to derive Bailey ``DIVISION``
+      and activate the Phase 1.5 Level 2 NSVB coefficient lookup. When the
+      table is absent, the estimator silently falls back to species-level +
+      Jenkins coefficient precedence (Phase 1 behavior, ~3% high biomass
+      bias on growing-stock trees).
 
     Raises
     ------

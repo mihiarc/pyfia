@@ -51,10 +51,26 @@ rotten-cull trees.
   median rel_err 4.87% → 3.55%, biomass ratio median 1.0179 → **1.0000
   exact**, within-1% coverage 34% → 43%.
 
-- *PLOTGEOM in COMMON_TABLES* (this commit): adds ``PLOTGEOM`` to
+- *PLOTGEOM in COMMON_TABLES* (commit ``ecd5128``): adds ``PLOTGEOM`` to
   ``pyfia.downloader.tables.COMMON_TABLES`` so fresh ``pyfia.download()``
   calls pull ECOSUBCD automatically; avoids the one-off import script that
   the Phase 1.5 validation test previously required.
+
+- *Phase 1.7 — ECOSUBCD wired into ``LiveTreeEstimator``* (this commit):
+  :meth:`pyfia.carbon.live_tree.LiveTreeEstimator.calculate_values` now
+  loads ``PLOTGEOM`` via the new ``_load_plotgeom`` helper, joins on
+  ``PLT_CN``, and adds a ``DIVISION`` column derived from ``ECOSUBCD``
+  before calling :func:`compute_nsvb_biomass`. The production
+  ``pyfia.carbon.live_tree()`` API now benefits from the same Level 2
+  lookup that the validation test was exercising directly, closing the
+  Phase 1 ~3.2% growing-stock bias on the production estimator path.
+  ``PLOTGEOM`` is loaded out-of-band (not via
+  :meth:`get_required_tables`) because pyfia's
+  :class:`~pyfia.estimation.data_loading.DataLoader` doesn't have a slot
+  for spatial / reference tables in its TREE/COND/PLOT join graph; the
+  estimator falls back gracefully (logs a one-shot warning, runs at
+  Phase 1 quality) when ``PLOTGEOM`` is missing from older test
+  databases.
 
 **Still pending in Phase 1.5:**
 
@@ -73,23 +89,6 @@ rotten-cull trees.
   likely a TREECLCD-based dispatch or a different DensProp model for
   rotten cull. This disagreement dominates the p99/max tail of the
   validation but only affects ~9,354 trees (0.75%) in the Georgia sample.
-
-- **Thread ECOSUBCD through ``LiveTreeEstimator.calculate_values``
-  (Phase 1.7)**: the DIVISION lookup landed as coefficient+pipeline
-  infrastructure and is exercised by the validation test directly, but
-  ``LiveTreeEstimator`` does not yet load ``PLOTGEOM`` in
-  :meth:`get_required_tables`, does not join it in
-  :meth:`calculate_values`, and does not build a ``DIVISION`` column on
-  the trees LazyFrame. Consequently the production estimator path —
-  what ``pyfia.carbon.live_tree()`` calls, what the smoke tests in
-  ``tests/unit/test_live_tree_estimator.py::TestLiveTreeEndToEnd``
-  exercise — still sees the Phase 1 3.2% growing-stock bias. Wiring
-  this is a ~20-line change in ``live_tree.py`` (add ``PLOTGEOM`` to
-  ``get_required_tables``, join on ``PLT_CN``, map ECOSUBCD→DIVISION).
-  The bigger effort is deciding how ``DataLoader`` loads ``PLOTGEOM``,
-  because ``PLOTGEOM`` doesn't fit the standard condition/tree/plot
-  join graph — ``DataLoader.load_data`` currently does not know about
-  ``PLOTGEOM``.
 
 Phase 2+ — deferred
 -------------------

@@ -153,6 +153,15 @@ class LiveTreeEstimator(BaseEstimator):
         """
         pool = self.config.get("pool", "ag").lower()
 
+        # Normalize SPCD dtype before any joins. The NSVB coefficient tables
+        # (volib_spcd, volbk_spcd, …) and REF_SPECIES are all keyed on Int64
+        # SPCD, but FIA CSV dumps frequently load TREE.SPCD as Float64 because
+        # DuckDB's read_csv_auto infers Float64 whenever the source data
+        # contains a null in what is otherwise an integer column. A Float64
+        # vs Int64 join key triggers a polars SchemaError with no automatic
+        # cast, so we cast the trees frame to Int64 up front once.
+        data = data.with_columns(pl.col("SPCD").cast(pl.Int64))
+
         # Step 1: Join REF_SPECIES for WDSG + JENKINS_SPGRPCD
         ref_species = self._load_ref_species()
         data = data.join(ref_species.lazy(), on="SPCD", how="left")

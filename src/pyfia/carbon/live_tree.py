@@ -20,6 +20,8 @@ examples, and the pool semantics.
 
 from __future__ import annotations
 
+import logging
+
 import polars as pl
 
 from ..core import FIA
@@ -39,6 +41,8 @@ from .nsvb.carbon_fractions import (
     load_carbon_fractions_live_df,
 )
 from .nsvb.equations import compute_nsvb_biomass
+
+logger = logging.getLogger(__name__)
 
 
 class LiveTreeEstimator(BaseEstimator):
@@ -254,14 +258,9 @@ class LiveTreeEstimator(BaseEstimator):
             use_grm_adjustment=False,
         )
 
-        # Standard output naming: CARBON_ACRE / CARBON_TOTAL (per-acre /
-        # population total), matching the convention used by pyfia.carbon.carbon().
-        results = results.rename(
-            {
-                "CARBON_ACRE": "CARBON_ACRE",  # unchanged
-                "CARBON_TOTAL": "CARBON_TOTAL",  # unchanged
-            }
-        )
+        # CARBON_ACRE / CARBON_TOTAL are already the canonical names produced
+        # by _apply_two_stage_aggregation from the CARBON_ADJ metric mapping;
+        # no rename needed.
 
         if not self.config.get("totals", True):
             if "CARBON_TOTAL" in results.columns:
@@ -588,6 +587,29 @@ def live_tree(
 
     try:
         estimator = LiveTreeEstimator(db, config)
+        # Best-effort cross-era warning: pool='total' sums NSVB-recomputed AG
+        # with FIADB TREE.CARBON_BG. For pre-NSVB inventories (before the
+        # Sep 2023 framework transition), CARBON_BG was computed via legacy
+        # Jenkins-based allometry, so the sum is a cross-era methodological
+        # mix. Warning only — doesn't block estimation, and wrapped in a
+        # try/except so a year-lookup failure never breaks the caller.
+        if pool == "total":
+            try:
+                year = estimator._extract_evaluation_year()
+                if int(year) < 2024:
+                    logger.warning(
+                        "live_tree(pool='total'): selected EVALID year (%d) "
+                        "pre-dates the NSVB framework transition "
+                        "(September 2023). The BG bridge reads FIADB "
+                        "TREE.CARBON_BG directly, which for pre-NSVB "
+                        "inventories was computed via legacy Jenkins-based "
+                        "allometry — combining it with NSVB-recomputed AG "
+                        "may produce cross-era inconsistencies. Use "
+                        "pool='ag' if you need NSVB-only consistency.",
+                        int(year),
+                    )
+            except Exception:
+                pass  # best-effort; year lookup failure must not break estimation
         return estimator.estimate()
     finally:
         if owns_db and hasattr(db, "close"):

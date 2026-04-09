@@ -111,6 +111,17 @@ def build_species_level_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
     precedence) are deliberately dropped because Phase 1 has no
     ``PLOT.ECOSUBCD → DIVISION`` mapping.
 
+    Also drops Model 2 / Model 4 rows with a null ``b1`` as a defensive
+    measure. In the downstream ``_join_and_eval_component`` coalesce, a
+    null ``b1`` on the species-level side would silently fall back to the
+    Jenkins ``b1=0.0`` synthetic value and corrupt the Model 2/4 math
+    row-wise. The current vendored CSVs have no such rows (all null
+    ``b1`` entries are on Model 1 rows, which do not consume ``b1``),
+    so this filter is a no-op today. It is a regression guard against
+    future CSV re-vendor drift: a rogue null ``b1`` on a Model 2/4 row
+    will be dropped here and the SPCD will fall through to Jenkins as a
+    whole, rather than silently producing wrong per-row math.
+
     Parameters
     ----------
     table_spcd : pl.DataFrame
@@ -124,7 +135,9 @@ def build_species_level_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
         species-level entry in the source table.
     """
     return table_spcd.filter(
-        pl.col("DIVISION").is_null() & pl.col("STDORGCD").is_null()
+        pl.col("DIVISION").is_null()
+        & pl.col("STDORGCD").is_null()
+        & ~(pl.col("model").is_in([2, 4]) & pl.col("b1").is_null())
     ).select(["SPCD", *_VECTORIZED_COEF_COLS])
 
 

@@ -539,6 +539,43 @@ class TestPredictTreeBiomass:
         # Sapling AGB should be much smaller than the 20" mature tree AGB
         assert result.agb < 100  # 20" tree was 3154 lb; 2.5" sapling should be << 100
 
+    def test_hw_sw_casing_normalized(self):
+        """hw_sw is accepted case-insensitively.
+
+        Addresses PR 1 review item: previously ``"Hardwood"`` raised KeyError
+        inside ``_CULL_DENS_PROP[hw_sw]``. Now normalized to lowercase at the
+        function boundary so callers don't have to think about casing.
+        """
+        # "Softwood" (title case) should produce the same result as "softwood"
+        base = predict_tree_biomass(coefficients=DOUGFIR_COEFS, **DOUGFIR_INPUTS)
+        title_inputs = dict(DOUGFIR_INPUTS)
+        title_inputs["hw_sw"] = "Softwood"
+        titled = predict_tree_biomass(coefficients=DOUGFIR_COEFS, **title_inputs)
+        assert titled.agb == base.agb
+
+        upper_inputs = dict(DOUGFIR_INPUTS)
+        upper_inputs["hw_sw"] = "SOFTWOOD"
+        upper = predict_tree_biomass(coefficients=DOUGFIR_COEFS, **upper_inputs)
+        assert upper.agb == base.agb
+
+    def test_invalid_hw_sw_raises_clear_error(self):
+        """An invalid hw_sw string raises ValueError with a clear message."""
+        bad_inputs = dict(DOUGFIR_INPUTS)
+        bad_inputs["hw_sw"] = "conifer"
+        with pytest.raises(ValueError, match="hw_sw must be"):
+            predict_tree_biomass(coefficients=DOUGFIR_COEFS, **bad_inputs)
+
+    def test_dia_below_one_raises_clear_error(self):
+        """dia < 1.0 raises ValueError with a clear message.
+
+        Addresses PR 1 review item: previously dia<1 could produce complex
+        numbers or cryptic TypeErrors inside the Model 1 power form.
+        """
+        small_inputs = dict(DOUGFIR_INPUTS)
+        small_inputs["dia"] = 0.5
+        with pytest.raises(ValueError, match="dia must be >= 1.0"):
+            predict_tree_biomass(coefficients=DOUGFIR_COEFS, **small_inputs)
+
 
 # ---------------------------------------------------------------------------
 # CSV → pipeline regression sentinels (the production data path)

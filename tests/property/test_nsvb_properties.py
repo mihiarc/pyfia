@@ -187,8 +187,14 @@ def test_model_1_monotonic_in_d(d_lo, d_hi, h, a, b, c):
 
     Models with b > 0 (the universal case in the NSVB tables) must satisfy
     ``y(D_lo, H) < y(D_hi, H)`` whenever ``D_lo < D_hi``.
+
+    Note on the 1e-6 gap: the strict-inequality assertion holds mathematically
+    but fails at floating-point ULP-level differences (e.g., d_lo=1.0 and
+    d_hi=1.0000000000000002 map to indistinguishable f64 outputs). We only
+    test the property when the two diameters differ by at least 1e-6 inches,
+    which is well below any meaningful tree-measurement precision.
     """
-    assume(d_lo != d_hi)
+    assume(abs(d_hi - d_lo) > 1e-6)
     lo, hi = sorted([d_lo, d_hi])
     y_lo = model_1(lo, h, a, b, c)
     y_hi = model_1(hi, h, a, b, c)
@@ -210,8 +216,11 @@ def test_model_1_monotonic_in_h_when_c_positive(d, h_lo, h_hi, a, b, c):
     Note that c can be negative for some components (e.g., branch biomass
     has c≈-0.41 — branch mass declines with height for fixed DBH). This test
     only covers the positive-c case; the negative-c case is the dual.
+
+    Uses a 1e-6 ft minimum gap between heights for the same f64-ULP reason
+    documented in ``test_model_1_monotonic_in_d``.
     """
-    assume(h_lo != h_hi)
+    assume(abs(h_hi - h_lo) > 1e-6)
     lo, hi = sorted([h_lo, h_hi])
     y_lo = model_1(d, lo, a, b, c)
     y_hi = model_1(d, hi, a, b, c)

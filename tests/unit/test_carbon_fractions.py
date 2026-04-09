@@ -14,6 +14,8 @@ from __future__ import annotations
 
 import logging
 
+import polars as pl
+
 from pyfia.carbon.nsvb import carbon_fractions
 from pyfia.carbon.nsvb.carbon_fractions import (
     DEFAULT_LIVE_CARBON_FRACTION,
@@ -21,6 +23,7 @@ from pyfia.carbon.nsvb.carbon_fractions import (
     get_carbon_fraction_live,
     load_carbon_fractions_dead,
     load_carbon_fractions_live,
+    load_carbon_fractions_live_df,
 )
 
 
@@ -101,14 +104,77 @@ class TestGetCarbonFractionLive:
         assert warning_count == 1
 
     def test_default_fallback_value(self):
-        """The default fallback is the documented national mean."""
-        # Per spec section 3.1.2: ~0.4716
-        assert abs(DEFAULT_LIVE_CARBON_FRACTION - 0.4716) < 1e-4
+        """The default fallback is the S10a arithmetic mean.
+
+        Computed lazily from the vendored S10a table on first access (PEP 562
+        ``__getattr__``). The value tracks the CSV so a future re-vendor
+        automatically updates the constant — this is the regression guard
+        against the hardcoded 0.4716 value that had drifted from the actual
+        table mean (~0.4741).
+        """
+        # Matches GTR-WO-104 "live ~47.4% mean" notation.
+        assert 0.47 < DEFAULT_LIVE_CARBON_FRACTION < 0.48
+        # Must exactly equal the arithmetic mean of the loaded dict.
+        table = load_carbon_fractions_live()
+        expected = sum(table.values()) / len(table)
+        assert DEFAULT_LIVE_CARBON_FRACTION == expected
 
     def test_custom_fallback(self):
         """Caller can override the fallback value."""
         result = get_carbon_fraction_live(99997, fallback=0.50)
         assert result == 0.50
+
+
+class TestLoadCarbonFractionsLiveDf:
+    """S10a polars loader: the join-ready DataFrame used by the vectorized path."""
+
+    def test_returns_polars_dataframe(self):
+        result = load_carbon_fractions_live_df()
+        assert isinstance(result, pl.DataFrame)
+
+    def test_columns(self):
+        """Schema is exactly (SPCD Int64, CARBON_FRAC_LIVE Float64)."""
+        result = load_carbon_fractions_live_df()
+        assert result.columns == ["SPCD", "CARBON_FRAC_LIVE"]
+        assert result.schema["SPCD"] == pl.Int64
+        assert result.schema["CARBON_FRAC_LIVE"] == pl.Float64
+
+    def test_matches_dict_loader(self):
+        """The DataFrame loader must agree with the dict loader row-for-row.
+
+        Both loaders consume the same vendored CSV, so every SPCD in one
+        must appear in the other with the same float value. This catches
+        drift if someone modifies one loader without the other.
+        """
+        df = load_carbon_fractions_live_df()
+        table = load_carbon_fractions_live()
+        assert df.height == len(table)
+        for row in df.iter_rows(named=True):
+            assert row["SPCD"] in table
+            assert abs(row["CARBON_FRAC_LIVE"] - table[row["SPCD"]]) < 1e-12
+
+    def test_percent_to_decimal_conversion(self):
+        """Values are in decimal form (e.g., 0.4804), not percent (48.04)."""
+        df = load_carbon_fractions_live_df()
+        # All fractions should be in the [0.3, 0.7] range
+        assert df["CARBON_FRAC_LIVE"].min() > 0.3
+        assert df["CARBON_FRAC_LIVE"].max() < 0.7
+
+    def test_lru_cache_returns_same_instance(self):
+        first = load_carbon_fractions_live_df()
+        second = load_carbon_fractions_live_df()
+        assert first is second
+
+    def test_join_ready(self):
+        """The loader output is suitable for a left join to a trees frame."""
+        df = load_carbon_fractions_live_df()
+        trees = pl.DataFrame({"SPCD": [202, 316, 99999]})
+        joined = trees.join(df, on="SPCD", how="left")
+        # Douglas-fir and red maple should have non-null CARBON_FRAC_LIVE
+        assert joined.filter(pl.col("SPCD") == 202)["CARBON_FRAC_LIVE"][0] is not None
+        assert joined.filter(pl.col("SPCD") == 316)["CARBON_FRAC_LIVE"][0] is not None
+        # Unknown SPCD should have null (caller fills with DEFAULT)
+        assert joined.filter(pl.col("SPCD") == 99999)["CARBON_FRAC_LIVE"][0] is None
 
 
 class TestLoadCarbonFractionsDead:

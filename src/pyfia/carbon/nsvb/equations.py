@@ -45,6 +45,12 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from typing import TYPE_CHECKING, Literal
+
+import polars as pl
+
+if TYPE_CHECKING:
+    from pyfia.carbon.nsvb.coefficients import VectorizedLookupTables
 
 # Sawlog top-diameter cutoffs that double as the Model 2 ``k`` constant.
 # Per worked example line 462: softwood top diameter is 7-9 inches and hardwood is
@@ -285,7 +291,7 @@ def predict_tree_biomass(
     ht: float,
     coefficients: Coefficients,
     wdsg: float,
-    hw_sw: str,
+    hw_sw: Literal["hardwood", "softwood"],
     cull: float = 0.0,
 ) -> TreeBiomassResult:
     """Run the full NSVB per-tree biomass pipeline for one live tree.
@@ -333,8 +339,15 @@ def predict_tree_biomass(
     wdsg : float
         Wood specific gravity (green volume, dry weight) from FIADB
         ``REF_SPECIES.WOOD_SPGR_GREENVOL_DRYWT``.
-    hw_sw : str
-        ``"hardwood"`` or ``"softwood"`` — controls the cull density proportion.
+    hw_sw : {"hardwood", "softwood"}
+        Hardwood/softwood classification for the cull density proportion.
+        Case-insensitive at runtime (``"Hardwood"`` and ``"HARDWOOD"`` are
+        accepted and normalized). Callers should derive this from
+        ``"softwood" if spcd < 300 else "hardwood"`` to stay consistent with
+        :func:`_model_k`, which uses the same SPCD threshold to select the
+        Model 2 base constant. This rule also resolves the SPCD=10 ("fir spp.")
+        edge case — S10a misclassifies SPCD=10 as hardwood, but the SPCD<300
+        rule correctly classifies it as softwood.
     cull : float, default 0.0
         Cull percentage from FIADB ``TREE.CULL`` (0-100). Defaults to 0 for
         live trees with no cull.
@@ -349,6 +362,11 @@ def predict_tree_biomass(
     Raises
     ------
     ValueError
+        If ``dia < 1.0`` (NSVB is not parameterized below the FIA minimum
+        tally diameter of 1.0 inch, and some Model 1 forms would produce
+        complex-number results for d<1 with fractional b).
+        If ``hw_sw`` is not one of ``"hardwood"``/``"softwood"`` (after
+        case-insensitive normalization).
         If a coefficient row specifies a Model 3 or Model 6 (not implemented
         in Phase 1).
     """
@@ -356,6 +374,21 @@ def predict_tree_biomass(
     # must implement this pipeline as polars expressions on a LazyFrame
     # joined to the coefficient tables on SPCD, not by calling this function
     # per tree. See `pyfia/carbon/__init__.py` "Architectural rules" rule 2.
+
+    # Boundary validation — give clear errors instead of letting the math
+    # functions raise cryptic complex-number TypeErrors or KeyErrors.
+    if dia < 1.0:
+        raise ValueError(
+            f"dia must be >= 1.0 inches (FIA minimum tally diameter); got {dia}. "
+            "NSVB Models 1-5 are not parameterized below 1.0 and can produce "
+            "complex-number results for fractional b exponents."
+        )
+    hw_sw_norm = hw_sw.lower()
+    if hw_sw_norm not in ("hardwood", "softwood"):
+        raise ValueError(
+            f"hw_sw must be 'hardwood' or 'softwood' (case-insensitive); got {hw_sw!r}"
+        )
+
     # Step 1: Total stem inside-bark wood volume (cubic feet)
     v_wood_ib = _eval_component(coefficients.volib, dia, ht, spcd, wdsg)
 
@@ -363,7 +396,7 @@ def predict_tree_biomass(
     v_bark = _eval_component(coefficients.volbk, dia, ht, spcd, wdsg)
 
     # Step 3-4: Convert wood volume to weight, with cull-reduced variant
-    dens_prop = _CULL_DENS_PROP[hw_sw]
+    dens_prop = _CULL_DENS_PROP[hw_sw_norm]
     w_wood_gross = v_wood_ib * wdsg * 62.4
     w_wood_red = v_wood_ib * (1.0 - cull / 100.0 * (1.0 - dens_prop)) * wdsg * 62.4
 
@@ -401,4 +434,378 @@ def predict_tree_biomass(
         agb=w_wood_h + w_bark_h + w_branch_h,
         v_wood_ib=v_wood_ib,
         v_bark=v_bark,
+    )
+
+
+# ---------------------------------------------------------------------------
+# Vectorized NSVB pipeline (PR 2) — the production data path.
+# ---------------------------------------------------------------------------
+#
+# The functions above (``predict_tree_biomass`` and ``_eval_component``) are
+# scalar reference implementations retained as test oracles. The functions
+# below replicate the same math as polars expressions over a LazyFrame,
+# enabling FIA-scale (1M+ trees) evaluation via coefficient-table joins
+# instead of per-tree Python dispatch. See ``pyfia/carbon/__init__.py``
+# "Architectural rules" rule 2.
+
+
+def nsvb_biomass_expr(
+    *,
+    model: pl.Expr,
+    a: pl.Expr,
+    b: pl.Expr,
+    b1: pl.Expr,
+    c: pl.Expr,
+    d: pl.Expr,
+    h: pl.Expr,
+    spcd: pl.Expr,
+    wdsg: pl.Expr,
+) -> pl.Expr:
+    """Build a polars expression that dispatches NSVB Models 1/2/4/5.
+
+    The scalar equivalent of this function is :func:`_eval_component`.
+    It returns a single expression suitable for use inside
+    ``LazyFrame.with_columns`` that produces the predicted component value
+    (volume or biomass, in source-table units) for every row, with the
+    model form selected per-row from the ``model`` column.
+
+    Models 3 and 6 are not implemented in Phase 1; rows dispatching to
+    those return ``None`` which will surface as a null downstream. The
+    orchestrator :func:`compute_nsvb_biomass` asserts that no nulls appear
+    in the output columns, so an unsupported model becomes a loud failure.
+
+    The Model 2 base constant ``k`` is ``11`` for hardwoods (SPCD >= 300)
+    and ``9`` for softwoods, matching :func:`_model_k` used by the scalar
+    path. This also resolves the SPCD=10 misclassification that S10a
+    carries — see ``pyfia/carbon/__init__.py`` for the architectural
+    discussion.
+
+    Parameters
+    ----------
+    model, a, b, b1, c : pl.Expr
+        Coefficient column expressions (typically the output of a coalesce
+        across species-level + Jenkins lookup joins, or ``pl.col(...)``
+        references to pre-joined coefficient columns). All numeric
+        coefficient columns must be ``Float64``; ``model`` must be an
+        integer dtype.
+    d, h : pl.Expr
+        Diameter at breast height (inches) and total height (feet) column
+        expressions. Must be ``Float64``.
+    spcd : pl.Expr
+        Species code column expression used to select the Model 2 ``k``
+        constant via the ``SPCD < 300`` rule.
+    wdsg : pl.Expr
+        Wood specific gravity column expression (``REF_SPECIES.WOOD_SPGR_GREENVOL_DRYWT``).
+        Used only by Model 5.
+
+    Returns
+    -------
+    pl.Expr
+        An expression that evaluates to the predicted quantity (volume or
+        biomass) in source-table units (cubic feet or pounds). Call
+        ``.alias("v_wood_ib")`` (or similar) to name the output column.
+    """
+    k = (
+        pl.when(spcd >= _HARDWOOD_SPCD_THRESHOLD)
+        .then(_K_HARDWOOD)
+        .otherwise(_K_SOFTWOOD)
+    )
+    return (
+        pl.when(model == 1)
+        .then(a * d.pow(b) * h.pow(c))
+        .when(model == 2)
+        .then(a * k.pow(b - b1) * d.pow(b1) * h.pow(c))
+        .when(model == 4)
+        .then(a * d.pow(b) * h.pow(c) * (-b1 * d).exp())
+        .when(model == 5)
+        .then(a * d.pow(b) * h.pow(c) * wdsg)
+        .otherwise(None)
+    )
+
+
+def _join_and_eval_component(
+    trees: pl.LazyFrame,
+    spcd_table: pl.DataFrame,
+    jen_table: pl.DataFrame,
+    out_col: str,
+) -> pl.LazyFrame:
+    """Join a LazyFrame to one (species-level, Jenkins) coefficient pair and
+    evaluate the NSVB biomass expression for that component.
+
+    Implementation of NSVB lookup precedence Levels 3 + 4 as polars joins:
+
+    1. Left-join ``spcd_table`` on ``SPCD`` (species-level fallback, Level 3).
+    2. Left-join ``jen_table`` on ``JENKINS_SPGRPCD`` (Jenkins fallback, Level 4).
+    3. Coalesce the two coefficient rows, preferring species-level.
+    4. Evaluate :func:`nsvb_biomass_expr` to produce ``out_col``.
+    5. Drop the temporary coefficient columns.
+
+    Parameters
+    ----------
+    trees : pl.LazyFrame
+        Input frame with at least ``SPCD``, ``DIA``, ``HT``, ``WDSG``,
+        ``JENKINS_SPGRPCD`` columns.
+    spcd_table : pl.DataFrame
+        Species-level lookup from
+        :func:`pyfia.carbon.nsvb.coefficients.build_species_level_lookup`
+        with columns ``(SPCD, model, a, b, b1, c)``.
+    jen_table : pl.DataFrame
+        Jenkins fallback from
+        :func:`pyfia.carbon.nsvb.coefficients.build_jenkins_lookup` with
+        columns ``(JENKINS_SPGRPCD, model, a, b, b1, c)``.
+    out_col : str
+        Name for the output column (e.g., ``"v_wood_ib"``).
+
+    Returns
+    -------
+    pl.LazyFrame
+        The input frame with ``out_col`` appended. Temporary coefficient
+        columns are dropped before return.
+    """
+    # Rename coefficient columns on both sides so they don't collide with the
+    # trees frame or with each other.
+    spcd_lf = spcd_table.lazy().rename(
+        {
+            "model": "_model_s",
+            "a": "_a_s",
+            "b": "_b_s",
+            "b1": "_b1_s",
+            "c": "_c_s",
+        }
+    )
+    jen_lf = jen_table.lazy().rename(
+        {
+            "model": "_model_j",
+            "a": "_a_j",
+            "b": "_b_j",
+            "b1": "_b1_j",
+            "c": "_c_j",
+        }
+    )
+
+    trees = trees.join(spcd_lf, on="SPCD", how="left")
+    trees = trees.join(jen_lf, on="JENKINS_SPGRPCD", how="left")
+
+    # Coalesce species-level first (Level 3), Jenkins second (Level 4).
+    trees = trees.with_columns(
+        nsvb_biomass_expr(
+            model=pl.coalesce(pl.col("_model_s"), pl.col("_model_j")),
+            a=pl.coalesce(pl.col("_a_s"), pl.col("_a_j")),
+            b=pl.coalesce(pl.col("_b_s"), pl.col("_b_j")),
+            b1=pl.coalesce(pl.col("_b1_s"), pl.col("_b1_j")),
+            c=pl.coalesce(pl.col("_c_s"), pl.col("_c_j")),
+            d=pl.col("DIA").cast(pl.Float64),
+            h=pl.col("HT").cast(pl.Float64),
+            spcd=pl.col("SPCD"),
+            wdsg=pl.col("WDSG").cast(pl.Float64),
+        ).alias(out_col)
+    )
+
+    return trees.drop(
+        [
+            "_model_s",
+            "_a_s",
+            "_b_s",
+            "_b1_s",
+            "_c_s",
+            "_model_j",
+            "_a_j",
+            "_b_j",
+            "_b1_j",
+            "_c_j",
+        ]
+    )
+
+
+def compute_nsvb_biomass(
+    trees: pl.LazyFrame,
+    lookup: VectorizedLookupTables | None = None,
+) -> pl.LazyFrame:
+    """Vectorized NSVB live-tree biomass pipeline (the production data path).
+
+    Executes the same 10-step pipeline as :func:`predict_tree_biomass`
+    (5 component predictions → cull adjustment → harmonization) as a
+    sequence of polars joins and expressions over a LazyFrame, with no
+    per-tree Python dispatch.
+
+    The hardwood/softwood classification used for the cull density
+    proportion and the Model 2 ``k`` constant is derived from the
+    ``SPCD < 300`` rule to stay consistent with :func:`_model_k` and to
+    sidestep the S10a misclassification of SPCD=10 — see
+    ``pyfia/carbon/__init__.py`` "Items deferred from PR 1 review".
+
+    Parameters
+    ----------
+    trees : pl.LazyFrame
+        Input frame with at least the following columns:
+
+        - ``SPCD`` (Int): FIA species code
+        - ``DIA`` (Float): diameter at breast height (inches, must be >= 1.0)
+        - ``HT`` (Float): total tree height (feet)
+        - ``CULL`` (Float, nullable): cull percentage (0-100). Null is
+          treated as 0.
+        - ``WDSG`` (Float): wood specific gravity
+          (``REF_SPECIES.WOOD_SPGR_GREENVOL_DRYWT``)
+        - ``JENKINS_SPGRPCD`` (Int): Jenkins species group for the Level 4
+          fallback (``REF_SPECIES.JENKINS_SPGRPCD``)
+
+        Additional columns (grouping variables, plot identifiers, etc.)
+        pass through untouched.
+    lookup : VectorizedLookupTables, optional
+        Pre-built coefficient lookup bundle from
+        :func:`pyfia.carbon.nsvb.coefficients.get_vectorized_lookup_tables`.
+        If omitted, fetches the cached process-level bundle.
+
+    Returns
+    -------
+    pl.LazyFrame
+        The input frame with six new columns appended:
+
+        - ``v_wood_ib`` (Float, cu ft): total stem inside-bark wood volume
+        - ``v_bark`` (Float, cu ft): total stem bark volume
+        - ``w_wood`` (Float, lb): harmonized stem wood biomass
+        - ``w_bark`` (Float, lb): harmonized stem bark biomass
+        - ``w_branch`` (Float, lb): harmonized branch biomass
+        - ``agb`` (Float, lb): harmonized total above-ground biomass
+          (equals ``w_wood + w_bark + w_branch`` by construction)
+
+        All other input columns pass through.
+    """
+    if lookup is None:
+        from pyfia.carbon.nsvb.coefficients import get_vectorized_lookup_tables
+
+        lookup = get_vectorized_lookup_tables()
+
+    # Step 1 — Total stem inside-bark wood volume (cubic feet).
+    trees = _join_and_eval_component(
+        trees, lookup.volib_spcd, lookup.volib_jen, "v_wood_ib"
+    )
+
+    # Step 2 — Total stem bark volume (cubic feet).
+    trees = _join_and_eval_component(
+        trees, lookup.volbk_spcd, lookup.volbk_jen, "v_bark"
+    )
+
+    # Step 5 — Stem bark biomass (lb).
+    trees = _join_and_eval_component(
+        trees, lookup.bark_bio_spcd, lookup.bark_bio_jen, "_w_bark_pre"
+    )
+
+    # Step 6 — Branch biomass (lb).
+    trees = _join_and_eval_component(
+        trees, lookup.branch_bio_spcd, lookup.branch_bio_jen, "_w_branch_pre"
+    )
+
+    # Step 7 — Directly-predicted total AGB (lb).
+    trees = _join_and_eval_component(
+        trees, lookup.total_agb_spcd, lookup.total_agb_jen, "_agb_predicted"
+    )
+
+    # Step 3-4 — Convert wood volume to weight, with a cull-reduced variant.
+    # DECAYCD=3 wood density proportion: 0.92 softwood, 0.54 hardwood. The
+    # split on SPCD<300 is consistent with _model_k and sidesteps the SPCD=10
+    # S10a misclassification (SPCD=10 is softwood under this rule).
+    trees = trees.with_columns(
+        [
+            pl.col("CULL").fill_null(0.0).cast(pl.Float64).alias("_cull"),
+            pl.when(pl.col("SPCD") >= _HARDWOOD_SPCD_THRESHOLD)
+            .then(pl.lit(_CULL_DENS_PROP["hardwood"]))
+            .otherwise(pl.lit(_CULL_DENS_PROP["softwood"]))
+            .alias("_dens_prop"),
+        ]
+    )
+    trees = trees.with_columns(
+        [
+            (pl.col("v_wood_ib") * pl.col("WDSG").cast(pl.Float64) * 62.4).alias(
+                "_w_wood_gross"
+            ),
+            (
+                pl.col("v_wood_ib")
+                * (1.0 - pl.col("_cull") / 100.0 * (1.0 - pl.col("_dens_prop")))
+                * pl.col("WDSG").cast(pl.Float64)
+                * 62.4
+            ).alias("_w_wood_red"),
+        ]
+    )
+
+    # Step 8 — Cull-reduction factor. Matches the scalar path: bark/branch use
+    # their gross values in both the numerator and denominator (only wood is
+    # cull-reduced for live trees per worked example lines 870-880).
+    trees = trees.with_columns(
+        [
+            (
+                pl.col("_w_wood_gross")
+                + pl.col("_w_bark_pre")
+                + pl.col("_w_branch_pre")
+            ).alias("_comp_gross_sum"),
+            (
+                pl.col("_w_wood_red") + pl.col("_w_bark_pre") + pl.col("_w_branch_pre")
+            ).alias("_comp_red_sum"),
+        ]
+    )
+    trees = trees.with_columns(
+        [
+            pl.when(pl.col("_comp_gross_sum") <= 0)
+            .then(pl.lit(0.0))
+            .otherwise(pl.col("_comp_red_sum") / pl.col("_comp_gross_sum"))
+            .alias("_agb_reduce"),
+        ]
+    )
+
+    # Step 9 — Reduce the directly-predicted AGB by the cull factor.
+    trees = trees.with_columns(
+        [(pl.col("_agb_predicted") * pl.col("_agb_reduce")).alias("_agb_pred_red")]
+    )
+
+    # Step 10 — Harmonize (wood, bark, branch) so they sum to _agb_pred_red
+    # while preserving the relative component ratios. Matches the scalar
+    # harmonize_components exactly, including the degenerate
+    # (component_sum <= 0) fallback: all AGB in wood, zeros elsewhere.
+    trees = trees.with_columns(
+        [
+            pl.when(pl.col("_comp_red_sum") > 0)
+            .then(
+                pl.col("_agb_pred_red")
+                * pl.col("_w_wood_red")
+                / pl.col("_comp_red_sum")
+            )
+            .otherwise(pl.col("_agb_pred_red"))
+            .alias("w_wood"),
+            pl.when(pl.col("_comp_red_sum") > 0)
+            .then(
+                pl.col("_agb_pred_red")
+                * pl.col("_w_bark_pre")
+                / pl.col("_comp_red_sum")
+            )
+            .otherwise(pl.lit(0.0))
+            .alias("w_bark"),
+            pl.when(pl.col("_comp_red_sum") > 0)
+            .then(
+                pl.col("_agb_pred_red")
+                * pl.col("_w_branch_pre")
+                / pl.col("_comp_red_sum")
+            )
+            .otherwise(pl.lit(0.0))
+            .alias("w_branch"),
+        ]
+    )
+    trees = trees.with_columns(
+        [(pl.col("w_wood") + pl.col("w_bark") + pl.col("w_branch")).alias("agb")]
+    )
+
+    # Drop all temporary columns so the caller sees only the public outputs.
+    return trees.drop(
+        [
+            "_cull",
+            "_dens_prop",
+            "_w_wood_gross",
+            "_w_wood_red",
+            "_w_bark_pre",
+            "_w_branch_pre",
+            "_agb_predicted",
+            "_comp_gross_sum",
+            "_comp_red_sum",
+            "_agb_reduce",
+            "_agb_pred_red",
+        ]
     )

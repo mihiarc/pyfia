@@ -19,6 +19,10 @@ import pytest
 
 from pyfia.carbon.nsvb.coefficients import (
     CoefficientTables,
+    VectorizedLookupTables,
+    build_jenkins_lookup,
+    build_species_level_lookup,
+    get_vectorized_lookup_tables,
     load_nsvb_coefficients,
     lookup_coefficients,
 )
@@ -91,6 +95,56 @@ class TestLoadNSVBCoefficients:
         ):
             cols = set(tbl.columns)
             assert expected.issubset(cols), f"Missing columns: {expected - cols}"
+
+    def test_spcd_table_explicit_dtypes(self):
+        """All ``*_spcd`` tables are loaded with explicit schemas.
+
+        Regression test for the fix that replaced ``infer_schema_length=10_000``
+        with ``schema_overrides``. DIVISION must be ``Utf8`` (ecoprovince codes
+        like "M240") and STDORGCD must be ``Int64`` — the upcoming vectorized
+        lookup joins rely on these dtypes being stable regardless of which
+        rows happen to be at the top of the CSV on a future re-vendor.
+
+        Note: the bark/branch biomass tables have a narrower schema
+        (``a, b, b1, c`` only, no ``a1`` / ``c1``) than volume/total biomass.
+        """
+        coefs = load_nsvb_coefficients()
+        for tbl in (
+            coefs.volib_spcd,
+            coefs.volbk_spcd,
+            coefs.bark_biomass_spcd,
+            coefs.branch_biomass_spcd,
+            coefs.total_biomass_spcd,
+        ):
+            assert tbl.schema["SPCD"] == pl.Int64
+            assert tbl.schema["DIVISION"] == pl.Utf8
+            assert tbl.schema["STDORGCD"] == pl.Int64
+            assert tbl.schema["model"] == pl.Int64
+            # Common numeric columns present in every table
+            for col in ("a", "b", "b1", "c"):
+                assert tbl.schema[col] == pl.Float64, (
+                    f"{col} in {tbl.columns}: expected Float64, got {tbl.schema[col]}"
+                )
+            # a1 / c1 only exist in volib_spcd, volbk_spcd, total_biomass_spcd
+            for col in ("a1", "c1"):
+                if col in tbl.columns:
+                    assert tbl.schema[col] == pl.Float64
+
+    def test_jenkins_table_explicit_dtypes(self):
+        """All ``*_jenkins`` tables are loaded with explicit schemas."""
+        coefs = load_nsvb_coefficients()
+        for tbl in (
+            coefs.volib_jenkins,
+            coefs.volbk_jenkins,
+            coefs.bark_biomass_jenkins,
+            coefs.branch_biomass_jenkins,
+            coefs.total_biomass_jenkins,
+        ):
+            assert tbl.schema["JENKINS_SPGRPCD"] == pl.Int64
+            assert tbl.schema["model"] == pl.Int64
+            assert tbl.schema["a"] == pl.Float64
+            assert tbl.schema["b"] == pl.Float64
+            assert tbl.schema["c"] == pl.Float64
 
 
 class TestLookupCoefficients:
@@ -207,3 +261,146 @@ class TestLookupCoefficients:
             jenkins_spgrpcd=valid_jenkins,
         )
         assert result["source"] == "jenkins"
+
+
+class TestBuildSpeciesLevelLookup:
+    """Vectorized path helper: species-level row filter for *_spcd tables."""
+
+    def test_selected_columns(self):
+        """Returns only the columns the vectorized biomass expression needs."""
+        coefs = load_nsvb_coefficients()
+        result = build_species_level_lookup(coefs.volib_spcd)
+        assert result.columns == ["SPCD", "model", "a", "b", "b1", "c"]
+
+    def test_keeps_only_species_level_rows(self):
+        """Rows where DIVISION or STDORGCD is non-null are filtered out.
+
+        Phase 1 has no ECOSUBCD → DIVISION mapping, so DIVISION-specific
+        rows (Levels 1-2 of the NSVB precedence) are dead code and must be
+        dropped before the vectorized join runs.
+        """
+        coefs = load_nsvb_coefficients()
+        result = build_species_level_lookup(coefs.volib_spcd)
+        # Original table has 406 rows; species-level is a strict subset
+        assert result.height < coefs.volib_spcd.height
+        assert result.height > 0
+
+    def test_douglas_fir_row_present(self):
+        """SPCD=202 Douglas-fir has a species-level row with Model 2 for volib."""
+        coefs = load_nsvb_coefficients()
+        result = build_species_level_lookup(coefs.volib_spcd)
+        dougfir = result.filter(pl.col("SPCD") == 202)
+        assert dougfir.height == 1
+        assert dougfir["model"][0] == 2
+
+    def test_spcd_unique_in_output(self):
+        """Each SPCD appears at most once after filtering — single row per species."""
+        coefs = load_nsvb_coefficients()
+        for tbl in (
+            coefs.volib_spcd,
+            coefs.volbk_spcd,
+            coefs.bark_biomass_spcd,
+            coefs.branch_biomass_spcd,
+            coefs.total_biomass_spcd,
+        ):
+            result = build_species_level_lookup(tbl)
+            assert result["SPCD"].is_unique().all()
+
+    def test_works_on_narrow_biomass_tables(self):
+        """bark_biomass_spcd / branch_biomass_spcd have no a1/c1 but still
+        expose (a, b, b1, c) — the builder must handle both schemas."""
+        coefs = load_nsvb_coefficients()
+        for tbl in (coefs.bark_biomass_spcd, coefs.branch_biomass_spcd):
+            result = build_species_level_lookup(tbl)
+            assert result.columns == ["SPCD", "model", "a", "b", "b1", "c"]
+            assert result.height > 0
+
+
+class TestBuildJenkinsLookup:
+    """Vectorized path helper: Jenkins fallback table for *_jenkins tables."""
+
+    def test_selected_columns(self):
+        """Returns uniform columns including synthesized b1=0."""
+        coefs = load_nsvb_coefficients()
+        result = build_jenkins_lookup(coefs.volib_jenkins)
+        assert result.columns == [
+            "JENKINS_SPGRPCD",
+            "model",
+            "a",
+            "b",
+            "b1",
+            "c",
+        ]
+
+    def test_b1_is_always_zero(self):
+        """Jenkins tables have no b1 column; the synthesized value is 0.0.
+
+        Model 5 (the only form Jenkins rows dispatch to) does not use b1,
+        so any value is correct; 0.0 keeps the coalesce in the orchestrator
+        from emitting a null when the downstream expression reads b1.
+        """
+        coefs = load_nsvb_coefficients()
+        result = build_jenkins_lookup(coefs.volib_jenkins)
+        assert (result["b1"] == 0.0).all()
+        assert result.schema["b1"] == pl.Float64
+
+    def test_all_jenkins_rows_preserved(self):
+        """No filtering — Jenkins tables are used as-is (all 9 groups)."""
+        coefs = load_nsvb_coefficients()
+        result = build_jenkins_lookup(coefs.volib_jenkins)
+        assert result.height == coefs.volib_jenkins.height
+        assert result.height == 9
+
+
+class TestGetVectorizedLookupTables:
+    """Cached bundle of all 5 component lookup pairs."""
+
+    def test_returns_vectorized_bundle(self):
+        bundle = get_vectorized_lookup_tables()
+        assert isinstance(bundle, VectorizedLookupTables)
+
+    def test_lru_cache_returns_same_instance(self):
+        first = get_vectorized_lookup_tables()
+        second = get_vectorized_lookup_tables()
+        assert first is second
+
+    def test_all_ten_tables_present_and_ready_to_join(self):
+        """Each table has the vectorized-path column layout."""
+        bundle = get_vectorized_lookup_tables()
+
+        spcd_expected = ["SPCD", "model", "a", "b", "b1", "c"]
+        jen_expected = ["JENKINS_SPGRPCD", "model", "a", "b", "b1", "c"]
+
+        for name in (
+            "volib_spcd",
+            "volbk_spcd",
+            "bark_bio_spcd",
+            "branch_bio_spcd",
+            "total_agb_spcd",
+        ):
+            tbl = getattr(bundle, name)
+            assert tbl.columns == spcd_expected, f"{name} has wrong columns"
+            assert tbl.height > 0
+
+        for name in (
+            "volib_jen",
+            "volbk_jen",
+            "bark_bio_jen",
+            "branch_bio_jen",
+            "total_agb_jen",
+        ):
+            tbl = getattr(bundle, name)
+            assert tbl.columns == jen_expected, f"{name} has wrong columns"
+            assert tbl.height == 9  # 9 Jenkins species groups
+
+    def test_douglas_fir_volib_model_2(self):
+        """Regression sentinel: SPCD=202 volib row is Model 2 (stem wood k=9)."""
+        bundle = get_vectorized_lookup_tables()
+        row = bundle.volib_spcd.filter(pl.col("SPCD") == 202).to_dicts()[0]
+        assert row["model"] == 2
+
+    def test_red_maple_total_agb_model_4(self):
+        """Regression sentinel: SPCD=316 total_agb row is Model 4."""
+        bundle = get_vectorized_lookup_tables()
+        row = bundle.total_agb_spcd.filter(pl.col("SPCD") == 316).to_dicts()[0]
+        assert row["model"] == 4

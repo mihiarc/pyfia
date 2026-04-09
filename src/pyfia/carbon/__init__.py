@@ -74,27 +74,32 @@ Architectural rules for PR 2 (and beyond)
 
 Items deferred from PR 1 review (address in PR 2 unless noted)
 ---------------------------------------------------------------
-- **Schema fragility**: ``load_nsvb_coefficients`` relies on
-  ``infer_schema_length=10_000``. Pass explicit ``dtypes`` for ``DIVISION``
-  (Utf8) and ``STDORGCD`` (Int64) when adding the ``ECOSUBCD → DIVISION``
-  mapping.
+- **Schema fragility** *(resolved in PR 2)*: ``load_nsvb_coefficients`` now
+  passes explicit ``schema_overrides`` so DIVISION is always ``Utf8`` and
+  STDORGCD is always ``Int64``. The ``infer_schema_length=10_000`` workaround
+  is removed.
+- **Boundary types** *(resolved in PR 2)*: ``predict_tree_biomass`` now
+  validates ``dia >= 1.0`` with a clear ``ValueError``, normalizes ``hw_sw``
+  casing at the function boundary (``"Hardwood"`` / ``"SOFTWOOD"`` are both
+  accepted), and types ``hw_sw`` as ``Literal["hardwood", "softwood"]``.
+- **Default carbon fraction** *(resolved in PR 2)*: ``DEFAULT_LIVE_CARBON_FRACTION``
+  is now a lazily-computed module attribute (PEP 562 ``__getattr__``) that
+  reports the arithmetic mean of the S10a table (~0.4741). Previously it was
+  hardcoded at 0.4716, which had drifted from the actual population mean.
+- **SPCD 10 (``fir spp.``) misclassification** *(resolved in PR 2)*: S10a
+  lists SPCD=10 as hardwood, but the SPCD<300 rule used by ``_model_k``
+  correctly classifies it as softwood. PR 2's architectural decision: derive
+  ``hw_sw`` from the ``SPCD < 300`` rule rather than reading S10a's ``hw_sw``
+  column. This is internally consistent with NSVB's own Model 2 base-constant
+  selection and sidesteps the S10a classification error entirely.
 - **Null coercion**: ``_row_to_dict`` silently maps null coefficients to
-  ``0.0``. When wiring the per-row evaluator in the vectorized path, validate
-  that the parameters required by each row's ``model`` are non-null.
-- **Boundary types**: Normalize ``hw_sw`` casing at the API boundary
-  (``"Hardwood"`` should not raise ``KeyError``). Type as
-  ``Literal["hardwood", "softwood"]``. Validate ``dia >= 1.0`` rather than
-  letting Python raise a confusing complex-number ``TypeError``.
-- **Default carbon fraction**: ``DEFAULT_LIVE_CARBON_FRACTION`` is hardcoded
-  at 0.4716. Compute lazily from ``load_carbon_fractions_live()`` to prevent
-  drift between the constant and the actual S10a population mean.
+  ``0.0``. The vectorized path validates that required parameters are non-null
+  after joining. Addressed in the vectorized pipeline contract.
 - **Lookup precedence Levels 1–2 are dead code in PR 1** (STDORGCD is null in
   396/406 ``volib_spcd`` rows; Phase 1 always passes ``division=None``).
-  Either add tests exercising them via synthetic data when introducing the
-  ``ECOSUBCD`` mapping, or document the truncation.
-- **SPCD 10 (``fir spp.``) is misclassified as hardwood in S10a.** PR 2 must
-  decide how to override ``hw_sw`` for known-bad species rows when wiring
-  ``predict_tree_biomass``.
+  The vectorized path in PR 2 skips levels 1-2 entirely and works directly
+  against the species-level + Jenkins fallback rows. A future PR that adds
+  the ``PLOT.ECOSUBCD → DIVISION`` mapping will re-enable levels 1-2.
 - **Phase 2+ pools** (standing dead, understory, downed dead, litter, SOC):
   no skeleton in this PR. Add ``pyfia.carbon.<pool>(db, ...)`` functions
   incrementally as each phase lands, following the same architectural rules.
@@ -108,6 +113,6 @@ References
 
 from __future__ import annotations
 
-# No public exports in PR 1: the math/data layer lives at `pyfia.carbon.nsvb`
-# and is exported by that submodule. PR 2 will add `live_tree` here.
-__all__: list[str] = []
+from pyfia.carbon.live_tree import LiveTreeEstimator, live_tree
+
+__all__ = ["LiveTreeEstimator", "live_tree"]

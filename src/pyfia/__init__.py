@@ -52,6 +52,7 @@ from pyfia.downloader import (
 )
 
 # Estimation functions - High-level API
+from pyfia.carbon.live_tree import live_tree
 from pyfia.estimation.estimators.area import area
 from pyfia.estimation.estimators.area_change import area_change
 from pyfia.estimation.estimators.biomass import biomass
@@ -113,6 +114,7 @@ __all__ = [
     "area",
     "area_change",
     "biomass",
+    "live_tree",
     "volume",
     "tpa",
     "mortality",

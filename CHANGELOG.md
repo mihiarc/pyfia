@@ -21,7 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - S10b dead-tree carbon fractions by hardwood/softwood x DECAYCD
   - No `TREE.CULL` adjustment for dead trees (per FIADB Appendix K)
   - `pool='ag'|'bg'|'total'` — same pool semantics as `live_tree()`
-  - Validated against FIADB on Georgia EVALID 132401 (6,870 trees): median 17.9% (broken-top corrections deferred)
+  - Broken-top corrections: crown-proportion adjustment (Appendix K) + paraboloid volume-ratio for trees with `ACTUALHT < HT`
+  - Vendored Table S11 (`REF_TREE_STND_DEAD_CR_PROP`) for mean intact crown ratios by ecoregion province
+  - Validated against FIADB on Georgia EVALID 132401 (6,870 trees): median 10.9% per-tree relative error
 - **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, carbon fractions:
   - `pyfia.carbon.nsvb.equations` — Models 1, 2, 4, 5, harmonization, vectorized pipelines
   - `pyfia.carbon.nsvb.coefficients` — S1a–S8b coefficient tables, Bailey DIVISION lookup

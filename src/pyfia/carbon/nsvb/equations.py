@@ -909,8 +909,9 @@ def compute_nsvb_dead_biomass(
     trees: pl.LazyFrame,
     decay_props: pl.DataFrame,
     lookup: VectorizedLookupTables | None = None,
+    cr_prop_table: pl.DataFrame | None = None,
 ) -> pl.LazyFrame:
-    """Vectorized NSVB standing-dead biomass pipeline (Phase 2 production path).
+    """Vectorized NSVB standing-dead biomass pipeline.
 
     Mirrors :func:`compute_nsvb_biomass` but applies the FIADB
     ``REF_TREE_DECAY_PROP`` reductions (``DENSITY_PROP``, ``BARK_LOSS_PROP``,
@@ -920,99 +921,53 @@ def compute_nsvb_dead_biomass(
     or other types of cull are made." So ``TREE.CULL`` is intentionally
     ignored on this path even when populated.
 
-    The 10-step pipeline:
+    **Broken-top corrections** (Phase 2.5): when the trees frame has an
+    ``ACTUALHT`` column and ``cr_prop_table`` is provided, trees with
+    ``ACTUALHT < HT`` receive two adjustments before the decay reductions:
 
-    1-2. Predict total stem inside-bark wood volume and stem bark volume
-       (NSVB Models 1/2/4/5, Tables S1a/S2a + Jenkins fallback). Identical
-       to live-tree path including the optional Level 2 DIVISION lookup.
-    3.   Convert wood volume to gross weight (``v_wood_ib * WDSG * 62.4``).
-    4-5. Predict stem bark biomass and branch biomass from S6a / S7a.
-    6.   Predict directly the total above-ground biomass from S8a.
-    7.   Join the FIADB decay-proportion table on (hw_sw, DECAYCD).
-    8.   Apply each component's decay reduction:
-
-         - ``w_wood_dead = w_wood_gross * DENSITY_PROP``
-         - ``w_bark_dead = w_bark_pre  * BARK_LOSS_PROP``
-         - ``w_branch_dead = w_branch_pre * BRANCH_LOSS_PROP``
-
-    9.   Compute the AGB reduction factor:
-         ``AGBReduce = sum(dead components) / sum(gross components)``
-         and reduce the directly-predicted AGB:
-         ``agb_pred_dead = agb_predicted * AGBReduce``.
-    10.  Harmonize the dead components against ``agb_pred_dead`` so they
-         sum exactly to it while preserving relative dead-component ratios.
-         This is the same proportional redistribution
-         :func:`harmonize_components` performs for the live path.
+    - *Branch biomass* is multiplied by ``Broken_crn_prop``, the fraction
+      of the intact crown remaining below the break, computed from the
+      mean intact crown ratio in ``REF_TREE_STND_DEAD_CR_PROP`` (Table S11)
+      keyed on Bailey ecoregion province × hardwood/softwood.
+    - *Wood and bark* are reduced by ``ACTUALHT / HT``, a linear
+      approximation of the stem volume ratio below the break. This
+      replaces the Model 6 (Schumacher-Hall) volume-ratio computation
+      that FIADB uses for sub-stem partitioning, which is not implemented.
 
     Parameters
     ----------
     trees : pl.LazyFrame
-        Input frame with at least:
-
-        - ``SPCD`` (Int): FIA species code
-        - ``DIA`` (Float): diameter at breast height (inches, must be >= 1.0)
-        - ``HT`` (Float): total tree height (feet) — used as the *intact*
-          height for the NSVB component predictions. Broken-top corrections
-          (``ACTUALHT < HT`` adjustments via ``REF_TREE_STND_DEAD_CR_PROP``)
-          are not implemented in this Phase 2 baseline.
-        - ``DECAYCD`` (Int): standing-dead decay class (1-5) from
-          ``TREE.DECAYCD``. Trees with null DECAYCD will produce null
-          outputs.
-        - ``WDSG`` (Float): wood specific gravity from
-          ``REF_SPECIES.WOOD_SPGR_GREENVOL_DRYWT``
-        - ``JENKINS_SPGRPCD`` (Int): Jenkins species group for the Level 4
-          fallback
+        Input frame with at least: ``SPCD``, ``DIA``, ``HT``, ``DECAYCD``,
+        ``WDSG``, ``JENKINS_SPGRPCD``.
 
         Optional:
 
-        - ``DIVISION`` (Utf8, nullable): Bailey ecoprovince DIVISION code,
-          activates Level 2 of the NSVB lookup precedence (same as the
-          live-tree pipeline).
+        - ``DIVISION`` (Utf8, nullable): activates Level 2 NSVB lookup.
+        - ``ACTUALHT`` (Float, nullable): actual measured height for
+          broken-top trees. When present and ``cr_prop_table`` is not None,
+          trees with ``ACTUALHT < HT`` receive broken-top corrections.
+        - ``ECOSUBCD`` (Utf8, nullable): used to derive Bailey ecoregion
+          province for the ``REF_TREE_STND_DEAD_CR_PROP`` lookup. When
+          absent, all trees fall back to the UNDEFINED mean crown ratio.
     decay_props : pl.DataFrame
-        FIADB ``REF_TREE_DECAY_PROP`` lookup table from
-        :func:`pyfia.carbon.nsvb.carbon_fractions.load_dead_decay_proportions_df`.
-        Must have columns ``(hw_sw, DECAYCD, DENSITY_PROP, BARK_LOSS_PROP,
-        BRANCH_LOSS_PROP)``.
+        FIADB ``REF_TREE_DECAY_PROP`` lookup with columns ``(hw_sw,
+        DECAYCD, DENSITY_PROP, BARK_LOSS_PROP, BRANCH_LOSS_PROP)``.
     lookup : VectorizedLookupTables, optional
         Pre-built coefficient lookup bundle. If omitted, uses the cached
-        process-level bundle (same as the live-tree path).
+        process-level bundle.
+    cr_prop_table : pl.DataFrame, optional
+        Table S11 mean crown ratios from
+        :func:`pyfia.carbon.nsvb.carbon_fractions.load_dead_cr_prop_df`.
+        Columns ``(ECOPROV, hw_sw, CR_MEAN)``. When None, broken-top
+        corrections are skipped (Phase 2 baseline behavior).
 
     Returns
     -------
     pl.LazyFrame
-        The input frame with the following new columns:
-
-        - ``v_wood_ib`` (Float, cu ft): total stem inside-bark wood volume
-        - ``v_bark`` (Float, cu ft): total stem bark volume
-        - ``w_wood`` (Float, lb): harmonized stem wood biomass after decay
-        - ``w_bark`` (Float, lb): harmonized stem bark biomass after decay
-        - ``w_branch`` (Float, lb): harmonized branch biomass after decay
-        - ``agb`` (Float, lb): harmonized total above-ground biomass after
-          decay (equals ``w_wood + w_bark + w_branch`` by construction)
-
-        All input columns pass through. Note: trees with ``DECAYCD`` outside
-        the 1-5 range will receive null reduction factors and therefore null
-        ``agb`` outputs — the caller (e.g., the ``StandingDeadEstimator``
-        validation test) is responsible for filtering or pre-validating
-        ``DECAYCD``.
-
-    Notes
-    -----
-    **What this implementation does NOT do (deferred):**
-
-    - **Broken-top corrections.** ~75% of EVALID 132401 standing dead trees
-      have ``TREE.ACTUALHT < TREE.HT``. The full FIADB pipeline applies a
-      crown-proportion adjustment to branch biomass (and a volume-ratio
-      adjustment to wood/bark biomass) for these trees, looking up the
-      mean intact crown ratio via ``REF_TREE_STND_DEAD_CR_PROP`` keyed on
-      Bailey ECOPROV × hw/sw. The Phase 2 baseline uses the intact ``HT``
-      with no broken-top correction, which will systematically over-estimate
-      biomass for broken-top trees. This is a known gap; the validation
-      test's ratchet thresholds are loose to accommodate it and a follow-up
-      can tighten them once broken-top handling lands.
-    - **CULL adjustment.** Intentionally not applied — see Appendix K above.
-    - **STDORGCD Level 1 lookup.** Same status as the live-tree path
-      (10 dead-code rows across 5 tables).
+        The input frame with new columns: ``v_wood_ib``, ``v_bark``,
+        ``w_wood``, ``w_bark``, ``w_branch``, ``agb``. For broken-top
+        trees, volumes and biomass reflect the remaining stem/crown below
+        the break point.
     """
     if lookup is None:
         from pyfia.carbon.nsvb.coefficients import get_vectorized_lookup_tables
@@ -1076,6 +1031,131 @@ def compute_nsvb_dead_biomass(
         ]
     )
 
+    # ----- Broken-top corrections (Phase 2.5) -----
+    # For trees with ACTUALHT < HT, reduce branch biomass by the crown
+    # proportion remaining below the break, and reduce wood/bark by a
+    # linear volume ratio ACTUALHT/HT.  Corrections applied BEFORE the
+    # decay reductions so both adjustments compound.  The intact gross sum
+    # is saved BEFORE the correction so AGBReduce = broken_decayed / intact
+    # captures both the broken-top and decay reductions against the intact
+    # AGB prediction.
+    schema_names = trees.collect_schema().names()
+    has_actualht = "ACTUALHT" in schema_names
+    _has_broken_top_correction = False
+    if has_actualht and cr_prop_table is not None:
+        has_ecosubcd = "ECOSUBCD" in schema_names
+
+        # Derive Bailey ecoregion province from ECOSUBCD.  Province is the
+        # 3-digit numeric prefix (with optional M) — NOT the same as
+        # DIVISION, which replaces the last digit with 0.
+        if has_ecosubcd:
+            ecoprov_expr = (
+                pl.when(pl.col("ECOSUBCD").is_null() | (pl.col("ECOSUBCD") == ""))
+                .then(pl.lit("UNDEFINED"))
+                .when(pl.col("ECOSUBCD").str.to_uppercase().str.starts_with("M"))
+                .then(
+                    pl.lit("M") + pl.col("ECOSUBCD").str.to_uppercase().str.slice(1, 3)
+                )
+                .otherwise(pl.col("ECOSUBCD").str.to_uppercase().str.slice(0, 3))
+            )
+        else:
+            ecoprov_expr = pl.lit("UNDEFINED")
+
+        hw_sw_expr = (
+            pl.when(pl.col("SPCD") >= _HARDWOOD_SPCD_THRESHOLD)
+            .then(pl.lit("hardwood"))
+            .otherwise(pl.lit("softwood"))
+        )
+
+        _has_broken_top_correction = True
+
+        # Save intact gross component sum BEFORE applying corrections.
+        # AGBReduce will use this as the denominator so that it captures
+        # both the broken-top and decay reductions against the intact
+        # AGB prediction from S8a/S8b.
+        trees = trees.with_columns(
+            (
+                pl.col("_w_wood_gross")
+                + pl.col("_w_bark_pre")
+                + pl.col("_w_branch_pre")
+            ).alias("_comp_gross_sum_intact")
+        )
+
+        trees = trees.with_columns(
+            [
+                ecoprov_expr.alias("_ecoprov"),
+                hw_sw_expr.alias("_bt_hw_sw"),
+            ]
+        )
+
+        # Join CR_MEAN from Table S11 on (ECOPROV, hw_sw).
+        cr_lf = cr_prop_table.lazy().rename(
+            {"ECOPROV": "_ecoprov", "hw_sw": "_bt_hw_sw", "CR_MEAN": "_cr_mean"}
+        )
+        trees = trees.join(cr_lf, on=["_ecoprov", "_bt_hw_sw"], how="left")
+
+        # Fall back to UNDEFINED CR_MEAN for unmatched provinces.
+        undef = cr_prop_table.filter(pl.col("ECOPROV") == "UNDEFINED")
+        undef_sw = float(undef.filter(pl.col("hw_sw") == "softwood")["CR_MEAN"][0])
+        undef_hw = float(undef.filter(pl.col("hw_sw") == "hardwood")["CR_MEAN"][0])
+        trees = trees.with_columns(
+            pl.col("_cr_mean")
+            .fill_null(
+                pl.when(pl.col("SPCD") >= _HARDWOOD_SPCD_THRESHOLD)
+                .then(pl.lit(undef_hw))
+                .otherwise(pl.lit(undef_sw))
+            )
+            .alias("_cr_mean")
+        )
+
+        # Identify broken-top trees: ACTUALHT < HT and ACTUALHT not null.
+        actualht = pl.col("ACTUALHT").cast(pl.Float64, strict=False)
+        ht = pl.col("HT").cast(pl.Float64)
+        is_broken = actualht.is_not_null() & (actualht < ht) & (actualht > 0)
+
+        # Appendix K crown-proportion formula:
+        #   CRprop_HT = (HT - ACTUALHT * (1 - CR/100)) / HT
+        #   Broken_crn_prop = max(0, (ACTUALHT - (1-CRprop_HT)*HT) / (CRprop_HT*HT))
+        cr_frac = pl.col("_cr_mean") / 100.0
+        crprop_ht = (ht - actualht * (1.0 - cr_frac)) / ht
+
+        # Guard against zero/negative CRprop_HT (degenerate cases where
+        # ACTUALHT ≈ 0 or CR_MEAN ≈ 100).
+        broken_crn = ((actualht - (1.0 - crprop_ht) * ht) / (crprop_ht * ht)).clip(
+            lower_bound=0.0
+        )
+
+        # Volume ratio: paraboloid taper approximation of stem volume below
+        # break.  Real stems have a shape between a paraboloid (exponent 2/3)
+        # and a cone (exponent 1).  The 2/3 exponent captures the fact that
+        # the wider lower stem contains a disproportionately large fraction of
+        # total stem volume, preventing the over-correction a linear ratio
+        # produces.  This replaces the Schumacher-Hall Model 6 volume-ratio
+        # calculation that FIADB uses for sub-stem partitioning.
+        vol_ratio = (actualht / ht).pow(2.0 / 3.0)
+
+        trees = trees.with_columns(
+            [
+                pl.when(is_broken).then(broken_crn).otherwise(1.0).alias("_crn_prop"),
+                pl.when(is_broken).then(vol_ratio).otherwise(1.0).alias("_vol_ratio"),
+            ]
+        )
+
+        # Apply broken-top reductions to gross components.
+        trees = trees.with_columns(
+            [
+                (pl.col("_w_wood_gross") * pl.col("_vol_ratio")).alias("_w_wood_gross"),
+                (pl.col("_w_bark_pre") * pl.col("_vol_ratio")).alias("_w_bark_pre"),
+                (pl.col("_w_branch_pre") * pl.col("_crn_prop")).alias("_w_branch_pre"),
+                (pl.col("v_wood_ib") * pl.col("_vol_ratio")).alias("v_wood_ib"),
+                (pl.col("v_bark") * pl.col("_vol_ratio")).alias("v_bark"),
+            ]
+        )
+
+        trees = trees.drop(
+            ["_ecoprov", "_bt_hw_sw", "_cr_mean", "_crn_prop", "_vol_ratio"]
+        )
+
     # Step 7 — Join the FIADB REF_TREE_DECAY_PROP table on (hw_sw, DECAYCD).
     # The hw_sw column is derived from the SPCD<300 rule to stay consistent
     # with _model_k and the live-tree pipeline (sidesteps the SPCD=10 S10a
@@ -1112,13 +1192,12 @@ def compute_nsvb_dead_biomass(
     )
 
     # Step 9 — AGB reduction factor and reduced predicted AGB.
+    # When broken-top corrections were applied, the denominator must use
+    # the intact gross sum (saved before the corrections) so that
+    # AGBReduce = broken_decayed / intact captures both the broken-top
+    # reduction and the decay reduction against the intact AGB prediction.
     trees = trees.with_columns(
         [
-            (
-                pl.col("_w_wood_gross")
-                + pl.col("_w_bark_pre")
-                + pl.col("_w_branch_pre")
-            ).alias("_comp_gross_sum"),
             (
                 pl.col("_w_wood_dead")
                 + pl.col("_w_bark_dead")
@@ -1126,16 +1205,25 @@ def compute_nsvb_dead_biomass(
             ).alias("_comp_dead_sum"),
         ]
     )
+    if _has_broken_top_correction:
+        gross_denom = pl.col("_comp_gross_sum_intact")
+    else:
+        trees = trees.with_columns(
+            (
+                pl.col("_w_wood_gross")
+                + pl.col("_w_bark_pre")
+                + pl.col("_w_branch_pre")
+            ).alias("_comp_gross_sum"),
+        )
+        gross_denom = pl.col("_comp_gross_sum")
     trees = trees.with_columns(
-        [
-            pl.when(pl.col("_comp_gross_sum") <= 0)
-            .then(pl.lit(0.0))
-            .otherwise(pl.col("_comp_dead_sum") / pl.col("_comp_gross_sum"))
-            .alias("_agb_reduce"),
-        ]
+        pl.when(gross_denom <= 0)
+        .then(pl.lit(0.0))
+        .otherwise(pl.col("_comp_dead_sum") / gross_denom)
+        .alias("_agb_reduce"),
     )
     trees = trees.with_columns(
-        [(pl.col("_agb_predicted") * pl.col("_agb_reduce")).alias("_agb_pred_dead")]
+        (pl.col("_agb_predicted") * pl.col("_agb_reduce")).alias("_agb_pred_dead")
     )
 
     # Step 10 — Harmonize dead components against the reduced predicted AGB.
@@ -1173,23 +1261,25 @@ def compute_nsvb_dead_biomass(
         [(pl.col("w_wood") + pl.col("w_bark") + pl.col("w_branch")).alias("agb")]
     )
 
-    return trees.drop(
-        [
-            "_hw_sw",
-            "_decay_join",
-            "_density_prop",
-            "_bark_loss_prop",
-            "_branch_loss_prop",
-            "_w_wood_gross",
-            "_w_bark_pre",
-            "_w_branch_pre",
-            "_agb_predicted",
-            "_w_wood_dead",
-            "_w_bark_dead",
-            "_w_branch_dead",
-            "_comp_gross_sum",
-            "_comp_dead_sum",
-            "_agb_reduce",
-            "_agb_pred_dead",
-        ]
-    )
+    drop_cols = [
+        "_hw_sw",
+        "_decay_join",
+        "_density_prop",
+        "_bark_loss_prop",
+        "_branch_loss_prop",
+        "_w_wood_gross",
+        "_w_bark_pre",
+        "_w_branch_pre",
+        "_agb_predicted",
+        "_w_wood_dead",
+        "_w_bark_dead",
+        "_w_branch_dead",
+        "_comp_dead_sum",
+        "_agb_reduce",
+        "_agb_pred_dead",
+    ]
+    if _has_broken_top_correction:
+        drop_cols.append("_comp_gross_sum_intact")
+    else:
+        drop_cols.append("_comp_gross_sum")
+    return trees.drop(drop_cols)

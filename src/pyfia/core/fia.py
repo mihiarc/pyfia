@@ -30,7 +30,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 class FIA:
     """
     Main FIA database class for working with Forest Inventory and Analysis data.
@@ -1303,6 +1302,26 @@ class FIA:
         from pyfia.estimation import area_change
 
         return area_change(self, **kwargs)
+
+    def live_tree(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate live tree carbon using the NSVB framework.
+
+        See live_tree() function for full parameter documentation.
+        """
+        from pyfia.carbon import live_tree
+
+        return live_tree(self, **kwargs)
+
+    def standing_dead(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate standing dead tree carbon using the NSVB framework.
+
+        See standing_dead() function for full parameter documentation.
+        """
+        from pyfia.carbon import standing_dead
+
+        return standing_dead(self, **kwargs)
 
 
 class MotherDuckFIA(FIA):

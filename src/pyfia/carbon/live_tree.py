@@ -25,396 +25,77 @@ import logging
 import polars as pl
 
 from ..core import FIA
-from ..estimation.base import AggregationResult, BaseEstimator
-from ..estimation.columns import get_cond_columns as _get_cond_columns
 from ..estimation.columns import get_tree_columns as _get_tree_columns
-from ..estimation.constants import LBS_TO_SHORT_TONS
-from ..estimation.tree_expansion import apply_tree_adjustment_factors
 from ..estimation.utils import (
     ensure_evalid_set,
     ensure_fia_instance,
-    validate_aggregation_result,
-    validate_required_columns,
 )
+from ._estimator_base import CarbonEstimatorBase
 from .nsvb.carbon_fractions import (
     _compute_default_live_carbon_fraction,
     load_carbon_fractions_live_df,
 )
-from .nsvb.coefficients import ecosubcd_to_division
 from .nsvb.equations import compute_nsvb_biomass
 
 logger = logging.getLogger(__name__)
 
 
-class LiveTreeEstimator(BaseEstimator):
+class LiveTreeEstimator(CarbonEstimatorBase):
     """Live tree carbon estimator using the NSVB biomass framework.
 
-    Follows the ``BaseEstimator`` template-method pattern: ``load_data →
-    apply_filters → calculate_values → aggregate_results →
-    calculate_variance → format_output``. The only estimator-specific logic
-    lives in :meth:`calculate_values` (which runs the vectorized NSVB
-    pipeline and does the per-tree biomass → carbon conversion) and in the
-    column mapping used by :meth:`format_output`.
-
-    Reference tables (``REF_SPECIES``, ``PLOTGEOM``) are loaded inside
-    :meth:`calculate_values` rather than via :meth:`get_required_tables`
-    because pyfia's :class:`~pyfia.estimation.data_loading.DataLoader` only
-    knows how to wire ``TREE``/``COND``/``PLOT`` join graphs. ``PLOTGEOM``
-    in particular powers the Phase 1.5 ``ECOSUBCD → DIVISION`` lookup that
-    activates Level 2 of the NSVB coefficient precedence.
-
-    Config keys consumed from ``self.config``:
-
-    - ``pool`` : ``"ag"`` | ``"bg"`` | ``"total"`` — which live tree carbon
-      pool to estimate. ``"ag"`` uses the NSVB pipeline. ``"bg"`` and
-      ``"total"`` read FIADB's pre-computed ``TREE.CARBON_BG`` column for
-      the belowground component (Phase 1 BG bridge).
-    - ``grp_by``, ``by_species``, ``by_size_class``, ``land_type``,
-      ``tree_domain``, ``area_domain``, ``plot_domain``, ``totals``,
-      ``variance``, ``most_recent`` — standard pyFIA estimator knobs.
+    Inherits shared infrastructure (reference-table loading, aggregation,
+    variance, formatting) from :class:`CarbonEstimatorBase`. The only
+    estimator-specific logic is :meth:`calculate_values` (NSVB pipeline +
+    S10a carbon fractions) and the tree column list.
     """
 
-    def __init__(self, db: str | FIA, config: dict) -> None:
-        super().__init__(db, config)
-        # PLOTGEOM cache: ``None`` = not yet loaded, an empty DataFrame =
-        # tried-and-failed sentinel (so we don't retry per call), a non-empty
-        # DataFrame = the loaded ``(PLT_CN, ECOSUBCD)`` lookup.
-        self._plotgeom_cache: pl.DataFrame | None = None
-
-    def get_required_tables(self) -> list[str]:
-        """Live tree carbon requires tree, condition, and stratification tables.
-
-        ``REF_SPECIES`` and ``PLOTGEOM`` are loaded separately inside
-        :meth:`calculate_values` (via :meth:`_load_ref_species` and
-        :meth:`_load_plotgeom`) because pyFIA's DataLoader does not know how
-        to plumb reference / spatial tables into the standard tree-cond-plot
-        join graph. ``REF_SPECIES`` provides ``JENKINS_SPGRPCD`` and
-        ``WOOD_SPGR_GREENVOL_DRYWT`` for the NSVB pipeline; ``PLOTGEOM``
-        provides ``ECOSUBCD`` for the Phase 1.5 DIVISION lookup that
-        activates Level 2 of the NSVB coefficient precedence.
-        """
-        return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
+    _estimator_label = "LiveTree"
 
     def get_tree_columns(self) -> list[str]:
-        """Tree columns needed for NSVB + BG bridge.
-
-        - ``SPCD``: species code → NSVB coefficient join + S10a carbon fraction
-        - ``DIA``: diameter at breast height (inches)
-        - ``HT``: total tree height (feet). NSVB Models 1-5 are parameterized
-          in total height; ``ACTUALHT`` (broken-top height) is not loaded
-          because Phase 1 assumes intact tops.
-        - ``CULL``: rotten/missing cull percentage (0-100, nullable)
-        - ``TPA_UNADJ``: trees-per-acre expansion factor
-        - ``CARBON_BG``: FIADB pre-computed belowground carbon, used only
-          when ``pool in ("bg", "total")`` (the Phase 1 BG bridge)
-        - ``STATUSCD``: live tree filter (applied by ``BaseEstimator.apply_filters``)
-        """
         estimator_cols = ["SPCD", "DIA", "HT", "CULL", "CARBON_BG"]
         return _get_tree_columns(
             estimator_cols=estimator_cols,
             grp_by=self.config.get("grp_by"),
         )
 
-    def get_cond_columns(self) -> list[str]:
-        """Condition columns for land-type filtering and grouping."""
-        return _get_cond_columns(
-            land_type=self.config.get("land_type", "forest"),
-            grp_by=self.config.get("grp_by"),
-            include_prop_basis=False,
-        )
-
-    def _load_ref_species(self) -> pl.DataFrame:
-        """Load the ``REF_SPECIES`` columns needed by the NSVB pipeline.
-
-        Reads ``SPCD``, ``JENKINS_SPGRPCD``, and ``WOOD_SPGR_GREENVOL_DRYWT``
-        and caches the result on the instance for the duration of one
-        estimator run. Follows the same access pattern as
-        ``pyfia.utils.reference_tables.join_species_names``.
-        """
-        if self._ref_species_cache is not None:
-            return self._ref_species_cache
-        df = self.db._reader.read_table(
-            "REF_SPECIES",
-            columns=["SPCD", "JENKINS_SPGRPCD", "WOOD_SPGR_GREENVOL_DRYWT"],
-        )
-        if hasattr(df, "collect"):
-            df = df.collect()
-        # Cast SPCD to Int64 for consistent joining with the trees frame
-        df = df.with_columns(
-            [
-                pl.col("SPCD").cast(pl.Int64),
-                pl.col("JENKINS_SPGRPCD").cast(pl.Int64),
-                pl.col("WOOD_SPGR_GREENVOL_DRYWT").cast(pl.Float64).alias("WDSG"),
-            ]
-        ).select(["SPCD", "JENKINS_SPGRPCD", "WDSG"])
-        self._ref_species_cache = df
-        return df
-
-    def _load_plotgeom(self) -> pl.DataFrame | None:
-        """Load ``PLOTGEOM.ECOSUBCD`` for the Phase 1.5 DIVISION lookup.
-
-        Reads ``CN`` and ``ECOSUBCD`` from ``PLOTGEOM``, renames ``CN`` to
-        ``PLT_CN`` for the downstream tree join, deduplicates by ``PLT_CN``,
-        and caches the result on the instance.
-
-        Returns ``None`` (and logs a one-shot warning) if the database does
-        not have a ``PLOTGEOM`` table — typically older test databases that
-        were downloaded before ``PLOTGEOM`` was added to
-        :data:`pyfia.downloader.tables.COMMON_TABLES`. In that case
-        :meth:`calculate_values` skips the ``DIVISION`` join and the NSVB
-        pipeline falls back to species-level + Jenkins coefficient lookups
-        (Phase 1 behavior, ~3% high biomass bias on growing-stock trees).
-
-        The negative result is cached as an empty DataFrame sentinel so we
-        don't retry the failing read on every call.
-        """
-        if self._plotgeom_cache is not None:
-            # Cached: empty df = tried-and-failed sentinel; otherwise the
-            # real lookup table.
-            return self._plotgeom_cache if self._plotgeom_cache.height > 0 else None
-
-        try:
-            df = self.db._reader.read_table(
-                "PLOTGEOM",
-                columns=["CN", "ECOSUBCD"],
-            )
-        except Exception as exc:  # noqa: BLE001 — backend-specific errors vary
-            logger.warning(
-                "PLOTGEOM not available (%s) — Phase 1.5 DIVISION lookup "
-                "disabled, falling back to Phase 1 species-level + Jenkins "
-                "coefficient precedence (~3%% high biomass bias on "
-                "growing-stock trees). To enable the DIVISION lookup, "
-                "re-download the database via pyfia.download() to pull the "
-                "PLOTGEOM table (added to COMMON_TABLES in Phase 1.5).",
-                exc,
-            )
-            self._plotgeom_cache = pl.DataFrame()  # negative sentinel
-            return None
-
-        if hasattr(df, "collect"):
-            df = df.collect()
-        df = df.select(
-            [
-                pl.col("CN").alias("PLT_CN"),
-                pl.col("ECOSUBCD"),
-            ]
-        ).unique(subset=["PLT_CN"])  # belt-and-braces against duplicate plot rows
-        self._plotgeom_cache = df
-        return df
-
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Run the NSVB pipeline and produce per-acre carbon columns.
 
-        Steps:
-
-        1. Join ``REF_SPECIES`` for ``WDSG`` and ``JENKINS_SPGRPCD``.
-        2. (Phase 1.5) Join ``PLOTGEOM`` on ``PLT_CN`` and derive ``DIVISION``
-           from ``ECOSUBCD`` via :func:`ecosubcd_to_division`. This activates
-           Level 2 of the NSVB lookup precedence inside
-           :func:`compute_nsvb_biomass`. Skipped silently when ``PLOTGEOM``
-           is missing from the database (older test databases).
-        3. Filter out any trees with ``DIA < 1.0`` (the NSVB parameter
-           space starts at 1.0 inch; anything below would produce
-           numerically unsafe values).
-        4. Call :func:`compute_nsvb_biomass` to get ``agb`` (lb) per tree.
-        5. Join ``CARBON_FRAC_LIVE`` from S10a and compute
-           ``CARBON_AG = agb × CARBON_FRAC_LIVE``.
-        6. For ``pool in ("bg", "total")``, bridge to FIADB ``CARBON_BG``
-           directly and include it in the total.
-        7. Convert lb → short tons and multiply by ``TPA_UNADJ`` to get
-           per-acre carbon.
+        Steps: join REF_SPECIES → join PLOTGEOM/DIVISION → filter sub-inch
+        trees → NSVB biomass → S10a carbon fractions → BG bridge →
+        CARBON_ACRE.
         """
         pool = self.config.get("pool", "ag").lower()
 
-        # Normalize SPCD dtype before any joins. The NSVB coefficient tables
-        # (volib_spcd, volbk_spcd, …) and REF_SPECIES are all keyed on Int64
-        # SPCD, but FIA CSV dumps frequently load TREE.SPCD as Float64 because
-        # DuckDB's read_csv_auto infers Float64 whenever the source data
-        # contains a null in what is otherwise an integer column. A Float64
-        # vs Int64 join key triggers a polars SchemaError with no automatic
-        # cast, so we cast the trees frame to Int64 up front once.
-        data = data.with_columns(pl.col("SPCD").cast(pl.Int64))
+        # Join REF_SPECIES and PLOTGEOM/DIVISION
+        data = self._join_ref_species(data)
+        data = self._join_plotgeom_division(data)
 
-        # Step 1: Join REF_SPECIES for WDSG + JENKINS_SPGRPCD
-        ref_species = self._load_ref_species()
-        data = data.join(ref_species.lazy(), on="SPCD", how="left")
-
-        # Step 1b (Phase 1.5): Join PLOTGEOM and derive DIVISION. This adds
-        # a ``DIVISION`` column to the trees frame, which compute_nsvb_biomass
-        # auto-detects to activate Level 2 (SPCD + DIVISION) of the NSVB
-        # coefficient precedence — closing the ~3% growing-stock biomass bias
-        # that the species-level-only fallback produces. When PLOTGEOM is
-        # missing, we silently skip the join and the NSVB pipeline falls
-        # back to Phase 1 species-level + Jenkins lookups.
-        plotgeom = self._load_plotgeom()
-        if plotgeom is not None:
-            data = data.join(plotgeom.lazy(), on="PLT_CN", how="left")
-            data = data.with_columns(
-                pl.col("ECOSUBCD")
-                .map_elements(ecosubcd_to_division, return_dtype=pl.Utf8)
-                .alias("DIVISION")
-            )
-
-        # Step 2: Filter out sub-inch trees (NSVB not parameterized below 1.0")
-        # This is a hard floor; the standard FIA tally threshold is 1.0" d.b.h.
-        # so in practice no real trees are dropped.
+        # Filter sub-inch trees (NSVB not parameterized below 1.0")
         data = data.filter(pl.col("DIA") >= 1.0)
 
-        # Step 3: Vectorized NSVB biomass pipeline
+        # NSVB biomass + S10a carbon conversion
         if pool in ("ag", "total"):
             data = compute_nsvb_biomass(data)
-            # Step 4: Carbon conversion via species-specific S10a fractions.
-            # Unknown SPCDs (no S10a entry) fall back to the S10a arithmetic mean.
             default_frac = _compute_default_live_carbon_fraction()
             cf_df = load_carbon_fractions_live_df()
             data = data.join(cf_df.lazy(), on="SPCD", how="left")
             data = data.with_columns(
-                [
-                    pl.col("CARBON_FRAC_LIVE")
-                    .fill_null(default_frac)
-                    .alias("CARBON_FRAC_LIVE"),
-                ]
+                pl.col("CARBON_FRAC_LIVE")
+                .fill_null(default_frac)
+                .alias("CARBON_FRAC_LIVE"),
             )
-            # CARBON_AG in lb per tree
             data = data.with_columns(
-                [(pl.col("agb") * pl.col("CARBON_FRAC_LIVE")).alias("_CARBON_AG_LB")]
+                (pl.col("agb") * pl.col("CARBON_FRAC_LIVE")).alias("_CARBON_AG_LB")
             )
         else:  # pool == "bg"
-            # Placeholder so the column exists and downstream code is uniform.
-            data = data.with_columns([pl.lit(0.0).alias("_CARBON_AG_LB")])
+            data = data.with_columns(pl.lit(0.0).alias("_CARBON_AG_LB"))
 
-        # Step 5: BG bridge. For pool='bg' or 'total', use FIADB's pre-computed
-        # CARBON_BG column directly (it's in lb per tree). For pool='ag', zero
-        # out the BG contribution.
-        if pool in ("bg", "total"):
-            data = data.with_columns(
-                [
-                    pl.col("CARBON_BG")
-                    .cast(pl.Float64)
-                    .fill_null(0.0)
-                    .alias("_CARBON_BG_LB")
-                ]
-            )
-        else:  # pool == "ag"
-            data = data.with_columns([pl.lit(0.0).alias("_CARBON_BG_LB")])
-
-        # Step 6: Sum AG + BG (only one will be nonzero unless pool='total'),
-        # convert to short tons, multiply by TPA_UNADJ for per-acre basis.
-        data = data.with_columns(
-            [
-                (
-                    (pl.col("_CARBON_AG_LB") + pl.col("_CARBON_BG_LB"))
-                    * pl.col("TPA_UNADJ").cast(pl.Float64)
-                    * LBS_TO_SHORT_TONS
-                ).alias("CARBON_ACRE"),
-            ]
-        )
+        # BG bridge + CARBON_ACRE
+        data = self._apply_bg_bridge(data, pool)
+        data = self._compute_carbon_acre(data)
 
         return data
-
-    def aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult:
-        """Two-stage aggregation identical in shape to ``BiomassEstimator``.
-
-        Stage 1: Aggregate trees to plot-condition level.
-        Stage 2: Apply stratification expansion factors and compute
-        ratio-of-means per-acre / total estimates.
-        """
-        if data is None:
-            return AggregationResult(
-                results=pl.DataFrame(),
-                plot_tree_data=pl.DataFrame(),
-                group_cols=[],
-            )
-
-        validate_required_columns(
-            data, ["PLT_CN", "CARBON_ACRE"], "live_tree carbon data"
-        )
-
-        strat_data = self._get_stratification_data()
-        data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
-
-        data_with_strat = apply_tree_adjustment_factors(
-            data_with_strat, size_col="DIA", macro_breakpoint_col="MACRO_BREAKPOINT_DIA"
-        )
-
-        data_with_strat = data_with_strat.with_columns(
-            [(pl.col("CARBON_ACRE") * pl.col("ADJ_FACTOR")).alias("CARBON_ADJ")]
-        )
-
-        group_cols = self._setup_grouping()
-
-        plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
-            data_with_strat,
-            metric_cols=["CARBON_ADJ"],
-            group_cols=group_cols,
-        )
-
-        results = self._apply_two_stage_aggregation(
-            data_with_strat=data_with_strat,
-            metric_mappings={"CARBON_ADJ": "CONDITION_CARBON"},
-            group_cols=group_cols,
-            use_grm_adjustment=False,
-        )
-
-        # CARBON_ACRE / CARBON_TOTAL are already the canonical names produced
-        # by _apply_two_stage_aggregation from the CARBON_ADJ metric mapping;
-        # no rename needed.
-
-        if not self.config.get("totals", True):
-            if "CARBON_TOTAL" in results.columns:
-                results = results.drop("CARBON_TOTAL")
-
-        return AggregationResult(
-            results=results,
-            plot_tree_data=plot_tree_data,
-            group_cols=group_cols,
-        )
-
-    def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
-        """Domain-total variance via the shared ``_calculate_variance_for_metrics``.
-
-        Follows Bechtold & Patterson (2005) for stratified ratio-of-means;
-        reuses ``BiomassEstimator``'s infrastructure verbatim.
-        """
-        validate_aggregation_result(agg_result, "LiveTree")
-
-        metric_configs = [
-            {
-                "adjusted_col": "CARBON_ADJ",
-                "acre_se_col": "CARBON_ACRE_SE",
-                "total_se_col": "CARBON_TOTAL_SE",
-            },
-        ]
-
-        return self._calculate_variance_for_metrics(agg_result, metric_configs)
-
-    def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
-        """Attach YEAR and reorder columns to the canonical layout."""
-        year = self._extract_evaluation_year()
-        results = results.with_columns([pl.lit(year).alias("YEAR")])
-
-        # Tag the output with the pool identifier for downstream filtering.
-        pool = self.config.get("pool", "ag").upper()
-        results = results.with_columns([pl.lit(pool).alias("POOL")])
-
-        col_order = [
-            "YEAR",
-            "POOL",
-            "CARBON_ACRE",
-            "CARBON_TOTAL",
-            "CARBON_ACRE_SE",
-            "CARBON_TOTAL_SE",
-            "N_PLOTS",
-            "N_TREES",
-        ]
-
-        # Insert grouping columns after YEAR so they show up first in output.
-        for col in results.columns:
-            if col not in col_order:
-                col_order.insert(1, col)
-
-        final_cols = [col for col in col_order if col in results.columns]
-        return results.select(final_cols)
 
 
 def live_tree(
@@ -582,28 +263,6 @@ def live_tree(
     control, call ``db.clip_by_evalid(...)`` before calling
     ``live_tree``.
 
-    Required FIA tables and columns:
-
-    - TREE: CN, PLT_CN, CONDID, STATUSCD, SPCD, DIA, HT, CULL, TPA_UNADJ, CARBON_BG
-    - COND: PLT_CN, CONDID, COND_STATUS_CD, CONDPROP_UNADJ, OWNGRPCD, FORTYPCD, ...
-    - PLOT: CN, STATECD, INVYR, MACRO_BREAKPOINT_DIA
-    - REF_SPECIES: SPCD, JENKINS_SPGRPCD, WOOD_SPGR_GREENVOL_DRYWT
-    - POP_PLOT_STRATUM_ASSGN: PLT_CN, STRATUM_CN
-    - POP_STRATUM: CN, EXPNS, ADJ_FACTOR_*
-    - PLOTGEOM (optional): CN, ECOSUBCD — used to derive Bailey ``DIVISION``
-      and activate the Phase 1.5 Level 2 NSVB coefficient lookup. When the
-      table is absent, the estimator silently falls back to species-level +
-      Jenkins coefficient precedence (Phase 1 behavior, ~3% high biomass
-      bias on growing-stock trees).
-
-    Raises
-    ------
-    ValueError
-        If ``pool`` is not one of ``'ag'``, ``'bg'``, ``'total'``, or if
-        any of the other validated parameters are invalid.
-    RuntimeError
-        If no data matches the specified filters and domains.
-
     Examples
     --------
     Above-ground live tree carbon per acre on forestland:
@@ -679,7 +338,7 @@ def live_tree(
         "by_species": by_species,
         "by_size_class": by_size_class,
         "land_type": land_type,
-        "tree_type": "live",  # hardcoded — live tree carbon pool is, by definition, live trees only
+        "tree_type": "live",
         "tree_domain": tree_domain,
         "area_domain": area_domain,
         "plot_domain": plot_domain,
@@ -690,12 +349,6 @@ def live_tree(
 
     try:
         estimator = LiveTreeEstimator(db, config)
-        # Best-effort cross-era warning: pool='total' sums NSVB-recomputed AG
-        # with FIADB TREE.CARBON_BG. For pre-NSVB inventories (before the
-        # Sep 2023 framework transition), CARBON_BG was computed via legacy
-        # Jenkins-based allometry, so the sum is a cross-era methodological
-        # mix. Warning only — doesn't block estimation, and wrapped in a
-        # try/except so a year-lookup failure never breaks the caller.
         if pool == "total":
             try:
                 year = estimator._extract_evaluation_year()
@@ -712,7 +365,7 @@ def live_tree(
                         int(year),
                     )
             except Exception:
-                pass  # best-effort; year lookup failure must not break estimation
+                pass
         return estimator.estimate()
     finally:
         if owns_db and hasattr(db, "close"):

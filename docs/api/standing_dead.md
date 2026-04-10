@@ -80,9 +80,20 @@ The standing-dead population is automatically filtered as:
 
 Trees with `STANDING_DEAD_CD = 0` (downed dead) belong to the down dead wood pool and are excluded.
 
-## Technical Notes
+## Broken-Top Corrections
 
-**Known limitation: broken-top corrections are not yet implemented.** Approximately 75% of standing dead trees have broken tops (`ACTUALHT < HT`). The full FIADB pipeline applies crown-proportion and volume-ratio adjustments for these trees using `REF_TREE_STND_DEAD_CR_PROP`. The current implementation uses the intact `HT`, which systematically over-estimates biomass for broken-top snags. This is a known gap — the validation gate's ratchet thresholds accommodate it and will tighten when broken-top handling lands.
+Approximately 75% of standing dead trees have broken tops (`ACTUALHT < HT`). The pipeline applies two adjustments for these trees per FIADB User Guide v9.1 Appendix K:
+
+| Adjustment | Component | Formula |
+|-----------|-----------|---------|
+| Crown proportion | Branch biomass | `Broken_crn_prop = max(0, (ACTUALHT - (1 - CRprop_HT) * HT) / (CRprop_HT * HT))` |
+| Volume ratio | Wood & bark | `(ACTUALHT / HT) ^ (2/3)` — paraboloid taper approximation |
+
+The mean intact crown ratio (`CR_MEAN`) is looked up from Table S11 (`REF_TREE_STND_DEAD_CR_PROP`) by Bailey ecoregion province and hardwood/softwood classification. When the province is unknown, the UNDEFINED fallback (softwood: 46.8%, hardwood: 38.0%) is used.
+
+The volume-ratio adjustment uses a paraboloid taper exponent (2/3) rather than FIADB's Model 6 (Schumacher-Hall) volume-ratio model, which is not implemented. This approximation accounts for the fact that the wider lower stem contains a disproportionately large fraction of total stem volume.
+
+## Technical Notes
 
 ## Examples
 

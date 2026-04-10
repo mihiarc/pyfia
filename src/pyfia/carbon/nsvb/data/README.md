@@ -29,6 +29,7 @@ These CSVs are loaded by `pyfia.carbon.nsvb.coefficients` and
 | `carbon_fraction_live.csv` | S10a (trimmed) | 2676 | Live tree carbon fractions by SPCD |
 | `carbon_fraction_dead.csv` | S10b | 10 | Dead tree carbon fractions by hw/sw × DECAYCD |
 | `dead_decay_proportions.csv` | REF_TREE_DECAY_PROP / Table 1 | 10 | Standing dead density/bark/branch loss proportions by hw/sw × DECAYCD |
+| `dead_cr_prop.csv` | S11 / REF_TREE_STND_DEAD_CR_PROP | 86 | Mean intact crown ratio by Bailey ecoregion province × hw/sw (broken-top corrections) |
 
 ## Coefficient table schema (S1a–S8b)
 
@@ -82,6 +83,20 @@ and used by `equations.compute_nsvb_dead_biomass` to apply decay reductions to g
 NSVB component biomass (stem wood × DENSITY_PROP, bark × BARK_LOSS_PROP, branch ×
 BRANCH_LOSS_PROP). Despite the `LOSS` suffix in the FIADB column names, the values
 are the *remaining* proportions (not the *lost* proportions).
+
+### `dead_cr_prop.csv` (Table S11 / REF_TREE_STND_DEAD_CR_PROP)
+
+Columns: `ECOPROV, hw_sw, CR_MEAN`
+
+86 rows: Bailey ecoregion province × hardwood/softwood, plus two UNDEFINED
+fallback rows. Vendored from GTR-WO-104 Table S11. The `ECOPROV` column
+contains 3-digit Bailey province codes (e.g., `231`, `M242`) — note these
+are **province** codes, not the `DIVISION` codes used by the NSVB coefficient
+tables (which replace the last digit with `0`). `CR_MEAN` is the mean
+compacted crown ratio in percent (e.g., `43.9` means 43.9%). Loaded by
+`carbon_fractions.load_dead_cr_prop_df()` and used by
+`equations.compute_nsvb_dead_biomass` for the Appendix K broken-top
+crown-proportion correction on standing dead trees with `ACTUALHT < HT`.
 
 ## Vendoring procedure (for maintainers)
 

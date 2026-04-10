@@ -13,11 +13,9 @@ Lookup precedence (per ``gtr_wo104_westfall2023.md:684``):
 4. ``JENKINS_SPGRPCD`` fallback (Model 5, with WDSG multiplication required)
 
 The CSVs already include species-level fallback rows; we do not need to synthesize
-them. Phase 1 ignores DIVISION-specific rows entirely and uses only the
-species-level (DIVISION-null) row, because pyFIA does not yet have a
-``PLOT.ECOSUBCD → Bailey ecoprovince division`` mapping. If the validation gate
-in Phase 1 measures > 1% per-tree disagreement with FIADB ``CARBON_AG``, a minimal
-ecoprovince mapping will be added in Phase 1.5.
+them. Phase 1.5 added the ``ECOSUBCD → Bailey DIVISION`` mapping via
+:func:`ecosubcd_to_division`, activating Level 2 of the lookup precedence.
+Level 1 (STDORGCD) is still unused (~10 rows across all 5 tables).
 """
 
 from __future__ import annotations
@@ -290,6 +288,49 @@ def ecosubcd_to_division(ecosubcd: str | None) -> str | None:
     if len(s) < 3 or not s[:2].isdigit() or not s[2].isdigit():
         return None
     return m_prefix + s[:2] + "0"
+
+
+def ecosubcd_to_division_expr(col: str = "ECOSUBCD") -> pl.Expr:
+    """Vectorized Polars expression equivalent of :func:`ecosubcd_to_division`.
+
+    Replaces ``pl.col(col).map_elements(ecosubcd_to_division)`` with pure
+    Polars string operations — no per-row Python dispatch. Logic:
+
+    1. Uppercase + strip the input.
+    2. If it starts with ``"M"``, take ``"M" + chars[1:3] + "0"``.
+    3. Otherwise take ``chars[0:2] + "0"``.
+    4. Null / empty / malformed inputs produce null.
+
+    Returns
+    -------
+    pl.Expr
+        Expression producing the Bailey DIVISION code (Utf8, nullable).
+    """
+    raw = pl.col(col).str.strip_chars().str.to_uppercase()
+    has_m = raw.str.starts_with("M")
+    # Characters after any M prefix
+    digits_m = raw.str.slice(1)  # "M231Aa" → "231Aa"
+    digits_no_m = raw  # "231Ae" → "231Ae"
+
+    # Build division: first 2 digits + "0", with M prefix preserved
+    div_m = pl.lit("M") + digits_m.str.slice(0, 2) + pl.lit("0")
+    div_no_m = digits_no_m.str.slice(0, 2) + pl.lit("0")
+
+    # Validate: the 3rd character (after M if present) must be a digit,
+    # and minimum 3 chars after prefix.  Use a regex match for the prefix
+    # digits to detect malformed values.
+    valid_m = digits_m.str.contains(r"^\d{3}")
+    valid_no_m = digits_no_m.str.contains(r"^\d{3}")
+
+    return (
+        pl.when(raw.is_null() | (raw == ""))
+        .then(pl.lit(None, dtype=pl.Utf8))
+        .when(has_m & valid_m)
+        .then(div_m)
+        .when(~has_m & valid_no_m)
+        .then(div_no_m)
+        .otherwise(pl.lit(None, dtype=pl.Utf8))
+    )
 
 
 @functools.lru_cache(maxsize=1)

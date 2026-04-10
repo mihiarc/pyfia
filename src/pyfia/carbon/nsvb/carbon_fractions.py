@@ -235,6 +235,41 @@ def get_carbon_fraction_dead(hw_sw: str, decaycd: int) -> float:
 
 
 @functools.lru_cache(maxsize=1)
+def load_dead_cr_prop_df() -> pl.DataFrame:
+    """Load Table S11 mean intact crown ratios for standing dead trees.
+
+    The vendored ``dead_cr_prop.csv`` mirrors the FIADB
+    ``REF_TREE_STND_DEAD_CR_PROP`` table — the mean compacted crown ratio
+    for intact standing dead trees by Bailey ecoregion province (ECOPROV)
+    and hardwood/softwood classification. Used by the Phase 2.5 broken-top
+    correction in :func:`pyfia.carbon.nsvb.equations.compute_nsvb_dead_biomass`
+    to estimate how much branch biomass is missing above the break point.
+
+    Source: GTR-WO-104 Table S11 (Westfall et al. 2023).
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns ``(ECOPROV Utf8, hw_sw Utf8, CR_MEAN Float64)`` with one
+        row per province × hardwood/softwood combination (~88 rows including
+        the UNDEFINED fallback). ``CR_MEAN`` is in percent (e.g., 43.9
+        means 43.9% crown ratio). Ready for a left join on
+        ``["ECOPROV", "hw_sw"]``.
+    """
+    data_pkg = resources.files("pyfia.carbon.nsvb.data")
+    with resources.as_file(data_pkg / "dead_cr_prop.csv") as path:
+        df = pl.read_csv(
+            path,
+            schema_overrides={
+                "ECOPROV": pl.Utf8,
+                "hw_sw": pl.Utf8,
+                "CR_MEAN": pl.Float64,
+            },
+        )
+    return df
+
+
+@functools.lru_cache(maxsize=1)
 def load_dead_decay_proportions_df() -> pl.DataFrame:
     """Load the FIADB ``REF_TREE_DECAY_PROP`` density / loss proportions.
 

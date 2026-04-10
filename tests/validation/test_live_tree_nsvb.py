@@ -92,7 +92,7 @@ from pyfia.carbon.nsvb.carbon_fractions import (
     _compute_default_live_carbon_fraction,
     load_carbon_fractions_live_df,
 )
-from pyfia.carbon.nsvb.coefficients import ecosubcd_to_division
+from pyfia.carbon.nsvb.coefficients import ecosubcd_to_division_expr
 from pyfia.carbon.nsvb.equations import compute_nsvb_biomass
 
 # Ratchet thresholds — locked at the Phase 1.6 baseline (EVALID-filtered
@@ -223,9 +223,7 @@ class TestLiveTreeNSVBParity:
         # coalesce handles correctly by falling through to species-level
         # and Jenkins.
         trees = trees.with_columns(
-            pl.col("ECOSUBCD")
-            .map_elements(ecosubcd_to_division, return_dtype=pl.Utf8)
-            .alias("DIVISION")
+            ecosubcd_to_division_expr("ECOSUBCD").alias("DIVISION")
         )
         n_with_division = int(trees["DIVISION"].is_not_null().sum())
 

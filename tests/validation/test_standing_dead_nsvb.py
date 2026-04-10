@@ -1,11 +1,11 @@
 """NSVB standing dead carbon parity validation against FIADB TREE.CARBON_AG.
 
-Phase 2 validation gate for ``pyfia.carbon.standing_dead`` — the dead-tree
+Phase 2.5 validation gate for ``pyfia.carbon.standing_dead`` — the dead-tree
 analogue of ``test_live_tree_nsvb.py``. The test answers the question the
 in-repo unit/equivalence suite cannot: *how closely does the NSVB dead-tree
-pipeline + REF_TREE_DECAY_PROP reductions + S10b carbon fractions agree
-with FIADB's pre-computed CARBON_AG values on real Georgia inventory data
-for the official 2024 EXPVOL evaluation (EVALID 132401)?*
+pipeline + broken-top corrections + decay reductions + S10b carbon fractions
+agree with FIADB's pre-computed CARBON_AG values on real Georgia inventory
+data for the official 2024 EXPVOL evaluation (EVALID 132401)?*
 
 **Validation scope** (locked from PR 3 Phase 1.6 lessons):
 
@@ -14,10 +14,8 @@ The query joins ``POP_PLOT_STRATUM_ASSGN`` and filters to ``EVALID =
 pre-1989 periodic-inventory standing dead trees (1972/1982/1989 panels)
 that have FIADB ``CARBON_AG`` / ``DRYBIO_AG`` computed via the legacy
 Component Ratio Method (CRM, flat 0.5 carbon fraction; see Appendix K of
-FIADB User Guide v9.1, K-1) rather than NSVB. Comparing pyfia's NSVB
-recompute against legacy-CRM data would produce spurious large outliers
-that mask the real Phase 2 quality. See PR 3 commit ``4ae5bd0`` for the
-full rationale.
+FIADB User Guide v9.1, K-1) rather than NSVB. See PR 3 commit ``4ae5bd0``
+for the full rationale.
 
 **Population filter** for standing dead trees:
 
@@ -31,35 +29,32 @@ full rationale.
 This filter recovers the ~6,870 EVALID 132401 standing dead Georgia trees
 that have a FIADB ``CARBON_AG`` value to compare against.
 
-**Known gap — broken tops:**
+**Broken-top corrections (Phase 2.5):**
 
 ~75% (5,132 / 6,870) of EVALID 132401 standing dead Georgia trees have
-``ACTUALHT < HT`` (broken top). The full FIADB pipeline applies a
-crown-proportion adjustment to branch biomass and a volume-ratio
-adjustment to wood/bark biomass for these trees, looking up the mean
-intact crown ratio via ``REF_TREE_STND_DEAD_CR_PROP`` keyed on Bailey
-ECOPROV × hw/sw. The Phase 2 baseline uses the intact ``HT`` and
-systematically over-estimates biomass for broken-top trees — particularly
-heavy snags where ACTUALHT is in the 5-10 ft range against an HT of
-80-130 ft. The top-10 worst per-tree disagreements in the Phase 2
-baseline are all such snags.
+``ACTUALHT < HT`` (broken top). The pipeline applies two adjustments:
 
-**Phase 2 baseline measurement (intact-HT approximation):**
+- Branch biomass is multiplied by ``Broken_crn_prop`` — the fraction of
+  the intact crown remaining below the break, using the mean intact crown
+  ratio from Table S11 (``REF_TREE_STND_DEAD_CR_PROP``) keyed on Bailey
+  ecoregion province × hw/sw.
+- Wood and bark are multiplied by ``(ACTUALHT/HT)^(2/3)`` — a paraboloid
+  taper approximation of the stem volume ratio below the break. This
+  replaces the Schumacher-Hall Model 6 volume-ratio computation that
+  FIADB uses.
+
+**Phase 2.5 measurement (with broken-top corrections):**
 
 - 6,870 trees compared (100% with DIVISION resolved from ECOSUBCD)
-- median rel_err: **17.89%**, mean: 56.03%, p95: 263%, p99: 442%
-- biomass ratio (pyfia/FIADB) median: **1.174** (~17% over-estimate)
-- within 1%: 13.86%, within 10%: 36.77%, within 50%: 71.62%
+- median rel_err: **10.89%**, mean: 12.14%, p95: 27.5%, p99: 36.5%
+- biomass ratio (pyfia/FIADB) median: **0.905** (~10% under-estimate)
+- within 1%: 15.02%, within 10%: 47.74%, within 50%: 99.88%
 - 0 null trees (full SPCD/DECAYCD coverage on the EVALID 132401 set)
-- FIADB implied dead carbon fraction: 0.47-0.53 (matches S10b — confirms
-  the EVALID 132401 trees are NSVB-era and the fraction layer is not
-  the source of the residual gap)
 
-The ratchet thresholds in this file are locked at the Phase 2 baseline
-measurement. They are loose because the broken-top corrections are
-deferred — vendoring ``REF_TREE_STND_DEAD_CR_PROP`` and implementing
-the Appendix K crown proportion + volume ratio adjustments should
-tighten them substantially.
+The remaining ~10% under-estimate (biomass ratio 0.905) comes from the
+paraboloid taper approximation vs FIADB's Model 6. Top-10 worst offenders
+are now small trees with peculiar HT/ACTUALHT configurations, not the
+extreme broken-top snags that dominated the Phase 2 tail.
 
 **Requires** the ``PLOTGEOM`` table in the test database for the
 DIVISION lookup. Same setup as ``test_live_tree_nsvb.py`` — see that
@@ -76,42 +71,41 @@ import pytest
 
 from pyfia.carbon.nsvb.carbon_fractions import (
     load_carbon_fractions_dead_df,
+    load_dead_cr_prop_df,
     load_dead_decay_proportions_df,
 )
-from pyfia.carbon.nsvb.coefficients import ecosubcd_to_division
+from pyfia.carbon.nsvb.coefficients import ecosubcd_to_division_expr
 from pyfia.carbon.nsvb.equations import compute_nsvb_dead_biomass
 
-# Ratchet thresholds — locked at the Phase 2 baseline (EVALID 132401,
-# intact-HT approximation, no broken-top corrections). Any commit that
-# LOOSENS these thresholds without justification is a regression; any
-# commit that tightens them is a measurable improvement (e.g., adding
-# broken-top corrections).
+# Ratchet thresholds — tightened for Phase 2.5 broken-top corrections.
 #
-# Phase 2 baseline (Georgia EVALID 132401, 6,870 trees, intact-HT path):
-#   median rel_err = 17.89%, mean = 56.03%, p95 = 262.85%, p99 = 441.50%,
-#   max = 794.07%, within 1% = 13.86%, within 10% = 36.77%,
-#   within 50% = 71.62%, biomass ratio median = 1.174,
+# Phase 2.5 measurement (Georgia EVALID 132401, 6,870 trees, with
+# Appendix K broken-top corrections — crown proportion + paraboloid
+# volume ratio):
+#   median rel_err = 10.89%, mean = 12.14%, p95 = 27.51%, p99 = 36.49%,
+#   max = 90.59%, within 1% = 15.02%, within 10% = 47.74%,
+#   within 50% = 99.88%, biomass ratio median = 0.905,
 #   null fraction = 0.000%
 #
-# Top-10 worst offenders are all heavily-broken-top snags (ACTUALHT in
-# the 5-10 ft range against HT in the 80-130 ft range), confirming the
-# broken-top hypothesis. The intact-HT approximation systematically
-# over-counts biomass that's physically missing from the broken section.
-# These over-estimates skew the mean and the high-percentile tail well
-# above the median. Adding broken-top corrections (vendoring
-# REF_TREE_STND_DEAD_CR_PROP and applying the Appendix K crown
-# proportion + volume ratio adjustments) is the obvious next iteration.
+# Improvement over Phase 2 baseline (intact-HT, no corrections):
+#   median 17.89% → 10.89%  (-39%)
+#   p99    441.5% → 36.5%   (-92%)
+#   within-10% 36.8% → 47.7% (+30%)
+#   within-50% 71.6% → 99.9% (+39%)
+#   biomass ratio 1.174 → 0.905 (moved from 17% over to 10% under)
 #
-# All thresholds below are set just past the measured baseline so that
-# any tightening is a real improvement and any loosening surfaces as a
-# test failure.
-_BASELINE_MEDIAN_REL_ERR = 0.20  # Phase 2: 0.1789
-_BASELINE_P99_REL_ERR = 5.00  # Phase 2: 4.4150
-_BASELINE_WITHIN_50PCT_FRAC = 0.65  # Phase 2: 0.7162 (lower bound)
-_BASELINE_WITHIN_10PCT_FRAC = 0.30  # Phase 2: 0.3677 (lower bound)
-_BASELINE_WITHIN_1PCT_FRAC = 0.10  # Phase 2: 0.1386 (lower bound)
-_BASELINE_BIOMASS_RATIO_MEDIAN_MIN = 1.10  # Phase 2: 1.1740
-_BASELINE_BIOMASS_RATIO_MEDIAN_MAX = 1.25  # Phase 2: 1.1740
+# The remaining ~10% under-estimate (biomass ratio 0.905) is the
+# paraboloid taper approximation (exponent 2/3) vs FIADB's Model 6
+# Schumacher-Hall volume-ratio model. Top-10 worst offenders are now
+# small trees with peculiar HT/ACTUALHT configurations rather than the
+# extreme broken-top snags that dominated the Phase 2 tail.
+_BASELINE_MEDIAN_REL_ERR = 0.12  # Phase 2.5: 0.1089
+_BASELINE_P99_REL_ERR = 0.40  # Phase 2.5: 0.3649
+_BASELINE_WITHIN_50PCT_FRAC = 0.99  # Phase 2.5: 0.9988 (lower bound)
+_BASELINE_WITHIN_10PCT_FRAC = 0.45  # Phase 2.5: 0.4774 (lower bound)
+_BASELINE_WITHIN_1PCT_FRAC = 0.13  # Phase 2.5: 0.1502 (lower bound)
+_BASELINE_BIOMASS_RATIO_MEDIAN_MIN = 0.85  # Phase 2.5: 0.9052
+_BASELINE_BIOMASS_RATIO_MEDIAN_MAX = 0.95  # Phase 2.5: 0.9052
 
 # Trees with SPCD not covered by any NSVB coefficient path (species-level
 # OR Jenkins fallback) get null agb. Allow a little headroom — the
@@ -204,22 +198,20 @@ class TestStandingDeadNSVBParity:
 
         # Derive Bailey DIVISION from ECOSUBCD (Level 2 NSVB lookup).
         trees = trees.with_columns(
-            pl.col("ECOSUBCD")
-            .map_elements(ecosubcd_to_division, return_dtype=pl.Utf8)
-            .alias("DIVISION")
+            ecosubcd_to_division_expr("ECOSUBCD").alias("DIVISION")
         )
         n_with_division = int(trees["DIVISION"].is_not_null().sum())
 
         # Normalize dtypes. DECAYCD comes off DuckDB as Utf8 because the
         # source CSV column has nulls; cast to Int64 for the join. ACTUALHT
-        # is Utf8 too — keep as-is for the broken-top diagnostic, no need
-        # to use it in the pipeline (Phase 2 baseline uses intact HT).
+        # is cast to Float64 for the broken-top correction pipeline.
         trees = trees.with_columns(
             [
                 pl.col("SPCD").cast(pl.Int64),
                 pl.col("JENKINS_SPGRPCD").cast(pl.Int64),
                 pl.col("DIA").cast(pl.Float64),
                 pl.col("HT").cast(pl.Float64),
+                pl.col("ACTUALHT").cast(pl.Float64, strict=False),
                 pl.col("DECAYCD").cast(pl.Int64, strict=False),
                 pl.col("WDSG").cast(pl.Float64),
                 pl.col("FIADB_CARBON_AG").cast(pl.Float64),
@@ -234,10 +226,13 @@ class TestStandingDeadNSVBParity:
             ).height
         )
 
-        # Run the vectorized NSVB dead biomass pipeline (the same entry
-        # point ``StandingDeadEstimator.calculate_values`` uses).
+        # Run the vectorized NSVB dead biomass pipeline with broken-top
+        # corrections (Phase 2.5).
         decay_props = load_dead_decay_proportions_df()
-        result = compute_nsvb_dead_biomass(trees.lazy(), decay_props).collect()
+        cr_prop_table = load_dead_cr_prop_df()
+        result = compute_nsvb_dead_biomass(
+            trees.lazy(), decay_props, cr_prop_table=cr_prop_table
+        ).collect()
 
         # Count trees with null agb (SPCD coverage gaps OR DECAYCD outside 1-5).
         n_null = int(result["agb"].null_count())

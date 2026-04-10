@@ -17,6 +17,9 @@ __version__ = "1.3.0"
 __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
+# Estimation functions - High-level API
+from pyfia.carbon.live_tree import live_tree
+from pyfia.carbon.standing_dead import standing_dead
 from pyfia.core.data_reader import FIADataReader
 from pyfia.core.exceptions import (
     ConfigurationError,
@@ -50,9 +53,6 @@ from pyfia.downloader import (
     clear_cache,
     download,
 )
-
-# Estimation functions - High-level API
-from pyfia.carbon.live_tree import live_tree
 from pyfia.estimation.estimators.area import area
 from pyfia.estimation.estimators.area_change import area_change
 from pyfia.estimation.estimators.biomass import biomass
@@ -115,6 +115,7 @@ __all__ = [
     "area_change",
     "biomass",
     "live_tree",
+    "standing_dead",
     "volume",
     "tpa",
     "mortality",

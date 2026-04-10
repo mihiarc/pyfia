@@ -20,8 +20,10 @@ import pytest
 from pyfia.carbon.nsvb.coefficients import (
     CoefficientTables,
     VectorizedLookupTables,
+    build_division_lookup,
     build_jenkins_lookup,
     build_species_level_lookup,
+    ecosubcd_to_division,
     get_vectorized_lookup_tables,
     load_nsvb_coefficients,
     lookup_coefficients,
@@ -404,3 +406,114 @@ class TestGetVectorizedLookupTables:
         bundle = get_vectorized_lookup_tables()
         row = bundle.total_agb_spcd.filter(pl.col("SPCD") == 316).to_dicts()[0]
         assert row["model"] == 4
+
+    def test_division_lookups_present(self):
+        """Each component now has a DIVISION-keyed lookup (Level 2)."""
+        bundle = get_vectorized_lookup_tables()
+        div_expected = ["SPCD", "DIVISION", "model", "a", "b", "b1", "c"]
+        for name in (
+            "volib_div",
+            "volbk_div",
+            "bark_bio_div",
+            "branch_bio_div",
+            "total_agb_div",
+        ):
+            tbl = getattr(bundle, name)
+            assert tbl.columns == div_expected, f"{name} has wrong columns"
+            # Every division row has a non-null DIVISION code
+            assert tbl["DIVISION"].null_count() == 0
+            # Every division row has a non-null SPCD
+            assert tbl["SPCD"].null_count() == 0
+
+    def test_division_230_has_georgia_species(self):
+        """DIVISION 230 (Subtropical, covering Georgia) has species-level rows
+        in the S8a (total_agb) table, including loblolly pine (SPCD=131)."""
+        bundle = get_vectorized_lookup_tables()
+        div_230 = bundle.total_agb_div.filter(pl.col("DIVISION") == "230")
+        spcds = set(div_230["SPCD"].to_list())
+        # Loblolly pine (131), slash pine (111), and longleaf pine (121) are
+        # the dominant southern pines in Georgia — if the Phase 1.5 fix is
+        # to land, these need a DIVISION=230 row.
+        assert 131 in spcds or 121 in spcds or 111 in spcds, (
+            f"no southern pines in DIVISION 230 S8a rows: {sorted(spcds)}"
+        )
+
+
+class TestBuildDivisionLookup:
+    """Vectorized path helper: DIVISION-keyed row filter for *_spcd tables."""
+
+    def test_selected_columns(self):
+        """Returns a (SPCD, DIVISION, model, a, b, b1, c) lookup."""
+        coefs = load_nsvb_coefficients()
+        result = build_division_lookup(coefs.volib_spcd)
+        assert result.columns == ["SPCD", "DIVISION", "model", "a", "b", "b1", "c"]
+
+    def test_only_division_rows(self):
+        """Rows where DIVISION is null are filtered out."""
+        coefs = load_nsvb_coefficients()
+        result = build_division_lookup(coefs.volib_spcd)
+        assert result["DIVISION"].null_count() == 0
+        # Volib_spcd has 256 DIVISION rows in the raw table; the defensive
+        # Model 2/4 null-b1 filter may drop a few, but we should still have
+        # most of them.
+        assert result.height > 200
+
+    def test_stdorgcd_null_only(self):
+        """Phase 1.5 skips Level 1 (STDORGCD-specific rows)."""
+        coefs = load_nsvb_coefficients()
+        raw_div = coefs.volib_spcd.filter(pl.col("DIVISION").is_not_null())
+        lookup_div = build_division_lookup(coefs.volib_spcd)
+        # lookup should have <= raw (Level 1 rows dropped by STDORGCD.is_null())
+        assert lookup_div.height <= raw_div.height
+
+    def test_composite_key_uniqueness(self):
+        """Each (SPCD, DIVISION) appears at most once after filtering."""
+        coefs = load_nsvb_coefficients()
+        result = build_division_lookup(coefs.volib_spcd)
+        pairs = result.select(["SPCD", "DIVISION"])
+        assert pairs.n_unique() == pairs.height
+
+
+class TestEcosubcdToDivision:
+    """Bailey ECOSUBCD → DIVISION crosswalk."""
+
+    def test_southeastern_mixed_forest(self):
+        """SE Mixed Forest provinces 231, 232 → Division 230 (Subtropical)."""
+        assert ecosubcd_to_division("231Ae") == "230"
+        assert ecosubcd_to_division("231Aa") == "230"
+        assert ecosubcd_to_division("232Bh") == "230"
+        assert ecosubcd_to_division("232Ba") == "230"
+
+    def test_mountain_prefix(self):
+        """Mountain prefix M is preserved: M231Aa → M230."""
+        assert ecosubcd_to_division("M231Aa") == "M230"
+        assert ecosubcd_to_division("M261Ea") == "M260"
+        assert ecosubcd_to_division("M220Ad") == "M220"
+
+    def test_non_subtropical_divisions(self):
+        """Sanity-check other domains."""
+        assert ecosubcd_to_division("211Aa") == "210"  # Warm Continental
+        assert ecosubcd_to_division("221Aa") == "220"  # Hot Continental
+        assert ecosubcd_to_division("242Bb") == "240"  # Marine
+
+    def test_null_and_empty_inputs(self):
+        """Null, empty, or whitespace input → None."""
+        assert ecosubcd_to_division(None) is None
+        assert ecosubcd_to_division("") is None
+        assert ecosubcd_to_division("   ") is None
+
+    def test_malformed_input(self):
+        """Non-digit or too-short prefix → None."""
+        assert ecosubcd_to_division("XYZ") is None
+        assert ecosubcd_to_division("M") is None
+        assert ecosubcd_to_division("12") is None
+        assert ecosubcd_to_division("A23") is None
+
+    def test_case_insensitive(self):
+        """Lowercase input is normalized to uppercase (M prefix preserved)."""
+        assert ecosubcd_to_division("m231aa") == "M230"
+        assert ecosubcd_to_division("231ae") == "230"
+
+    def test_whitespace_stripped(self):
+        """Leading/trailing whitespace is stripped."""
+        assert ecosubcd_to_division("  231Ae  ") == "230"

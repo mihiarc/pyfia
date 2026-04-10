@@ -527,24 +527,39 @@ def _join_and_eval_component(
     trees: pl.LazyFrame,
     spcd_table: pl.DataFrame,
     jen_table: pl.DataFrame,
+    div_table: pl.DataFrame,
     out_col: str,
+    *,
+    has_division: bool,
 ) -> pl.LazyFrame:
-    """Join a LazyFrame to one (species-level, Jenkins) coefficient pair and
-    evaluate the NSVB biomass expression for that component.
+    """Join a LazyFrame to the (division, species-level, Jenkins) coefficient
+    triple for one component and evaluate the NSVB biomass expression.
 
-    Implementation of NSVB lookup precedence Levels 3 + 4 as polars joins:
+    Implementation of NSVB lookup precedence Levels 2 → 3 → 4 as polars
+    joins:
 
-    1. Left-join ``spcd_table`` on ``SPCD`` (species-level fallback, Level 3).
-    2. Left-join ``jen_table`` on ``JENKINS_SPGRPCD`` (Jenkins fallback, Level 4).
-    3. Coalesce the two coefficient rows, preferring species-level.
-    4. Evaluate :func:`nsvb_biomass_expr` to produce ``out_col``.
-    5. Drop the temporary coefficient columns.
+    1. If ``has_division`` is True: left-join ``div_table`` on
+       ``(SPCD, DIVISION)`` (Level 2).
+    2. Left-join ``spcd_table`` on ``SPCD`` (species-level fallback, Level 3).
+    3. Left-join ``jen_table`` on ``JENKINS_SPGRPCD`` (Jenkins fallback,
+       Level 4).
+    4. Coalesce the three coefficient rows in precedence order:
+       division → species-level → Jenkins.
+    5. Evaluate :func:`nsvb_biomass_expr` to produce ``out_col``.
+    6. Drop the temporary coefficient columns.
+
+    When ``has_division`` is False (the trees frame has no ``DIVISION``
+    column — backward-compatible path for synthetic tests and for callers
+    that haven't yet wired the ``PLOTGEOM.ECOSUBCD`` join), the division
+    join is skipped entirely and the behavior matches the old 2-way
+    coalesce exactly.
 
     Parameters
     ----------
     trees : pl.LazyFrame
         Input frame with at least ``SPCD``, ``DIA``, ``HT``, ``WDSG``,
-        ``JENKINS_SPGRPCD`` columns.
+        ``JENKINS_SPGRPCD`` columns. If ``has_division`` is True, must also
+        have a ``DIVISION`` column (Utf8/String, nullable).
     spcd_table : pl.DataFrame
         Species-level lookup from
         :func:`pyfia.carbon.nsvb.coefficients.build_species_level_lookup`
@@ -553,8 +568,16 @@ def _join_and_eval_component(
         Jenkins fallback from
         :func:`pyfia.carbon.nsvb.coefficients.build_jenkins_lookup` with
         columns ``(JENKINS_SPGRPCD, model, a, b, b1, c)``.
+    div_table : pl.DataFrame
+        DIVISION-specific lookup from
+        :func:`pyfia.carbon.nsvb.coefficients.build_division_lookup` with
+        columns ``(SPCD, DIVISION, model, a, b, b1, c)``. Only consulted
+        when ``has_division`` is True.
     out_col : str
         Name for the output column (e.g., ``"v_wood_ib"``).
+    has_division : bool
+        Whether the caller has populated a ``DIVISION`` column on the trees
+        frame. When False, skip the division join entirely.
 
     Returns
     -------
@@ -562,7 +585,7 @@ def _join_and_eval_component(
         The input frame with ``out_col`` appended. Temporary coefficient
         columns are dropped before return.
     """
-    # Rename coefficient columns on both sides so they don't collide with the
+    # Rename coefficient columns on each side so they don't collide with the
     # trees frame or with each other.
     spcd_lf = spcd_table.lazy().rename(
         {
@@ -583,17 +606,46 @@ def _join_and_eval_component(
         }
     )
 
+    if has_division:
+        div_lf = div_table.lazy().rename(
+            {
+                "model": "_model_d",
+                "a": "_a_d",
+                "b": "_b_d",
+                "b1": "_b1_d",
+                "c": "_c_d",
+            }
+        )
+        trees = trees.join(div_lf, on=["SPCD", "DIVISION"], how="left")
+
     trees = trees.join(spcd_lf, on="SPCD", how="left")
     trees = trees.join(jen_lf, on="JENKINS_SPGRPCD", how="left")
 
-    # Coalesce species-level first (Level 3), Jenkins second (Level 4).
+    # Coalesce: division (Level 2) → species-level (Level 3) → Jenkins (Level 4).
+    # When has_division=False, the _*_d columns don't exist and we fall back
+    # to the 2-way coalesce matching the original implementation.
+    if has_division:
+        model_expr = pl.coalesce(
+            pl.col("_model_d"), pl.col("_model_s"), pl.col("_model_j")
+        )
+        a_expr = pl.coalesce(pl.col("_a_d"), pl.col("_a_s"), pl.col("_a_j"))
+        b_expr = pl.coalesce(pl.col("_b_d"), pl.col("_b_s"), pl.col("_b_j"))
+        b1_expr = pl.coalesce(pl.col("_b1_d"), pl.col("_b1_s"), pl.col("_b1_j"))
+        c_expr = pl.coalesce(pl.col("_c_d"), pl.col("_c_s"), pl.col("_c_j"))
+    else:
+        model_expr = pl.coalesce(pl.col("_model_s"), pl.col("_model_j"))
+        a_expr = pl.coalesce(pl.col("_a_s"), pl.col("_a_j"))
+        b_expr = pl.coalesce(pl.col("_b_s"), pl.col("_b_j"))
+        b1_expr = pl.coalesce(pl.col("_b1_s"), pl.col("_b1_j"))
+        c_expr = pl.coalesce(pl.col("_c_s"), pl.col("_c_j"))
+
     trees = trees.with_columns(
         nsvb_biomass_expr(
-            model=pl.coalesce(pl.col("_model_s"), pl.col("_model_j")),
-            a=pl.coalesce(pl.col("_a_s"), pl.col("_a_j")),
-            b=pl.coalesce(pl.col("_b_s"), pl.col("_b_j")),
-            b1=pl.coalesce(pl.col("_b1_s"), pl.col("_b1_j")),
-            c=pl.coalesce(pl.col("_c_s"), pl.col("_c_j")),
+            model=model_expr,
+            a=a_expr,
+            b=b_expr,
+            b1=b1_expr,
+            c=c_expr,
             d=pl.col("DIA").cast(pl.Float64),
             h=pl.col("HT").cast(pl.Float64),
             spcd=pl.col("SPCD"),
@@ -601,20 +653,21 @@ def _join_and_eval_component(
         ).alias(out_col)
     )
 
-    return trees.drop(
-        [
-            "_model_s",
-            "_a_s",
-            "_b_s",
-            "_b1_s",
-            "_c_s",
-            "_model_j",
-            "_a_j",
-            "_b_j",
-            "_b1_j",
-            "_c_j",
-        ]
-    )
+    drop_cols = [
+        "_model_s",
+        "_a_s",
+        "_b_s",
+        "_b1_s",
+        "_c_s",
+        "_model_j",
+        "_a_j",
+        "_b_j",
+        "_b1_j",
+        "_c_j",
+    ]
+    if has_division:
+        drop_cols.extend(["_model_d", "_a_d", "_b_d", "_b1_d", "_c_d"])
+    return trees.drop(drop_cols)
 
 
 def compute_nsvb_biomass(
@@ -649,6 +702,18 @@ def compute_nsvb_biomass(
         - ``JENKINS_SPGRPCD`` (Int): Jenkins species group for the Level 4
           fallback (``REF_SPECIES.JENKINS_SPGRPCD``)
 
+        Optional:
+
+        - ``DIVISION`` (Utf8, nullable): Bailey ecoprovince DIVISION code
+          (e.g., ``"230"``, ``"M230"``, computed from ``PLOT.ECOSUBCD`` via
+          :func:`pyfia.carbon.nsvb.coefficients.ecosubcd_to_division`).
+          When present, the orchestrator activates Level 2 of the NSVB
+          lookup precedence: the ``(SPCD, DIVISION)`` lookup runs first,
+          falling through to species-level (Level 3) and Jenkins (Level 4)
+          per-row via coalesce. When absent, only Levels 3 + 4 are used
+          (backward-compatible with callers that haven't wired the
+          PLOTGEOM join).
+
         Additional columns (grouping variables, plot identifiers, etc.)
         pass through untouched.
     lookup : VectorizedLookupTables, optional
@@ -676,29 +741,58 @@ def compute_nsvb_biomass(
 
         lookup = get_vectorized_lookup_tables()
 
+    # Probe the schema once so the 5 per-component joins don't each re-collect
+    # it. DIVISION column detection activates the Level 2 lookup path.
+    has_division = "DIVISION" in trees.collect_schema().names()
+
     # Step 1 — Total stem inside-bark wood volume (cubic feet).
     trees = _join_and_eval_component(
-        trees, lookup.volib_spcd, lookup.volib_jen, "v_wood_ib"
+        trees,
+        lookup.volib_spcd,
+        lookup.volib_jen,
+        lookup.volib_div,
+        "v_wood_ib",
+        has_division=has_division,
     )
 
     # Step 2 — Total stem bark volume (cubic feet).
     trees = _join_and_eval_component(
-        trees, lookup.volbk_spcd, lookup.volbk_jen, "v_bark"
+        trees,
+        lookup.volbk_spcd,
+        lookup.volbk_jen,
+        lookup.volbk_div,
+        "v_bark",
+        has_division=has_division,
     )
 
     # Step 5 — Stem bark biomass (lb).
     trees = _join_and_eval_component(
-        trees, lookup.bark_bio_spcd, lookup.bark_bio_jen, "_w_bark_pre"
+        trees,
+        lookup.bark_bio_spcd,
+        lookup.bark_bio_jen,
+        lookup.bark_bio_div,
+        "_w_bark_pre",
+        has_division=has_division,
     )
 
     # Step 6 — Branch biomass (lb).
     trees = _join_and_eval_component(
-        trees, lookup.branch_bio_spcd, lookup.branch_bio_jen, "_w_branch_pre"
+        trees,
+        lookup.branch_bio_spcd,
+        lookup.branch_bio_jen,
+        lookup.branch_bio_div,
+        "_w_branch_pre",
+        has_division=has_division,
     )
 
     # Step 7 — Directly-predicted total AGB (lb).
     trees = _join_and_eval_component(
-        trees, lookup.total_agb_spcd, lookup.total_agb_jen, "_agb_predicted"
+        trees,
+        lookup.total_agb_spcd,
+        lookup.total_agb_jen,
+        lookup.total_agb_div,
+        "_agb_predicted",
+        has_division=has_division,
     )
 
     # Step 3-4 — Convert wood volume to weight, with a cull-reduced variant.
@@ -807,5 +901,295 @@ def compute_nsvb_biomass(
             "_comp_red_sum",
             "_agb_reduce",
             "_agb_pred_red",
+        ]
+    )
+
+
+def compute_nsvb_dead_biomass(
+    trees: pl.LazyFrame,
+    decay_props: pl.DataFrame,
+    lookup: VectorizedLookupTables | None = None,
+) -> pl.LazyFrame:
+    """Vectorized NSVB standing-dead biomass pipeline (Phase 2 production path).
+
+    Mirrors :func:`compute_nsvb_biomass` but applies the FIADB
+    ``REF_TREE_DECAY_PROP`` reductions (``DENSITY_PROP``, ``BARK_LOSS_PROP``,
+    ``BRANCH_LOSS_PROP``) by hardwood/softwood × ``DECAYCD`` *instead* of
+    the live-tree ``CULL`` reduction. Per FIADB User Guide v9.1 Appendix K
+    "Cull" subsection: "For dead tree biomass, no adjustments for TREE.CULL
+    or other types of cull are made." So ``TREE.CULL`` is intentionally
+    ignored on this path even when populated.
+
+    The 10-step pipeline:
+
+    1-2. Predict total stem inside-bark wood volume and stem bark volume
+       (NSVB Models 1/2/4/5, Tables S1a/S2a + Jenkins fallback). Identical
+       to live-tree path including the optional Level 2 DIVISION lookup.
+    3.   Convert wood volume to gross weight (``v_wood_ib * WDSG * 62.4``).
+    4-5. Predict stem bark biomass and branch biomass from S6a / S7a.
+    6.   Predict directly the total above-ground biomass from S8a.
+    7.   Join the FIADB decay-proportion table on (hw_sw, DECAYCD).
+    8.   Apply each component's decay reduction:
+
+         - ``w_wood_dead = w_wood_gross * DENSITY_PROP``
+         - ``w_bark_dead = w_bark_pre  * BARK_LOSS_PROP``
+         - ``w_branch_dead = w_branch_pre * BRANCH_LOSS_PROP``
+
+    9.   Compute the AGB reduction factor:
+         ``AGBReduce = sum(dead components) / sum(gross components)``
+         and reduce the directly-predicted AGB:
+         ``agb_pred_dead = agb_predicted * AGBReduce``.
+    10.  Harmonize the dead components against ``agb_pred_dead`` so they
+         sum exactly to it while preserving relative dead-component ratios.
+         This is the same proportional redistribution
+         :func:`harmonize_components` performs for the live path.
+
+    Parameters
+    ----------
+    trees : pl.LazyFrame
+        Input frame with at least:
+
+        - ``SPCD`` (Int): FIA species code
+        - ``DIA`` (Float): diameter at breast height (inches, must be >= 1.0)
+        - ``HT`` (Float): total tree height (feet) — used as the *intact*
+          height for the NSVB component predictions. Broken-top corrections
+          (``ACTUALHT < HT`` adjustments via ``REF_TREE_STND_DEAD_CR_PROP``)
+          are not implemented in this Phase 2 baseline.
+        - ``DECAYCD`` (Int): standing-dead decay class (1-5) from
+          ``TREE.DECAYCD``. Trees with null DECAYCD will produce null
+          outputs.
+        - ``WDSG`` (Float): wood specific gravity from
+          ``REF_SPECIES.WOOD_SPGR_GREENVOL_DRYWT``
+        - ``JENKINS_SPGRPCD`` (Int): Jenkins species group for the Level 4
+          fallback
+
+        Optional:
+
+        - ``DIVISION`` (Utf8, nullable): Bailey ecoprovince DIVISION code,
+          activates Level 2 of the NSVB lookup precedence (same as the
+          live-tree pipeline).
+    decay_props : pl.DataFrame
+        FIADB ``REF_TREE_DECAY_PROP`` lookup table from
+        :func:`pyfia.carbon.nsvb.carbon_fractions.load_dead_decay_proportions_df`.
+        Must have columns ``(hw_sw, DECAYCD, DENSITY_PROP, BARK_LOSS_PROP,
+        BRANCH_LOSS_PROP)``.
+    lookup : VectorizedLookupTables, optional
+        Pre-built coefficient lookup bundle. If omitted, uses the cached
+        process-level bundle (same as the live-tree path).
+
+    Returns
+    -------
+    pl.LazyFrame
+        The input frame with the following new columns:
+
+        - ``v_wood_ib`` (Float, cu ft): total stem inside-bark wood volume
+        - ``v_bark`` (Float, cu ft): total stem bark volume
+        - ``w_wood`` (Float, lb): harmonized stem wood biomass after decay
+        - ``w_bark`` (Float, lb): harmonized stem bark biomass after decay
+        - ``w_branch`` (Float, lb): harmonized branch biomass after decay
+        - ``agb`` (Float, lb): harmonized total above-ground biomass after
+          decay (equals ``w_wood + w_bark + w_branch`` by construction)
+
+        All input columns pass through. Note: trees with ``DECAYCD`` outside
+        the 1-5 range will receive null reduction factors and therefore null
+        ``agb`` outputs — the caller (e.g., the ``StandingDeadEstimator``
+        validation test) is responsible for filtering or pre-validating
+        ``DECAYCD``.
+
+    Notes
+    -----
+    **What this implementation does NOT do (deferred):**
+
+    - **Broken-top corrections.** ~75% of EVALID 132401 standing dead trees
+      have ``TREE.ACTUALHT < TREE.HT``. The full FIADB pipeline applies a
+      crown-proportion adjustment to branch biomass (and a volume-ratio
+      adjustment to wood/bark biomass) for these trees, looking up the
+      mean intact crown ratio via ``REF_TREE_STND_DEAD_CR_PROP`` keyed on
+      Bailey ECOPROV × hw/sw. The Phase 2 baseline uses the intact ``HT``
+      with no broken-top correction, which will systematically over-estimate
+      biomass for broken-top trees. This is a known gap; the validation
+      test's ratchet thresholds are loose to accommodate it and a follow-up
+      can tighten them once broken-top handling lands.
+    - **CULL adjustment.** Intentionally not applied — see Appendix K above.
+    - **STDORGCD Level 1 lookup.** Same status as the live-tree path
+      (10 dead-code rows across 5 tables).
+    """
+    if lookup is None:
+        from pyfia.carbon.nsvb.coefficients import get_vectorized_lookup_tables
+
+        lookup = get_vectorized_lookup_tables()
+
+    has_division = "DIVISION" in trees.collect_schema().names()
+
+    # Steps 1-2 — Stem wood and stem bark volumes (cu ft).
+    trees = _join_and_eval_component(
+        trees,
+        lookup.volib_spcd,
+        lookup.volib_jen,
+        lookup.volib_div,
+        "v_wood_ib",
+        has_division=has_division,
+    )
+    trees = _join_and_eval_component(
+        trees,
+        lookup.volbk_spcd,
+        lookup.volbk_jen,
+        lookup.volbk_div,
+        "v_bark",
+        has_division=has_division,
+    )
+
+    # Steps 4-5 — Bark and branch biomass (lb), gross intact predictions.
+    trees = _join_and_eval_component(
+        trees,
+        lookup.bark_bio_spcd,
+        lookup.bark_bio_jen,
+        lookup.bark_bio_div,
+        "_w_bark_pre",
+        has_division=has_division,
+    )
+    trees = _join_and_eval_component(
+        trees,
+        lookup.branch_bio_spcd,
+        lookup.branch_bio_jen,
+        lookup.branch_bio_div,
+        "_w_branch_pre",
+        has_division=has_division,
+    )
+
+    # Step 6 — Directly-predicted total AGB (lb), intact.
+    trees = _join_and_eval_component(
+        trees,
+        lookup.total_agb_spcd,
+        lookup.total_agb_jen,
+        lookup.total_agb_div,
+        "_agb_predicted",
+        has_division=has_division,
+    )
+
+    # Step 3 — Convert wood volume to gross weight.
+    trees = trees.with_columns(
+        [
+            (pl.col("v_wood_ib") * pl.col("WDSG").cast(pl.Float64) * 62.4).alias(
+                "_w_wood_gross"
+            ),
+        ]
+    )
+
+    # Step 7 — Join the FIADB REF_TREE_DECAY_PROP table on (hw_sw, DECAYCD).
+    # The hw_sw column is derived from the SPCD<300 rule to stay consistent
+    # with _model_k and the live-tree pipeline (sidesteps the SPCD=10 S10a
+    # misclassification).
+    decay_lf = decay_props.lazy().rename(
+        {
+            "hw_sw": "_hw_sw",
+            "DECAYCD": "_decay_join",
+            "DENSITY_PROP": "_density_prop",
+            "BARK_LOSS_PROP": "_bark_loss_prop",
+            "BRANCH_LOSS_PROP": "_branch_loss_prop",
+        }
+    )
+    trees = trees.with_columns(
+        [
+            pl.when(pl.col("SPCD") >= _HARDWOOD_SPCD_THRESHOLD)
+            .then(pl.lit("hardwood"))
+            .otherwise(pl.lit("softwood"))
+            .alias("_hw_sw"),
+            pl.col("DECAYCD").cast(pl.Int64).alias("_decay_join"),
+        ]
+    )
+    trees = trees.join(decay_lf, on=["_hw_sw", "_decay_join"], how="left")
+
+    # Step 8 — Apply per-component decay reductions.
+    trees = trees.with_columns(
+        [
+            (pl.col("_w_wood_gross") * pl.col("_density_prop")).alias("_w_wood_dead"),
+            (pl.col("_w_bark_pre") * pl.col("_bark_loss_prop")).alias("_w_bark_dead"),
+            (pl.col("_w_branch_pre") * pl.col("_branch_loss_prop")).alias(
+                "_w_branch_dead"
+            ),
+        ]
+    )
+
+    # Step 9 — AGB reduction factor and reduced predicted AGB.
+    trees = trees.with_columns(
+        [
+            (
+                pl.col("_w_wood_gross")
+                + pl.col("_w_bark_pre")
+                + pl.col("_w_branch_pre")
+            ).alias("_comp_gross_sum"),
+            (
+                pl.col("_w_wood_dead")
+                + pl.col("_w_bark_dead")
+                + pl.col("_w_branch_dead")
+            ).alias("_comp_dead_sum"),
+        ]
+    )
+    trees = trees.with_columns(
+        [
+            pl.when(pl.col("_comp_gross_sum") <= 0)
+            .then(pl.lit(0.0))
+            .otherwise(pl.col("_comp_dead_sum") / pl.col("_comp_gross_sum"))
+            .alias("_agb_reduce"),
+        ]
+    )
+    trees = trees.with_columns(
+        [(pl.col("_agb_predicted") * pl.col("_agb_reduce")).alias("_agb_pred_dead")]
+    )
+
+    # Step 10 — Harmonize dead components against the reduced predicted AGB.
+    # Same proportional redistribution as the live path; see
+    # ``harmonize_components`` for the scalar reference.
+    trees = trees.with_columns(
+        [
+            pl.when(pl.col("_comp_dead_sum") > 0)
+            .then(
+                pl.col("_agb_pred_dead")
+                * pl.col("_w_wood_dead")
+                / pl.col("_comp_dead_sum")
+            )
+            .otherwise(pl.col("_agb_pred_dead"))
+            .alias("w_wood"),
+            pl.when(pl.col("_comp_dead_sum") > 0)
+            .then(
+                pl.col("_agb_pred_dead")
+                * pl.col("_w_bark_dead")
+                / pl.col("_comp_dead_sum")
+            )
+            .otherwise(pl.lit(0.0))
+            .alias("w_bark"),
+            pl.when(pl.col("_comp_dead_sum") > 0)
+            .then(
+                pl.col("_agb_pred_dead")
+                * pl.col("_w_branch_dead")
+                / pl.col("_comp_dead_sum")
+            )
+            .otherwise(pl.lit(0.0))
+            .alias("w_branch"),
+        ]
+    )
+    trees = trees.with_columns(
+        [(pl.col("w_wood") + pl.col("w_bark") + pl.col("w_branch")).alias("agb")]
+    )
+
+    return trees.drop(
+        [
+            "_hw_sw",
+            "_decay_join",
+            "_density_prop",
+            "_bark_loss_prop",
+            "_branch_loss_prop",
+            "_w_wood_gross",
+            "_w_bark_pre",
+            "_w_branch_pre",
+            "_agb_predicted",
+            "_w_wood_dead",
+            "_w_bark_dead",
+            "_w_branch_dead",
+            "_comp_gross_sum",
+            "_comp_dead_sum",
+            "_agb_reduce",
+            "_agb_pred_dead",
         ]
     )

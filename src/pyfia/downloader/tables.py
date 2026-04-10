@@ -13,12 +13,16 @@ References
 from __future__ import annotations
 
 # Common tables required for pyFIA estimation functions
-# These match the rFIA "common=TRUE" default tables
+# These match the rFIA "common=TRUE" default tables, plus pyfia-specific
+# additions that the estimators need.
 COMMON_TABLES: list[str] = [
     "COND",  # Condition data
     "COND_DWM_CALC",  # Down woody material calculations
     "INVASIVE_SUBPLOT_SPP",  # Invasive species subplot data
     "PLOT",  # Plot-level data
+    "PLOTGEOM",  # Plot geometry & ECOSUBCD (Bailey ecoprovince, used by
+    # pyfia.carbon.live_tree for the Phase 1.5+ DIVISION coefficient
+    # lookup; not in rFIA common tables).
     "POP_ESTN_UNIT",  # Population estimation units
     "POP_EVAL",  # Population evaluations
     "POP_EVAL_GRP",  # Population evaluation groups

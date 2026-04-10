@@ -70,6 +70,7 @@ pyfia/
 ├── src/pyfia/           # Library source code
 │   ├── core/            # Database, backends, and settings
 │   ├── estimation/      # Statistical estimation
+│   ├── carbon/          # NSVB carbon estimation (live tree, standing dead)
 │   ├── filtering/       # Domain filtering
 │   ├── downloader/      # FIA data download from DataMart
 │   ├── evalidator/      # EVALIDator API client for validation

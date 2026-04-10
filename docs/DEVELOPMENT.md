@@ -47,6 +47,10 @@ pyfia/
 │   ├── fia.py         # Main FIA database class
 │   ├── data_reader.py # Efficient data loading
 │   └── backends/      # DuckDB, SQLite, MotherDuck backends
+├── carbon/             # NSVB carbon estimation
+│   ├── live_tree.py   # Live tree carbon (NSVB AG + FIADB BG bridge)
+│   ├── standing_dead.py # Standing dead carbon (NSVB + decay reductions)
+│   └── nsvb/          # NSVB equation library, coefficients, carbon fractions
 ├── estimation/         # Statistical estimation
 │   ├── base.py        # BaseEstimator with Template Method pattern
 │   ├── grm.py         # GRM data loading and adjustment
@@ -85,7 +89,7 @@ pyfia/
 - Key methods: `clip_by_evalid()`, `clip_by_state()`, `clip_most_recent()`
 
 **Estimation Functions**
-- Simple API: `area()`, `biomass()`, `volume()`, `tpa()`, `mortality()`, `growth()`, `removals()`, `area_change()`, `site_index()`, `tree_metrics()`, `carbon_pools()`
+- Simple API: `area()`, `biomass()`, `volume()`, `tpa()`, `live_tree()`, `standing_dead()`, `mortality()`, `growth()`, `removals()`, `area_change()`, `site_index()`, `tree_metrics()`
 - All support domain filtering, grouping, variance calculations
 - BaseEstimator uses Template Method for consistent workflow
 

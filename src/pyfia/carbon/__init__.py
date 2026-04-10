@@ -121,20 +121,58 @@ rotten-cull trees.
 
 **Phase 1.5 is complete.** Phase 2+ pool work can proceed.
 
+Phase 2 — standing dead (in progress)
+--------------------------------------
+:mod:`pyfia.carbon.standing_dead` lands the second IPCC pool. The pipeline
+mirrors live tree end-to-end:
+
+- :func:`pyfia.carbon.nsvb.equations.compute_nsvb_dead_biomass` runs the
+  same vectorized coefficient joins as ``compute_nsvb_biomass`` (volume
+  inside-bark, bark volume, bark biomass, branch biomass, total AGB), then
+  applies the FIADB ``REF_TREE_DECAY_PROP`` reductions
+  (``DENSITY_PROP × wood``, ``BARK_LOSS_PROP × bark``,
+  ``BRANCH_LOSS_PROP × branch``) keyed by hardwood/softwood × ``DECAYCD``,
+  computes the AGB reduction factor, scales the directly-predicted AGB,
+  and harmonizes the dead components against the reduced predicted AGB.
+  Per FIADB User Guide v9.1 Appendix K "Cull" subsection, ``TREE.CULL`` is
+  intentionally **not** applied for dead trees.
+- :mod:`pyfia.carbon.standing_dead` provides the ``standing_dead(db,
+  pool='ag'|'bg'|'total')`` public function and
+  ``StandingDeadEstimator(BaseEstimator)`` class. Re-exported from
+  ``pyfia.carbon``. AG goes through the NSVB dead pipeline; BG bridges
+  to FIADB ``TREE.CARBON_BG`` (same architectural shortcut as live).
+- The vendored ``dead_decay_proportions.csv`` mirrors FIADB
+  ``REF_TREE_DECAY_PROP`` and matches the consolidated NSVB hardwood/
+  softwood × DECAYCD values from GTR-WO-104 Table 1. The S10b carbon
+  fractions live in ``carbon_fraction_dead.csv`` (already loaded by
+  :func:`pyfia.carbon.nsvb.carbon_fractions.load_carbon_fractions_dead_df`).
+
+**Known gap (deferred to Phase 2.5):** Broken-top corrections. ~75% of
+EVALID 132401 standing dead trees have ``ACTUALHT < HT``. The full FIADB
+pipeline applies a crown-proportion adjustment to branch biomass (and a
+volume-ratio adjustment to wood/bark) for these trees, looking up the
+mean intact crown ratio via ``REF_TREE_STND_DEAD_CR_PROP`` keyed on
+Bailey ECOPROV × hw/sw. The Phase 2 baseline uses the intact ``HT`` and
+will systematically over-estimate broken-top trees. The validation
+gate's ratchet thresholds in ``tests/validation/test_standing_dead_nsvb.py``
+are loose to accommodate this — they will tighten when broken-top
+handling lands.
+
 Phase 2+ — deferred
 -------------------
 Each additional IPCC pool will land as its own ``pyfia.carbon.<pool>(db, ...)``
 function on the flat ``pyfia.carbon/`` layout, following the same
 architectural rules.
 
-- Standing dead trees (uses S10b dead-tree carbon fractions, already loaded
-  by :func:`pyfia.carbon.nsvb.carbon_fractions.load_carbon_fractions_dead`)
 - Understory (Birdsey 1992 ratios, EPA NGHGI Annex 3.13)
 - Downed dead wood (Domke et al. 2013)
 - Litter + duff (Domke et al. 2016)
 - Soil organic carbon (Domke et al. 2017)
 - Native NSVB belowground (coarse-root) model (replaces the Phase 1 FIADB
   ``CARBON_BG`` bridge; Heath et al. 2009)
+- Broken-top corrections for standing dead (vendor
+  ``REF_TREE_STND_DEAD_CR_PROP`` from FIADB, replace intact-HT
+  approximation in :func:`compute_nsvb_dead_biomass`)
 
 Architectural rules (frozen in Phase 1, preserved going forward)
 =================================================================
@@ -221,5 +259,11 @@ References
 from __future__ import annotations
 
 from pyfia.carbon.live_tree import LiveTreeEstimator, live_tree
+from pyfia.carbon.standing_dead import StandingDeadEstimator, standing_dead
 
-__all__ = ["LiveTreeEstimator", "live_tree"]
+__all__ = [
+    "LiveTreeEstimator",
+    "StandingDeadEstimator",
+    "live_tree",
+    "standing_dead",
+]

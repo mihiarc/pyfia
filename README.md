@@ -33,7 +33,7 @@ pip install pyfia
 ```
 
 ```python
-from pyfia import FIA, biomass, tpa, volume, area
+from pyfia import FIA, biomass, live_tree, standing_dead, tpa, volume, area
 
 with FIA("path/to/FIA_database.duckdb") as db:
     db.clip_by_state(37)  # North Carolina
@@ -54,6 +54,8 @@ with FIA("path/to/FIA_database.duckdb") as db:
 | `biomass()` | Above/belowground biomass | `biomass(db, by_species=True)` |
 | `volume()` | Merchantable volume (ft³) | `volume(db, land_type="timber")` |
 | `area()` | Forest land area | `area(db, grp_by="FORTYPCD")` |
+| `live_tree()` | NSVB live tree carbon | `live_tree(db, pool="ag")` |
+| `standing_dead()` | NSVB standing dead carbon | `standing_dead(db, pool="ag")` |
 | `site_index()` | Site productivity index | `site_index(db, grp_by="COUNTYCD")` |
 | `mortality()` | Annual mortality rates | `mortality(db)` |
 | `growth()` | Net growth estimation | `growth(db)` |

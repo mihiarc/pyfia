@@ -7,8 +7,10 @@ fractions average ~47.4% across species but vary from roughly 40% to 55%
 depending on species; the flat 0.47 multiplier used by the existing pyFIA
 ``biomass()`` estimator is replaced here with a species-specific lookup.
 
-S10b (dead trees) is loaded but unused in Phase 1 — Phase 1 is live tree only.
-The dead tree loader is in place to support Phase 2 standing dead.
+S10a (live) powers ``pyfia.carbon.live_tree``. S10b (dead) and the related
+``REF_TREE_DECAY_PROP`` density / bark / branch loss proportions power
+``pyfia.carbon.standing_dead`` (Phase 2). Both pipelines hit the same
+hardwood/softwood × DECAYCD lookup, so the loaders are colocated here.
 """
 
 from __future__ import annotations
@@ -158,9 +160,6 @@ def get_carbon_fraction_live(spcd: int, fallback: float | None = None) -> float:
 def load_carbon_fractions_dead() -> dict[tuple[str, int], float]:
     """Load Table S10b dead tree carbon fractions, keyed by (hw_sw, DECAYCD).
 
-    Loaded but unused in Phase 1 (live tree only). Phase 2 standing dead
-    will consume this table.
-
     Returns
     -------
     dict[tuple[str, int], float]
@@ -180,10 +179,39 @@ def load_carbon_fractions_dead() -> dict[tuple[str, int], float]:
     return out
 
 
+@functools.lru_cache(maxsize=1)
+def load_carbon_fractions_dead_df() -> pl.DataFrame:
+    """Load Table S10b dead tree carbon fractions as a join-ready DataFrame.
+
+    Returns a 3-column DataFrame ``(hw_sw Utf8, DECAYCD Int64,
+    CARBON_FRAC_DEAD Float64)`` suitable for a left join against a trees
+    LazyFrame in the vectorized standing-dead estimator. The
+    ``CARBON_FRAC_DEAD`` column is converted from percent to decimal
+    (e.g., 47.0 → 0.4700) at load time, matching the units returned by
+    :func:`load_carbon_fractions_dead`.
+
+    Cached at process level via ``@lru_cache``.
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns ``(hw_sw, DECAYCD, CARBON_FRAC_DEAD)`` with one row per
+        ``(hardwood|softwood) × decay class 1-5`` combination (10 rows total).
+    """
+    data_pkg = resources.files("pyfia.carbon.nsvb.data")
+    with resources.as_file(data_pkg / "carbon_fraction_dead.csv") as path:
+        df = pl.read_csv(path)
+    return df.select(
+        [
+            pl.col("S/H").str.strip_chars().str.to_lowercase().alias("hw_sw"),
+            pl.col("Decay code").cast(pl.Int64).alias("DECAYCD"),
+            (pl.col("C fraction").cast(pl.Float64) / 100.0).alias("CARBON_FRAC_DEAD"),
+        ]
+    )
+
+
 def get_carbon_fraction_dead(hw_sw: str, decaycd: int) -> float:
     """Look up the dead tree carbon fraction by hardwood/softwood and decay class.
-
-    Phase 2 entry point — not used by Phase 1.
 
     Parameters
     ----------
@@ -204,3 +232,52 @@ def get_carbon_fraction_dead(hw_sw: str, decaycd: int) -> float:
     """
     table = load_carbon_fractions_dead()
     return table[(hw_sw.lower(), decaycd)]
+
+
+@functools.lru_cache(maxsize=1)
+def load_dead_decay_proportions_df() -> pl.DataFrame:
+    """Load the FIADB ``REF_TREE_DECAY_PROP`` density / loss proportions.
+
+    The vendored ``dead_decay_proportions.csv`` file mirrors the canonical
+    FIADB ``REF_TREE_DECAY_PROP`` table (FIADB User Guide v9.1 §11.36) and
+    matches the consolidated NSVB hardwood/softwood × DECAYCD values published
+    in GTR-WO-104 Table 1 (Westfall et al. 2023). It supplies the three
+    multiplicative reduction factors that ``pyfia.carbon.standing_dead``
+    applies to the gross NSVB component biomass:
+
+    - ``DENSITY_PROP`` — fraction of stem wood biomass remaining after decay
+    - ``BARK_LOSS_PROP`` — fraction of stem bark biomass remaining after decay
+      (despite the ``LOSS`` suffix in the FIADB column name, the value is the
+      *remaining* proportion, not the *lost* proportion — this matches the
+      FIADB User Guide §11.36 description and the verbatim Appendix K formula
+      ``BARK_LOSS_PROP * Bark``)
+    - ``BRANCH_LOSS_PROP`` — fraction of branch biomass remaining after decay
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns ``(hw_sw, DECAYCD, DENSITY_PROP, BARK_LOSS_PROP,
+        BRANCH_LOSS_PROP)`` with one row per ``(hardwood|softwood) × decay
+        class 1-5`` combination (10 rows total). Ready for a left join on
+        ``["hw_sw", "DECAYCD"]``.
+
+    Notes
+    -----
+    The five values per row are constants — they do not vary by species
+    within the hardwood/softwood class. This is the FIADB-canonical
+    parameterization; finer per-species DRFs from Harmon et al. (2011)
+    Table 7 are not used by FIADB and are not vendored here.
+    """
+    data_pkg = resources.files("pyfia.carbon.nsvb.data")
+    with resources.as_file(data_pkg / "dead_decay_proportions.csv") as path:
+        df = pl.read_csv(
+            path,
+            schema_overrides={
+                "hw_sw": pl.Utf8,
+                "DECAYCD": pl.Int64,
+                "DENSITY_PROP": pl.Float64,
+                "BARK_LOSS_PROP": pl.Float64,
+                "BRANCH_LOSS_PROP": pl.Float64,
+            },
+        )
+    return df

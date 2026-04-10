@@ -162,8 +162,11 @@ class StandingDeadEstimator(BaseEstimator):
                 pl.col("STANDING_DEAD_CD").cast(pl.Utf8, strict=False) == "1"
             )
         if "DECAYCD" in columns:
+            # Cast to Int64 first so that empty strings (common in FIA CSVs
+            # as null-equivalents) become null rather than passing through
+            # a Utf8 is_not_null() check.
             data = data.filter(
-                pl.col("DECAYCD").cast(pl.Utf8, strict=False).is_not_null()
+                pl.col("DECAYCD").cast(pl.Int64, strict=False).is_not_null()
             )
         if "DIA" in columns:
             data = data.filter(pl.col("DIA") >= 1.0)

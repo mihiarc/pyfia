@@ -156,9 +156,14 @@ def total_ecosystem(
         if totals:
             sum_cols.append("CARBON_TOTAL")
 
-        # Compute total row by summing across pools
+        # Compute total row by summing across pools.
+        # Guard against empty results (e.g. filters eliminate all data).
+        non_empty = [r for r in pool_results if len(r) > 0]
+        if not non_empty:
+            return pl.DataFrame({"POOL": ["TOTAL_ECOSYSTEM"], "CARBON_ACRE": [0.0]})
+
         total_acre = sum(
-            float(r["CARBON_ACRE"][0]) for r in pool_results
+            float(r["CARBON_ACRE"][0]) for r in non_empty
         )
         total_row: dict = {
             "POOL": ["TOTAL_ECOSYSTEM"],
@@ -167,13 +172,15 @@ def total_ecosystem(
 
         if totals:
             total_total = sum(
-                float(r["CARBON_TOTAL"][0]) for r in pool_results
+                float(r["CARBON_TOTAL"][0])
+                for r in non_empty
+                if "CARBON_TOTAL" in r.columns
             )
             total_row["CARBON_TOTAL"] = [total_total]
 
-        # Extract YEAR from first pool result
-        if "YEAR" in pool_results[0].columns:
-            total_row["YEAR"] = [pool_results[0]["YEAR"][0]]
+        # Extract YEAR from first non-empty pool result
+        if "YEAR" in non_empty[0].columns:
+            total_row["YEAR"] = [non_empty[0]["YEAR"][0]]
 
         total_df = pl.DataFrame(total_row)
 

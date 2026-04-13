@@ -130,6 +130,11 @@ class DownedDeadEstimator(BaseEstimator):
         strat_data = self._get_stratification_data()
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")
 
+        # Condition-level attribute: CARBON_ACRE is a density (tons/acre).
+        # The two-stage pipeline denominator is sum(CONDPROP_UNADJ * EXPNS),
+        # so the numerator must include CONDPROP_UNADJ to give the
+        # condition's contribution proportional to its area on the plot.
+        # ADJ_FACTOR_SUBP corrects for nonresponse at the subplot level.
         data_with_strat = data_with_strat.with_columns(
             pl.col("ADJ_FACTOR_SUBP").cast(pl.Float64).alias("ADJ_FACTOR")
         )

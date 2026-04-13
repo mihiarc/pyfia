@@ -33,7 +33,7 @@ pip install pyfia
 ```
 
 ```python
-from pyfia import FIA, biomass, live_tree, standing_dead, tpa, volume, area
+from pyfia import FIA, tpa, volume, area, total_ecosystem
 
 with FIA("path/to/FIA_database.duckdb") as db:
     db.clip_by_state(37)  # North Carolina
@@ -41,9 +41,11 @@ with FIA("path/to/FIA_database.duckdb") as db:
 
     # Core estimates
     trees = tpa(db, tree_domain="STATUSCD == 1")
-    carbon = biomass(db, by_species=True)
     timber = volume(db, land_type="timber")
     forest = area(db, land_type="forest")
+
+    # Total ecosystem carbon (all 6 IPCC/NGHGI pools)
+    carbon = total_ecosystem(db)
 ```
 
 ## Core Functions
@@ -56,6 +58,11 @@ with FIA("path/to/FIA_database.duckdb") as db:
 | `area()` | Forest land area | `area(db, grp_by="FORTYPCD")` |
 | `live_tree()` | NSVB live tree carbon | `live_tree(db, pool="ag")` |
 | `standing_dead()` | NSVB standing dead carbon | `standing_dead(db, pool="ag")` |
+| `understory()` | Understory vegetation carbon | `understory(db, pool="total")` |
+| `downed_dead()` | Downed dead wood carbon | `downed_dead(db)` |
+| `litter()` | Litter carbon | `litter(db)` |
+| `soil_organic()` | Soil organic carbon | `soil_organic(db)` |
+| `total_ecosystem()` | Total ecosystem carbon (all 6 pools) | `total_ecosystem(db)` |
 | `site_index()` | Site productivity index | `site_index(db, grp_by="COUNTYCD")` |
 | `mortality()` | Annual mortality rates | `mortality(db)` |
 | `growth()` | Net growth estimation | `growth(db)` |

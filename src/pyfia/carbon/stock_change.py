@@ -10,7 +10,7 @@ post-stratified estimation pipeline using t₂'s stratification.
 
 This module follows the ``AreaChangeEstimator`` pattern: t₂ data comes
 from the EVALID-scoped pipeline; t₁ data is loaded from the full
-(unfiltered) COND table and linked via ``PREV_PLT_CN + PREVCOND``.
+(unfiltered) COND table and linked via ``PREV_PLT_CN + CONDID``.
 
 Tree-level stock change (live tree, standing dead) requires GRM fate
 decomposition and is deferred to Phase B.
@@ -66,7 +66,7 @@ class CarbonStockChangeEstimator(BaseEstimator):
     * t₂ data is loaded through the standard EVALID-scoped pipeline.
     * t₁ data is loaded from the **full** COND table (unfiltered by
       EVALID) via ``db._reader.read_table()``, then joined to t₂ via
-      ``PREV_PLT_CN + PREVCOND``.
+      ``PREV_PLT_CN + CONDID``.
     * Stratification (``POP_PLOT_STRATUM_ASSGN``, ``POP_STRATUM``) is
       always from t₂'s EVALID.
     """
@@ -230,6 +230,15 @@ class CarbonStockChangeEstimator(BaseEstimator):
         pool = self.config["pool"]
         carbon_cols = _POOL_COLUMNS[pool]
         annualize = self.config.get("annualize", True)
+
+        # Exclude conditions where ALL carbon columns are NULL at both
+        # t1 and t2 — these have no carbon data and would produce spurious
+        # zero deltas.  Conditions with NULL on one side only are kept
+        # (fill_null(0.0) handles the asymmetric case correctly).
+        all_null_expr = pl.lit(True)
+        for c in carbon_cols:
+            all_null_expr = all_null_expr & pl.col(f"t2_{c}").is_null() & pl.col(f"t1_{c}").is_null()
+        data = data.filter(~all_null_expr)
 
         # Sum all carbon columns for this pool (understory has AG+BG)
         t2_expr = pl.lit(0.0)
@@ -442,7 +451,7 @@ def stock_change(
 
     Only remeasured plots (``PREV_PLT_CN IS NOT NULL AND REMPER > 0``)
     contribute.  The t₁ conditions are loaded from the full COND table
-    (unfiltered by EVALID) and linked via ``PREV_PLT_CN + PREVCOND``.
+    (unfiltered by EVALID) and linked via ``PREV_PLT_CN + CONDID``.
 
     **Tree-level pools**
 

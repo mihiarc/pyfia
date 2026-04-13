@@ -141,6 +141,7 @@ from pyfia.carbon.litter import LitterEstimator, litter
 from pyfia.carbon.live_tree import LiveTreeEstimator, live_tree
 from pyfia.carbon.soil_organic import SoilOrganicEstimator, soil_organic
 from pyfia.carbon.standing_dead import StandingDeadEstimator, standing_dead
+from pyfia.carbon.stock_change import CarbonStockChangeEstimator, stock_change
 from pyfia.carbon.total_ecosystem import total_ecosystem
 from pyfia.carbon.understory import UnderstoryEstimator, understory
 
@@ -150,8 +151,10 @@ __all__ = [
     "live_tree",
     "soil_organic",
     "standing_dead",
+    "stock_change",
     "total_ecosystem",
     "understory",
+    "CarbonStockChangeEstimator",
     "DownedDeadEstimator",
     "LitterEstimator",
     "LiveTreeEstimator",

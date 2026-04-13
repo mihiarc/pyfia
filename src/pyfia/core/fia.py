@@ -1323,6 +1323,56 @@ class FIA:
 
         return standing_dead(self, **kwargs)
 
+    def understory(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate understory vegetation carbon.
+
+        See understory() function for full parameter documentation.
+        """
+        from pyfia.carbon import understory
+
+        return understory(self, **kwargs)
+
+    def downed_dead(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate downed dead wood carbon.
+
+        See downed_dead() function for full parameter documentation.
+        """
+        from pyfia.carbon import downed_dead
+
+        return downed_dead(self, **kwargs)
+
+    def litter(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate litter carbon.
+
+        See litter() function for full parameter documentation.
+        """
+        from pyfia.carbon import litter
+
+        return litter(self, **kwargs)
+
+    def soil_organic(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate soil organic carbon.
+
+        See soil_organic() function for full parameter documentation.
+        """
+        from pyfia.carbon import soil_organic
+
+        return soil_organic(self, **kwargs)
+
+    def total_ecosystem(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate total ecosystem carbon across all six pools.
+
+        See total_ecosystem() function for full parameter documentation.
+        """
+        from pyfia.carbon.total_ecosystem import total_ecosystem
+
+        return total_ecosystem(self, **kwargs)
+
 
 class MotherDuckFIA(FIA):
     """

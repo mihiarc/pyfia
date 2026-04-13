@@ -63,6 +63,7 @@ with FIA("path/to/FIA_database.duckdb") as db:
 | `litter()` | Litter carbon | `litter(db)` |
 | `soil_organic()` | Soil organic carbon | `soil_organic(db)` |
 | `total_ecosystem()` | Total ecosystem carbon (all 6 pools) | `total_ecosystem(db)` |
+| `stock_change()` | Carbon stock change between periods | `stock_change(db, pool="all")` |
 | `site_index()` | Site productivity index | `site_index(db, grp_by="COUNTYCD")` |
 | `mortality()` | Annual mortality rates | `mortality(db)` |
 | `growth()` | Net growth estimation | `growth(db)` |

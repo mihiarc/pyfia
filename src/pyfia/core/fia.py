@@ -1373,6 +1373,16 @@ class FIA:
 
         return total_ecosystem(self, **kwargs)
 
+    def stock_change(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate carbon stock change between inventory periods.
+
+        See stock_change() function for full parameter documentation.
+        """
+        from pyfia.carbon.stock_change import stock_change
+
+        return stock_change(self, **kwargs)
+
 
 class MotherDuckFIA(FIA):
     """

@@ -97,8 +97,23 @@ one row per pool plus a ``TOTAL_ECOSYSTEM`` summary row.
 Validated against sum of individual pool calls on Georgia EVALID 132301:
 exact match (0.00 difference).
 
+Stock change (condition-level)
+------------------------------
+:func:`stock_change` — carbon stock-change accounting for condition-level
+pools.  Computes ``C(t₂) − C(t₁)`` per remeasured condition, annualized
+by REMPER, aggregated via the two-stage post-stratified pipeline using
+t₂'s stratification.  Follows the ``AreaChangeEstimator`` pattern: t₂ from
+EVALID-scoped pipeline, t₁ from full COND table via ``PREV_PLT_CN``.
+
+Supports: understory, downed dead, litter, soil organic (``pool='all'``).
+Tree-level stock change (live tree, standing dead) deferred to Phase B.
+
+Validated against manual SQL replication on Georgia EVALID 132301:
+population totals match exactly for all three non-understory pools.
+
 Pools deferred
 ==============
+- Tree-level stock change (live tree, standing dead via GRM decomposition)
 - Native NSVB belowground coarse-root model (replaces the BG bridge)
 
 Architectural rules
@@ -131,6 +146,7 @@ References
 - Domke, G.M. et al. (2013). Forest Ecol. Manage. 292, 50-57 (downed dead).
 - Domke, G.M. et al. (2016). Sci. Total Environ. 557-558, 469-478 (litter).
 - Domke, G.M. et al. (2017). Ecol. Appl. 27(4), 1223-1235 (soil organic C).
+- Bechtold, W.A. & Patterson, P.L. (2005). GTR-SRS-80, Ch. 4 (change estimation).
 - USEPA (2024). NGHGI Annex 3.13.
 """
 
@@ -141,6 +157,7 @@ from pyfia.carbon.litter import LitterEstimator, litter
 from pyfia.carbon.live_tree import LiveTreeEstimator, live_tree
 from pyfia.carbon.soil_organic import SoilOrganicEstimator, soil_organic
 from pyfia.carbon.standing_dead import StandingDeadEstimator, standing_dead
+from pyfia.carbon.stock_change import CarbonStockChangeEstimator, stock_change
 from pyfia.carbon.total_ecosystem import total_ecosystem
 from pyfia.carbon.understory import UnderstoryEstimator, understory
 
@@ -150,8 +167,10 @@ __all__ = [
     "live_tree",
     "soil_organic",
     "standing_dead",
+    "stock_change",
     "total_ecosystem",
     "understory",
+    "CarbonStockChangeEstimator",
     "DownedDeadEstimator",
     "LitterEstimator",
     "LiveTreeEstimator",

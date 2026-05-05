@@ -168,6 +168,9 @@ data/
 # Exception: package-bundled NSVB coefficient tables (vendored from GTR-WO-104 Supp1)
 !src/pyfia/carbon/nsvb/data/
 !src/pyfia/carbon/nsvb/data/**
+# Exception: NGHGI report-target CSVs (frozen EPA Chapter 6 published numbers)
+!src/pyfia/carbon/data/
+!src/pyfia/carbon/data/nghgi_*.csv
 
 # JOSS paper (kept separate from repo)
 paper.md

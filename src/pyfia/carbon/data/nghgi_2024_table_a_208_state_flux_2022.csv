@@ -1,0 +1,57 @@
+state,state_name,flux_mmt_c_2022,lower_bound_mmt_c,lower_bound_pct,upper_bound_mmt_c,upper_bound_pct
+AL,Alabama,-13.5,-15.3,-14,-11.6,14
+AK,Alaska,7.1,0.0,-101,14.2,101
+AZ,Arizona,0.6,0.2,-70,1.0,70
+AR,Arkansas,-9.3,-10.9,-17,-7.8,17
+CA,California,-8.0,-16.0,-100,0.0,100
+CO,Colorado,2.3,-6.3,-375,10.8,375
+CT,Connecticut,-0.8,-1.1,-35,-0.5,35
+DE,Delaware,-0.0,-0.1,-105,0.0,105
+FL,Florida,-3.4,-4.0,-20,-2.7,20
+GA,Georgia,-8.8,-9.3,-6,-8.4,6
+HI,Hawaii,0.9,-5.3,-490,3.5,490
+ID,Idaho,-0.1,-3.7,-2570,3.4,2570
+IL,Illinois,-2.0,-3.0,-51,-1.0,51
+IN,Indiana,-3.0,-4.6,-53,-1.4,53
+IA,Iowa,-1.0,-1.3,-32,-0.7,32
+KS,Kansas,-0.8,-1.2,-53,-0.4,53
+KY,Kentucky,-6.2,-7.8,-25,-4.6,25
+LA,Louisiana,-7.0,-7.5,-7,-6.5,7
+ME,Maine,-5.1,-8.1,-59,-2.1,59
+MD,Maryland,-1.4,-1.9,-39,-0.8,39
+MA,Massachusetts,-1.4,-1.7,-27,-1.0,27
+MI,Michigan,-5.9,-9.5,-60,-2.4,60
+MN,Minnesota,-5.3,-7.6,-43,-3.0,43
+MS,Mississippi,-15.9,-18.7,-18,-13.0,18
+MO,Missouri,-4.8,-7.4,-54,-2.2,54
+MT,Montana,1.4,-6.6,-588,9.4,588
+NE,Nebraska,-0.3,-0.3,-19,-0.2,19
+NV,Nevada,-0.1,-0.3,-460,0.2,460
+NH,New Hampshire,-1.7,-2.3,-36,-1.1,36
+NJ,New Jersey,-0.9,-1.0,-10,-0.8,10
+NM,New Mexico,0.3,-1.7,-713,2.2,713
+NY,New York,-8.9,-11.2,-26,-6.6,26
+NC,North Carolina,-8.9,-10.1,-14,-7.6,14
+ND,North Dakota,-0.1,-0.2,-159,0.0,159
+OH,Ohio,-3.9,-6.0,-53,-1.8,53
+OK,Oklahoma,-2.8,-3.4,-22,-2.2,22
+OR,Oregon,-10.7,-12.8,-20,-8.6,20
+PA,Pennsylvania,-6.2,-10.6,-72,-1.7,72
+RI,Rhode Island,-0.1,-0.3,-115,0.0,115
+SC,South Carolina,-4.3,-4.8,-13,-3.7,13
+SD,South Dakota,0.3,0.0,-107,0.6,107
+TN,Tennessee,-7.8,-9.3,-19,-6.3,19
+TX,Texas,-10.7,-11.2,-5,-10.2,5
+UT,Utah,0.4,-1.0,-337,1.8,337
+VT,Vermont,-1.7,-2.4,-43,-0.9,43
+VA,Virginia,-9.8,-12.5,-28,-7.1,28
+WA,Washington,-4.6,-9.2,-100,0.0,100
+WV,West Virginia,-7.3,-9.1,-24,-5.6,24
+WI,Wisconsin,-6.5,-6.9,-7,-6.0,7
+WY,Wyoming,0.2,-0.4,-319,0.8,319
+AS,American Samoa,-0.0,-0.2,-656,0.1,656
+GU,Guam,-0.0,-0.3,-584,0.2,584
+MP,Northern Mariana Islands,-0.0,-0.2,-673,0.2,673
+PR,Puerto Rico,-0.3,-2.8,-780,2.2,780
+VI,US Virgin Islands,-0.0,-0.2,-787,0.1,787
+TOTAL,Total,-189.3,-209.9,-11,-168.8,11

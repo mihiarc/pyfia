@@ -1,15 +1,21 @@
 """
-NGHGI Phase 1 — Stage A: reproduce EPA Chapter 6 Table 6-10 forest ecosystem
-carbon stocks across CONUS using pyFIA.
+NGHGI Stage A — reproduce EPA Chapter 6 Table 6-10 forest ecosystem
+carbon stocks across CONUS using pyfia.
 
 Iterates the 48 conterminous US state DuckDB files (and optionally Alaska),
 runs the EPA-pool-aggregated stock compilation per state, sums to CONUS, and
 prints a side-by-side comparison vs the published EPA Table 6-10.
 
 Usage:
-    uv run python scripts/nghgi_validation_stage_a.py
-    uv run python scripts/nghgi_validation_stage_a.py --include-ak
-    uv run python scripts/nghgi_validation_stage_a.py --states GA,FL,SC
+    uv run python scripts/nghgi/stage_a.py
+    uv run python scripts/nghgi/stage_a.py --include-ak
+    uv run python scripts/nghgi/stage_a.py --states GA,FL,SC
+    uv run python scripts/nghgi/stage_a.py --db-dir /path/to/fiadb
+
+Database directory resolution (in order):
+    1. --db-dir CLI argument
+    2. $PYFIA_FIADB_DIR environment variable
+    3. ./data/fiadb (relative to current working directory)
 
 The output is intentionally "honest about what we're reproducing": each
 state's selected EVALID and END_INVYR is logged so methodological
@@ -20,30 +26,75 @@ FIADB snapshot) are visible.
 from __future__ import annotations
 
 import argparse
+import sys
 import time
 from pathlib import Path
 
 import polars as pl
 
-from pyfia import FIA
-from pyfia.carbon.nghgi import (
-    compare_to_published,
-    compile_state_stocks,
-)
+# Allow `from _compile import ...` regardless of CWD: scripts in
+# ``scripts/nghgi/`` add their own directory to sys.path automatically when
+# invoked directly, but we add it explicitly for clarity.
+sys.path.insert(0, str(Path(__file__).parent))
 
-DATA_DIR = Path("/Users/cmihiar/Projects/data/fiadb")
+from _compile import compare_to_published, compile_state_stocks  # noqa: E402
+from _paths import resolve_db_dir  # noqa: E402
+
+from pyfia import FIA  # noqa: E402
 
 # 48 conterminous US states. EPA's Section 6.2 reproduction target uses
 # stock-difference here. AK uses a mix (coastal SD, interior gain-loss);
 # HI / AS / GU / MP / PR / VI use gain-loss only and are out of scope for
-# Phase 1 reproduction.
+# this reproduction.
 CONUS_48 = [
-    "AL", "AR", "AZ", "CA", "CO", "CT", "DE", "FL", "GA",
-    "IA", "ID", "IL", "IN", "KS", "KY", "LA", "MA", "MD",
-    "ME", "MI", "MN", "MO", "MS", "MT", "NC", "ND", "NE",
-    "NH", "NJ", "NM", "NV", "NY", "OH", "OK", "OR", "PA",
-    "RI", "SC", "SD", "TN", "TX", "UT", "VA", "VT", "WA",
-    "WI", "WV", "WY",
+    "AL",
+    "AR",
+    "AZ",
+    "CA",
+    "CO",
+    "CT",
+    "DE",
+    "FL",
+    "GA",
+    "IA",
+    "ID",
+    "IL",
+    "IN",
+    "KS",
+    "KY",
+    "LA",
+    "MA",
+    "MD",
+    "ME",
+    "MI",
+    "MN",
+    "MO",
+    "MS",
+    "MT",
+    "NC",
+    "ND",
+    "NE",
+    "NH",
+    "NJ",
+    "NM",
+    "NV",
+    "NY",
+    "OH",
+    "OK",
+    "OR",
+    "PA",
+    "RI",
+    "SC",
+    "SD",
+    "TN",
+    "TX",
+    "UT",
+    "VA",
+    "VT",
+    "WA",
+    "WI",
+    "WV",
+    "WY",
 ]
 
 
@@ -73,8 +124,8 @@ def _select_evalid_for_state(db: FIA, prefer_end_year: int | None = None) -> int
 def run_state(
     state: str,
     *,
+    db_dir: Path,
     prefer_end_year: int | None = None,
-    db_dir: Path = DATA_DIR,
 ) -> tuple[pl.DataFrame, dict]:
     """Compile EPA-pool stocks for one state. Returns (df, meta)."""
     db_path = db_dir / f"{state}.duckdb"
@@ -86,9 +137,9 @@ def run_state(
         evalid = _select_evalid_for_state(db, prefer_end_year=prefer_end_year)
         db.clip_by_evalid(evalid)
         end_yr = int(
-            db.query(
-                f"SELECT END_INVYR FROM POP_EVAL WHERE EVALID = {evalid}"
-            )["END_INVYR"][0]
+            db.query(f"SELECT END_INVYR FROM POP_EVAL WHERE EVALID = {evalid}")[
+                "END_INVYR"
+            ][0]
         )
         df = compile_state_stocks(db, state_label=state)
     df = df.with_columns(
@@ -129,7 +180,19 @@ def main() -> int:
         default=2022,
         help="EPA Table 6-10 column to compare against (default 2022).",
     )
+    parser.add_argument(
+        "--db-dir",
+        type=str,
+        default=None,
+        help="Directory containing per-state DuckDB files (overrides $PYFIA_FIADB_DIR).",
+    )
     args = parser.parse_args()
+
+    try:
+        db_dir = resolve_db_dir(args.db_dir)
+    except FileNotFoundError as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        return 2
 
     if args.states:
         states = [s.strip().upper() for s in args.states.split(",") if s.strip()]
@@ -140,7 +203,8 @@ def main() -> int:
 
     print(f"\n=== NGHGI Stage A reproduction — {len(states)} states ===")
     print(f"    Target: EPA Chapter 6 Table 6-10, year {args.target_year}")
-    print(f"    Prefer EVALID with END_INVYR={args.prefer_end_year} per state\n")
+    print(f"    Prefer EVALID with END_INVYR={args.prefer_end_year} per state")
+    print(f"    State DB directory: {db_dir}\n")
 
     all_frames: list[pl.DataFrame] = []
     metas: list[dict] = []
@@ -148,7 +212,9 @@ def main() -> int:
 
     for i, st in enumerate(states, 1):
         try:
-            df, meta = run_state(st, prefer_end_year=args.prefer_end_year)
+            df, meta = run_state(
+                st, db_dir=db_dir, prefer_end_year=args.prefer_end_year
+            )
             all_frames.append(df)
             metas.append(meta)
             print(
@@ -163,15 +229,16 @@ def main() -> int:
         print("\nNo successful state runs — aborting.")
         return 1
 
-    print(f"\nSucceeded: {len(all_frames)}/{len(states)} states. "
-          f"Failed: {len(failures)}.\n")
+    print(
+        f"\nSucceeded: {len(all_frames)}/{len(states)} states. "
+        f"Failed: {len(failures)}.\n"
+    )
 
     long_df = pl.concat(all_frames, how="vertical_relaxed")
 
     # Per-state pivot for inspection
-    per_state = (
-        long_df.pivot(values="STOCK_MMT_C", index="STATE", on="EPA_POOL")
-        .sort("STATE")
+    per_state = long_df.pivot(values="STOCK_MMT_C", index="STATE", on="EPA_POOL").sort(
+        "STATE"
     )
     print("=== Per-state stocks (MMT C) ===")
     with pl.Config(tbl_rows=60, tbl_cols=10, fmt_str_lengths=80):
@@ -183,7 +250,6 @@ def main() -> int:
     with pl.Config(tbl_rows=12, tbl_cols=10, fmt_str_lengths=40):
         print(cmp)
 
-    # Diagnostic note on what's NOT included
     print(
         "\nNotes:\n"
         "  - SOIL_ORGANIC (Histosols) is NOT reproduced from FIADB; EPA uses\n"
@@ -194,9 +260,9 @@ def main() -> int:
         + (" + AK" if "AK" in states else "")
         + ". Expect a gap from non-CONUS forest land.\n"
         "  - HWP (Harvested Wood) and Drained Organic Soils are out of scope.\n"
-        "  - Pool decomposition: EPA AGB = pyFIA live_tree(AG) + understory(AG);\n"
+        "  - Pool decomposition: EPA AGB = pyfia live_tree(AG) + understory(AG);\n"
         "    EPA Dead Wood = standing_dead + downed_dead. Verify mapping in\n"
-        "    src/pyfia/carbon/nghgi.py if numbers look off.\n"
+        "    scripts/nghgi/_compile.py if numbers look off.\n"
     )
 
     if failures:

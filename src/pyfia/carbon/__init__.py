@@ -106,7 +106,7 @@ t₂'s stratification.  Follows the ``AreaChangeEstimator`` pattern: t₂ from
 EVALID-scoped pipeline, t₁ from full COND table via ``PREV_PLT_CN``.
 
 Supports: understory, downed dead, litter, soil organic (``pool='all'``).
-Tree-level stock change (live tree, standing dead) deferred to Phase B.
+Tree-level stock change (live tree, standing dead via GRM decomposition) deferred.
 
 Validated against manual SQL replication on Georgia EVALID 132301:
 population totals match exactly for all three non-understory pools.

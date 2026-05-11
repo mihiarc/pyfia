@@ -1,17 +1,14 @@
 """
 Standing dead tree carbon estimation using the NSVB biomass framework.
 
-Implements the Phase 2 standing dead pool of the Schmidt Sciences "Synthetic
-Inventory" project — a publicly auditable Python reconstruction of the
-U.S. NGHGI LULUCF forest carbon time series. Recomputes above-ground
-standing dead tree biomass tree-by-tree via the vectorized NSVB pipeline
-in :mod:`pyfia.carbon.nsvb.equations`, applies the FIADB
-``REF_TREE_DECAY_PROP`` density and loss reductions
+Recomputes above-ground standing dead tree biomass tree-by-tree via the
+vectorized NSVB pipeline in :mod:`pyfia.carbon.nsvb.equations`, applies
+the FIADB ``REF_TREE_DECAY_PROP`` density and loss reductions
 (``DENSITY_PROP`` × wood, ``BARK_LOSS_PROP`` × bark, ``BRANCH_LOSS_PROP`` ×
 branch) keyed by hardwood/softwood × ``DECAYCD``, and converts the reduced
 biomass to carbon via species-class S10b dead-tree carbon fractions.
 
-Phase 2.5 broken-top corrections (``ACTUALHT < HT``) apply the Appendix K
+Broken-top corrections (``ACTUALHT < HT``) apply the Appendix K
 crown-proportion adjustment to branch biomass and a volume-ratio adjustment
 to wood/bark biomass, using the mean intact crown ratio from Table S11
 (``REF_TREE_STND_DEAD_CR_PROP``) keyed by Bailey ecoregion province ×
@@ -19,8 +16,7 @@ hardwood/softwood.
 
 Belowground (BG) carbon for standing dead trees is bridged directly to the
 FIADB ``TREE.CARBON_BG`` column, mirroring the live-tree estimator's
-Phase 1 BG bridge. A native NSVB coarse-root model for dead trees is
-deferred to a later phase.
+BG bridge. A native NSVB coarse-root model for dead trees is deferred.
 
 Public API: :func:`standing_dead`. See its docstring for parameters,
 examples, and the pool semantics.
@@ -176,15 +172,15 @@ def standing_dead(
     multiplier and producing carbon estimates that align with the EPA
     NGHGI LULUCF standing dead pool.
 
-    Phase 2.5 broken-top corrections apply the Appendix K crown-proportion
+    Broken-top corrections apply the Appendix K crown-proportion
     adjustment to branch biomass and a volume-ratio adjustment to wood/bark
     for trees with ``ACTUALHT < HT``, using the mean intact crown ratio
     from Table S11 (``REF_TREE_STND_DEAD_CR_PROP``) keyed by Bailey
     ecoregion province × hardwood/softwood.
 
     Belowground carbon for standing dead trees is bridged directly to the
-    FIADB pre-computed ``TREE.CARBON_BG`` column for Phase 2; a native
-    NSVB coarse-root model for dead trees is deferred to a later phase.
+    FIADB pre-computed ``TREE.CARBON_BG`` column; a native NSVB coarse-root
+    model for dead trees is deferred.
 
     The standing-dead population is filtered as
     ``STATUSCD = 2 AND STANDING_DEAD_CD = 1 AND DECAYCD IS NOT NULL``,
@@ -204,7 +200,7 @@ def standing_dead(
           REF_TREE_DECAY_PROP reductions + broken-top corrections + S10b
           dead carbon fractions.
         - 'bg': Below-ground standing dead carbon (coarse roots) via the
-          Phase 2 bridge to FIADB ``TREE.CARBON_BG``.
+          bridge to FIADB ``TREE.CARBON_BG``.
         - 'total': ``'ag' + 'bg'`` (NSVB AG + FIADB BG bridge).
     grp_by : str or list of str, optional
         Column name(s) to group results by.
@@ -304,6 +300,7 @@ def standing_dead(
     try:
         estimator = StandingDeadEstimator(db, config)
         if pool == "total":
+            # Best-effort cross-era warning; see live_tree.py for rationale.
             try:
                 year = estimator._extract_evaluation_year()
                 if int(year) < 2024:
@@ -318,8 +315,8 @@ def standing_dead(
                         "pool='ag' if you need NSVB-only consistency.",
                         int(year),
                     )
-            except Exception:
-                pass
+            except (ValueError, TypeError, AttributeError, IndexError, KeyError) as exc:
+                logger.debug("Skipping standing_dead year warning: %s", exc)
         return estimator.estimate()
     finally:
         if owns_db and hasattr(db, "close"):

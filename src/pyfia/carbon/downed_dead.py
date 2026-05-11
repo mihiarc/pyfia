@@ -1,9 +1,8 @@
 """
 Downed dead wood carbon estimation from FIADB condition-level attributes.
 
-Implements the Phase 4 downed dead wood pool of the Schmidt Sciences
-"Synthetic Inventory" project.  Downed dead wood — coarse woody debris
-(CWD) lying on the forest floor — is estimated in the FIADB using the
+Downed dead wood — coarse woody debris (CWD) lying on the forest floor
+— is estimated in the FIADB using the
 Domke et al. (2013) model, which relates CWD carbon density to geographic
 area, forest type group, and stand age class.
 

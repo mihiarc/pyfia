@@ -1,10 +1,9 @@
 """
 Litter carbon estimation from FIADB condition-level attributes.
 
-Implements the Phase 4 litter pool of the Schmidt Sciences "Synthetic
-Inventory" project.  Litter — organic material on the forest floor
-including decomposing leaves, needles, fine woody debris, and humus
-(duff) — is estimated in the FIADB using the Domke et al. (2016) model,
+Litter — organic material on the forest floor including decomposing
+leaves, needles, fine woody debris, and humus (duff) — is estimated in
+the FIADB using the Domke et al. (2016) model,
 which relates litter carbon density to geographic area, forest type
 group, and stand age class.
 
@@ -124,9 +123,7 @@ class LitterEstimator(BaseEstimator):
                 group_cols=[],
             )
 
-        validate_required_columns(
-            data, ["PLT_CN", "CARBON_ACRE"], "litter carbon data"
-        )
+        validate_required_columns(data, ["PLT_CN", "CARBON_ACRE"], "litter carbon data")
 
         strat_data = self._get_stratification_data()
         data_with_strat = data.join(strat_data, on="PLT_CN", how="inner")

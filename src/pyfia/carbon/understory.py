@@ -1,9 +1,8 @@
 """
 Understory vegetation carbon estimation from FIADB condition-level attributes.
 
-Implements the Phase 3 understory pool of the Schmidt Sciences "Synthetic
-Inventory" project.  Understory vegetation — all biomass of undergrowth
-plants in a forest, including woody shrubs and trees < 2.54 cm DBH — is
+Understory vegetation — all biomass of undergrowth plants in a forest,
+including woody shrubs and trees < 2.54 cm DBH — is
 not directly measured on FIA plots.  Instead, the FIADB pre-computes
 condition-level carbon density using the Smith & Heath (2008) model, which
 is parameterised on geographic area, forest type, and (for most stand

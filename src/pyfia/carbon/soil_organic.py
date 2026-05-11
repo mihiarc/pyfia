@@ -1,10 +1,9 @@
 """
 Soil organic carbon estimation from FIADB condition-level attributes.
 
-Implements the Phase 4 soil organic carbon pool of the Schmidt Sciences
-"Synthetic Inventory" project.  Soil organic carbon (SOC) — the organic
-carbon stored in mineral soil to a depth of 1 metre — is estimated in
-the FIADB using the Domke et al. (2017) model, which relates SOC density
+Soil organic carbon (SOC) — the organic carbon stored in mineral soil to
+a depth of 1 metre — is estimated in the FIADB using the Domke et al.
+(2017) model, which relates SOC density
 to soil taxonomic order, clay content, and climate variables.
 
 This estimator reads ``COND.CARBON_SOIL_ORG`` (short tons per acre),

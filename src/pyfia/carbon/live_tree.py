@@ -1,18 +1,15 @@
 """
 Live tree carbon estimation using the NSVB biomass framework.
 
-Implements the Phase 1 live tree pool of the Schmidt Sciences "Synthetic
-Inventory" project — a publicly auditable Python reconstruction of the
-U.S. NGHGI LULUCF forest carbon time series. Recomputes above-ground
-live tree biomass tree-by-tree via the vectorized NSVB pipeline in
-:mod:`pyfia.carbon.nsvb.equations`, converts to carbon using
-species-specific S10a live-tree carbon fractions, and expands to
-per-acre and population estimates via pyFIA's post-stratified estimator.
+Recomputes above-ground live tree biomass tree-by-tree via the vectorized
+NSVB pipeline in :mod:`pyfia.carbon.nsvb.equations`, converts to carbon
+using species-specific S10a live-tree carbon fractions, and expands to
+per-acre and population estimates via pyfia's post-stratified estimator.
 
-Belowground (BG) carbon is bridged directly to the FIADB
-``TREE.CARBON_BG`` column for Phase 1; a native NSVB coarse-root model
-will land in a later phase. The bridge is an architectural shortcut
-acknowledged in the PR 2 contract at ``pyfia/carbon/__init__.py``.
+Belowground (BG) carbon is currently bridged directly to the FIADB
+``TREE.CARBON_BG`` column; a native NSVB coarse-root model is deferred.
+The BG bridge is acknowledged as architectural tech debt at
+``pyfia/carbon/__init__.py``.
 
 Public API: :func:`live_tree`. See its docstring for parameters,
 examples, and the pool semantics.
@@ -124,8 +121,8 @@ def live_tree(
     carbon estimates that align with the EPA NGHGI LULUCF live tree pool.
 
     Belowground carbon is bridged directly to the FIADB pre-computed
-    ``TREE.CARBON_BG`` column for Phase 1; a native NSVB coarse-root
-    model is deferred to a later phase.
+    ``TREE.CARBON_BG`` column; a native NSVB coarse-root model is
+    deferred.
 
     Parameters
     ----------
@@ -139,9 +136,8 @@ def live_tree(
           stem wood + stem bark + branches, harmonized to the directly-
           predicted total AGB and converted to carbon via species-specific
           S10a fractions. Foliage is excluded (not part of AGB in NSVB).
-        - 'bg': Below-ground live tree carbon (coarse roots) via the Phase 1
-          bridge to FIADB ``TREE.CARBON_BG``. A native NSVB root model is
-          planned for a later phase.
+        - 'bg': Below-ground live tree carbon (coarse roots) via a bridge
+          to FIADB ``TREE.CARBON_BG``. A native NSVB root model is deferred.
         - 'total': ``'ag' + 'bg'`` (NSVB AG + FIADB BG bridge).
     grp_by : str or list of str, optional
         Column name(s) to group results by. Can be any column from the
@@ -251,10 +247,10 @@ def live_tree(
 
     **Belowground Bridge**
 
-    Phase 1 does not implement the Heath et al. (2009) coarse-root model.
-    When ``pool in ('bg', 'total')``, the function reads FIADB
-    ``TREE.CARBON_BG`` directly and adds it to the estimate. A native
-    NSVB BG model is planned for a later phase.
+    The current implementation does not include the Heath et al. (2009)
+    coarse-root model. When ``pool in ('bg', 'total')``, the function reads
+    FIADB ``TREE.CARBON_BG`` directly and adds it to the estimate. A native
+    NSVB BG model is deferred.
 
     **EVALID Handling**
 
@@ -350,6 +346,10 @@ def live_tree(
     try:
         estimator = LiveTreeEstimator(db, config)
         if pool == "total":
+            # The cross-era warning is best-effort: if we can't determine
+            # the inventory year (EVALID parse failures, missing POP_EVAL,
+            # type coercion problems), skip the warning rather than fail
+            # the whole estimation.
             try:
                 year = estimator._extract_evaluation_year()
                 if int(year) < 2024:
@@ -364,8 +364,8 @@ def live_tree(
                         "pool='ag' if you need NSVB-only consistency.",
                         int(year),
                     )
-            except Exception:
-                pass
+            except (ValueError, TypeError, AttributeError, IndexError, KeyError) as exc:
+                logger.debug("Skipping live_tree year warning: %s", exc)
         return estimator.estimate()
     finally:
         if owns_db and hasattr(db, "close"):

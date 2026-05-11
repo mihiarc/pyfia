@@ -13,7 +13,7 @@ from the EVALID-scoped pipeline; t₁ data is loaded from the full
 (unfiltered) COND table and linked via ``PREV_PLT_CN + CONDID``.
 
 Tree-level stock change (live tree, standing dead) requires GRM fate
-decomposition and is deferred to Phase B.
+decomposition and is not yet implemented.
 
 Public API: :func:`stock_change`.
 
@@ -147,7 +147,8 @@ class CarbonStockChangeEstimator(BaseEstimator):
 
         # Filter to remeasured plots only
         data = data.filter(
-            pl.col("PREV_PLT_CN").is_not_null() & pl.col("REMPER").is_not_null()
+            pl.col("PREV_PLT_CN").is_not_null()
+            & pl.col("REMPER").is_not_null()
             & (pl.col("REMPER") > 0)
         )
 
@@ -237,7 +238,11 @@ class CarbonStockChangeEstimator(BaseEstimator):
         # (fill_null(0.0) handles the asymmetric case correctly).
         all_null_expr = pl.lit(True)
         for c in carbon_cols:
-            all_null_expr = all_null_expr & pl.col(f"t2_{c}").is_null() & pl.col(f"t1_{c}").is_null()
+            all_null_expr = (
+                all_null_expr
+                & pl.col(f"t2_{c}").is_null()
+                & pl.col(f"t1_{c}").is_null()
+            )
         data = data.filter(~all_null_expr)
 
         # Sum all carbon columns for this pool (understory has AG+BG)

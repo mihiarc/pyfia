@@ -1,5 +1,5 @@
 """
-NGHGI report reproduction — pool aggregation matching EPA Chapter 6 LULUCF.
+NGHGI pool aggregation — EPA Chapter 6 LULUCF.
 
 The EPA NGHGI report (Inventory of U.S. GHG Emissions and Sinks) reports forest
 ecosystem carbon under six pools whose decomposition does NOT line up 1:1 with
@@ -14,12 +14,10 @@ pyFIA's pool estimators:
     Soil (Mineral)              soil_organic        [Domke 2017 mineral soil model]
     Soil (Organic)              not reproducible    [Histosols, IPCC defaults]
 
-Use :func:`compile_state_stocks` to produce a state-level rollup matching the
-EPA Table 6-10 row structure, and :func:`compile_conus_stocks` to aggregate
-across multiple state databases.
-
-Forest-remaining-forest only.  This is the Phase 1 reproduction target for
-the CTrees x Schmidt grant; see project memory for scope.
+This module is a *report-reproduction helper*. It belongs under ``scripts/``,
+not in the pyfia public API, because it bakes in EPA Chapter 6 column
+semantics and lives only to validate pyfia's carbon estimators against the
+published NGHGI tables.
 
 Units
 -----
@@ -36,16 +34,18 @@ References
 
 from __future__ import annotations
 
-from importlib import resources
+from pathlib import Path
 from typing import Iterable
 
 import polars as pl
 
-from ..core import FIA
+from pyfia.core import FIA
 
 SHORT_TONS_PER_METRIC_TON = 1.0 / 0.907185
 METRIC_TONS_PER_SHORT_TON = 0.907185
 MMT_C_PER_SHORT_TON = METRIC_TONS_PER_SHORT_TON / 1_000_000
+
+_DATA_DIR = Path(__file__).parent / "data"
 
 
 EPA_POOLS = (
@@ -126,17 +126,15 @@ def compile_state_stocks(
     land-converted-to-forest in EPA's CRT taxonomy.  EPA Section 6.2
     excludes the latter; reproducing that split is Phase 2 work.
     """
-    from ..estimation.estimators.carbon_pools import carbon_pool
-    from .downed_dead import downed_dead
-    from .litter import litter
-    from .soil_organic import soil_organic
-    from .understory import understory
+    from pyfia.carbon.downed_dead import downed_dead
+    from pyfia.carbon.litter import litter
+    from pyfia.carbon.soil_organic import soil_organic
+    from pyfia.carbon.understory import understory
+    from pyfia.estimation.estimators.carbon_pools import carbon_pool
 
     mode = mode.lower()
     if mode not in ("fiadb", "nsvb"):
-        raise ValueError(
-            f"mode must be 'fiadb' or 'nsvb', got {mode!r}"
-        )
+        raise ValueError(f"mode must be 'fiadb' or 'nsvb', got {mode!r}")
 
     if isinstance(db, str):
         owns = True
@@ -158,8 +156,9 @@ def compile_state_stocks(
             std_dead = carbon_pool(fia, pool="total", tree_type="dead", **common)
             tree_source = "FIADB CARBON_AG/BG via carbon_pool"
         else:  # mode == "nsvb"
-            from .live_tree import live_tree
-            from .standing_dead import standing_dead
+            from pyfia.carbon.live_tree import live_tree
+            from pyfia.carbon.standing_dead import standing_dead
+
             live_ag = live_tree(fia, pool="ag", **common)
             live_bg = live_tree(fia, pool="bg", **common)
             std_dead = standing_dead(fia, pool="total", **common)
@@ -171,22 +170,34 @@ def compile_state_stocks(
         lit = litter(fia, **common)
         soil = soil_organic(fia, **common)
 
-        def _stock(df: pl.DataFrame) -> tuple[float, float, int]:
+        def _stock(df: pl.DataFrame, label: str) -> tuple[float, float, int]:
+            """Extract (total, per-acre, n_plots) from a pool result.
+
+            Empty results from a pool estimator are reported, not silently
+            coerced to zero — this prevents an upstream filter that removes
+            all plots from masquerading as a true zero stock.
+            """
             if df is None or len(df) == 0:
-                return 0.0, 0.0, 0
-            total = float(df["CARBON_TOTAL"][0]) if "CARBON_TOTAL" in df.columns else 0.0
+                raise ValueError(
+                    f"Pool estimator {label!r} returned an empty result "
+                    "(no plots after stratification). The EPA pool rollup "
+                    "would be misleading; fix the filter or EVALID."
+                )
+            total = (
+                float(df["CARBON_TOTAL"][0]) if "CARBON_TOTAL" in df.columns else 0.0
+            )
             acre = float(df["CARBON_ACRE"][0]) if "CARBON_ACRE" in df.columns else 0.0
             n = int(df["N_PLOTS"][0]) if "N_PLOTS" in df.columns else 0
             return total, acre, n
 
-        lt_ag_t, lt_ag_a, n_lt = _stock(live_ag)
-        lt_bg_t, lt_bg_a, _ = _stock(live_bg)
-        sd_t, sd_a, n_sd = _stock(std_dead)
-        u_ag_t, u_ag_a, n_u = _stock(und_ag)
-        u_bg_t, u_bg_a, _ = _stock(und_bg)
-        dd_t, dd_a, n_dd = _stock(dwn_dead)
-        li_t, li_a, n_li = _stock(lit)
-        sm_t, sm_a, n_sm = _stock(soil)
+        lt_ag_t, lt_ag_a, n_lt = _stock(live_ag, "live_tree(ag)")
+        lt_bg_t, lt_bg_a, _ = _stock(live_bg, "live_tree(bg)")
+        sd_t, sd_a, n_sd = _stock(std_dead, "standing_dead")
+        u_ag_t, u_ag_a, n_u = _stock(und_ag, "understory(ag)")
+        u_bg_t, u_bg_a, _ = _stock(und_bg, "understory(bg)")
+        dd_t, dd_a, n_dd = _stock(dwn_dead, "downed_dead")
+        li_t, li_a, n_li = _stock(lit, "litter")
+        sm_t, sm_a, n_sm = _stock(soil, "soil_organic")
 
         agb_t = lt_ag_t + u_ag_t
         bgb_t = lt_bg_t + u_bg_t
@@ -199,17 +210,36 @@ def compile_state_stocks(
         eco_a = agb_a + bgb_a + dw_a + li_a + sm_a
 
         rows = [
-            ("AGB", agb_t, agb_a, max(n_lt, n_u),
-             f"live[{tree_source}](ag) + understory(ag)"),
-            ("BGB", bgb_t, bgb_a, max(n_lt, n_u),
-             f"live[{tree_source}](bg) + understory(bg)"),
-            ("DEAD_WOOD", dw_t, dw_a, max(n_sd, n_dd),
-             f"standing_dead[{tree_source}](total) + downed_dead"),
+            (
+                "AGB",
+                agb_t,
+                agb_a,
+                max(n_lt, n_u),
+                f"live[{tree_source}](ag) + understory(ag)",
+            ),
+            (
+                "BGB",
+                bgb_t,
+                bgb_a,
+                max(n_lt, n_u),
+                f"live[{tree_source}](bg) + understory(bg)",
+            ),
+            (
+                "DEAD_WOOD",
+                dw_t,
+                dw_a,
+                max(n_sd, n_dd),
+                f"standing_dead[{tree_source}](total) + downed_dead",
+            ),
             ("LITTER", li_t, li_a, n_li, "litter"),
-            ("SOIL_MINERAL", sm_t, sm_a, n_sm,
-             "soil_organic [Domke 2017 mineral]"),
-            ("FOREST_ECOSYSTEM", eco_t, eco_a, max(n_lt, n_sm),
-             "AGB+BGB+DEAD_WOOD+LITTER+SOIL_MINERAL"),
+            ("SOIL_MINERAL", sm_t, sm_a, n_sm, "soil_organic [Domke 2017 mineral]"),
+            (
+                "FOREST_ECOSYSTEM",
+                eco_t,
+                eco_a,
+                max(n_lt, n_sm),
+                "AGB+BGB+DEAD_WOOD+LITTER+SOIL_MINERAL",
+            ),
         ]
 
         df = pl.DataFrame(
@@ -286,13 +316,21 @@ def load_published_targets(year: int = 2022) -> pl.DataFrame:
     pl.DataFrame
         Columns: EPA_POOL, YEAR, STOCK_MMT_C, NOTE.
     """
-    with resources.files("pyfia.carbon.data").joinpath(
-        "nghgi_2024_table_6_10.csv"
-    ).open("r") as fh:
-        df = pl.read_csv(fh)
-    df = df.rename({"epa_pool": "EPA_POOL", "year": "YEAR",
-                    "stock_mmt_c": "STOCK_MMT_C", "note": "NOTE"})
+    df = pl.read_csv(_DATA_DIR / "nghgi_2024_table_6_10.csv")
+    df = df.rename(
+        {
+            "epa_pool": "EPA_POOL",
+            "year": "YEAR",
+            "stock_mmt_c": "STOCK_MMT_C",
+            "note": "NOTE",
+        }
+    )
     return df.filter(pl.col("YEAR") == year)
+
+
+def load_state_flux_targets() -> pl.DataFrame:
+    """Load EPA Annex 3.13 Table A-208 state-level flux (2022)."""
+    return pl.read_csv(_DATA_DIR / "nghgi_2024_table_a_208_state_flux_2022.csv")
 
 
 def compare_to_published(
@@ -329,17 +367,17 @@ def compare_to_published(
             {"STOCK_MMT_C": "PYFIA_MMT_C"}
         )
 
-    targets = load_published_targets(year=year).select(["EPA_POOL", "STOCK_MMT_C"]).rename(
-        {"STOCK_MMT_C": "EPA_MMT_C"}
+    targets = (
+        load_published_targets(year=year)
+        .select(["EPA_POOL", "STOCK_MMT_C"])
+        .rename({"STOCK_MMT_C": "EPA_MMT_C"})
     )
 
     merged = rollup.join(targets, on="EPA_POOL", how="full", coalesce=True)
     merged = merged.with_columns(
         (pl.col("PYFIA_MMT_C") - pl.col("EPA_MMT_C")).alias("ABS_DIFF_MMT_C"),
         (
-            100.0
-            * (pl.col("PYFIA_MMT_C") - pl.col("EPA_MMT_C"))
-            / pl.col("EPA_MMT_C")
+            100.0 * (pl.col("PYFIA_MMT_C") - pl.col("EPA_MMT_C")) / pl.col("EPA_MMT_C")
         ).alias("PCT_DIFF"),
     )
     return merged.sort("EPA_POOL")

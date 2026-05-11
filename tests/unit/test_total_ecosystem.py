@@ -159,3 +159,104 @@ class TestTotalEcosystemSignature:
         import inspect
         sig = inspect.signature(total_ecosystem)
         assert "pool" not in sig.parameters
+
+    def test_has_grp_by_parameter(self):
+        """total_ecosystem accepts grp_by, matching sibling estimators."""
+        import inspect
+        sig = inspect.signature(total_ecosystem)
+        assert "grp_by" in sig.parameters
+        assert sig.parameters["grp_by"].default is None
+
+
+def _make_grouped_pool_result(
+    rows: list[tuple],
+    group_col: str = "FORTYPCD",
+    year: int = 2023,
+) -> pl.DataFrame:
+    """Build a multi-row pool result keyed by a grouping column.
+
+    Each ``rows`` entry is ``(group_value, carbon_acre, carbon_total)``.
+    """
+    return pl.DataFrame(
+        {
+            "YEAR": [year] * len(rows),
+            group_col: [r[0] for r in rows],
+            "POOL": ["TOTAL"] * len(rows),
+            "CARBON_ACRE": [r[1] for r in rows],
+            "CARBON_TOTAL": [r[2] for r in rows],
+            "N_PLOTS": [100] * len(rows),
+            "N_TREES": [0] * len(rows),
+        }
+    )
+
+
+class TestTotalEcosystemGrpBy:
+    """Tests for grp_by forwarding and per-group summing."""
+
+    def test_grp_by_forwarded_to_each_pool(self, mock_infra):
+        """grp_by must be passed through to every pool estimator."""
+        result_df = _make_grouped_pool_result([("A", 1.0, 100.0)])
+        mocks: dict[str, object] = {}
+        patchers = []
+        try:
+            for name, target in _POOL_PATCHES.items():
+                p = patch(target, return_value=result_df)
+                mocks[name] = p.start()
+                patchers.append(p)
+            total_ecosystem(MockDB(), grp_by="FORTYPCD")
+            for name, mock in mocks.items():
+                assert mock.call_args is not None, f"pool {name} was not called"
+                kwargs = mock.call_args.kwargs
+                assert kwargs.get("grp_by") == "FORTYPCD", (
+                    f"pool {name} did not receive grp_by; got {kwargs}"
+                )
+        finally:
+            for p in patchers:
+                p.stop()
+
+    def test_grp_by_sums_per_group(self, mock_infra):
+        """TOTAL_ECOSYSTEM row is summed within each group, not collapsed."""
+        # Two forest type codes, each pool reports both.
+        results = {
+            name: _make_grouped_pool_result(
+                [("A", 1.0, 100.0), ("B", 2.0, 200.0)]
+            )
+            for name in _POOL_PATCHES
+        }
+        patchers = _start_pool_patches(results)
+        try:
+            result = total_ecosystem(MockDB(), grp_by="FORTYPCD")
+            totals = result.filter(pl.col("POOL") == "TOTAL_ECOSYSTEM").sort(
+                "FORTYPCD"
+            )
+            # 2 groups × 1 TOTAL row each
+            assert len(totals) == 2
+            assert totals["FORTYPCD"].to_list() == ["A", "B"]
+            # 6 pools × 1.0 = 6.0 for group A, 6 × 2.0 = 12.0 for group B
+            assert abs(float(totals["CARBON_ACRE"][0]) - 6.0) < 1e-10
+            assert abs(float(totals["CARBON_ACRE"][1]) - 12.0) < 1e-10
+            # 6 × 100 = 600, 6 × 200 = 1200
+            assert abs(float(totals["CARBON_TOTAL"][0]) - 600.0) < 1e-10
+            assert abs(float(totals["CARBON_TOTAL"][1]) - 1200.0) < 1e-10
+        finally:
+            _stop_pool_patches(patchers)
+
+    def test_grp_by_preserves_pool_rows(self, mock_infra):
+        """Pool rows survive grp_by — output has pool rows + TOTAL rows per group."""
+        results = {
+            name: _make_grouped_pool_result(
+                [("A", 1.0, 100.0), ("B", 2.0, 200.0)]
+            )
+            for name in _POOL_PATCHES
+        }
+        patchers = _start_pool_patches(results)
+        try:
+            result = total_ecosystem(MockDB(), grp_by="FORTYPCD")
+            # 6 pools × 2 groups + 2 TOTAL rows = 14 rows
+            assert len(result) == 14
+            assert "FORTYPCD" in result.columns
+            # Each pool appears for each group
+            pool_a = result.filter(pl.col("FORTYPCD") == "A")
+            assert len(pool_a) == 7  # 6 pools + 1 TOTAL
+        finally:
+            _stop_pool_patches(patchers)

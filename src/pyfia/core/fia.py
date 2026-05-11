@@ -30,7 +30,6 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-
 class FIA:
     """
     Main FIA database class for working with Forest Inventory and Analysis data.
@@ -1303,6 +1302,86 @@ class FIA:
         from pyfia.estimation import area_change
 
         return area_change(self, **kwargs)
+
+    def live_tree(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate live tree carbon using the NSVB framework.
+
+        See live_tree() function for full parameter documentation.
+        """
+        from pyfia.carbon import live_tree
+
+        return live_tree(self, **kwargs)
+
+    def standing_dead(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate standing dead tree carbon using the NSVB framework.
+
+        See standing_dead() function for full parameter documentation.
+        """
+        from pyfia.carbon import standing_dead
+
+        return standing_dead(self, **kwargs)
+
+    def understory(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate understory vegetation carbon.
+
+        See understory() function for full parameter documentation.
+        """
+        from pyfia.carbon import understory
+
+        return understory(self, **kwargs)
+
+    def downed_dead(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate downed dead wood carbon.
+
+        See downed_dead() function for full parameter documentation.
+        """
+        from pyfia.carbon import downed_dead
+
+        return downed_dead(self, **kwargs)
+
+    def litter(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate litter carbon.
+
+        See litter() function for full parameter documentation.
+        """
+        from pyfia.carbon import litter
+
+        return litter(self, **kwargs)
+
+    def soil_organic(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate soil organic carbon.
+
+        See soil_organic() function for full parameter documentation.
+        """
+        from pyfia.carbon import soil_organic
+
+        return soil_organic(self, **kwargs)
+
+    def total_ecosystem(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate total ecosystem carbon across all six pools.
+
+        See total_ecosystem() function for full parameter documentation.
+        """
+        from pyfia.carbon.total_ecosystem import total_ecosystem
+
+        return total_ecosystem(self, **kwargs)
+
+    def stock_change(self, **kwargs) -> pl.DataFrame:
+        """
+        Estimate carbon stock change between inventory periods.
+
+        See stock_change() function for full parameter documentation.
+        """
+        from pyfia.carbon.stock_change import stock_change
+
+        return stock_change(self, **kwargs)
 
 
 class MotherDuckFIA(FIA):

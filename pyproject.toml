@@ -103,6 +103,10 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["pyfia*"]
 
+[tool.setuptools.package-data]
+# Vendored NSVB coefficient tables (GTR-WO-104 Supp1) — load via importlib.resources
+"pyfia.carbon.nsvb.data" = ["*.csv", "*.md"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

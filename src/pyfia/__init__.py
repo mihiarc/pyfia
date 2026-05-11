@@ -1,14 +1,8 @@
 """
 PyFIA - A Python library for USDA Forest Inventory and Analysis (FIA) data analysis.
 
-A high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data
-using modern data science tools like Polars and DuckDB.
-
-Part of the FIA Python Ecosystem:
-- PyFIA: Survey/plot data analysis (https://github.com/mihiarc/pyfia)
-- GridFIA: Spatial raster analysis (https://github.com/mihiarc/gridfia)
-- PyFVS: Growth/yield simulation (https://github.com/mihiarc/pyfvs)
-- AskFIA: AI conversational interface (https://github.com/mihiarc/askfia)
+A high-performance Python library for analyzing USDA Forest Inventory and
+Analysis (FIA) data using modern data science tools like Polars and DuckDB.
 """
 
 from __future__ import annotations
@@ -17,6 +11,15 @@ __version__ = "1.3.0"
 __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
+# Estimation functions - High-level API
+from pyfia.carbon.downed_dead import downed_dead
+from pyfia.carbon.litter import litter
+from pyfia.carbon.live_tree import live_tree
+from pyfia.carbon.soil_organic import soil_organic
+from pyfia.carbon.standing_dead import standing_dead
+from pyfia.carbon.stock_change import stock_change
+from pyfia.carbon.total_ecosystem import total_ecosystem
+from pyfia.carbon.understory import understory
 from pyfia.core.data_reader import FIADataReader
 from pyfia.core.exceptions import (
     ConfigurationError,
@@ -50,8 +53,6 @@ from pyfia.downloader import (
     clear_cache,
     download,
 )
-
-# Estimation functions - High-level API
 from pyfia.estimation.estimators.area import area
 from pyfia.estimation.estimators.area_change import area_change
 from pyfia.estimation.estimators.biomass import biomass
@@ -113,6 +114,14 @@ __all__ = [
     "area",
     "area_change",
     "biomass",
+    "downed_dead",
+    "litter",
+    "live_tree",
+    "soil_organic",
+    "standing_dead",
+    "stock_change",
+    "total_ecosystem",
+    "understory",
     "volume",
     "tpa",
     "mortality",

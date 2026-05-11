@@ -124,6 +124,24 @@ volume_with_names = pyfia.join_species_names(volume, db)
 print(volume_with_names)
 ```
 
+### 5. Carbon Estimation (NSVB)
+
+For NGHGI-aligned carbon accounting, use `live_tree()` and `standing_dead()` — these recompute biomass from scratch using the NSVB framework with species-specific carbon fractions:
+
+```python
+import pyfia
+
+# Above-ground live tree carbon
+live_c = pyfia.live_tree(db, pool="ag")
+print(f"Live AG carbon: {live_c['CARBON_ACRE'][0]:.2f} tons/acre")
+
+# Standing dead carbon by decay class
+sd_c = pyfia.standing_dead(db, pool="ag", grp_by="DECAYCD")
+print(sd_c)
+```
+
+See [live_tree()](api/live_tree.md) and [standing_dead()](api/standing_dead.md) for details.
+
 ## Complete Example
 
 ```python

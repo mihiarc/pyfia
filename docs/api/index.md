@@ -25,6 +25,8 @@ result = estimator(db, **options)  # Returns pl.DataFrame
 | [`volume()`](volume.md) | Estimate tree volume |
 | [`tpa()`](tpa.md) | Trees per acre and basal area |
 | [`biomass()`](biomass.md) | Tree biomass and carbon |
+| [`live_tree()`](live_tree.md) | NSVB live tree carbon |
+| [`standing_dead()`](standing_dead.md) | NSVB standing dead carbon |
 | [`site_index()`](site_index.md) | Area-weighted mean site index |
 | [`mortality()`](mortality.md) | Annual tree mortality |
 | [`growth()`](growth.md) | Annual tree growth |

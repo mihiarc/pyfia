@@ -5,6 +5,36 @@ All notable changes to pyFIA will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **`live_tree()` function** — NSVB live tree carbon estimation:
+  - Recomputes above-ground biomass from scratch using the NSVB framework (Westfall et al. 2023, GTR-WO-104)
+  - Species-specific S10a carbon fractions (0.40–0.55) replace the flat 0.47 multiplier used by `biomass()`
+  - 3-level coefficient lookup precedence: Bailey DIVISION, species-level, Jenkins fallback
+  - Cull adjustment using Harmon et al. (2011) DECAYCD=3 density proportions
+  - `pool='ag'|'bg'|'total'` — AG via NSVB, BG bridges to FIADB `TREE.CARBON_BG`
+  - Validated against FIADB `TREE.CARBON_AG` on Georgia EVALID 132401 (130,952 trees): median per-tree relative error 0.085%
+- **`standing_dead()` function** — NSVB standing dead carbon estimation:
+  - Same NSVB biomass pipeline as `live_tree()`, plus decay-class reductions from `REF_TREE_DECAY_PROP`
+  - `DENSITY_PROP` x wood, `BARK_LOSS_PROP` x bark, `BRANCH_LOSS_PROP` x branch by hardwood/softwood x DECAYCD
+  - S10b dead-tree carbon fractions by hardwood/softwood x DECAYCD
+  - No `TREE.CULL` adjustment for dead trees (per FIADB Appendix K)
+  - `pool='ag'|'bg'|'total'` — same pool semantics as `live_tree()`
+  - Broken-top corrections: crown-proportion adjustment (Appendix K) + paraboloid volume-ratio for trees with `ACTUALHT < HT`
+  - Vendored Table S11 (`REF_TREE_STND_DEAD_CR_PROP`) for mean intact crown ratios by ecoregion province
+  - Validated against FIADB on Georgia EVALID 132401 (6,870 trees): median 10.9% per-tree relative error
+- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, carbon fractions:
+  - `pyfia.carbon.nsvb.equations` — Models 1, 2, 4, 5, harmonization, vectorized pipelines
+  - `pyfia.carbon.nsvb.coefficients` — S1a–S8b coefficient tables, Bailey DIVISION lookup
+  - `pyfia.carbon.nsvb.carbon_fractions` — S10a (live), S10b (dead), `REF_TREE_DECAY_PROP` loaders
+  - Vendored coefficient CSVs from GTR-WO-104 supplementary archive
+- **NSVB validation gate** — `tests/validation/test_live_tree_nsvb.py` and `test_standing_dead_nsvb.py`:
+  - Per-tree parity tests against FIADB `CARBON_AG` on real Georgia inventory data
+  - Layered diagnostics: carbon rel-error, biomass ratio, FIADB-implied carbon fraction
+  - Ratchet thresholds that detect regressions and reward improvements
+  - EVALID-scoped to the current annual evaluation (avoids legacy CRM data contamination)
+
 ## [1.2.0] - 2025-01-18
 
 ### Added

@@ -75,7 +75,11 @@ def georgia_db(georgia_db_path):
     )
     db = FIA(db_path)
     yield db
-    db.close()
+    # FIA class cleanup is handled by FIADataReader; only MotherDuckFIA
+    # exposes an explicit close(). Guard so session teardown doesn't raise
+    # AttributeError on the common DuckDB file path.
+    if hasattr(db, "close"):
+        db.close()
 
 
 @pytest.fixture
@@ -86,7 +90,11 @@ def fia_db(georgia_db_path):
     )
     db = FIA(db_path)
     yield db
-    db.close()
+    # FIA class cleanup is handled by FIADataReader; only MotherDuckFIA
+    # exposes an explicit close(). Guard so session teardown doesn't raise
+    # AttributeError on the common DuckDB file path.
+    if hasattr(db, "close"):
+        db.close()
 
 
 @pytest.fixture

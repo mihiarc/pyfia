@@ -170,7 +170,8 @@ def standing_dead(
     reduced biomass is then converted to carbon via species-class S10b
     dead-tree carbon fractions from GTR-WO-104, replacing the flat ~0.47
     multiplier and producing carbon estimates that align with the FIADB
-    ``TREE.CARBON_AG`` column for standing dead trees (STATUSCD=2).
+    ``TREE.CARBON_AG`` column for standing dead trees
+    (``STATUSCD=2 AND STANDING_DEAD_CD=1``).
 
     Broken-top corrections apply the Appendix K crown-proportion
     adjustment to branch biomass and a volume-ratio adjustment to wood/bark

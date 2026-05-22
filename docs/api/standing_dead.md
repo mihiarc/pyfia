@@ -4,7 +4,7 @@ Estimate standing dead tree carbon using the NSVB biomass framework with decay-c
 
 ## Overview
 
-The `standing_dead()` function recomputes above-ground standing dead tree biomass from scratch using the National Scale Volume and Biomass (NSVB) framework and applies the FIADB `REF_TREE_DECAY_PROP` density and structural-loss reductions by decay class. The reduced biomass is converted to carbon via S10b dead-tree carbon fractions (hardwood/softwood x DECAYCD). This produces carbon estimates that match FIADB's `TREE.CARBON_AG` column for standing dead trees (STATUSCD=2) in NSVB-era inventories.
+The `standing_dead()` function recomputes above-ground standing dead tree biomass from scratch using the National Scale Volume and Biomass (NSVB) framework and applies the FIADB `REF_TREE_DECAY_PROP` density and structural-loss reductions by decay class. The reduced biomass is converted to carbon via S10b dead-tree carbon fractions (hardwood/softwood x DECAYCD). This produces carbon estimates that match FIADB's `TREE.CARBON_AG` column for standing dead trees (`STATUSCD=2 AND STANDING_DEAD_CD=1`) in NSVB-era inventories.
 
 ```python
 import pyfia

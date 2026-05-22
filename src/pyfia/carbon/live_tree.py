@@ -118,7 +118,7 @@ def live_tree(
     FIADB ``CARBON_AG`` column for inventories from September 2023 onward.
     Species-specific live carbon fractions from Table S10a (GTR-WO-104)
     replace the flat ~0.47 multiplier used by ``pyfia.biomass()``, producing
-    carbon estimates that align with the EPA NGHGI LULUCF live tree pool.
+    carbon estimates that align with the FIADB ``TREE.CARBON_AG`` column.
 
     Belowground carbon is bridged directly to the FIADB pre-computed
     ``TREE.CARBON_BG`` column; a native NSVB coarse-root model is

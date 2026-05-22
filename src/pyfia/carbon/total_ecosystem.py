@@ -1,5 +1,5 @@
 """
-Total ecosystem carbon estimation — sum of all six IPCC/NGHGI pools.
+Total ecosystem carbon estimation — sum of all six IPCC pools.
 
 Combines live tree, standing dead, understory vegetation, downed dead
 wood, litter, and soil organic carbon into a single total ecosystem
@@ -36,7 +36,7 @@ def total_ecosystem(
     most_recent: bool = False,
 ) -> pl.DataFrame:
     """
-    Estimate total ecosystem carbon across all six IPCC/NGHGI pools.
+    Estimate total ecosystem carbon across all six IPCC pools.
 
     Sums per-acre and population total estimates from:
 

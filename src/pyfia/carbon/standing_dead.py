@@ -169,8 +169,8 @@ def standing_dead(
     BRANCH_LOSS_PROP × branch) keyed by hardwood/softwood × DECAYCD. The
     reduced biomass is then converted to carbon via species-class S10b
     dead-tree carbon fractions from GTR-WO-104, replacing the flat ~0.47
-    multiplier and producing carbon estimates that align with the EPA
-    NGHGI LULUCF standing dead pool.
+    multiplier and producing carbon estimates that align with the FIADB
+    ``TREE.CARBON_AG`` column for standing dead trees (STATUSCD=2).
 
     Broken-top corrections apply the Appendix K crown-proportion
     adjustment to branch biomass and a volume-ratio adjustment to wood/bark

@@ -4,7 +4,7 @@ Estimate live tree carbon using the NSVB biomass framework with species-specific
 
 ## Overview
 
-The `live_tree()` function recomputes above-ground live tree biomass from scratch using the National Scale Volume and Biomass (NSVB) framework of Westfall et al. (2023, GTR-WO-104) and converts to carbon via species-specific S10a carbon fractions. This produces carbon estimates that align with the EPA NGHGI LULUCF live tree pool and match FIADB's pre-computed `CARBON_AG` column for NSVB-era inventories (September 2023 onward).
+The `live_tree()` function recomputes above-ground live tree biomass from scratch using the National Scale Volume and Biomass (NSVB) framework of Westfall et al. (2023, GTR-WO-104) and converts to carbon via species-specific S10a carbon fractions. This produces carbon estimates that match FIADB's pre-computed `TREE.CARBON_AG` column for NSVB-era inventories (September 2023 onward).
 
 ```python
 import pyfia

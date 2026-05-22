@@ -35,6 +35,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Ratchet thresholds that detect regressions and reward improvements
   - EVALID-scoped to the current annual evaluation (avoids legacy CRM data contamination)
 
+### Changed
+- **NGHGI report-reproduction scripts moved to the `pyfcaf` package** (`scripts/nghgi/` removed). pyfia refocuses on database querying and statistical estimation; pyfcaf consumes pyfia's carbon estimators to reproduce the EPA Chapter 6 / Annex 3.13 tables. The new entry points live at `python -m pyfcaf.nghgi.{stage_a,stage_b,multi_year,dead_wood_diagnostic}`.
+- **Carbon module docstrings**: softened "aligned with EPA NGHGI LULUCF X pool" wording to point at the operational FIADB `CARBON_*` columns; dropped trailing USEPA Annex 3.13 citations. Operational methodology citations (Westfall 2023, Domke 2013/2016/2017, Smith & Heath, Birdsey, Bechtold & Patterson) preserved.
+
 ## [1.2.0] - 2025-01-18
 
 ### Added

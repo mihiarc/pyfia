@@ -69,14 +69,25 @@ class CarbonEstimatorBase(BaseEstimator):
     def _load_ref_species(self) -> pl.DataFrame:
         """Load REF_SPECIES columns needed by the NSVB pipeline.
 
-        Returns ``(SPCD Int64, JENKINS_SPGRPCD Int64, WDSG Float64)``.
-        Cached on the instance for the duration of one estimator run.
+        Returns ``(SPCD Int64, JENKINS_SPGRPCD Int64, WDSG Float64,
+        WOODLAND Utf8)``. Cached on the instance for the duration of one
+        estimator run.
+
+        ``WOODLAND`` ('Y'/'N') flags species measured at diameter at root
+        collar that NSVB does not model (GTR-WO-104 p. 6); the live-tree
+        estimator uses it to route those trees to FIADB-stored carbon
+        rather than letting them recompute to 0 (issue #6).
         """
         if self._ref_species_cache is not None:
             return self._ref_species_cache
         df = self.db._reader.read_table(
             "REF_SPECIES",
-            columns=["SPCD", "JENKINS_SPGRPCD", "WOOD_SPGR_GREENVOL_DRYWT"],
+            columns=[
+                "SPCD",
+                "JENKINS_SPGRPCD",
+                "WOOD_SPGR_GREENVOL_DRYWT",
+                "WOODLAND",
+            ],
         )
         if hasattr(df, "collect"):
             df = df.collect()
@@ -85,8 +96,14 @@ class CarbonEstimatorBase(BaseEstimator):
                 pl.col("SPCD").cast(pl.Int64),
                 pl.col("JENKINS_SPGRPCD").cast(pl.Int64),
                 pl.col("WOOD_SPGR_GREENVOL_DRYWT").cast(pl.Float64).alias("WDSG"),
+                pl.col("WOODLAND")
+                .cast(pl.Utf8)
+                .str.strip_chars()
+                .str.to_uppercase()
+                .fill_null("N")
+                .alias("WOODLAND"),
             ]
-        ).select(["SPCD", "JENKINS_SPGRPCD", "WDSG"])
+        ).select(["SPCD", "JENKINS_SPGRPCD", "WDSG", "WOODLAND"])
         self._ref_species_cache = df
         return df
 

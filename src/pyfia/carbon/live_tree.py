@@ -37,61 +37,6 @@ from .nsvb.equations import compute_nsvb_biomass
 logger = logging.getLogger(__name__)
 
 
-def _uncovered_nonwoodland_spcds(
-    data: pl.LazyFrame,
-    lookup,
-) -> list[int]:
-    """Return SPCDs present in ``data`` that NSVB cannot compute and that are
-    not woodland (so cannot be routed to FIADB-stored carbon).
-
-    A tree's total-AGB prediction (NSVB Supp1 S8a) resolves only if its
-    ``SPCD`` matches the species-level coefficient table *or* its
-    ``JENKINS_SPGRPCD`` matches a Jenkins-group fallback row. Woodland
-    species (``REF_SPECIES.WOODLAND='Y'``, Jenkins group 10) match neither —
-    they are out of NSVB scope (GTR-WO-104 p. 6) and handled separately via
-    the FIADB ``CARBON_AG`` substitution. Any *non-woodland* SPCD that also
-    matches neither is an unexpected coverage gap that would silently
-    evaluate to 0 above-ground biomass; the caller raises on it (issue #6).
-
-    The check runs on distinct species present in the data (a tiny frame),
-    not per tree, so it does not materialize the full NSVB pipeline.
-
-    Parameters
-    ----------
-    data : pl.LazyFrame
-        Tree frame already joined to REF_SPECIES (must carry ``SPCD``,
-        ``JENKINS_SPGRPCD`` and ``WOODLAND``).
-    lookup : VectorizedLookupTables
-        The coefficient bundle whose ``total_agb_*`` tables define coverage.
-
-    Returns
-    -------
-    list[int]
-        Sorted offending SPCDs, empty when every species is covered.
-    """
-    covered_spcds = lookup.total_agb_spcd["SPCD"].cast(pl.Int64).to_list()
-    covered_jenkins = lookup.total_agb_jen["JENKINS_SPGRPCD"].cast(pl.Int64).to_list()
-
-    # Keep rows that match no species-level row, no Jenkins fallback, and
-    # are not woodland. ``fill_null(False)`` makes a null Jenkins group
-    # (no REF_SPECIES match at all) count as uncovered rather than dropping
-    # the row through null-propagation.
-    uncovered = (
-        data.filter(
-            ~pl.col("SPCD").cast(pl.Int64).is_in(covered_spcds)
-            & ~pl.col("JENKINS_SPGRPCD")
-            .cast(pl.Int64)
-            .is_in(covered_jenkins)
-            .fill_null(False)
-            & (pl.col("WOODLAND").fill_null("N") != "Y")
-        )
-        .select(pl.col("SPCD").cast(pl.Int64))
-        .unique()
-        .collect()
-    )
-    return sorted(uncovered["SPCD"].to_list())
-
-
 class LiveTreeEstimator(CarbonEstimatorBase):
     """Live tree carbon estimator using the NSVB biomass framework.
 
@@ -135,22 +80,9 @@ class LiveTreeEstimator(CarbonEstimatorBase):
 
             lookup = get_vectorized_lookup_tables()
 
-            # Fail loud, don't zero silently (issue #6). Woodland species are
-            # handled below; any *other* species NSVB cannot compute would
-            # otherwise resolve to 0 AGB without warning.
-            uncovered = _uncovered_nonwoodland_spcds(data, lookup)
-            if uncovered:
-                raise ValueError(
-                    f"live_tree: {len(uncovered)} non-woodland species code(s) "
-                    f"{uncovered} present in the data match neither an NSVB "
-                    "species-level coefficient row nor a Jenkins-group fallback "
-                    "(groups 1-9). NSVB would silently assign them 0 "
-                    "above-ground biomass. Woodland species "
-                    "(REF_SPECIES.WOODLAND='Y') are routed to FIADB-stored "
-                    "CARBON_AG automatically; these SPCDs are an unexpected "
-                    "coverage gap — verify they exist in REF_SPECIES with a "
-                    "valid JENKINS_SPGRPCD."
-                )
+            # Fail loud on species NSVB cannot compute; route woodland species
+            # to FIADB-stored CARBON_AG (issue #6).
+            self._guard_nsvb_coverage(data, lookup)
 
             data = compute_nsvb_biomass(data, lookup)
             default_frac = _compute_default_live_carbon_fraction()
@@ -164,20 +96,7 @@ class LiveTreeEstimator(CarbonEstimatorBase):
             data = data.with_columns(
                 (pl.col("agb") * pl.col("CARBON_FRAC_LIVE")).alias("_CARBON_AG_LB")
             )
-
-            # Woodland species (REF_SPECIES.WOODLAND='Y', measured at DRC) are
-            # outside the NSVB framework (GTR-WO-104 p. 6) and recompute to a
-            # null/0 AGB. Substitute FIADB's stored CARBON_AG — FIA's
-            # production legacy/CRM woodland biomass, already in pounds, the
-            # unit-consistent stand-in for the absent NSVB value (issue #6).
-            # fill_null(0.0) matches the carbon_pool estimator's handling of
-            # the rare unpopulated CARBON_AG record.
-            data = data.with_columns(
-                pl.when(pl.col("WOODLAND") == "Y")
-                .then(pl.col("CARBON_AG").cast(pl.Float64).fill_null(0.0))
-                .otherwise(pl.col("_CARBON_AG_LB"))
-                .alias("_CARBON_AG_LB")
-            )
+            data = self._substitute_woodland_carbon_ag(data)
         else:  # pool == "bg"
             data = data.with_columns(pl.lit(0.0).alias("_CARBON_AG_LB"))
 

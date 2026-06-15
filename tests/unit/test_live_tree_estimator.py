@@ -21,11 +21,8 @@ from __future__ import annotations
 import polars as pl
 import pytest
 
-from pyfia.carbon.live_tree import (
-    LiveTreeEstimator,
-    _uncovered_nonwoodland_spcds,
-    live_tree,
-)
+from pyfia.carbon._estimator_base import _uncovered_nonwoodland_spcds
+from pyfia.carbon.live_tree import LiveTreeEstimator, live_tree
 from pyfia.carbon.nsvb.coefficients import get_vectorized_lookup_tables
 
 
@@ -165,6 +162,56 @@ class TestNsvbCoverageGuard:
             }
         )
         assert _uncovered_nonwoodland_spcds(frame, lookup) == []
+
+    def test_guard_raises_naming_offending_spcds(self, lookup):
+        """``_guard_nsvb_coverage`` raises (not silently zeroes) and names the
+        uncovered non-woodland SPCD."""
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [131, 99999],
+                "JENKINS_SPGRPCD": [8, None],
+                "WOODLAND": ["N", "N"],
+            }
+        )
+        with pytest.raises(ValueError, match="99999"):
+            estimator._guard_nsvb_coverage(frame, lookup)
+
+    def test_guard_passes_for_covered_and_woodland(self, lookup):
+        """The guard does not raise when every species is covered or woodland."""
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [131, 65],
+                "JENKINS_SPGRPCD": [8, 10],
+                "WOODLAND": ["N", "Y"],
+            }
+        )
+        estimator._guard_nsvb_coverage(frame, lookup)  # must not raise
+
+
+class TestWoodlandCarbonSubstitution:
+    """Base-class ``_substitute_woodland_carbon_ag`` — shared by the live-tree
+    and standing-dead estimators (issue #6).
+
+    Woodland species recompute to 0 under NSVB; the substitution swaps in
+    FIADB-stored ``CARBON_AG`` for them while leaving non-woodland species on
+    the NSVB-recomputed value.
+    """
+
+    def test_woodland_rows_take_fiadb_carbon_ag(self):
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        frame = pl.LazyFrame(
+            {
+                "WOODLAND": ["Y", "N", "Y"],
+                "CARBON_AG": [123.0, 999.0, None],  # FIADB stored (lb)
+                "_CARBON_AG_LB": [0.0, 50.0, 0.0],  # NSVB recompute (woodland=0)
+            }
+        )
+        out = estimator._substitute_woodland_carbon_ag(frame).collect()
+        # Woodland row -> FIADB CARBON_AG; non-woodland keeps NSVB value;
+        # woodland with null CARBON_AG -> fill_null(0.0).
+        assert out["_CARBON_AG_LB"].to_list() == [123.0, 50.0, 0.0]
 
 
 class TestLiveTreeFunctionValidation:

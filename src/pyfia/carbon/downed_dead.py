@@ -25,7 +25,6 @@ References
   reductions in dead wood decay classes. Forest Ecology and Management,
   292, 50-57.
 - Woodall, C.W. et al. (2015). GTR-NRS-154 (FCAF methodology blueprint).
-- USEPA (2024). NGHGI Annex 3.13.
 """
 
 from __future__ import annotations
@@ -361,8 +360,6 @@ def downed_dead(
        Management, 292, 50-57.
     .. [2] Woodall, C.W. et al. (2015). The current and future role of
        forest carbon in the United States. Gen. Tech. Rep. NRS-154.
-    .. [3] USEPA (2024). Inventory of U.S. Greenhouse Gas Emissions and
-       Sinks, Chapter 6 and Annex 3.13.
     """
     from ..validation import (
         validate_boolean,

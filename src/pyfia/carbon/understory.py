@@ -31,7 +31,6 @@ References
 - Smith, J.E.; Heath, L.S.; Skog, K.E.; Birdsey, R.A. (2006). GTR-NE-343.
   DOI: 10.2737/NE-GTR-343.  (Appendix A carbon yield tables.)
 - Smith, J.E.; Heath, L.S. (2008). GTR-NRS-13.  (FIADB implementation.)
-- USEPA (2024). NGHGI Annex 3.13.  (Current operational methodology.)
 """
 
 from __future__ import annotations
@@ -263,7 +262,7 @@ def understory(
     density.  The model descends from the Birdsey (1996) ratios and is
     the same model USDA FIA uses to populate the FIADB
     ``COND.CARBON_UNDERSTORY_AG`` and ``COND.CARBON_UNDERSTORY_BG``
-    columns used in the EPA NGHGI.
+    columns.
 
     Nationally, understory carbon totals ~735 Tg C, representing ~0.8 %
     of total forest ecosystem carbon (GTR-NRS-154, Table 2).  Per-acre
@@ -412,8 +411,6 @@ def understory(
        Gen. Tech. Rep. NE-343. Newtown Square, PA: USDA Forest Service.
     .. [3] Smith, J.E.; Heath, L.S. (2008). Carbon stocks and stock changes
        in U.S. forests. In: USDA Forest Service GTR-NRS-13.
-    .. [4] USEPA (2024). Inventory of U.S. Greenhouse Gas Emissions and
-       Sinks, Chapter 6 and Annex 3.13.
     """
     from ..validation import (
         validate_boolean,

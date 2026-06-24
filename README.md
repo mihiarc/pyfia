@@ -44,7 +44,7 @@ with FIA("path/to/FIA_database.duckdb") as db:
     timber = volume(db, land_type="timber")
     forest = area(db, land_type="forest")
 
-    # Total ecosystem carbon (all 6 IPCC/NGHGI pools)
+    # Total ecosystem carbon (all 6 IPCC pools)
     carbon = total_ecosystem(db)
 ```
 

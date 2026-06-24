@@ -126,7 +126,7 @@ print(volume_with_names)
 
 ### 5. Carbon Estimation (NSVB)
 
-For NGHGI-aligned carbon accounting, use `live_tree()` and `standing_dead()` — these recompute biomass from scratch using the NSVB framework with species-specific carbon fractions:
+Use `live_tree()` and `standing_dead()` to recompute carbon from scratch via the NSVB framework with species-specific carbon fractions, matching the FIADB `CARBON_AG` column for NSVB-era inventories (September 2023 onward):
 
 ```python
 import pyfia

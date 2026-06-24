@@ -18,9 +18,12 @@ re-check the math, only the estimator plumbing.
 
 from __future__ import annotations
 
+import polars as pl
 import pytest
 
+from pyfia.carbon._estimator_base import _uncovered_nonwoodland_spcds
 from pyfia.carbon.live_tree import LiveTreeEstimator, live_tree
+from pyfia.carbon.nsvb.coefficients import get_vectorized_lookup_tables
 
 
 class MockDB:
@@ -95,6 +98,120 @@ class TestGetTreeColumns:
         estimator = LiveTreeEstimator(MockDB(), {"pool": "ag", "grp_by": "SPGRPCD"})
         cols = estimator.get_tree_columns()
         assert "SPGRPCD" in cols
+
+    def test_tree_columns_include_carbon_ag_for_woodland_substitution(self):
+        """CARBON_AG is loaded so woodland species can be routed to the
+        FIADB-stored value instead of recomputing to 0 (issue #6)."""
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        assert "CARBON_AG" in estimator.get_tree_columns()
+
+
+class TestNsvbCoverageGuard:
+    """The fail-loud guard for species NSVB cannot compute (issue #6).
+
+    Uses the real vendored coefficient bundle so the covered/uncovered
+    determination matches production, with synthetic tree frames.
+    """
+
+    @pytest.fixture(scope="class")
+    def lookup(self):
+        return get_vectorized_lookup_tables()
+
+    def test_uncovered_nonwoodland_species_flagged(self, lookup):
+        """A species matching neither an NSVB SPCD row nor a Jenkins group
+        (here a bogus SPCD with a null Jenkins group) is flagged."""
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [131, 99999],  # loblolly (Jenkins 8) vs. bogus
+                "JENKINS_SPGRPCD": [8, None],
+                "WOODLAND": ["N", "N"],
+            }
+        )
+        assert _uncovered_nonwoodland_spcds(frame, lookup) == [99999]
+
+    def test_woodland_species_not_flagged(self, lookup):
+        """Woodland species are out of NSVB scope but handled via the FIADB
+        substitution, so the guard must not flag them."""
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [65, 133],  # Utah juniper, singleleaf pinyon
+                "JENKINS_SPGRPCD": [10, 10],  # woodland group, absent from tables
+                "WOODLAND": ["Y", "Y"],
+            }
+        )
+        assert _uncovered_nonwoodland_spcds(frame, lookup) == []
+
+    def test_jenkins_fallback_species_not_flagged(self, lookup):
+        """Non-woodland species missing from the SPCD table but carrying a
+        valid Jenkins group (1-9) resolve via the fallback — not an error."""
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [113, 101],  # limber/whitebark pine: softwood Jenkins
+                "JENKINS_SPGRPCD": [4, 4],
+                "WOODLAND": ["N", "N"],
+            }
+        )
+        assert _uncovered_nonwoodland_spcds(frame, lookup) == []
+
+    def test_all_covered_returns_empty(self, lookup):
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [131, 65],
+                "JENKINS_SPGRPCD": [8, 10],
+                "WOODLAND": ["N", "Y"],
+            }
+        )
+        assert _uncovered_nonwoodland_spcds(frame, lookup) == []
+
+    def test_guard_raises_naming_offending_spcds(self, lookup):
+        """``_guard_nsvb_coverage`` raises (not silently zeroes) and names the
+        uncovered non-woodland SPCD."""
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [131, 99999],
+                "JENKINS_SPGRPCD": [8, None],
+                "WOODLAND": ["N", "N"],
+            }
+        )
+        with pytest.raises(ValueError, match="99999"):
+            estimator._guard_nsvb_coverage(frame, lookup)
+
+    def test_guard_passes_for_covered_and_woodland(self, lookup):
+        """The guard does not raise when every species is covered or woodland."""
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        frame = pl.LazyFrame(
+            {
+                "SPCD": [131, 65],
+                "JENKINS_SPGRPCD": [8, 10],
+                "WOODLAND": ["N", "Y"],
+            }
+        )
+        estimator._guard_nsvb_coverage(frame, lookup)  # must not raise
+
+
+class TestWoodlandCarbonSubstitution:
+    """Base-class ``_substitute_woodland_carbon_ag`` — shared by the live-tree
+    and standing-dead estimators (issue #6).
+
+    Woodland species recompute to 0 under NSVB; the substitution swaps in
+    FIADB-stored ``CARBON_AG`` for them while leaving non-woodland species on
+    the NSVB-recomputed value.
+    """
+
+    def test_woodland_rows_take_fiadb_carbon_ag(self):
+        estimator = LiveTreeEstimator(MockDB(), {"pool": "ag"})
+        frame = pl.LazyFrame(
+            {
+                "WOODLAND": ["Y", "N", "Y"],
+                "CARBON_AG": [123.0, 999.0, None],  # FIADB stored (lb)
+                "_CARBON_AG_LB": [0.0, 50.0, 0.0],  # NSVB recompute (woodland=0)
+            }
+        )
+        out = estimator._substitute_woodland_carbon_ag(frame).collect()
+        # Woodland row -> FIADB CARBON_AG; non-woodland keeps NSVB value;
+        # woodland with null CARBON_AG -> fill_null(0.0).
+        assert out["_CARBON_AG_LB"].to_list() == [123.0, 50.0, 0.0]
 
 
 class TestLiveTreeFunctionValidation:

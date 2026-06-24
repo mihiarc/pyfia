@@ -49,7 +49,10 @@ class LiveTreeEstimator(CarbonEstimatorBase):
     _estimator_label = "LiveTree"
 
     def get_tree_columns(self) -> list[str]:
-        estimator_cols = ["SPCD", "DIA", "HT", "CULL", "CARBON_BG"]
+        # CARBON_AG: FIADB-stored above-ground carbon, used as the woodland-
+        # species substitute since NSVB does not model them (issue #6).
+        # CARBON_BG: the FIADB below-ground bridge.
+        estimator_cols = ["SPCD", "DIA", "HT", "CULL", "CARBON_AG", "CARBON_BG"]
         return _get_tree_columns(
             estimator_cols=estimator_cols,
             grp_by=self.config.get("grp_by"),
@@ -73,7 +76,15 @@ class LiveTreeEstimator(CarbonEstimatorBase):
 
         # NSVB biomass + S10a carbon conversion
         if pool in ("ag", "total"):
-            data = compute_nsvb_biomass(data)
+            from .nsvb.coefficients import get_vectorized_lookup_tables
+
+            lookup = get_vectorized_lookup_tables()
+
+            # Fail loud on species NSVB cannot compute; route woodland species
+            # to FIADB-stored CARBON_AG (issue #6).
+            self._guard_nsvb_coverage(data, lookup)
+
+            data = compute_nsvb_biomass(data, lookup)
             default_frac = _compute_default_live_carbon_fraction()
             cf_df = load_carbon_fractions_live_df()
             data = data.join(cf_df.lazy(), on="SPCD", how="left")
@@ -85,6 +96,7 @@ class LiveTreeEstimator(CarbonEstimatorBase):
             data = data.with_columns(
                 (pl.col("agb") * pl.col("CARBON_FRAC_LIVE")).alias("_CARBON_AG_LB")
             )
+            data = self._substitute_woodland_carbon_ag(data)
         else:  # pool == "bg"
             data = data.with_columns(pl.lit(0.0).alias("_CARBON_AG_LB"))
 
@@ -118,7 +130,7 @@ def live_tree(
     FIADB ``CARBON_AG`` column for inventories from September 2023 onward.
     Species-specific live carbon fractions from Table S10a (GTR-WO-104)
     replace the flat ~0.47 multiplier used by ``pyfia.biomass()``, producing
-    carbon estimates that align with the EPA NGHGI LULUCF live tree pool.
+    carbon estimates that align with the FIADB ``TREE.CARBON_AG`` column.
 
     Belowground carbon is bridged directly to the FIADB pre-computed
     ``TREE.CARBON_BG`` column; a native NSVB coarse-root model is
@@ -244,6 +256,19 @@ def live_tree(
     Carbon = AGB × species-specific S10a fraction. Species missing from
     S10a fall back to the S10a arithmetic mean (~0.4741), with a
     warn-once log entry.
+
+    **Woodland Species**
+
+    Woodland species (``REF_SPECIES.WOODLAND='Y'`` — pinyon, juniper,
+    mountain-mahogany, Gambel oak; measured at diameter at root collar) are
+    outside the NSVB framework by design (Westfall et al. 2023, p. 6); there
+    are no NSVB coefficients for them. Rather than let them recompute to 0
+    above-ground biomass — which collapses interior-West / Great Basin
+    live-tree carbon — this function substitutes FIADB's stored
+    ``TREE.CARBON_AG`` for these species (FIA's production legacy/CRM
+    woodland biomass per Woodall et al. 2011). Any *non-woodland* species
+    that matches neither an NSVB species-level row nor a Jenkins-group
+    fallback raises a ``ValueError`` rather than silently zeroing.
 
     **Belowground Bridge**
 

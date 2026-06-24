@@ -65,6 +65,10 @@ class StandingDeadEstimator(CarbonEstimatorBase):
             "ACTUALHT",
             "DECAYCD",
             "STANDING_DEAD_CD",
+            # CARBON_AG: FIADB-stored AG carbon (populated for
+            # STANDING_DEAD_CD=1), the woodland-species substitute since NSVB
+            # does not model them (issue #6). CARBON_BG: the FIADB BG bridge.
+            "CARBON_AG",
             "CARBON_BG",
         ]
         return _get_tree_columns(
@@ -112,10 +116,21 @@ class StandingDeadEstimator(CarbonEstimatorBase):
         # NSVB dead biomass pipeline (with broken-top corrections when
         # ACTUALHT is available and the CR prop table loads)
         if pool in ("ag", "total"):
+            from .nsvb.coefficients import get_vectorized_lookup_tables
+
+            lookup = get_vectorized_lookup_tables()
+
+            # Fail loud on species NSVB cannot compute; route woodland species
+            # to FIADB-stored CARBON_AG (issue #6). The dead pipeline predicts
+            # AGB via the same total_agb_* tables, so woodland species (Jenkins
+            # group 10) would otherwise recompute to 0 here too. CARBON_AG is
+            # populated for STANDING_DEAD_CD=1, which apply_filters scopes to.
+            self._guard_nsvb_coverage(data, lookup)
+
             decay_props = load_dead_decay_proportions_df()
             cr_prop_table = load_dead_cr_prop_df()
             data = compute_nsvb_dead_biomass(
-                data, decay_props, cr_prop_table=cr_prop_table
+                data, decay_props, lookup=lookup, cr_prop_table=cr_prop_table
             )
 
             # S10b dead carbon fractions joined on (hw_sw, DECAYCD)
@@ -135,6 +150,7 @@ class StandingDeadEstimator(CarbonEstimatorBase):
                 (pl.col("agb") * pl.col("CARBON_FRAC_DEAD")).alias("_CARBON_AG_LB")
             )
             data = data.drop(["_hw_sw_cf"])
+            data = self._substitute_woodland_carbon_ag(data)
         else:  # pool == "bg"
             data = data.with_columns(pl.lit(0.0).alias("_CARBON_AG_LB"))
 
@@ -169,8 +185,9 @@ def standing_dead(
     BRANCH_LOSS_PROP × branch) keyed by hardwood/softwood × DECAYCD. The
     reduced biomass is then converted to carbon via species-class S10b
     dead-tree carbon fractions from GTR-WO-104, replacing the flat ~0.47
-    multiplier and producing carbon estimates that align with the EPA
-    NGHGI LULUCF standing dead pool.
+    multiplier and producing carbon estimates that align with the FIADB
+    ``TREE.CARBON_AG`` column for standing dead trees
+    (``STATUSCD=2 AND STANDING_DEAD_CD=1``).
 
     Broken-top corrections apply the Appendix K crown-proportion
     adjustment to branch biomass and a volume-ratio adjustment to wood/bark
@@ -187,6 +204,15 @@ def standing_dead(
     which matches the trees FIADB itself populates ``CARBON_AG`` for.
     Trees with ``STANDING_DEAD_CD = 0`` (downed dead) belong to the down
     dead wood pool and are excluded.
+
+    Woodland species (``REF_SPECIES.WOODLAND='Y'``) are outside the NSVB
+    framework by design (Westfall et al. 2023, p. 6) and recompute to 0
+    above-ground biomass. As in :func:`pyfia.carbon.live_tree.live_tree`,
+    this function substitutes FIADB's stored ``TREE.CARBON_AG`` for these
+    species — valid here because the ``STANDING_DEAD_CD = 1`` filter scopes
+    to exactly the trees FIADB populates that column for. Any *non-woodland*
+    species matching neither an NSVB species-level row nor a Jenkins-group
+    fallback raises a ``ValueError`` rather than silently zeroing.
 
     Parameters
     ----------

@@ -26,7 +26,6 @@ References
   litter carbon stocks on forest land in the United States. Science of
   the Total Environment, 557-558, 469-478.
 - Woodall, C.W. et al. (2015). GTR-NRS-154 (FCAF methodology blueprint).
-- USEPA (2024). NGHGI Annex 3.13.
 """
 
 from __future__ import annotations
@@ -358,8 +357,6 @@ def litter(
        States. Science of the Total Environment, 557-558, 469-478.
     .. [2] Woodall, C.W. et al. (2015). The current and future role of
        forest carbon in the United States. Gen. Tech. Rep. NRS-154.
-    .. [3] USEPA (2024). Inventory of U.S. Greenhouse Gas Emissions and
-       Sinks, Chapter 6 and Annex 3.13.
     """
     from ..validation import (
         validate_boolean,

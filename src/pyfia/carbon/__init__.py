@@ -1,8 +1,8 @@
 """
-Forest carbon estimation for pyFIA — all six IPCC/NGHGI reporting pools.
+Forest carbon estimation for pyFIA — all six IPCC reporting pools.
 
-This subpackage implements forest carbon stock estimation across the IPCC and
-NGHGI reporting pools.  Tree-level pools (live tree, standing dead) use the
+This subpackage implements forest carbon stock estimation across the IPCC
+reporting pools.  Tree-level pools (live tree, standing dead) use the
 National Scale Volume and Biomass framework (NSVB; Westfall et al. 2023,
 GTR-WO-104) with species-specific carbon fractions.  Condition-level pools
 (understory, downed dead wood, litter, soil organic carbon) read pre-computed
@@ -147,7 +147,6 @@ References
 - Domke, G.M. et al. (2016). Sci. Total Environ. 557-558, 469-478 (litter).
 - Domke, G.M. et al. (2017). Ecol. Appl. 27(4), 1223-1235 (soil organic C).
 - Bechtold, W.A. & Patterson, P.L. (2005). GTR-SRS-80, Ch. 4 (change estimation).
-- USEPA (2024). NGHGI Annex 3.13.
 """
 
 from __future__ import annotations

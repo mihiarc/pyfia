@@ -50,6 +50,7 @@ public APIs from 1.3.0 remain backward compatible.
 ### Changed
 - **NGHGI report-reproduction scripts moved to the `pyfcaf` package** (`scripts/nghgi/` removed). pyfia refocuses on database querying and statistical estimation; pyfcaf consumes pyfia's carbon estimators to reproduce the EPA Chapter 6 / Annex 3.13 tables. The new entry points live at `python -m pyfcaf.nghgi.{stage_a,stage_b,multi_year,dead_wood_diagnostic}`.
 - **Carbon module docstrings**: softened "aligned with EPA NGHGI LULUCF X pool" wording to point at the operational FIADB `CARBON_*` columns; dropped trailing USEPA Annex 3.13 citations. Operational methodology citations (Westfall 2023, Domke 2013/2016/2017, Smith & Heath, Birdsey, Bechtold & Patterson) preserved.
+- **`__version__` is now read from package metadata** via `importlib.metadata` (#92) — `pyproject.toml` is the single source of truth, so the version string can no longer drift from the published package.
 
 ### Fixed
 - **EVALID year parsing for single-digit state FIPS codes** (#78, #79, #80) — `_extract_evaluation_year()` now uses `END_INVYR` from `POP_EVAL` with an EVALID tiebreaker.
@@ -58,6 +59,10 @@ public APIs from 1.3.0 remain backward compatible.
 - **`sanitize_sql_path()` failure on Windows** when calling `download()` (#74).
 - **Woodland-species biomass collapse** in the `live_tree()` NSVB path; **woodland-species zeroing** in `standing_dead()`; both share a guard via the carbon estimator base class.
 - DECAYCD empty-string filter leak in the standing-dead path.
+- **Non-atomic file writes** in the downloader (#88) — downloads now write to a temporary file and atomically replace the destination (with cleanup on interrupt), and cache metadata is written the same way; an interrupted download/write no longer leaves a truncated file. `get_cached()` now verifies file size on every hit and supports opt-in MD5 verification (the stored checksum was previously never checked).
+
+### Security
+- **`clip_by_state()` / `clip_by_evalid()` now coerce arguments to `int`** (#87) — enforces the documented `int | list[int]` contract and rejects non-numeric input (e.g. `"37 OR 1=1"`) before it reaches the SQL `IN (...)` clause, closing a string-interpolation seam.
 
 ## [1.3.0] - 2026-02-07
 

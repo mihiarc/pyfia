@@ -550,8 +550,18 @@ class FIA:
         FIA
             Self for method chaining.
         """
-        if isinstance(evalid, int):
+        # Normalize to a list and coerce to int. The type contract is
+        # int | list[int]; coercing here enforces it and neutralizes any
+        # untrusted value before it reaches the f-string IN (...) clause.
+        if not isinstance(evalid, (list, tuple)):
             evalid = [evalid]
+        try:
+            evalid = [int(e) for e in evalid]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"clip_by_evalid expects an int or list of ints; "
+                f"got an invalid EVALID value ({exc})"
+            ) from exc
 
         self.evalid = evalid
         # Clear plot CN caches when EVALID changes
@@ -590,8 +600,18 @@ class FIA:
         FIA
             Self for method chaining.
         """
-        if isinstance(state, int):
+        # Normalize to a list and coerce to int. The type contract is
+        # int | list[int]; coercing here enforces it and neutralizes any
+        # untrusted value before it reaches the f-string IN (...) clause.
+        if not isinstance(state, (list, tuple)):
             state = [state]
+        try:
+            state = [int(s) for s in state]
+        except (TypeError, ValueError) as exc:
+            raise ValueError(
+                f"clip_by_state expects an int or list of ints; "
+                f"got an invalid state code ({exc})"
+            ) from exc
 
         self.state_filter = state
 

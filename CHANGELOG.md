@@ -60,6 +60,7 @@ public APIs from 1.3.0 remain backward compatible.
 - **Woodland-species biomass collapse** in the `live_tree()` NSVB path; **woodland-species zeroing** in `standing_dead()`; both share a guard via the carbon estimator base class.
 - DECAYCD empty-string filter leak in the standing-dead path.
 - **Non-atomic file writes** in the downloader (#88) — downloads now write to a temporary file and atomically replace the destination (with cleanup on interrupt), and cache metadata is written the same way; an interrupted download/write no longer leaves a truncated file. `get_cached()` now verifies file size on every hit and supports opt-in MD5 verification (the stored checksum was previously never checked).
+- **Silently cached broken databases on reference-table download failure** (#86) — `download()` now verifies the built database contains the required reference tables (`REF_SPECIES`, `REF_FOREST_TYPE`, `REF_STATE`) before caching. If any are missing/empty the incomplete database is discarded and a clear `DownloadError` is raised telling the user to retry, instead of caching a database that breaks `by_species` / name-join operations.
 
 ### Security
 - **`clip_by_state()` / `clip_by_evalid()` now coerce arguments to `int`** (#87) — enforces the documented `int | list[int]` contract and rejects non-numeric input (e.g. `"37 OR 1=1"`) before it reaches the SQL `IN (...)` clause, closing a string-interpolation seam.

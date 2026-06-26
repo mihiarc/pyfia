@@ -62,6 +62,11 @@ from pyfia.validation import sanitize_sql_path, validate_sql_identifier
 logger = logging.getLogger(__name__)
 console = Console()
 
+# Reference tables required for species / forest-type / state name resolution
+# (e.g. by_species=True, join_*_names()). A built database missing any of
+# these is treated as a failed download rather than silently cached (#86).
+REQUIRED_REFERENCE_TABLES = ("REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE")
+
 __all__ = [
     # Main function
     "download",
@@ -94,6 +99,65 @@ def _get_default_data_dir() -> Path:
     from pyfia.core.settings import settings
 
     return settings.cache_dir.parent / "data"
+
+
+def _missing_reference_tables(db_path: Path) -> list[str]:
+    """Return required reference tables absent or empty in a built database.
+
+    Used to detect a database that was assembled after a failed reference-table
+    download, so it is never silently cached as valid (#86).
+
+    Parameters
+    ----------
+    db_path : Path
+        Path to the built DuckDB database.
+
+    Returns
+    -------
+    list of str
+        Names of required reference tables that are missing or empty. Empty
+        list means all required reference tables are present and non-empty.
+    """
+    import duckdb
+
+    missing: list[str] = []
+    conn = duckdb.connect(str(db_path), read_only=True)
+    try:
+        existing = {
+            row[0].upper()
+            for row in conn.execute(
+                "SELECT table_name FROM information_schema.tables"
+            ).fetchall()
+        }
+        for table in REQUIRED_REFERENCE_TABLES:
+            if table.upper() not in existing:
+                missing.append(table)
+                continue
+            count = conn.execute(f'SELECT COUNT(*) FROM "{table}"').fetchone()
+            if not count or not count[0]:
+                missing.append(table)
+    finally:
+        conn.close()
+    return missing
+
+
+def _verify_reference_tables_or_discard(db_path: Path, label: str) -> None:
+    """Raise (and delete ``db_path``) if required reference tables are missing.
+
+    A failed reference-table download must not produce a database that is
+    cached and later breaks ``by_species`` / name-join operations. The partial
+    database is removed so a retry rebuilds it cleanly.
+    """
+    missing = _missing_reference_tables(db_path)
+    if missing:
+        db_path.unlink(missing_ok=True)
+        raise DownloadError(
+            f"Reference tables missing from the downloaded database for "
+            f"{label}: {', '.join(missing)}. This usually means the "
+            f"reference-table download failed (check network / DataMart "
+            f"availability). The incomplete database was discarded; "
+            f"please retry the download."
+        )
 
 
 def _convert_csvs_to_duckdb(
@@ -389,10 +453,12 @@ def _download_single_state(
         try:
             client.download_reference_tables(
                 dest_dir=csv_dir,
-                tables=["REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE"],
+                tables=list(REQUIRED_REFERENCE_TABLES),
                 show_progress=show_progress,
             )
         except Exception as e:
+            # Logged here for the root cause; the post-build verification below
+            # is what makes a missing-reference-table build fatal (#86).
             logger.warning(f"Failed to download reference tables: {e}")
 
         # Convert to DuckDB
@@ -409,6 +475,10 @@ def _download_single_state(
         _convert_csvs_to_duckdb(
             csv_dir, duckdb_path, state_code=state_code, show_progress=show_progress
         )
+
+    # Fail loudly (and discard) rather than caching a database that is missing
+    # its reference tables.
+    _verify_reference_tables_or_discard(duckdb_path, state)
 
     if use_cache:
         cache.add_to_cache(state, duckdb_path)
@@ -558,7 +628,7 @@ def _download_multi_state(
                 ref_temp_path = Path(ref_temp_dir)
                 ref_tables = client.download_reference_tables(
                     dest_dir=ref_temp_path,
-                    tables=["REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE"],
+                    tables=list(REQUIRED_REFERENCE_TABLES),
                     show_progress=show_progress,
                 )
 
@@ -581,6 +651,10 @@ def _download_multi_state(
 
     finally:
         conn.close()
+
+    # Fail loudly (and discard) rather than caching a database that is missing
+    # its reference tables.
+    _verify_reference_tables_or_discard(output_path, cache_key)
 
     if use_cache:
         cache.add_to_cache(cache_key, output_path)

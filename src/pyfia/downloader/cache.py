@@ -7,6 +7,7 @@ FIA data that has already been retrieved.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 from dataclasses import asdict, dataclass
@@ -107,12 +108,28 @@ class DownloadCache:
             self._metadata = {}
 
     def _save_metadata(self) -> None:
-        """Save metadata to disk."""
+        """Save metadata to disk atomically (temp file + replace)."""
         data = {k: asdict(v) for k, v in self._metadata.items()}
-        with open(self.metadata_file, "w") as f:
+        tmp_file = self.metadata_file.with_name(self.metadata_file.name + ".tmp")
+        with open(tmp_file, "w") as f:
             json.dump(data, f, indent=2)
+        tmp_file.replace(self.metadata_file)
 
-    def get_cached(self, state: str, max_age_days: float | None = None) -> Path | None:
+    @staticmethod
+    def _compute_checksum(path: Path) -> str:
+        """Compute the MD5 checksum of a file."""
+        md5 = hashlib.md5()
+        with open(path, "rb") as f:
+            for chunk in iter(lambda: f.read(8192), b""):
+                md5.update(chunk)
+        return md5.hexdigest()
+
+    def get_cached(
+        self,
+        state: str,
+        max_age_days: float | None = None,
+        verify_checksum: bool = False,
+    ) -> Path | None:
         """
         Get the path to a cached DuckDB file if it exists and is valid.
 
@@ -123,6 +140,9 @@ class DownloadCache:
         max_age_days : float, optional
             Maximum age in days to consider cache valid.
             Defaults to None (no age limit).
+        verify_checksum : bool, default False
+            If True, recompute the file's MD5 and compare against the stored
+            checksum (slower for large files). File size is always checked.
 
         Returns
         -------
@@ -143,6 +163,27 @@ class DownloadCache:
             del self._metadata[key]
             self._save_metadata()
             return None
+
+        # Verify size — cheaply detects truncated/partial files (e.g. an
+        # interrupted download or conversion).
+        if cached.size_bytes and path.stat().st_size != cached.size_bytes:
+            logger.warning(
+                "Cached file size mismatch for %s (expected %d bytes, "
+                "got %d); treating as invalid.",
+                key,
+                cached.size_bytes,
+                path.stat().st_size,
+            )
+            return None
+
+        # Optional full integrity check against the stored MD5.
+        if verify_checksum and cached.checksum:
+            if self._compute_checksum(path) != cached.checksum:
+                logger.warning(
+                    "Cached file checksum mismatch for %s; treating as invalid.",
+                    key,
+                )
+                return None
 
         # Check age if specified
         if max_age_days is not None and cached.age_days > max_age_days:
@@ -177,13 +218,7 @@ class DownloadCache:
 
         # Calculate checksum if not provided
         if checksum is None:
-            import hashlib
-
-            md5 = hashlib.md5()
-            with open(path, "rb") as f:
-                for chunk in iter(lambda: f.read(8192), b""):
-                    md5.update(chunk)
-            checksum = md5.hexdigest()
+            checksum = self._compute_checksum(path)
 
         cached = CachedDownload(
             state=state.upper(),

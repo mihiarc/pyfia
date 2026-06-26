@@ -160,32 +160,47 @@ class DataMartClient:
                 # Ensure parent directory exists
                 dest_path.parent.mkdir(parents=True, exist_ok=True)
 
-                if show_progress and total_size > 0:
-                    with Progress(
-                        SpinnerColumn(),
-                        TextColumn("[bold blue]{task.description}"),
-                        BarColumn(),
-                        DownloadColumn(),
-                        TransferSpeedColumn(),
-                        TimeRemainingColumn(),
-                    ) as progress:
-                        task = progress.add_task(
-                            description or dest_path.name, total=total_size
-                        )
+                # Download to a temporary file in the same directory, then
+                # atomically move it into place. A crash or network interrupt
+                # mid-stream leaves the .part file behind, never a truncated
+                # file at the canonical path that downstream code would treat
+                # as complete.
+                tmp_path = dest_path.with_name(dest_path.name + ".part")
+                try:
+                    if show_progress and total_size > 0:
+                        with Progress(
+                            SpinnerColumn(),
+                            TextColumn("[bold blue]{task.description}"),
+                            BarColumn(),
+                            DownloadColumn(),
+                            TransferSpeedColumn(),
+                            TimeRemainingColumn(),
+                        ) as progress:
+                            task = progress.add_task(
+                                description or dest_path.name, total=total_size
+                            )
 
-                        with open(dest_path, "wb") as f:
+                            with open(tmp_path, "wb") as f:
+                                for chunk in response.iter_content(
+                                    chunk_size=self.chunk_size
+                                ):
+                                    if chunk:
+                                        f.write(chunk)
+                                        progress.update(task, advance=len(chunk))
+                    else:
+                        # No progress bar (small file or progress disabled)
+                        with open(tmp_path, "wb") as f:
                             for chunk in response.iter_content(
                                 chunk_size=self.chunk_size
                             ):
                                 if chunk:
                                     f.write(chunk)
-                                    progress.update(task, advance=len(chunk))
-                else:
-                    # No progress bar (small file or progress disabled)
-                    with open(dest_path, "wb") as f:
-                        for chunk in response.iter_content(chunk_size=self.chunk_size):
-                            if chunk:
-                                f.write(chunk)
+
+                    tmp_path.replace(dest_path)
+                except BaseException:
+                    # Clean up the partial file on any failure or interrupt.
+                    tmp_path.unlink(missing_ok=True)
+                    raise
 
                 logger.debug(f"Downloaded {url} to {dest_path}")
                 return dest_path

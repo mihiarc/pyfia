@@ -7,7 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.0] - 2026-06-26
+
+First release of the NSVB carbon subsystem. Large additive release — all
+public APIs from 1.3.0 remain backward compatible.
+
 ### Added
+- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, carbon fractions:
+  - `pyfia.carbon.nsvb.equations` — Models 1, 2, 4, 5, harmonization, vectorized pipelines
+  - `pyfia.carbon.nsvb.coefficients` — S1a–S8b coefficient tables, Bailey DIVISION lookup
+  - `pyfia.carbon.nsvb.carbon_fractions` — S10a (live), S10b (dead), `REF_TREE_DECAY_PROP` loaders
+  - Vendored coefficient CSVs from GTR-WO-104 supplementary archive
 - **`live_tree()` function** — NSVB live tree carbon estimation:
   - Recomputes above-ground biomass from scratch using the NSVB framework (Westfall et al. 2023, GTR-WO-104)
   - Species-specific S10a carbon fractions (0.40–0.55) replace the flat 0.47 multiplier used by `biomass()`
@@ -24,12 +34,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Broken-top corrections: crown-proportion adjustment (Appendix K) + paraboloid volume-ratio for trees with `ACTUALHT < HT`
   - Vendored Table S11 (`REF_TREE_STND_DEAD_CR_PROP`) for mean intact crown ratios by ecoregion province
   - Validated against FIADB on Georgia EVALID 132401 (6,870 trees): median 10.9% per-tree relative error
-- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, carbon fractions:
-  - `pyfia.carbon.nsvb.equations` — Models 1, 2, 4, 5, harmonization, vectorized pipelines
-  - `pyfia.carbon.nsvb.coefficients` — S1a–S8b coefficient tables, Bailey DIVISION lookup
-  - `pyfia.carbon.nsvb.carbon_fractions` — S10a (live), S10b (dead), `REF_TREE_DECAY_PROP` loaders
-  - Vendored coefficient CSVs from GTR-WO-104 supplementary archive
-- **NSVB validation gate** — `tests/validation/test_live_tree_nsvb.py` and `test_standing_dead_nsvb.py`:
+- **Condition-level carbon pool estimators** — `downed_dead()`, `litter()`, `soil_organic()`, `understory()` read FIADB `COND.CARBON_*` densities and expand with the two-stage estimator.
+- **`total_ecosystem()` function** — sums all 6 IPCC carbon pools into a total-ecosystem estimate.
+- **`stock_change()` function** — condition-level carbon stock-change accounting between remeasurement periods (per-pool or total), with REMPER annualization and dual-NULL filtering.
+- **`tree_metrics()` estimator** — TPA-weighted descriptive statistics for derived per-condition tree metrics (#73).
+- **Public `query()` method** on `FIA` for raw SQL execution (#72).
+- **PLT_CN / CONDID grouping** — support plot- and condition-level grouping columns for plot-condition estimates (#71).
+- `PLOTGEOM` added to `COMMON_TABLES` (enables Bailey DIVISION lookup for NSVB).
+- **NSVB validation gates** — `tests/validation/test_live_tree_nsvb.py` and `test_standing_dead_nsvb.py`:
   - Per-tree parity tests against FIADB `CARBON_AG` on real Georgia inventory data
   - Layered diagnostics: carbon rel-error, biomass ratio, FIADB-implied carbon fraction
   - Ratchet thresholds that detect regressions and reward improvements
@@ -39,7 +51,52 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **NGHGI report-reproduction scripts moved to the `pyfcaf` package** (`scripts/nghgi/` removed). pyfia refocuses on database querying and statistical estimation; pyfcaf consumes pyfia's carbon estimators to reproduce the EPA Chapter 6 / Annex 3.13 tables. The new entry points live at `python -m pyfcaf.nghgi.{stage_a,stage_b,multi_year,dead_wood_diagnostic}`.
 - **Carbon module docstrings**: softened "aligned with EPA NGHGI LULUCF X pool" wording to point at the operational FIADB `CARBON_*` columns; dropped trailing USEPA Annex 3.13 citations. Operational methodology citations (Westfall 2023, Domke 2013/2016/2017, Smith & Heath, Birdsey, Bechtold & Patterson) preserved.
 
-## [1.2.0] - 2025-01-18
+### Fixed
+- **EVALID year parsing for single-digit state FIPS codes** (#78, #79, #80) — `_extract_evaluation_year()` now uses `END_INVYR` from `POP_EVAL` with an EVALID tiebreaker.
+- **EVALID filtering not applied to all PLT_CN tables** (#76, #77) — tables such as `TREE_GRM_COMPONENT` were not filtered by EVALID; column-detection filtering now applies to direct and spatial filter paths.
+- **Area variance underestimation for rare categories** when using `grp_by` (#68).
+- **`sanitize_sql_path()` failure on Windows** when calling `download()` (#74).
+- **Woodland-species biomass collapse** in the `live_tree()` NSVB path; **woodland-species zeroing** in `standing_dead()`; both share a guard via the carbon estimator base class.
+- DECAYCD empty-string filter leak in the standing-dead path.
+
+## [1.3.0] - 2026-02-07
+
+### Added
+- **Ratio-of-means variance for per-acre estimates** (#70).
+- `Makefile` with test and validation convenience commands.
+- Unit tests for previously untested estimators.
+
+### Changed
+- Modernized type annotations; explicit GRM error handling; stricter domain validation.
+
+### Fixed
+- All mypy type errors across 22 source files.
+- Panel validation now sets the EVALID filter before calling `removals()`.
+- Out-of-memory crash from conftest marker hooks; slow tests filtered by default.
+- Miscellaneous technical-debt cleanup (#69).
+
+## [1.2.1] – [1.2.3] - 2026-01-28 – 2026-01-29
+
+Rapid maintenance releases. (Entries reconstructed from git history — these
+versions predate git tagging, so per-patch attribution is approximate.)
+
+### Added
+- **`site_index()` estimator** — area-weighted mean site index.
+- Jupyter tutorial notebooks for learning pyFIA.
+
+### Changed
+- Refactored variance calculation to eliminate duplication across estimators.
+- Standardized EVALID handling across estimators.
+- Consolidated input-validation logic into shared utilities.
+- Removed fiatools branding/references.
+
+### Fixed
+- `growth()` now handles a missing `BEGINEND` table in DuckDB.
+- Reference-table helper functions accept `Path` objects.
+- Misleading ERROR log for missing tables (e.g. `BEGINEND`).
+- Numerous notebook column-name, API, and Colab-compatibility fixes.
+
+## [1.2.0] - 2026-01-18
 
 ### Added
 - **`panel()` function** - Create t1/t2 remeasurement panels from FIA data:
@@ -168,7 +225,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - FIA database abstraction layer
 - Basic data reading capabilities
 
-[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/mihiarc/pyfia/compare/v1.3.0...v1.4.0
+[1.3.0]: https://github.com/mihiarc/pyfia/compare/v1.2.3...v1.3.0
+[1.2.1]: https://github.com/mihiarc/pyfia/compare/v1.2.0...v1.2.3
 [1.2.0]: https://github.com/mihiarc/pyfia/compare/v1.1.0b1...v1.2.0
 [1.1.0b1]: https://github.com/mihiarc/pyfia/compare/v1.0.0b1...v1.1.0b1
 [1.0.0b1]: https://github.com/mihiarc/pyfia/compare/v0.3.0...v1.0.0b1

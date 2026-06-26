@@ -7,7 +7,16 @@ Analysis (FIA) data using modern data science tools like Polars and DuckDB.
 
 from __future__ import annotations
 
-__version__ = "1.4.0"
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _version
+
+# Single source of truth for the version is pyproject.toml; read it from the
+# installed package metadata so the two can never drift apart.
+try:
+    __version__ = _version("pyfia")
+except PackageNotFoundError:  # pragma: no cover - running from an uninstalled tree
+    __version__ = "0.0.0+unknown"
+
 __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality

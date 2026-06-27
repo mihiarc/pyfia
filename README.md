@@ -6,7 +6,7 @@
   <p>
     <a href="https://pypi.org/project/pyfia/"><img src="https://img.shields.io/pypi/v/pyfia?color=006D6D&label=PyPI" alt="PyPI"></a>
     <a href="https://pypi.org/project/pyfia/"><img src="https://img.shields.io/pypi/dm/pyfia?color=006D6D&label=Downloads" alt="PyPI Downloads"></a>
-    <a href="https://mihiarc.github.io/pyfia/"><img src="https://img.shields.io/badge/docs-GitHub%20Pages-006D6D" alt="Documentation"></a>
+    <a href="https://mihiarc.mintlify.app"><img src="https://img.shields.io/badge/docs-Mintlify-006D6D" alt="Documentation"></a>
     <a href="https://opensource.org/licenses/MIT"><img src="https://img.shields.io/badge/License-MIT-006D6D" alt="License: MIT"></a>
     <a href="https://www.python.org/downloads/"><img src="https://img.shields.io/badge/python-3.11+-006D6D" alt="Python 3.11+"></a>
   </p>
@@ -81,11 +81,11 @@ uv pip install pyfia[spatial]
 
 > **Tip:** Always use a virtual environment (`uv venv` or `python -m venv .venv`).
 
-For development setup, see the [Getting Started guide](https://mihiarc.github.io/pyfia/getting-started/).
+For development setup, see the [Getting Started guide](https://mihiarc.mintlify.app/getting-started).
 
 ## Documentation
 
-Full documentation: [mihiarc.github.io/pyfia](https://mihiarc.github.io/pyfia/)
+Full documentation: [mihiarc.mintlify.app](https://mihiarc.mintlify.app)
 
 ## Citation
 

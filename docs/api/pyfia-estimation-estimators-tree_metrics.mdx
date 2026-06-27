@@ -1,0 +1,128 @@
+---
+title: tree_metrics
+sidebarTitle: tree_metrics
+---
+
+# `pyfia.estimation.estimators.tree_metrics`
+
+
+
+Derived tree metrics estimation for FIA data.
+
+Computes TPA-weighted descriptive statistics at the condition or group level.
+These are sample-level metrics (not population estimates), so they do not
+require expansion factors or variance estimation.
+
+
+## Functions
+
+### `tree_metrics` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L204" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+tree_metrics(db: 'FIA', metrics: list[str], grp_by: str | list[str] | None = None, land_type: str = 'forest', tree_type: str = 'live', tree_domain: str | None = None, area_domain: str | None = None, sawtimber_threshold: float = 9.0, include_cond_attrs: list[str] | None = None) -> pl.DataFrame
+```
+
+
+Compute TPA-weighted tree metrics from FIA data.
+
+Calculates derived per-condition or per-group tree metrics such as
+quadratic mean diameter (QMD), mean height, and species composition.
+These are sample-level descriptive statistics, not population-level
+estimates -- they do not use expansion factors or variance estimation.
+
+**Args:**
+- `db`: FIA database connection with EVALID set.
+- `metrics`: Metrics to compute. Valid options\:
+
+- ``"qmd"``\: Quadratic mean diameter
+- ``"mean_dia"``\: Arithmetic mean diameter (TPA-weighted)
+- ``"mean_height"``\: Mean tree height (TPA-weighted)
+- ``"softwood_prop"``\: Softwood proportion of biomass (SPCD < 300)
+- ``"sawtimber_prop"``\: Proportion of TPA above sawtimber threshold
+- ``"max_dia"``\: Maximum tree diameter
+- ``"stocking"``\: Rough stocking index
+- `grp_by`: Grouping columns. Supports standard FIA columns (FORTYPCD, STDAGE,
+etc.) and plot-condition level grouping (PLT_CN, CONDID).
+- `land_type`: Land type filter\: "forest", "timber", or "all".
+- `tree_type`: Tree status filter\: "live", "dead", or "gs" (growing stock).
+- `tree_domain`: SQL-like tree filter (e.g., ``"DIA >= 5.0"``).
+- `area_domain`: SQL-like condition filter (e.g., ``"FORTYPCD IN (161, 162)"``).
+- `sawtimber_threshold`: Diameter threshold for sawtimber_prop metric.
+- `include_cond_attrs`: COND table columns to pass through in the output (e.g.,
+``["SLOPE", "SICOND", "ASPECT"]``). Only useful when grouping
+by PLT_CN + CONDID.
+
+**Returns:**
+- Metrics with one row per group. Columns include the requested
+metrics plus N_PLOTS and N_TREES counts.
+
+
+**Examples:**
+
+QMD and mean height by forest type:
+>>> result = tree_metrics(db, metrics=["qmd", "mean_height"], grp_by="FORTYPCD")
+Condition-level metrics for timber valuation:
+>>> result = tree_metrics(
+...     db,
+...     metrics=["qmd", "mean_height", "softwood_prop", "sawtimber_prop"],
+...     grp_by=["PLT_CN", "CONDID", "STDAGE", "FORTYPCD"],
+...     land_type="timber",
+...     tree_domain="DIA >= 1.0",
+...     include_cond_attrs=["SLOPE", "SICOND"],
+... )
+
+
+## Classes
+
+### `TreeMetricsEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L111" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Estimator for TPA-weighted tree metrics.
+
+Computes sample-level descriptive statistics. Overrides the base
+estimation pipeline to skip expansion factors and variance.
+
+
+**Methods:**
+
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L121" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_required_tables(self) -> list[str]
+```
+
+#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L124" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_tree_columns(self) -> list[str]
+```
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L136" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L146" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L149" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Compute metrics via group_by aggregation.
+
+
+#### `estimate` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tree_metrics.py#L195" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+estimate(self) -> pl.DataFrame
+```
+
+Simplified pipeline: load -> filter -> aggregate. No variance.
+

@@ -1,0 +1,129 @@
+---
+title: Settings
+sidebarTitle: Settings
+---
+
+# `pyfia.core.settings`
+
+
+
+Settings management for pyFIA using Pydantic Settings.
+
+This module provides centralized configuration with environment variable support.
+It is the canonical source for all pyFIA configuration.
+
+
+## Functions
+
+### `get_default_db_path` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L229" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_default_db_path() -> Path
+```
+
+
+Get the default database path.
+
+Checks environment variables and settings for database path.
+
+**Returns:**
+- Path to the default database
+
+
+### `get_default_engine` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L243" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_default_engine() -> str
+```
+
+
+Get the default database engine.
+
+**Returns:**
+- Default engine type ("sqlite" or "duckdb")
+
+
+## Classes
+
+### `PyFIASettings` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L18" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Central settings for pyFIA with environment variable support.
+
+Environment variables are prefixed with PYFIA_.
+For example: PYFIA_DATABASE_PATH, PYFIA_LOG_LEVEL
+
+Also supports legacy environment variables FIA_DB_PATH and FIA_DB_ENGINE
+for backwards compatibility.
+
+
+**Methods:**
+
+#### `validate_engine` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L106" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+validate_engine(cls, v: str) -> str
+```
+
+Validate database engine choice.
+
+**Args:**
+- `v`: Database engine to validate
+
+**Returns:**
+- Validated and lowercased engine name
+
+
+#### `validate_log_level` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L127" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+validate_log_level(cls, v: str) -> str
+```
+
+Validate log level.
+
+**Args:**
+- `v`: Log level to validate
+
+**Returns:**
+- Validated and uppercased log level
+
+
+#### `validate_database_path` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L148" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+validate_database_path(cls, v: Path) -> Path
+```
+
+Validate database path exists.
+
+**Args:**
+- `v`: Database path to validate
+
+**Returns:**
+- Validated database path
+
+
+#### `create_directories` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L166" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+create_directories(self) -> None
+```
+
+Create necessary directories if they don't exist.
+
+**Returns:**
+- 
+
+
+#### `get_connection_string` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/settings.py#L178" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_connection_string(self) -> str
+```
+
+Get database connection string.
+
+**Returns:**
+- Database connection string for the configured engine
+

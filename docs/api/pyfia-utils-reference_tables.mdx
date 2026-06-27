@@ -1,0 +1,120 @@
+---
+title: Reference Tables
+sidebarTitle: Reference Tables
+---
+
+# `pyfia.utils.reference_tables`
+
+
+
+Utility module for joining reference tables in pyFIA.
+
+This module provides functions to easily join FIA reference tables
+with estimation results to add descriptive names and metadata.
+
+
+## Functions
+
+### `join_forest_type_names` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/utils/reference_tables.py#L17" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+join_forest_type_names(data: pl.DataFrame, db: str | Path | FIA, forest_type_col: str = 'FORTYPCD', name_col: str = 'FOREST_TYPE_NAME') -> pl.DataFrame
+```
+
+
+Join forest type names from REF_FOREST_TYPE table.
+
+**Args:**
+- `data`: DataFrame containing forest type codes
+- `db`: FIA database object or path to database
+- `forest_type_col`: Column name containing forest type codes
+- `name_col`: Name for the joined forest type name column
+
+**Returns:**
+- Original data with forest type names added
+
+
+**Examples:**
+
+>>> results = area(db, grp_by=['FORTYPCD'], totals=True)
+>>> results_with_names = join_forest_type_names(results, db)
+
+
+### `join_species_names` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/utils/reference_tables.py#L75" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+join_species_names(data: pl.DataFrame, db: str | Path | FIA, species_col: str = 'SPCD', common_name_col: str = 'COMMON_NAME', scientific_name_col: str | None = 'SCIENTIFIC_NAME', include_scientific: bool = False) -> pl.DataFrame
+```
+
+
+Join species names from REF_SPECIES table.
+
+**Args:**
+- `data`: DataFrame containing species codes
+- `db`: FIA database object or path to database
+- `species_col`: Column name containing species codes
+- `common_name_col`: Name for the joined common name column
+- `scientific_name_col`: Name for the joined scientific name column
+- `include_scientific`: Whether to include scientific names
+
+**Returns:**
+- Original data with species names added
+
+
+**Examples:**
+
+>>> results = tpa(db, bySpecies=True)
+>>> results_with_names = join_species_names(results, db)
+
+
+### `join_state_names` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/utils/reference_tables.py#L144" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+join_state_names(data: pl.DataFrame, db: str | Path | FIA, state_col: str = 'STATECD', state_name_col: str = 'STATE_NAME', state_abbr_col: str | None = 'STATE_ABBR', include_abbr: bool = True) -> pl.DataFrame
+```
+
+
+Join state names and abbreviations from REF_STATE.
+
+**Args:**
+- `data`: DataFrame containing state codes
+- `db`: FIA database object or path to database
+- `state_col`: Column name containing state codes
+- `state_name_col`: Name for the joined state name column
+- `state_abbr_col`: Name for the joined state abbreviation column
+- `include_abbr`: Whether to include state abbreviations
+
+**Returns:**
+- Original data with state names added
+
+
+### `join_multiple_references` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/utils/reference_tables.py#L205" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+join_multiple_references(data: pl.DataFrame, db: str | Path | FIA, forest_type: bool = False, species: bool = False, state: bool = False, **kwargs) -> pl.DataFrame
+```
+
+
+Join multiple reference tables at once.
+
+**Args:**
+- `data`: DataFrame to join reference tables to
+- `db`: FIA database object or path to database
+- `forest_type`: Whether to join forest type names
+- `species`: Whether to join species names
+- `state`: Whether to join state names
+- `**kwargs`: Additional arguments passed to individual join functions
+
+**Returns:**
+- Data with requested reference tables joined
+
+
+**Examples:**
+
+>>> results = area(db, grp_by=['STATECD', 'FORTYPCD'], totals=True)
+>>> results_with_names = join_multiple_references(
+...     results, db,
+...     forest_type=True,
+...     state=True
+... )
+

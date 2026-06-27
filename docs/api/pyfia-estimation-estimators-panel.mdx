@@ -1,0 +1,188 @@
+---
+title: panel
+sidebarTitle: panel
+---
+
+# `pyfia.estimation.estimators.panel`
+
+
+
+Remeasurement panel creation for FIA data.
+
+Creates t1/t2 (time 1/time 2) linked panel datasets from FIA remeasurement data.
+Supports both condition-level and tree-level panels for harvest analysis,
+growth tracking, and change detection.
+
+Tree-level panels use GRM (Growth-Removal-Mortality) tables for authoritative
+tree fate classification. This provides consistent definitions aligned with
+FIA's official GRM estimation methodology.
+
+References
+----------
+Bechtold & Patterson (2005), Chapter 4: Change Estimation
+FIA Database User Guide, PLOT and TREE table documentation
+FIA GRM methodology documentation
+
+
+## Functions
+
+### `panel` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L1019" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+panel(db: str | FIA, level: Literal['condition', 'tree'] = 'condition', columns: list[str] | None = None, land_type: str = 'forest', tree_type: str = 'gs', tree_domain: str | None = None, area_domain: str | None = None, expand_chains: bool = True, min_remper: float = 0, max_remper: float | None = None, min_invyr: int = 2000, harvest_only: bool = False, expand: bool = False, measure: Literal['tpa', 'volume'] = 'tpa', grp_by: list[str] | None = None, by_fate: bool = False) -> pl.DataFrame
+```
+
+
+Create a t1/t2 remeasurement panel from FIA data.
+
+Returns a DataFrame where each row represents a measurement pair:
+- t1 (time 1): Previous measurement
+- t2 (time 2): Current measurement
+
+This panel data is useful for:
+- Harvest probability modeling
+- Forest change detection
+- Growth and mortality analysis
+- Land use transition studies
+
+Tree-level panels use GRM (Growth-Removal-Mortality) tables for
+authoritative tree fate classification, providing consistent
+definitions aligned with FIA's official estimation methodology.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+- `level`: Level of panel to create\:
+- 'condition'\: Condition-level panel for area/harvest analysis.
+  Each row is a condition measured at two time points.
+- 'tree'\: Tree-level panel for individual tree tracking.
+  Each row is a tree with GRM component classification.
+- `columns`: Additional columns to include beyond defaults. Useful for adding
+specific attributes needed for analysis.
+- `land_type`: Land classification filter\:
+- 'forest'\: All forest land (COND_STATUS_CD = 1)
+- 'timber'\: Timberland (productive, unreserved forest)
+- 'all'\: No land type filtering
+- `tree_type`: Tree type filter (tree-level only). Maps to GRM column suffixes\:
+- 'gs'\: Growing stock (merchantable trees) - uses GS columns
+- 'all'\: All trees - uses GS columns (default GRM behavior)
+- 'live'\: All live trees - uses AL columns
+- `tree_domain`: SQL-like filter expression for tree-level filtering.
+Example\: "SPCD == 131" (loblolly pine only)
+- `area_domain`: SQL-like filter expression for condition-level filtering.
+Example\: "OWNGRPCD == 40" (private land only)
+- `expand_chains`: If True and multiple remeasurements exist (t1->t2->t3),
+creates pairs (t1,t2) and (t2,t3). If False, only returns
+the most recent pair for each location.
+- `min_remper`: Minimum remeasurement period in years. Filters out pairs
+with shorter intervals.
+- `max_remper`: Maximum remeasurement period in years. Filters out pairs
+with longer intervals.
+- `min_invyr`: Minimum inventory year for t2 (current measurement). Defaults to 2000
+to use only the enhanced annual inventory methodology. FIA transitioned
+from periodic to annual inventory around 1999-2000, with significant
+methodology changes. Set to None or 0 to include all years.
+- `harvest_only`: If True, return only records where harvest was detected.
+For condition-level\: uses TRTCD treatment codes.
+For tree-level\: returns trees with TREE_FATE in ['cut', 'diversion'].
+- `expand`: If True, apply expansion factors to produce per-acre estimates
+comparable to removals(). Requires level='tree'.
+Uses three-layer expansion\:
+- TPA_UNADJ\: Base trees-per-acre
+- ADJ_FACTOR\: Plot-type adjustment (subplot/microplot/macroplot)
+- EXPNS\: Stratum expansion to total acres
+When expand=True, returns aggregated per-acre estimates instead of
+tree-level data.
+- `measure`: Measure to expand (only used when expand=True)\:
+- 'tpa'\: Trees per acre
+- 'volume'\: Cubic foot volume per acre
+- `grp_by`: Grouping columns for expanded estimates (only used when expand=True).
+Example\: ['SPCD'] for by-species estimates.
+- `by_fate`: If True and expand=True, include TREE_FATE in grouping columns
+to get separate estimates for survivors, mortality, cut, etc.
+
+**Returns:**
+- Panel dataset with columns:
+
+For condition-level:
+- PLT_CN: Current plot control number
+- PREV_PLT_CN: Previous plot control number
+- CONDID: Condition identifier
+- STATECD, COUNTYCD: Geographic identifiers
+- INVYR: Current inventory year
+- REMPER: Remeasurement period (years)
+- HARVEST: Harvest indicator (1=harvest detected, 0=no harvest)
+- t1_*/t2_*: Attributes at time 1 and time 2
+
+For tree-level:
+- PLT_CN: Plot control number
+- TRE_CN: Tree control number
+- TREE_FATE: Tree fate from GRM classification:
+  - 'survivor': Tree alive at both measurements
+  - 'mortality': Tree died naturally
+  - 'cut': Tree removed by harvest
+  - 'diversion': Tree removed due to land use change
+  - 'ingrowth': New tree crossing size threshold
+- COMPONENT: Raw GRM component (SURVIVOR, CUT1, etc.)
+- DIA_BEGIN, DIA_MIDPT, DIA_END: Diameter measurements
+- TPA_UNADJ: Trees per acre expansion factor
+- t1_*/t2_*: Tree attributes at time 1 and time 2
+
+
+**Examples:**
+
+Basic condition-level panel for harvest analysis:
+>>> from pyfia import FIA, panel
+>>> with FIA("path/to/db.duckdb") as db:
+...     db.clip_by_state(37)  # North Carolina
+...     data = panel(db, level="condition", land_type="timber")
+...     print(f"Panel has {len(data)} condition pairs")
+...     print(f"Harvest rate: {data['HARVEST'].mean():.1%}")
+Tree-level panel with GRM-based fate classification:
+>>> with FIA("path/to/db.duckdb") as db:
+...     db.clip_by_state(37)
+...     trees = panel(db, level="tree", tree_type="gs")
+...     fate_counts = trees.group_by("TREE_FATE").len()
+...     print(fate_counts)
+Get all removals (cut + diversion):
+>>> data = panel(
+...     db,
+...     level="tree",
+...     harvest_only=True,  # Returns cut and diversion trees
+... )
+Filter remeasurement period to 4-8 years:
+>>> data = panel(
+...     db,
+...     level="condition",
+...     min_remper=4,
+...     max_remper=8,
+... )
+
+
+## Classes
+
+### `PanelBuilder` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L38" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Builder for creating t1/t2 remeasurement panels from FIA data.
+
+Creates linked datasets where each row represents a measurement pair:
+- t1 (time 1): Previous measurement
+- t2 (time 2): Current measurement
+
+Supports condition-level panels for area/harvest analysis and tree-level
+panels for individual tree tracking.
+
+
+**Methods:**
+
+#### `build` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L154" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+build(self) -> pl.DataFrame
+```
+
+Build the remeasurement panel.
+
+**Returns:**
+- Panel dataset with t1/t2 measurement pairs
+

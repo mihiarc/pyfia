@@ -1,0 +1,133 @@
+---
+title: Domain filtering
+description: "Define your analysis population with land type, tree type, and custom SQL-like domain filters."
+---
+
+A *domain* is the population you want to estimate — forest land, growing-stock trees, a single species, trees above a diameter threshold, and so on. pyFIA gives you three layers of control: `land_type`, `tree_type`, and free-form domain expressions.
+
+## Land type
+
+`land_type` controls which land conditions are included:
+
+| Value | Description | Filter applied |
+|-------|-------------|----------------|
+| `"forest"` | All forest land | `COND_STATUS_CD = 1` |
+| `"timber"` | Timberland only | `COND_STATUS_CD = 1` and productive, unreserved |
+| `"all"` | All sampled land | none |
+
+```python
+import pyfia
+
+pyfia.volume(db, land_type="forest")   # forest land
+pyfia.volume(db, land_type="timber")   # productive timberland
+```
+
+## Tree type
+
+`tree_type` filters which trees are counted:
+
+| Value | Description | Filter |
+|-------|-------------|--------|
+| `"live"` | All live trees | `STATUSCD = 1` |
+| `"dead"` | Standing dead trees | `STATUSCD = 2` |
+| `"gs"` | Growing stock (live, merchantable) | `TREECLCD = 2` |
+| `"all"` | All trees regardless of status | none |
+
+```python
+pyfia.volume(db, tree_type="gs")      # growing stock
+pyfia.tpa(db, tree_type="live")       # all live trees
+```
+
+<Note>
+  Defaults vary by estimator to match the most common use case — for example,
+  `mortality()` defaults to growing stock on timberland. Check each function's
+  [API reference](/api/pyfia-estimation-estimators-mortality) for its defaults.
+</Note>
+
+## Custom domain filters
+
+For anything more specific, pass SQL-like expressions. These are evaluated against the underlying FIA columns.
+
+### Tree domain
+
+Filters individual trees by their attributes:
+
+```python
+# Large trees only
+pyfia.volume(db, tree_domain="DIA >= 12.0")
+
+# Specific species
+pyfia.volume(db, tree_domain="SPCD IN (110, 111, 121)")
+
+# Combined conditions
+pyfia.volume(db, tree_domain="DIA >= 5.0 AND SPCD = 316")
+```
+
+### Area domain
+
+Filters conditions/plots by their attributes:
+
+```python
+# A specific forest type
+pyfia.area(db, area_domain="FORTYPCD = 201")
+
+# Gentle slopes only
+pyfia.volume(db, area_domain="SLOPE < 30")
+
+# Private land
+pyfia.area(db, area_domain="OWNGRPCD = 40")
+```
+
+## Putting it together
+
+Domain filters compose, so you can target a precise population:
+
+```python
+# Pine growing stock on private timberland, gentle slopes
+pyfia.volume(
+    db,
+    land_type="timber",
+    tree_type="gs",
+    tree_domain="SPGRPCD = 10",     # softwood group
+    area_domain="OWNGRPCD = 40 AND SLOPE < 30",
+)
+```
+
+## Common patterns
+
+<AccordionGroup>
+  <Accordion title="Species-specific volume">
+    ```python
+    pyfia.volume(
+        db,
+        land_type="timber",
+        tree_type="gs",
+        tree_domain="SPGRPCD = 10",   # softwoods
+    )
+    ```
+  </Accordion>
+  <Accordion title="Sawtimber volume">
+    ```python
+    pyfia.volume(
+        db,
+        vol_type="sawlog",
+        land_type="timber",
+        grp_by="SPCD",
+    )
+    ```
+  </Accordion>
+  <Accordion title="Private forest land">
+    ```python
+    pyfia.volume(
+        db,
+        land_type="forest",
+        area_domain="OWNGRPCD = 40",
+    )
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## See also
+
+- [Grouping results](/guides/grouping) — break estimates down by category
+- [How FIA estimation works](/concepts/fia-methodology) — land and tree classifications in depth

@@ -1,0 +1,474 @@
+---
+title: FIA Database
+sidebarTitle: FIA Database
+---
+
+# `pyfia.core.fia`
+
+
+
+Core FIA database class and functionality for pyFIA.
+
+This module provides the main FIA class that handles database connections,
+EVALID-based filtering, and common FIA data operations.
+
+
+## Classes
+
+### `FIA` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L33" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Main FIA database class for working with Forest Inventory and Analysis data.
+
+This class provides methods for loading FIA data from DuckDB databases,
+filtering by EVALID, and preparing data for estimation functions.
+
+**Attributes:**
+- `db_path`: Path to the DuckDB database or MotherDuck connection string.
+- `tables`: Loaded FIA tables as lazy frames.
+- `evalid`: Active EVALID filter.
+- `most_recent`: Whether to use most recent evaluations.
+
+
+**Methods:**
+
+#### `from_download` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L96" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+from_download(cls, states: str | list[str], dir: str | Path | None = None, common: bool = True, tables: list[str] | None = None, force: bool = False, show_progress: bool = True) -> FIA
+```
+
+Download FIA data and return a connected FIA instance.
+
+This is a convenience method that combines downloading data from
+the FIA DataMart with opening a database connection.
+
+**Args:**
+- `states`: State abbreviations (e.g., 'GA', 'NC') or 'REF' for reference tables.
+Supports multiple states\: ['GA', 'FL', 'SC']
+- `dir`: Directory to save downloaded data. Defaults to ~/.pyfia/data/
+- `common`: If True, download only tables required for pyFIA functions.
+- `tables`: Specific tables to download. Overrides `common` parameter.
+- `force`: If True, re-download even if files exist locally.
+- `show_progress`: Show download progress bars.
+
+**Returns:**
+- Connected FIA database instance.
+
+
+**Examples:**
+
+>>> # Download and open Georgia data
+>>> db = FIA.from_download("GA")
+>>> db.clip_most_recent()
+>>> result = db.area()
+>>>
+>>> # Download multiple states
+>>> db = FIA.from_download(["GA", "FL", "SC"])
+
+
+#### `query` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L165" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+query(self, sql: str) -> pl.DataFrame
+```
+
+Execute a read-only SQL query against the FIA database.
+
+Runs a raw SQL query against the underlying database connection.
+Only SELECT statements are allowed.
+
+**Args:**
+- `sql`: SQL SELECT query to execute.
+
+**Returns:**
+- Query results as a Polars DataFrame.
+
+
+**Examples:**
+
+>>> with FIA("data/georgia.duckdb") as db:
+...     result = db.query("SELECT FORTYPCD, COUNT(*) as n FROM COND GROUP BY FORTYPCD")
+
+
+#### `load_table` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L282" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+load_table(self, table_name: str, columns: list[str] | None = None, where: str | None = None) -> pl.LazyFrame
+```
+
+Load a table from the FIA database as a lazy frame.
+
+**Args:**
+- `table_name`: Name of the FIA table to load (e.g., 'PLOT', 'TREE', 'COND').
+- `columns`: Columns to load. Loads all columns if None.
+- `where`: Additional SQL WHERE clause to apply (without 'WHERE' keyword).
+Used for database-side filtering to reduce memory usage.
+
+**Returns:**
+- Polars LazyFrame of the requested table.
+
+
+#### `find_evalid` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L392" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+find_evalid(self, most_recent: bool = True, state: int | list[int] | None = None, year: int | list[int] | None = None, eval_type: str | None = None) -> list[int]
+```
+
+Find EVALID values matching criteria.
+
+Identify evaluation IDs for filtering FIA data based on specific criteria.
+
+**Args:**
+- `most_recent`: If True, return only most recent evaluations per state.
+- `state`: State FIPS code(s) to filter by.
+- `year`: End inventory year(s) to filter by.
+- `eval_type`: Evaluation type ('VOL', 'GRM', 'CHNG', 'ALL', etc.).
+
+**Returns:**
+- EVALID values matching the specified criteria.
+
+
+#### `clip_by_evalid` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L536" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+clip_by_evalid(self, evalid: int | list[int]) -> FIA
+```
+
+Filter FIA data by EVALID (evaluation ID).
+
+This is the core filtering method that ensures statistically valid
+plot groupings by evaluation.
+
+**Args:**
+- `evalid`: Single EVALID or list of EVALIDs to filter by.
+
+**Returns:**
+- Self for method chaining.
+
+
+#### `clip_by_state` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L574" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+clip_by_state(self, state: int | list[int], most_recent: bool = True, eval_type: str | None = 'ALL') -> FIA
+```
+
+Filter FIA data by state code(s).
+
+This method efficiently filters data at the database level by:
+1. Setting a state filter for direct table queries
+2. Finding appropriate EVALIDs for the state(s)
+3. Combining both filters for optimal performance
+
+**Args:**
+- `state`: Single state FIPS code or list of codes.
+- `most_recent`: If True, use only most recent evaluations.
+- `eval_type`: Evaluation type to use. Default 'ALL' for EXPALL which is
+appropriate for area estimation. Use None to get all types.
+
+**Returns:**
+- Self for method chaining.
+
+
+#### `clip_most_recent` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L635" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+clip_most_recent(self, eval_type: str = 'VOL') -> FIA
+```
+
+Filter to most recent evaluation of specified type.
+
+**Args:**
+- `eval_type`: Evaluation type ('VOL' for volume, 'GRM' for growth, etc.).
+
+**Returns:**
+- Self for method chaining.
+
+
+#### `clip_by_polygon` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L670" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+clip_by_polygon(self, polygon: str | Path, predicate: str = 'intersects') -> FIA
+```
+
+Filter FIA plots to those within or intersecting a polygon boundary.
+
+Uses DuckDB spatial extension for efficient point-in-polygon filtering.
+Supports Shapefiles, GeoJSON, GeoPackage, and GeoParquet formats.
+
+**Args:**
+- `polygon`: Path to spatial file containing polygon(s). Supported formats\:
+- Shapefile (.shp)
+- GeoJSON (.geojson, .json)
+- GeoPackage (.gpkg)
+- GeoParquet (.parquet with geometry)
+- Any format supported by GDAL/OGR
+- `predicate`: Spatial predicate for filtering\:
+- 'intersects'\: Plots that intersect the polygon (recommended)
+- 'within'\: Plots completely within the polygon
+
+**Returns:**
+- Self for method chaining.
+
+
+**Examples:**
+
+>>> with FIA("southeast.duckdb") as db:
+...     db.clip_by_state(37)  # North Carolina
+...     db.clip_by_polygon("my_region.geojson")
+...     result = db.tpa()
+>>> # Using a shapefile
+>>> with FIA("data.duckdb") as db:
+...     db.clip_by_polygon("counties.shp")
+...     result = db.area()
+
+
+#### `intersect_polygons` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L838" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+intersect_polygons(self, polygon: str | Path, attributes: list[str]) -> FIA
+```
+
+Perform spatial join between plots and polygons, adding polygon
+attributes to plots for use in grp_by.
+
+This method joins polygon attributes to FIA plots based on spatial
+intersection. The resulting attributes can be used as grouping
+variables in estimator functions.
+
+**Args:**
+- `polygon`: Path to spatial file containing polygon(s). Supported formats\:
+- Shapefile (.shp)
+- GeoJSON (.geojson, .json)
+- GeoPackage (.gpkg)
+- GeoParquet (.parquet with geometry)
+- Any format supported by GDAL/OGR
+- `attributes`: Polygon attribute columns to add to plots. These columns must
+exist in the polygon file and will be available for grp_by.
+
+**Returns:**
+- Self for method chaining.
+
+
+**Examples:**
+
+>>> with FIA("southeast.duckdb") as db:
+...     db.clip_by_state(37)  # North Carolina
+...     db.intersect_polygons("counties.shp", attributes=["NAME", "FIPS"])
+...     # Group TPA estimates by county
+...     result = tpa(db, grp_by=["NAME"])
+>>> # Use multiple attributes for grouping
+>>> with FIA("data.duckdb") as db:
+...     db.intersect_polygons("regions.geojson", ["REGION", "DISTRICT"])
+...     result = area(db, grp_by=["REGION", "DISTRICT"])
+
+
+#### `get_plots` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1018" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_plots(self, columns: list[str] | None = None) -> pl.DataFrame
+```
+
+Get PLOT table filtered by current EVALID, state, and spatial settings.
+
+**Args:**
+- `columns`: Columns to return. Returns all columns if None.
+
+**Returns:**
+- Filtered PLOT dataframe.
+
+
+#### `get_trees` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1074" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_trees(self, columns: list[str] | None = None) -> pl.DataFrame
+```
+
+Get TREE table filtered by current EVALID and state settings.
+
+**Args:**
+- `columns`: Columns to return. Returns all columns if None.
+
+**Returns:**
+- Filtered TREE dataframe.
+
+
+#### `get_conditions` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1110" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_conditions(self, columns: list[str] | None = None) -> pl.DataFrame
+```
+
+Get COND table filtered by current EVALID and state settings.
+
+**Args:**
+- `columns`: Columns to return. Returns all columns if None.
+
+**Returns:**
+- Filtered COND dataframe.
+
+
+#### `prepare_estimation_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1146" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+prepare_estimation_data(self, include_trees: bool = True) -> dict[str, pl.DataFrame]
+```
+
+Prepare standard set of tables for estimation functions.
+
+This method loads and filters the core tables needed for most
+FIA estimation procedures, properly filtered by EVALID.
+
+**Args:**
+- `include_trees`: Whether to include the TREE table. Set to False for area
+estimation which doesn't need tree data (saves significant
+memory on constrained environments).
+
+**Returns:**
+- Dictionary with filtered dataframes for estimation containing:
+'plot', 'tree', 'cond', 'pop_plot_stratum_assgn',
+'pop_stratum', 'pop_estn_unit'.
+If include_trees=False, 'tree' will be an empty DataFrame.
+
+
+#### `tpa` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1227" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+tpa(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate trees per acre.
+
+See tpa() function for full parameter documentation.
+
+
+#### `biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1238" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+biomass(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate biomass.
+
+See biomass() function for full parameter documentation.
+
+
+#### `volume` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1249" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+volume(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate volume.
+
+See volume() function for full parameter documentation.
+
+
+#### `mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1260" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+mortality(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate mortality.
+
+See mortality() function for full parameter documentation.
+
+
+#### `area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1270" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+area(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate forest area.
+
+See area() function for full parameter documentation.
+
+
+#### `growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1280" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+growth(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate annual growth.
+
+See growth() function for full parameter documentation.
+
+
+#### `removals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1290" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+removals(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate annual removals/harvest.
+
+See removals() function for full parameter documentation.
+
+
+#### `carbon_flux` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1300" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+carbon_flux(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate annual net carbon flux.
+
+Calculates net carbon sequestration as:
+    Net Carbon Flux = Growth_carbon - Mortality_carbon - Removals_carbon
+
+Positive values indicate net carbon sequestration (carbon sink).
+Negative values indicate net carbon emission (carbon source).
+
+See carbon_flux() function for full parameter documentation.
+
+
+#### `area_change` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1316" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+area_change(self, **kwargs) -> pl.DataFrame
+```
+
+Estimate area change.
+
+See area_change() function for full parameter documentation.
+
+
+### `MotherDuckFIA` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1327" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+FIA database class for MotherDuck cloud-based access.
+
+This class provides the same interface as FIA but connects to MotherDuck
+instead of a local DuckDB file. MotherDuck is a serverless cloud data
+warehouse built on DuckDB.
+
+**Attributes:**
+- `database`: Name of the MotherDuck database (e.g., 'fia_ga')
+- `motherduck_token`: MotherDuck authentication token
+
+
+**Examples:**
+
+>>> from pyfia import MotherDuckFIA
+>>> db = MotherDuckFIA("fia_ga", motherduck_token="your_token")
+>>> db.clip_most_recent()
+>>> result = db.area()
+>>> # Use with context manager
+>>> with MotherDuckFIA("fia_nc", motherduck_token="token") as db:
+...     db.clip_most_recent()
+...     print(db.area())
+
+
+**Methods:**
+
+#### `close` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1397" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+close(self)
+```
+
+Close MotherDuck connection.
+

@@ -1,0 +1,70 @@
+---
+title: Validation
+sidebarTitle: Validation
+---
+
+# `pyfia.evalidator.validation`
+
+
+
+Validation functions for comparing pyFIA estimates with EVALIDator.
+
+This module provides functions to compare pyFIA estimates against
+official USFS EVALIDator values for validation purposes.
+
+
+## Functions
+
+### `compare_estimates` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/validation.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+compare_estimates(pyfia_value: float, pyfia_se: float, evalidator_result: EVALIDatorEstimate, tolerance_pct: float = 5.0, pyfia_plot_count: int | None = None) -> ValidationResult
+```
+
+
+Compare a pyFIA estimate with an EVALIDator official estimate.
+
+**Args:**
+- `pyfia_value`: The pyFIA estimate value
+- `pyfia_se`: The pyFIA standard error
+- `evalidator_result`: The EVALIDator official estimate
+- `tolerance_pct`: Acceptable percentage difference (default 5%)
+- `pyfia_plot_count`: Number of plots used by pyFIA (for plot count validation)
+
+**Returns:**
+- Comparison results including pass/fail status
+
+
+
+### `validate_pyfia_estimate` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/validation.py#L119" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+validate_pyfia_estimate(pyfia_result, state_code: int, year: int, estimate_type: str, client: EVALIDatorClient | None = None, **kwargs) -> ValidationResult
+```
+
+
+Validate a pyFIA estimate against EVALIDator.
+
+This is a convenience function that fetches the EVALIDator estimate
+and performs the comparison in one step.
+
+**Args:**
+- `pyfia_result`: pyFIA estimation result DataFrame with estimate and SE columns
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `estimate_type`: Type of estimate\: "area", "volume", "biomass", "carbon", "tpa"
+- `client`: Existing client instance (creates new one if not provided)
+- `**kwargs`: Additional arguments passed to the EVALIDator API call
+
+**Returns:**
+- Comparison result
+
+
+
+## Classes
+
+### `ValidationResult` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/validation.py#L16" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Result of comparing pyFIA estimate with EVALIDator.
+

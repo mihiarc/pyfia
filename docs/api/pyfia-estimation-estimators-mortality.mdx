@@ -1,0 +1,177 @@
+---
+title: mortality
+sidebarTitle: mortality
+---
+
+# `pyfia.estimation.estimators.mortality`
+
+
+
+Mortality estimation for FIA data using GRM tables.
+
+Implements FIA's Growth-Removal-Mortality methodology for calculating
+annual tree mortality using TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables.
+
+
+## Functions
+
+### `mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L262" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+mortality(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, size_class_type: str = 'standard', land_type: str = 'timber', tree_type: str = 'gs', measure: str = 'volume', tree_domain: str | None = None, area_domain: str | None = None, as_rate: bool = False, totals: bool = True, variance: bool = False, most_recent: bool = False) -> pl.DataFrame
+```
+
+
+Estimate annual tree mortality from FIA data using GRM methodology.
+
+Uses TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables to calculate
+annual mortality following FIA's Growth-Removal-Mortality approach.
+This is the correct FIA statistical methodology for mortality estimation.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+- `grp_by`: Column name(s) to group results by.
+- `by_species`: If True, group results by species code (SPCD).
+- `by_size_class`: If True, group results by diameter size classes.
+- `size_class_type`: Type of size class grouping to use (only applies when by_size_class=True)\:
+- "standard"\: FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
+- "descriptive"\: Text labels (Saplings, Small, Medium, Large)
+- "market"\: Timber market categories (Pre-merchantable, Pulpwood, Chip-n-Saw, Sawtimber)
+- `land_type`: Land type to include in estimation.
+- `tree_type`: Tree type to include.
+- `measure`: What to measure in the mortality estimation.
+- `tree_domain`: SQL-like filter expression for tree-level filtering.
+- `area_domain`: SQL-like filter expression for area/condition-level filtering.
+- `as_rate`: If True, return mortality as a rate (mortality/live).
+- `totals`: If True, include population-level total estimates.
+- `variance`: If True, calculate and include variance and standard error estimates.
+- `most_recent`: If True, automatically filter to the most recent evaluation.
+
+**Returns:**
+- Mortality estimates with columns:
+- MORT_ACRE: Annual mortality per acre
+- MORT_TOTAL: Total annual mortality (if totals=True)
+- MORT_ACRE_SE: Standard error of per-acre estimate (if variance=True)
+- MORT_TOTAL_SE: Standard error of total estimate (if variance=True)
+- Additional grouping columns if specified
+
+
+**Examples:**
+
+Basic volume mortality on forestland:
+>>> results = mortality(db, measure="volume", land_type="forest")
+Mortality by species (tree count):
+>>> results = mortality(db, by_species=True, measure="tpa")
+Pre-merchantable tree mortality (trees &lt; 5" DBH):
+&gt;>> results = mortality(
+...     db,
+...     tree_type="live",  # Include all live trees, not just growing stock
+...     by_size_class=True,
+...     size_class_type="market",  # Returns Pre-merchantable, Pulpwood, etc.
+...     measure="tpa",  # TPA recommended for small trees (no volume calculated)
+... )
+>>> # Filter to pre-merchantable only:
+>>> premerch = results.filter(pl.col("SIZE_CLASS") == "Pre-merchantable")
+
+
+## Classes
+
+### `MortalityEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L20" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Mortality estimator for FIA data using GRM methodology.
+
+Estimates annual tree mortality in terms of volume, biomass, or trees per acre
+using the TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables.
+
+
+**Methods:**
+
+#### `component_type` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L29" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+component_type(self) -> Literal['growth', 'mortality', 'removals']
+```
+
+Return 'mortality' as the GRM component type.
+
+
+#### `get_component_filter` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L33" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_component_filter(self) -> pl.Expr | None
+```
+
+Filter to mortality components only.
+
+
+#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+load_data(self) -> pl.LazyFrame | None
+```
+
+Load GRM data for mortality estimation.
+
+
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L76" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Apply mortality-specific filters.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L101" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate mortality values per acre.
+
+TPA_UNADJ is already annualized, so no remeasurement period adjustment needed.
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L158" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate mortality with two-stage aggregation.
+
+**Returns:**
+- Bundle containing results, plot_tree_data, and group_cols for
+explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L202" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for mortality estimates using ratio-of-means formula.
+
+Implements Bechtold & Patterson (2005) stratified variance calculation.
+MORT_RATE uses the same variance as MORT_ACRE since they represent the
+same per-acre estimate (MORT_RATE = mortality per acre, not mortality/growing_stock).
+
+**Args:**
+- `agg_result`: Bundle containing results, plot_tree_data, and group_cols from
+aggregate_results().
+
+**Returns:**
+- Results with variance columns added.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L253" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format mortality estimation output.
+

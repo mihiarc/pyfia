@@ -1,0 +1,146 @@
+---
+title: Examples
+description: "Real, copy-pasteable analyses covering volume, area, mortality, biomass, multi-state work, and validation."
+---
+
+Each example assumes you've opened a database and clipped it to one evaluation:
+
+```python
+from pyfia import FIA, download
+
+db = FIA(download("RI"))
+db.clip_most_recent()        # use eval_type="GRM" for growth/mortality/removals
+```
+
+## Volume
+
+```python
+from pyfia import volume, join_species_names
+
+# Total net volume on forest land
+total = volume(db, land_type="forest")
+print(f"Total volume: {total['VOLCFNET_TOTAL'][0]:,.0f} cubic feet")
+
+# By species, with common names
+by_species = volume(db, by_species=True)
+by_species = join_species_names(by_species, db)
+print(by_species.sort("VOLCFNET_TOTAL", descending=True).head(10))
+```
+
+## Forest area by forest type
+
+```python
+from pyfia import area
+
+result = area(db, land_type="forest", grp_by="FORTYPCD")
+# Output includes FORTYPCD and the auto-added FOREST_TYPE_GROUP name
+print(result)
+```
+
+## Trees per acre by size class
+
+```python
+from pyfia import tpa
+
+result = tpa(db, land_type="forest", by_size_class=True)
+print(result)
+```
+
+## Mortality
+
+```python
+from pyfia import mortality
+
+db.clip_most_recent(eval_type="GRM")   # GRM evaluation for mortality
+
+# Annual mortality volume on timberland (growing stock)
+mort = mortality(db, measure="volume", land_type="timber", tree_type="gs")
+print(f"Annual mortality: {mort['MORT_TOTAL'][0]:,.0f} cu ft/year")
+
+# By cause of death
+by_agent = mortality(db, measure="volume", grp_by="AGENTCD")
+print(by_agent)
+```
+
+## Growth and removals
+
+```python
+from pyfia import growth, removals
+
+db.clip_most_recent(eval_type="GRM")
+
+grw = growth(db, measure="volume", land_type="forest")
+rmv = removals(db, measure="volume", land_type="forest")
+```
+
+## Biomass and carbon
+
+`biomass()` always returns both biomass and carbon columns — carbon is biomass × 0.47 (the standard IPCC fraction):
+
+```python
+from pyfia import biomass
+
+result = biomass(db, component="AG", land_type="forest", totals=True)
+print(f"Aboveground biomass: {result['BIO_TOTAL'][0]:,.0f} tons")
+print(f"Carbon:              {result['CARB_TOTAL'][0]:,.0f} tons")
+```
+
+Components: `"AG"` (aboveground, default), `"BG"` (belowground), `"TOTAL"`, `"STEM"`, `"STUMP"`, `"TOP"`, `"FOLIAGE"`.
+
+## Custom domain filtering
+
+```python
+from pyfia import volume
+
+# Pine sawtimber on gentle slopes
+result = volume(
+    db,
+    land_type="timber",
+    tree_domain="DIA >= 5.0 AND SPCD IN (110, 111, 121)",
+    area_domain="SLOPE < 30",
+)
+```
+
+## Working with multiple states
+
+Downloading a list of states merges them into one database, so you can estimate across all of them and group by state:
+
+```python
+from pyfia import FIA, download, volume, join_state_names
+
+db = FIA(download(["GA", "FL", "SC"]))
+db.clip_most_recent()
+
+by_state = volume(db, grp_by="STATECD")
+print(join_state_names(by_state, db))
+```
+
+## Validate against EVALIDator
+
+Check a pyFIA estimate against the official USFS tool:
+
+```python
+from pyfia import volume, validate_pyfia_estimate
+
+vol = volume(db, tree_type="gs", vol_type="net")
+
+result = validate_pyfia_estimate(
+    vol,
+    state_code=13,        # Georgia
+    year=2023,
+    estimate_type="volume",
+)
+print(f"Difference: {result.percent_difference:.2f}%")
+```
+
+See [`validate_pyfia_estimate()`](/api/pyfia-evalidator-validation) for the full signature.
+
+## Runnable scripts
+
+Complete, runnable scripts live in the [`examples/`](https://github.com/mihiarc/pyfia/tree/main/examples) directory of the repository — including harvest-panel analysis and mortality-by-cause. Clone and run:
+
+```bash
+git clone https://github.com/mihiarc/pyfia.git
+cd pyfia
+uv run python examples/harvest_panel_analysis.py
+```

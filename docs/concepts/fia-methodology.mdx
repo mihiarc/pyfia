@@ -1,0 +1,108 @@
+---
+title: How FIA estimation works
+description: "The sampling design, the EVALID system, and the expansion factors behind every pyFIA estimate."
+---
+
+pyFIA implements design-based estimation following [Bechtold &amp; Patterson (2005)](https://doi.org/10.2737/SRS-GTR-80), the foundational methodology for the FIA program. This page explains the concepts that make the estimates valid — and the one rule you must follow to keep them valid.
+
+## The sampling design
+
+FIA uses a three-phase, nationally consistent design:
+
+1. **Phase 1** — remote sensing stratifies the landscape and identifies forested land.
+2. **Phase 2** — field crews measure one ground plot per ~6,000 acres of forest: species, size, condition, and site attributes.
+3. **Phase 3** — a subset of Phase 2 plots gets expanded measurements (crown condition, down woody material, soils).
+
+Each ground plot is a cluster of four 24-ft-radius **subplots**, each with a nested 6.8-ft **microplot** for small trees and an optional 58.9-ft **macroplot** for large trees. Trees are assigned to a plot component by diameter, which determines their per-acre expansion.
+
+## The EVALID system
+
+This is the most important concept for getting correct estimates.
+
+FIA data is organized into **evaluations**, each identified by a 6-digit **EVALID** (`SSYYTT`: state, year, type). An evaluation is a complete, statistically valid set of plots and strata for one purpose — estimating area, volume, growth, and so on.
+
+A single downloaded state contains **many overlapping evaluations** (different years and types). They share plots. If you estimate across more than one at a time, plots are counted repeatedly and your totals inflate — often by 10-60x.
+
+<Warning>
+  **Always clip to one evaluation before estimating.** In pyFIA:
+
+  ```python
+  db.clip_most_recent()                  # most recent VOL evaluation
+  db.clip_most_recent(eval_type="GRM")   # for growth / mortality / removals
+  db.clip_by_evalid(442301)              # or pick an EVALID explicitly
+  ```
+</Warning>
+
+### Evaluation types
+
+| Type | Used for |
+|------|----------|
+| `EXPALL` | Area estimation (most comprehensive) |
+| `EXPVOL` | Volume and biomass |
+| `EXPGROW` / `EXPMORT` / `EXPREMV` | Growth / mortality / removals |
+| `EXPCHNG` | Change estimation |
+
+The evaluation **year** is a reference year for a complete estimate — not the year each plot was measured. EVALID `442301` represents Rhode Island's 2023 conditions even though it includes plots measured across several prior years (`INVYR`).
+
+## Expansion factors
+
+Estimates scale plot measurements up to the full population through a hierarchy of factors:
+
+- **`TPA_UNADJ`** — base trees-per-acre a tree represents, by plot component.
+- **`ADJ_FACTOR_*`** — per-stratum adjustments for non-sampled area, selected by tree diameter (micro / subplot / macro).
+- **`EXPNS`** — the stratum expansion factor (acres represented per plot), from `POP_STRATUM`.
+
+The per-acre contribution of a tree is, conceptually:
+
+```
+value × TPA_UNADJ × ADJ_FACTOR × EXPNS × CONDPROP_UNADJ
+```
+
+pyFIA applies all of these automatically — you never compute them by hand.
+
+## Land and tree classifications
+
+**Forest land** (`COND_STATUS_CD = 1`): at least 10% stocked, ≥1 acre, ≥120 ft wide.
+
+**Timberland**: forest land that is unreserved and productive (capable of ≥20 ft³/acre/year).
+
+**Growing stock**: live trees ≥5" DBH meeting merchantability standards (`TREECLCD = 2`).
+
+These map directly to the `land_type` and `tree_type` parameters — see [Domain filtering](/guides/filtering).
+
+## Volume types
+
+| Variable | Description |
+|----------|-------------|
+| `VOLCFNET` | Net cubic-foot volume (defects deducted) — the growing-stock default |
+| `VOLCFGRS` | Gross cubic-foot volume (no deductions) |
+| `VOLCFSND` | Sound cubic-foot volume (excludes rotten/missing cull) |
+| `VOLBFNET` | Net board-foot sawlog volume |
+
+## Growth, removals, and mortality (GRM)
+
+GRM estimates come from remeasurement, stored in dedicated tables:
+
+- **`TREE_GRM_COMPONENT`** — each tree's fate component (SURVIVOR, MORTALITY, CUT, INGROWTH).
+- **`TREE_GRM_MIDPT`** — measurements at the remeasurement midpoint, for annualization.
+
+Because GRM uses different evaluations, remember `eval_type="GRM"` when clipping.
+
+## Common grouping codes
+
+<AccordionGroup>
+  <Accordion title="Ownership (OWNGRPCD)">
+    10 = National Forest · 20 = Other Federal · 30 = State/Local · 40 = Private
+  </Accordion>
+  <Accordion title="Site productivity (SITECLCD)">
+    1 = 225+ · 2 = 165-224 · 3 = 120-164 · 4 = 85-119 · 5 = 50-84 · 6 = 20-49 · 7 = 0-19 (cu ft/ac/yr)
+  </Accordion>
+  <Accordion title="Tree status (STATUSCD)">
+    1 = Live · 2 = Dead · 3 = Removed (cut)
+  </Accordion>
+</AccordionGroup>
+
+## Further reading
+
+- [Understanding variance](/concepts/variance) — how pyFIA computes standard errors
+- **Bechtold, W.A. &amp; Patterson, P.L. (2005).** *The Enhanced FIA Program — National Sampling Design and Estimation Procedures.* Gen. Tech. Rep. SRS-80. [DOI: 10.2737/SRS-GTR-80](https://doi.org/10.2737/SRS-GTR-80)

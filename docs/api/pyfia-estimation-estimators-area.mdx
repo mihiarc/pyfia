@@ -1,0 +1,275 @@
+---
+title: area
+sidebarTitle: area
+---
+
+# `pyfia.estimation.estimators.area`
+
+
+
+Area estimation for FIA data.
+
+Simple, straightforward implementation without unnecessary abstractions.
+
+
+## Functions
+
+### `area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L575" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+area(db: str | FIA, grp_by: str | list[str] | None = None, land_type: str = 'forest', area_domain: str | None = None, plot_domain: str | None = None, most_recent: bool = False, eval_type: str | None = None, variance: bool = False, totals: bool = True) -> pl.DataFrame
+```
+
+
+Estimate forest area from FIA data.
+
+Calculates area estimates using FIA's design-based estimation methods
+with proper expansion factors and stratification. Automatically handles
+EVALID selection to prevent overcounting from multiple evaluations.
+
+**Args:**
+- `db`: Database connection or path to FIA database. Can be either a path
+string to a DuckDB/SQLite file or an existing FIA connection object.
+- `grp_by`: Column name(s) to group results by. Can be any column from the
+PLOT and COND tables. Common grouping columns include\:
+
+**Ownership and Management\:**
+- 'OWNGRPCD'\: Ownership group (10=National Forest, 20=Other Federal,
+  30=State/Local, 40=Private)
+- 'OWNCD'\: Detailed ownership code (see REF_RESEARCH_STATION)
+- 'ADFORCD'\: Administrative forest code
+- 'RESERVCD'\: Reserved status (0=Not reserved, 1=Reserved)
+
+**Forest Characteristics\:**
+- 'FORTYPCD'\: Forest type code (see REF_FOREST_TYPE)
+- 'STDSZCD'\: Stand size class (1=Large diameter, 2=Medium diameter,
+  3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+- 'STDORGCD'\: Stand origin (0=Natural, 1=Planted)
+- 'STDAGE'\: Stand age in years
+
+**Site Characteristics\:**
+- 'SITECLCD'\: Site productivity class (1=225+ cu ft/ac/yr,
+  2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+- 'PHYSCLCD'\: Physiographic class code
+
+**Location\:**
+- 'STATECD'\: State FIPS code
+- 'UNITCD'\: FIA survey unit code
+- 'COUNTYCD'\: County code
+- 'INVYR'\: Inventory year
+
+**Disturbance and Treatment\:**
+- 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3'\: Disturbance codes
+- 'TRTCD1', 'TRTCD2', 'TRTCD3'\: Treatment codes
+
+For complete column descriptions, see USDA FIA Database User Guide.
+- `land_type`: Land type to include in estimation\:
+
+- 'forest'\: All forestland (COND_STATUS_CD = 1)
+- 'timber'\: Timberland only (unreserved, productive forestland)
+- 'all'\: All land types including non-forest
+- `area_domain`: SQL-like filter expression for COND-level attributes. Examples\:
+
+- "STDAGE > 50"\: Stands older than 50 years
+- "FORTYPCD IN (161, 162)"\: Specific forest types
+- "OWNGRPCD == 10"\: National Forest lands only
+- "PHYSCLCD == 31 AND STDSZCD == 1"\: Xeric sites with large trees
+- `plot_domain`: SQL-like filter expression for PLOT-level attributes. This parameter
+enables filtering by plot location and attributes that are not available
+in the COND table. Examples\:
+
+**Location filtering\:**
+- "COUNTYCD == 183"\: Wake County, NC (single county)
+- "COUNTYCD IN (183, 185, 187)"\: Multiple counties
+- "UNITCD == 1"\: Survey unit 1
+
+**Geographic filtering\:**
+- "LAT >= 35.0 AND LAT &lt;= 36.0"\: Latitude range
+- "LON &gt;= -80.0 AND LON &lt;= -79.0"\: Longitude range
+- "ELEV &gt; 2000"\: Elevation above 2000 feet
+
+**Temporal filtering\:**
+- "INVYR == 2019"\: Inventory year
+- "MEASYEAR >= 2015"\: Measured since 2015
+
+Note\: plot_domain filters apply to PLOT table columns only. For
+condition-level attributes (ownership, forest type, etc.), use
+area_domain instead.
+- `most_recent`: If True, automatically select the most recent evaluation for each
+state/region. Equivalent to calling db.clip_most_recent() first.
+- `eval_type`: Evaluation type to select if most_recent=True. Options\:
+'ALL', 'VOL', 'GROW', 'MORT', 'REMV', 'CHANGE', 'DWM', 'INV'.
+Default is 'ALL' for area estimation.
+- `variance`: If True, return variance instead of standard error.
+- `totals`: If True, include total area estimates expanded to population level.
+If False, only return per-acre values.
+
+**Returns:**
+- Area estimates with the following columns:
+
+- **YEAR** : int
+    Inventory year
+- **[grouping columns]** : varies
+    Any columns specified in grp_by parameter
+- **AREA_PCT** : float
+    Percentage of total area
+- **AREA_SE** : float (if variance=False)
+    Standard error of area percentage
+- **AREA_VAR** : float (if variance=True)
+    Variance of area percentage
+- **N_PLOTS** : int
+    Number of plots in estimate
+- **AREA** : float (if totals=True)
+    Total area in acres
+- **AREA_TOTAL_SE** : float (if totals=True and variance=False)
+    Standard error of total area
+
+
+**Examples:**
+
+Basic forest area estimation:
+>>> from pyfia import FIA, area
+>>> with FIA("path/to/fia.duckdb") as db:
+...     db.clip_by_state(37)  # North Carolina
+...     results = area(db, land_type="forest")
+Area by ownership group:
+>>> results = area(db, grp_by="OWNGRPCD")
+>>> # Results will show area for each ownership category
+Timber area by forest type for stands over 50 years:
+>>> results = area(
+...     db,
+...     grp_by="FORTYPCD",
+...     land_type="timber",
+...     area_domain="STDAGE > 50"
+... )
+Multiple grouping variables:
+>>> results = area(
+...     db,
+...     grp_by=["STATECD", "OWNGRPCD", "STDSZCD"],
+...     land_type="forest"
+... )
+Area by disturbance type:
+>>> results = area(
+...     db,
+...     grp_by="DSTRBCD1",
+...     area_domain="DSTRBCD1 > 0"  # Only disturbed areas
+... )
+Filter by county using plot_domain:
+>>> results = area(
+...     db,
+...     plot_domain="COUNTYCD == 183",  # Wake County, NC
+...     land_type="forest"
+... )
+Combine plot and area domain filters:
+>>> results = area(
+...     db,
+...     plot_domain="COUNTYCD IN (183, 185, 187)",  # Multiple counties
+...     area_domain="OWNGRPCD == 40",  # Private land only
+...     grp_by="FORTYPCD"
+... )
+Geographic filtering with plot_domain:
+>>> results = area(
+...     db,
+...     plot_domain="LAT >= 35.0 AND LAT &lt;= 36.0 AND ELEV &gt; 1000",
+...     land_type="forest"
+... )
+
+
+## Classes
+
+### `AreaEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L23" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Area estimator for FIA data.
+
+Estimates forest area by various categories without complex
+abstractions or deep inheritance hierarchies.
+
+
+**Methods:**
+
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L35" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_required_tables(self) -> list[str]
+```
+
+Area estimation requires COND, PLOT, and stratification tables.
+
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L39" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+Get required condition columns based on actual usage.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L89" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate area values.
+
+For area estimation, the value is CONDPROP_UNADJ multiplied by
+the domain indicator to properly handle domain estimation.
+
+
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L108" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Apply land type and domain filters using domain indicator approach.
+
+For proper variance calculation in domain estimation, we must keep ALL plots
+but create a domain indicator rather than filtering them out.
+
+This method operates entirely on LazyFrames to enable server-side
+execution on cloud backends like MotherDuck.
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L210" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate area with stratification, preserving data for variance calculation.
+
+**Returns:**
+- Bundle containing results, plot_condition_data (as plot_tree_data field),
+and group_cols for explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L298" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for area estimates using domain total estimation formula.
+
+Implements Bechtold & Patterson (2005) stratified variance calculation
+for domain totals.
+
+**Args:**
+- `agg_result`: Bundle containing results, plot_condition_data (as plot_tree_data field),
+and group_cols from aggregate_results().
+
+**Returns:**
+- Results with variance columns added.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L543" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format area estimation output.
+

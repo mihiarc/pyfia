@@ -1,0 +1,158 @@
+---
+title: Getting started
+description: "Install pyFIA, download a state's data, and run your first statistically valid forest estimate — start to finish."
+---
+
+This tutorial takes you from an empty environment to a real forest estimate with a standard error. We'll use **Rhode Island** throughout — it's the smallest FIA dataset, so every download and query runs in seconds.
+
+By the end you'll have downloaded FIA data, selected a valid evaluation, estimated forest area, and read the result.
+
+<Steps>
+  <Step title="Install pyFIA">
+    pyFIA requires Python 3.11+.
+
+    <CodeGroup>
+    ```bash uv
+    uv pip install pyfia
+    ```
+
+    ```bash pip
+    pip install pyfia
+    ```
+    </CodeGroup>
+  </Step>
+
+  <Step title="Download a state">
+    pyFIA downloads data directly from the USDA Forest Service [FIA DataMart](https://apps.fs.usda.gov/fia/datamart/datamart.html), converts it to a fast DuckDB database, and caches it locally.
+
+    ```python
+    from pyfia import download
+
+    db_path = download("RI")   # ~1-2 minutes the first time, instant after that
+    print(db_path)             # e.g. ~/.pyfia/data/RI.duckdb
+    ```
+
+    The first call fetches the data; later calls return the cached path instantly. See [Downloading data](/guides/downloading) for multi-state downloads, caching, and options.
+  </Step>
+
+  <Step title="Connect and select an evaluation">
+    Open the database with the `FIA` class, then narrow it to a single evaluation. This step is not optional — see the warning below.
+
+    ```python
+    from pyfia import FIA
+
+    db = FIA(db_path)
+    db.clip_most_recent()      # the most recent volume evaluation for the state
+    ```
+
+    <Warning>
+      **Always filter to one evaluation before estimating.** FIA databases contain
+      multiple overlapping evaluations (EVALIDs). If you skip `clip_most_recent()`,
+      plots are counted several times and **your estimates will be wrong** — totals
+      can be inflated 10-60x.
+
+      Use `clip_most_recent(eval_type="GRM")` for growth, mortality, and removals.
+      See [the EVALID system](/concepts/fia-methodology#the-evalid-system) for why.
+    </Warning>
+  </Step>
+
+  <Step title="Run your first estimate">
+    Every estimator takes the database as its first argument and returns a [Polars](https://pola.rs/) DataFrame.
+
+    ```python
+    from pyfia import area
+
+    forest_area = area(db, land_type="forest")
+    print(forest_area)
+    ```
+
+    You just produced a design-based estimate of Rhode Island's forest area — with a standard error — following the official FIA methodology.
+  </Step>
+
+  <Step title="Read the result">
+    Results are Polars DataFrames whose columns are named for what they measure. For `area()` you get the percentage of area, the total in acres, a standard error, and plot counts:
+
+    | Column | Meaning |
+    |--------|---------|
+    | `AREA` | Total area in acres |
+    | `AREA_PCT` | Percentage of the sampled area |
+    | `AREA_SE` | Standard error of the percentage |
+    | `N_PLOTS` | Plots contributing to the estimate |
+    | `YEAR` | Inventory year |
+
+    Other estimators follow the same pattern with their own prefixes — `VOLCFNET_ACRE`
+    and `VOLCFNET_TOTAL` for [`volume()`](/api/pyfia-estimation-estimators-volume),
+    `MORT_ACRE` for [`mortality()`](/api/pyfia-estimation-estimators-mortality), and so
+    on. Pass `variance=True` to get variances instead of standard errors; `totals=False`
+    to drop the population totals.
+  </Step>
+</Steps>
+
+## Group your results
+
+Add `grp_by` to break an estimate down by any FIA column. pyFIA automatically attaches readable names for common codes like forest type and ownership:
+
+```python
+from pyfia import volume, join_species_names
+
+# Forest area by ownership
+area(db, land_type="forest", grp_by="OWNGRPCD")
+
+# Volume by species, with common names joined in
+vol = volume(db, by_species=True)
+vol = join_species_names(vol, db)
+print(vol.sort("VOLCFNET_TOTAL", descending=True).head(10))
+```
+
+See [Grouping results](/guides/grouping) for the full list of auto-enhanced columns.
+
+## A complete script
+
+```python
+from pyfia import download, FIA, area, volume
+
+db_path = download("RI")
+
+with FIA(db_path) as db:
+    db.clip_most_recent()
+
+    print("Forest area:")
+    print(area(db, land_type="forest"))
+
+    print("\nVolume by species:")
+    print(volume(db, by_species=True).head(10))
+```
+
+## Configuration
+
+pyFIA reads a few environment variables for defaults:
+
+```bash
+export PYFIA_DATABASE_PATH=/path/to/fia.duckdb   # default database
+export PYFIA_DATABASE_ENGINE=duckdb              # duckdb or sqlite
+```
+
+Or set them in code:
+
+```python
+from pyfia import settings
+
+settings.database_path = "/path/to/fia.duckdb"
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="How-to guides" icon="list-check" href="/guides/downloading">
+    Downloading, domain filtering, grouping, and spatial analysis.
+  </Card>
+  <Card title="How FIA estimation works" icon="book-open" href="/concepts/fia-methodology">
+    The sampling design, the EVALID system, and expansion factors.
+  </Card>
+  <Card title="Worked examples" icon="flask" href="/examples">
+    Real analyses you can copy and adapt.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/pyfia-estimation-estimators-volume">
+    Full documentation for every estimator.
+  </Card>
+</CardGroup>

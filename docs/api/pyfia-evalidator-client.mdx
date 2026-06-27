@@ -1,0 +1,253 @@
+---
+title: EVALIDator Client
+sidebarTitle: EVALIDator Client
+---
+
+# `pyfia.evalidator.client`
+
+
+
+EVALIDator API client for retrieving official USFS estimates.
+
+This module provides the EVALIDatorClient class for accessing the FIADB-API
+and retrieving official population estimates for validation.
+
+Reference: https://apps.fs.usda.gov/fiadb-api/
+
+
+## Classes
+
+### `EVALIDatorEstimate` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L31" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Container for an EVALIDator estimate result.
+
+
+### `EVALIDatorClient` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L47" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Client for the USFS EVALIDator API.
+
+This client provides methods to retrieve official FIA population estimates
+for comparison with pyFIA calculations.
+
+**Args:**
+- `timeout`: Request timeout in seconds. Default is 30.
+- `max_retries`: Maximum number of retry attempts for failed requests. Default is 3.
+- `retry_delay`: Base delay between retries in seconds. Uses exponential backoff
+with jitter\: delay * (2^attempt) + random(0, 1). Default is 2.0.
+
+
+**Methods:**
+
+#### `get_forest_area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L239" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_forest_area(self, state_code: int, year: int, land_type: str = 'forest') -> EVALIDatorEstimate
+```
+
+Get forest area estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code (e.g., 37 for North Carolina)
+- `year`: Inventory year (e.g., 2023)
+- `land_type`: "forest" for all forestland, "timber" for timberland only
+
+**Returns:**
+- Official estimate with sampling error
+
+
+#### `get_area_change` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L276" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_area_change(self, state_code: int, year: int, land_type: str = 'forest', annual: bool = True, measurement: str = 'both') -> EVALIDatorEstimate
+```
+
+Get area change estimate from EVALIDator.
+
+Area change estimates require remeasured plots (plots measured at two
+points in time) and represent the net change in land classification.
+
+**Args:**
+- `state_code`: State FIPS code (e.g., 37 for North Carolina)
+- `year`: Inventory year (e.g., 2023)
+- `land_type`: Land classification\:
+- "forest"\: Forest land area change
+- "timber"\: Timberland area change
+- "sampled"\: All sampled land area change
+- `annual`: If True, return annualized rate of change (acres/year).
+If False, return total change over remeasurement period.
+- `measurement`: Which measurement to use for defining land class\:
+- "both"\: Land must meet criteria at both measurements
+- "either"\: Land meets criteria at either measurement
+- "remeasured"\: Only remeasured conditions (for non-annual)
+
+**Returns:**
+- Official area change estimate with sampling error
+
+
+**Examples:**
+
+>>> client = EVALIDatorClient()
+>>> # Annual forest area change
+>>> result = client.get_area_change(37, 2023, land_type="forest")
+>>> print(f"Annual change: {result.estimate:+,.0f} acres/year")
+>>> # Total timberland change over remeasurement period
+>>> result = client.get_area_change(37, 2023, land_type="timber", annual=False)
+
+
+#### `get_volume` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L383" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_volume(self, state_code: int, year: int, vol_type: str = 'net') -> EVALIDatorEstimate
+```
+
+Get volume estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `vol_type`: Volume type\: "net" for net merchantable, "sawlog" for board feet
+
+**Returns:**
+- Official volume estimate
+
+
+#### `get_biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L421" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_biomass(self, state_code: int, year: int, component: str = 'ag', min_diameter: float = 0.0) -> EVALIDatorEstimate
+```
+
+Get biomass estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `component`: "ag" for aboveground, "bg" for belowground, "total" for both
+- `min_diameter`: Minimum DBH threshold. Use 0.0 for all trees, 5.0 for trees >=5" DBH.
+
+**Returns:**
+- Official biomass estimate in dry short tons
+
+
+#### `get_carbon` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L471" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_carbon(self, state_code: int, year: int, pool: str = 'total') -> EVALIDatorEstimate
+```
+
+Get carbon estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `pool`: Carbon pool\: "ag", "bg", "total", or ecosystem pools
+
+**Returns:**
+- Official carbon estimate in metric tonnes
+
+
+#### `get_tree_count` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L509" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_tree_count(self, state_code: int, year: int, min_diameter: float = 1.0, land_type: str = 'forest') -> EVALIDatorEstimate
+```
+
+Get tree count estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `min_diameter`: Minimum DBH in inches (1.0 or 5.0).
+Note\: 5" threshold returns growing-stock trees (TREECLCD=2) only,
+while 1" threshold returns all live trees.
+- `land_type`: "forest" for forest land, "timber" for timberland only
+
+**Returns:**
+- Official tree count estimate
+
+
+
+#### `get_growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L569" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_growth(self, state_code: int, year: int, measure: str = 'volume', land_type: str = 'forest', **kwargs) -> EVALIDatorEstimate
+```
+
+Get annual net growth estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `measure`: Measurement type\:
+- 'volume'\: Net cubic foot growth of merchantable bole wood
+- 'biomass'\: Net biomass growth of aboveground trees
+- `land_type`: Land classification
+- `**kwargs`: Additional API parameters
+
+**Returns:**
+- Growth estimate with standard error
+
+
+#### `get_mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L620" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_mortality(self, state_code: int, year: int, measure: str = 'volume', land_type: str = 'forest', **kwargs) -> EVALIDatorEstimate
+```
+
+Get annual mortality estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `measure`: Measurement type\:
+- 'volume'\: Net cubic foot mortality of merchantable bole wood
+- 'biomass'\: Net biomass mortality of aboveground trees
+- `land_type`: Land classification
+- `**kwargs`: Additional API parameters
+
+**Returns:**
+- Mortality estimate with standard error
+
+
+#### `get_removals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L671" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_removals(self, state_code: int, year: int, measure: str = 'volume', land_type: str = 'forest', **kwargs) -> EVALIDatorEstimate
+```
+
+Get annual removals (harvest) estimate from EVALIDator.
+
+**Args:**
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `measure`: Measurement type\:
+- 'volume'\: Net cubic foot removals of merchantable bole wood
+- 'biomass'\: Net biomass removals of aboveground trees
+- `land_type`: Land classification
+- `**kwargs`: Additional API parameters
+
+**Returns:**
+- Removals estimate with standard error
+
+
+#### `get_custom_estimate` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/evalidator/client.py#L722" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_custom_estimate(self, snum: int, state_code: int, year: int, units: str, estimate_type: str, **kwargs) -> EVALIDatorEstimate
+```
+
+Get a custom estimate using any snum value.
+
+**Args:**
+- `snum`: Estimate attribute number from EstimateType or FIADB-API docs
+- `state_code`: State FIPS code
+- `year`: Inventory year
+- `units`: Units description for the estimate
+- `estimate_type`: Description of the estimate type
+- `**kwargs`: Additional API parameters
+
+**Returns:**
+- Custom estimate result
+

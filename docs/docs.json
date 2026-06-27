@@ -1,0 +1,97 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "mint",
+  "name": "pyFIA",
+  "description": "High-performance Python library for USDA Forest Inventory and Analysis (FIA) data. 10-100x faster than EVALIDator with statistically valid estimates.",
+  "colors": {
+    "primary": "#2e7d32",
+    "light": "#66bb6a",
+    "dark": "#1b5e20"
+  },
+  "favicon": "/assets/favicon.png",
+  "logo": {
+    "light": "/logo/light.svg",
+    "dark": "/logo/dark.svg"
+  },
+  "navigation": {
+    "tabs": [
+      {
+        "tab": "Guides",
+        "groups": [
+          {
+            "group": "Get started",
+            "pages": ["index", "getting-started"]
+          },
+          {
+            "group": "How-to guides",
+            "pages": [
+              "guides/downloading",
+              "guides/filtering",
+              "guides/grouping",
+              "guides/spatial"
+            ]
+          },
+          {
+            "group": "Concepts",
+            "pages": ["concepts/fia-methodology", "concepts/variance"]
+          },
+          {
+            "group": "Examples",
+            "pages": ["examples"]
+          }
+        ]
+      },
+      {
+        "tab": "API Reference",
+        "groups": [
+          {
+            "group": "Estimation functions",
+            "pages": [
+              "api/pyfia-estimation-estimators-area",
+              "api/pyfia-estimation-estimators-area_change",
+              "api/pyfia-estimation-estimators-volume",
+              "api/pyfia-estimation-estimators-tpa",
+              "api/pyfia-estimation-estimators-biomass",
+              "api/pyfia-estimation-estimators-site_index",
+              "api/pyfia-estimation-estimators-mortality",
+              "api/pyfia-estimation-estimators-growth",
+              "api/pyfia-estimation-estimators-removals",
+              "api/pyfia-estimation-estimators-tree_metrics",
+              "api/pyfia-estimation-estimators-panel"
+            ]
+          },
+          {
+            "group": "Core",
+            "pages": ["api/pyfia-core-fia", "api/pyfia-core-settings"]
+          },
+          {
+            "group": "Data & validation",
+            "pages": [
+              "api/pyfia-downloader",
+              "api/pyfia-utils-reference_tables",
+              "api/pyfia-evalidator-client",
+              "api/pyfia-evalidator-validation"
+            ]
+          }
+        ]
+      }
+    ]
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "PyPI",
+        "href": "https://pypi.org/project/pyfia/"
+      }
+    ],
+    "primary": {
+      "type": "github",
+      "href": "https://github.com/mihiarc/pyfia"
+    }
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/mihiarc/pyfia"
+    }
+  }
+}

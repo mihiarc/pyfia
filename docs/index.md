@@ -106,8 +106,6 @@ with FIA(db_path) as db:
 | [`volume()`](api/volume.md) | Estimate standing tree volume |
 | [`tpa()`](api/tpa.md) | Calculate trees per acre and basal area |
 | [`biomass()`](api/biomass.md) | Estimate tree biomass and carbon |
-| [`live_tree()`](api/live_tree.md) | NSVB live tree carbon (species-specific fractions) |
-| [`standing_dead()`](api/standing_dead.md) | NSVB standing dead carbon (decay-class reductions) |
 | [`site_index()`](api/site_index.md) | Estimate area-weighted mean site index |
 | [`mortality()`](api/mortality.md) | Calculate annual mortality rates |
 | [`growth()`](api/growth.md) | Estimate annual growth |

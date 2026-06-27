@@ -7,49 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### NSVB carbon subsystem (targeted for 1.5.0)
+
+Feature-complete on `main` but **held out of 1.4.0** pending domain verification
+of condition-level pool NULL handling (#90) and resolution of the two
+live-tree-stock implementations (#89).
+
+#### Added
+- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, and carbon fractions (Models 1/2/4/5; S1a–S8b coefficient tables; Bailey DIVISION lookup; S10a/S10b carbon fractions; vendored coefficient CSVs from GTR-WO-104 Supp1).
+- **`live_tree()`** — NSVB live-tree carbon (AG recomputed from biomass; species-specific carbon fractions; Bailey DIVISION → species → Jenkins precedence). Validated vs FIADB `CARBON_AG` on Georgia (130,952 trees): median per-tree error 0.085%.
+- **`standing_dead()`** — NSVB standing-dead carbon with decay-class reductions and broken-top corrections.
+- **Condition-level carbon pools** — `downed_dead()`, `litter()`, `soil_organic()`, `understory()` from FIADB `COND.CARBON_*` densities.
+- **`total_ecosystem()`** — sum of all six IPCC carbon pools.
+- **`stock_change()`** — condition-level carbon stock change between remeasurement periods (per-pool or total), REMPER-annualized.
+- `PLOTGEOM` added to `COMMON_TABLES` (Bailey DIVISION lookup for NSVB).
+- **NSVB validation gates** — per-tree parity tests against FIADB `CARBON_AG` on real Georgia inventory data.
+
+#### Changed
+- **NGHGI report-reproduction scripts moved to the `pyfcaf` package** (`scripts/nghgi/` removed); pyfcaf consumes pyfia's carbon estimators.
+- **Carbon module docstrings** softened to point at the operational FIADB `CARBON_*` columns.
+
+#### Fixed
+- **Woodland-species biomass collapse** in `live_tree()`; **woodland-species zeroing** in `standing_dead()` (shared guard in the carbon estimator base class).
+- DECAYCD empty-string filter leak in the standing-dead path.
+
 ## [1.4.0] - 2026-06-26
 
-First release of the NSVB carbon subsystem. Large additive release — all
-public APIs from 1.3.0 remain backward compatible.
+Adds the `tree_metrics()` estimator and a public `query()` method, plus EVALID,
+variance, and downloader fixes and release hardening. All public APIs from
+1.3.0 remain backward compatible.
 
 ### Added
-- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, carbon fractions:
-  - `pyfia.carbon.nsvb.equations` — Models 1, 2, 4, 5, harmonization, vectorized pipelines
-  - `pyfia.carbon.nsvb.coefficients` — S1a–S8b coefficient tables, Bailey DIVISION lookup
-  - `pyfia.carbon.nsvb.carbon_fractions` — S10a (live), S10b (dead), `REF_TREE_DECAY_PROP` loaders
-  - Vendored coefficient CSVs from GTR-WO-104 supplementary archive
-- **`live_tree()` function** — NSVB live tree carbon estimation:
-  - Recomputes above-ground biomass from scratch using the NSVB framework (Westfall et al. 2023, GTR-WO-104)
-  - Species-specific S10a carbon fractions (0.40–0.55) replace the flat 0.47 multiplier used by `biomass()`
-  - 3-level coefficient lookup precedence: Bailey DIVISION, species-level, Jenkins fallback
-  - Cull adjustment using Harmon et al. (2011) DECAYCD=3 density proportions
-  - `pool='ag'|'bg'|'total'` — AG via NSVB, BG bridges to FIADB `TREE.CARBON_BG`
-  - Validated against FIADB `TREE.CARBON_AG` on Georgia EVALID 132401 (130,952 trees): median per-tree relative error 0.085%
-- **`standing_dead()` function** — NSVB standing dead carbon estimation:
-  - Same NSVB biomass pipeline as `live_tree()`, plus decay-class reductions from `REF_TREE_DECAY_PROP`
-  - `DENSITY_PROP` x wood, `BARK_LOSS_PROP` x bark, `BRANCH_LOSS_PROP` x branch by hardwood/softwood x DECAYCD
-  - S10b dead-tree carbon fractions by hardwood/softwood x DECAYCD
-  - No `TREE.CULL` adjustment for dead trees (per FIADB Appendix K)
-  - `pool='ag'|'bg'|'total'` — same pool semantics as `live_tree()`
-  - Broken-top corrections: crown-proportion adjustment (Appendix K) + paraboloid volume-ratio for trees with `ACTUALHT < HT`
-  - Vendored Table S11 (`REF_TREE_STND_DEAD_CR_PROP`) for mean intact crown ratios by ecoregion province
-  - Validated against FIADB on Georgia EVALID 132401 (6,870 trees): median 10.9% per-tree relative error
-- **Condition-level carbon pool estimators** — `downed_dead()`, `litter()`, `soil_organic()`, `understory()` read FIADB `COND.CARBON_*` densities and expand with the two-stage estimator.
-- **`total_ecosystem()` function** — sums all 6 IPCC carbon pools into a total-ecosystem estimate.
-- **`stock_change()` function** — condition-level carbon stock-change accounting between remeasurement periods (per-pool or total), with REMPER annualization and dual-NULL filtering.
 - **`tree_metrics()` estimator** — TPA-weighted descriptive statistics for derived per-condition tree metrics (#73).
 - **Public `query()` method** on `FIA` for raw SQL execution (#72).
 - **PLT_CN / CONDID grouping** — support plot- and condition-level grouping columns for plot-condition estimates (#71).
-- `PLOTGEOM` added to `COMMON_TABLES` (enables Bailey DIVISION lookup for NSVB).
-- **NSVB validation gates** — `tests/validation/test_live_tree_nsvb.py` and `test_standing_dead_nsvb.py`:
-  - Per-tree parity tests against FIADB `CARBON_AG` on real Georgia inventory data
-  - Layered diagnostics: carbon rel-error, biomass ratio, FIADB-implied carbon fraction
-  - Ratchet thresholds that detect regressions and reward improvements
-  - EVALID-scoped to the current annual evaluation (avoids legacy CRM data contamination)
 
 ### Changed
-- **NGHGI report-reproduction scripts moved to the `pyfcaf` package** (`scripts/nghgi/` removed). pyfia refocuses on database querying and statistical estimation; pyfcaf consumes pyfia's carbon estimators to reproduce the EPA Chapter 6 / Annex 3.13 tables. The new entry points live at `python -m pyfcaf.nghgi.{stage_a,stage_b,multi_year,dead_wood_diagnostic}`.
-- **Carbon module docstrings**: softened "aligned with EPA NGHGI LULUCF X pool" wording to point at the operational FIADB `CARBON_*` columns; dropped trailing USEPA Annex 3.13 citations. Operational methodology citations (Westfall 2023, Domke 2013/2016/2017, Smith & Heath, Birdsey, Bechtold & Patterson) preserved.
 - **`__version__` is now read from package metadata** via `importlib.metadata` (#92) — `pyproject.toml` is the single source of truth, so the version string can no longer drift from the published package.
 
 ### Fixed
@@ -57,8 +50,6 @@ public APIs from 1.3.0 remain backward compatible.
 - **EVALID filtering not applied to all PLT_CN tables** (#76, #77) — tables such as `TREE_GRM_COMPONENT` were not filtered by EVALID; column-detection filtering now applies to direct and spatial filter paths.
 - **Area variance underestimation for rare categories** when using `grp_by` (#68).
 - **`sanitize_sql_path()` failure on Windows** when calling `download()` (#74).
-- **Woodland-species biomass collapse** in the `live_tree()` NSVB path; **woodland-species zeroing** in `standing_dead()`; both share a guard via the carbon estimator base class.
-- DECAYCD empty-string filter leak in the standing-dead path.
 - **Non-atomic file writes** in the downloader (#88) — downloads now write to a temporary file and atomically replace the destination (with cleanup on interrupt), and cache metadata is written the same way; an interrupted download/write no longer leaves a truncated file. `get_cached()` now verifies file size on every hit and supports opt-in MD5 verification (the stored checksum was previously never checked).
 - **Silently cached broken databases on reference-table download failure** (#86) — `download()` now verifies the built database contains the required reference tables (`REF_SPECIES`, `REF_FOREST_TYPE`, `REF_STATE`) before caching. If any are missing/empty the incomplete database is discarded and a clear `DownloadError` is raised telling the user to retry, instead of caching a database that breaks `by_species` / name-join operations.
 

@@ -47,17 +47,6 @@ pyfia/
 │   ├── fia.py         # Main FIA database class
 │   ├── data_reader.py # Efficient data loading
 │   └── backends/      # DuckDB, SQLite, MotherDuck backends
-├── carbon/             # NSVB carbon estimation
-│   ├── live_tree.py   # Live tree carbon (NSVB AG + FIADB BG bridge)
-│   ├── standing_dead.py # Standing dead carbon (NSVB + decay reductions)
-│   ├── understory.py  # Understory vegetation carbon (condition-level)
-│   ├── downed_dead.py # Downed dead wood carbon (condition-level)
-│   ├── litter.py      # Litter carbon (condition-level)
-│   ├── soil_organic.py # Soil organic carbon (condition-level)
-│   ├── total_ecosystem.py # Sum of all 6 pools
-│   ├── stock_change.py # Carbon stock change between inventory periods
-│   ├── data/          # Non-NSVB coefficient tables (Birdsey/Smith & Heath)
-│   └── nsvb/          # NSVB equation library, coefficients, carbon fractions
 ├── estimation/         # Statistical estimation
 │   ├── base.py        # BaseEstimator with Template Method pattern
 │   ├── grm.py         # GRM data loading and adjustment
@@ -96,7 +85,7 @@ pyfia/
 - Key methods: `clip_by_evalid()`, `clip_by_state()`, `clip_most_recent()`
 
 **Estimation Functions**
-- Simple API: `area()`, `biomass()`, `volume()`, `tpa()`, `live_tree()`, `standing_dead()`, `understory()`, `downed_dead()`, `litter()`, `soil_organic()`, `total_ecosystem()`, `stock_change()`, `mortality()`, `growth()`, `removals()`, `area_change()`, `site_index()`, `tree_metrics()`
+- Simple API: `area()`, `biomass()`, `volume()`, `tpa()`, `mortality()`, `growth()`, `removals()`, `area_change()`, `site_index()`, `tree_metrics()`
 - All support domain filtering, grouping, variance calculations
 - BaseEstimator uses Template Method for consistent workflow
 

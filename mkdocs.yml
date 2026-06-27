@@ -115,8 +115,6 @@ nav:
       - Volume: api/volume.md
       - Trees Per Acre: api/tpa.md
       - Biomass: api/biomass.md
-      - Live Tree Carbon: api/live_tree.md
-      - Standing Dead Carbon: api/standing_dead.md
       - Site Index: api/site_index.md
       - Mortality: api/mortality.md
       - Growth: api/growth.md

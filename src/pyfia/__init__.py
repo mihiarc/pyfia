@@ -21,14 +21,6 @@ __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
 # Estimation functions - High-level API
-from pyfia.carbon.downed_dead import downed_dead
-from pyfia.carbon.litter import litter
-from pyfia.carbon.live_tree import live_tree
-from pyfia.carbon.soil_organic import soil_organic
-from pyfia.carbon.standing_dead import standing_dead
-from pyfia.carbon.stock_change import stock_change
-from pyfia.carbon.total_ecosystem import total_ecosystem
-from pyfia.carbon.understory import understory
 from pyfia.core.data_reader import FIADataReader
 from pyfia.core.exceptions import (
     ConfigurationError,
@@ -123,14 +115,6 @@ __all__ = [
     "area",
     "area_change",
     "biomass",
-    "downed_dead",
-    "litter",
-    "live_tree",
-    "soil_organic",
-    "standing_dead",
-    "stock_change",
-    "total_ecosystem",
-    "understory",
     "volume",
     "tpa",
     "mortality",

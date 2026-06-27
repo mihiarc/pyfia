@@ -64,4 +64,29 @@ retitle pyfia-utils-reference_tables "Reference Tables"
 retitle pyfia-evalidator-client  "EVALIDator Client"
 retitle pyfia-evalidator-validation "Validation"
 
+# Strip any carbon-named method/function sections that leak in via class pages
+# (e.g. FIA.carbon_flux, EVALIDatorClient.get_carbon). The NSVB carbon module is
+# deferred to 1.5.0 and must not appear in the public docs.
+python3 - <<'PY'
+import glob, re
+heading = re.compile(r'^(#{1,6})\s+`([^`]+)`')
+for path in glob.glob("docs/api/*.mdx"):
+    lines = open(path).read().splitlines(keepends=True)
+    out, i, removed = [], 0, False
+    while i < len(lines):
+        m = heading.match(lines[i])
+        if m and "carbon" in m.group(2).lower():
+            level = len(m.group(1)); i += 1; removed = True
+            while i < len(lines):
+                m2 = heading.match(lines[i])
+                if m2 and len(m2.group(1)) <= level:
+                    break
+                i += 1
+            continue
+        out.append(lines[i]); i += 1
+    if removed:
+        open(path, "w").write("".join(out))
+        print(f"  stripped carbon section(s) from {path}")
+PY
+
 echo "API reference regenerated in docs/api/. Keep docs.json navigation in sync."

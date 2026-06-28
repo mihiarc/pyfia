@@ -1,0 +1,55 @@
+---
+title: Query library
+description: "Tested, EVALIDator-validated SQL queries you can run directly against the FIA database — an alternative to the Python API for power users and validation."
+---
+
+pyFIA's estimators are the easiest way to work with FIA data — but sometimes you want the raw SQL: to validate a result against [EVALIDator](https://apps.fs.usda.gov/Evalidator/evalidator.jsp), to adapt a query for a one-off analysis, or to understand exactly how an estimate is built.
+
+This library is a collection of **tested SQL queries** that run directly against the FIA database (DuckDB or any engine with the standard FIADB schema). Each one is translated from Oracle EVALIDator and verified to match the official results.
+
+<Note>
+  These queries operate on the raw FIA tables (`POP_STRATUM`, `TREE`, `COND`, …) using
+  EVALID-based filtering. For day-to-day analysis, prefer the Python API — e.g.
+  [`volume()`](/api/pyfia-estimation-estimators-volume) — which applies this same
+  methodology for you.
+</Note>
+
+## Categories
+
+<CardGroup cols={2}>
+  <Card title="Basic tree counts" icon="tree" href="/queries/basic-tree">
+    Tree enumeration with diameter-based adjustment factors and population expansion.
+  </Card>
+  <Card title="Biomass & carbon" icon="leaf" href="/queries/biomass-carbon">
+    Species-specific biomass with moisture and specific-gravity adjustments.
+  </Card>
+  <Card title="Forest area" icon="map" href="/queries/forest-area">
+    Area by forest type group from condition proportions.
+  </Card>
+  <Card title="Forest change" icon="arrows-rotate" href="/queries/forest-change">
+    Area change over time using the subplot condition-change matrix.
+  </Card>
+  <Card title="Mortality" icon="skull" href="/queries/mortality">
+    Growing-stock mortality by cause, disturbance, and with stratified variance.
+  </Card>
+  <Card title="Volume" icon="ruler-combined" href="/queries/volume">
+    Net merchantable volume by diameter class.
+  </Card>
+</CardGroup>
+
+## How these queries work
+
+Every query follows the same EVALIDator pattern:
+
+1. **EVALID filtering** (`POP_STRATUM.EVALID = …`) selects one complete, valid evaluation.
+2. **Adjustment factors** (`ADJ_FACTOR_MICR / SUBP / MACR`) correct for the nested plot design, chosen by tree diameter.
+3. **Expansion factors** (`EXPNS`) scale plot measurements to population totals.
+4. **Domain filters** (`STATUSCD`, `COND_STATUS_CD`, …) restrict to the population of interest.
+
+See [How FIA estimation works](/concepts/fia-methodology) for the methodology behind these pieces.
+
+<Info>
+  Source `.sql` files live in the repository under
+  [`reference/queries/`](https://github.com/mihiarc/pyfia/tree/main/reference/queries) —
+  each page links to its query file.
+</Info>

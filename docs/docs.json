@@ -8,6 +8,15 @@
     "light": "#66bb6a",
     "dark": "#1b5e20"
   },
+  "appearance": {
+    "default": "system"
+  },
+  "styling": {
+    "eyebrows": "breadcrumbs"
+  },
+  "contextual": {
+    "options": ["copy", "view", "chatgpt", "claude"]
+  },
   "favicon": "/assets/favicon.png",
   "logo": {
     "light": "/logo/light.svg",
@@ -71,6 +80,26 @@
               "api/pyfia-utils-reference_tables",
               "api/pyfia-evalidator-client",
               "api/pyfia-evalidator-validation"
+            ]
+          }
+        ]
+      },
+      {
+        "tab": "Query Library",
+        "groups": [
+          {
+            "group": "Overview",
+            "pages": ["queries/index"]
+          },
+          {
+            "group": "Queries by topic",
+            "pages": [
+              "queries/basic-tree",
+              "queries/biomass-carbon",
+              "queries/forest-area",
+              "queries/forest-change",
+              "queries/mortality",
+              "queries/volume"
             ]
           }
         ]

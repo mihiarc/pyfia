@@ -1,0 +1,308 @@
+---
+title: volume
+sidebarTitle: volume
+---
+
+# `pyfia.estimation.estimators.volume`
+
+
+
+Volume estimation for FIA data.
+
+Simple, straightforward implementation for calculating tree volume
+without unnecessary abstractions.
+
+
+## Functions
+
+### `volume` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L301" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+volume(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, land_type: str = 'forest', tree_type: str = 'live', vol_type: str = 'net', tree_domain: str | None = None, area_domain: str | None = None, plot_domain: str | None = None, totals: bool = True, variance: bool = False, most_recent: bool = False, eval_type: str | None = None) -> pl.DataFrame
+```
+
+
+Estimate tree volume from FIA data.
+
+Calculates volume estimates using FIA's design-based estimation methods
+with proper expansion factors and stratification. Automatically handles
+EVALID selection to prevent overcounting from multiple evaluations.
+
+**Args:**
+- `db`: Database connection or path to FIA database. Can be either a path
+string to a DuckDB/SQLite file or an existing FIA connection object.
+- `grp_by`: Column name(s) to group results by. Can be any column from the
+TREE, COND, and PLOT tables. Common grouping columns include\:
+
+**Tree Characteristics\:**
+- 'SPCD'\: Species code (see REF_SPECIES table)
+- 'SPGRPCD'\: Species group code (hardwood/softwood groups)
+- 'DIA'\: Diameter at breast height (continuous, use with caution)
+- 'HT'\: Total tree height in feet
+- 'CR'\: Crown ratio (percent of bole with live crown)
+- 'CCLCD'\: Crown class code (1=Open grown, 2=Dominant, 3=Codominant,
+  4=Intermediate, 5=Overtopped)
+- 'TREECLCD'\: Tree class code (2=Growing stock, 3=Rough cull, 4=Rotten cull)
+- 'DECAYCD'\: Decay class for standing dead trees
+
+**Ownership and Management\:**
+- 'OWNGRPCD'\: Ownership group (10=National Forest, 20=Other Federal,
+  30=State/Local, 40=Private)
+- 'OWNCD'\: Detailed ownership code (see REF_RESEARCH_STATION)
+- 'ADFORCD'\: Administrative forest code
+- 'RESERVCD'\: Reserved status (0=Not reserved, 1=Reserved)
+
+**Forest Characteristics\:**
+- 'FORTYPCD'\: Forest type code (see REF_FOREST_TYPE)
+- 'STDSZCD'\: Stand size class (1=Large diameter, 2=Medium diameter,
+  3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+- 'STDORGCD'\: Stand origin (0=Natural, 1=Planted)
+- 'STDAGE'\: Stand age in years
+
+**Site Characteristics\:**
+- 'SITECLCD'\: Site productivity class (1=225+ cu ft/ac/yr,
+  2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+- 'PHYSCLCD'\: Physiographic class code
+- 'SLOPE'\: Slope in percent
+- 'ASPECT'\: Aspect in degrees (0-360)
+
+**Location\:**
+- 'STATECD'\: State FIPS code
+- 'UNITCD'\: FIA survey unit code
+- 'COUNTYCD'\: County code
+- 'INVYR'\: Inventory year
+
+**Disturbance and Treatment\:**
+- 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3'\: Disturbance codes
+- 'TRTCD1', 'TRTCD2', 'TRTCD3'\: Treatment codes
+
+For complete column descriptions, see USDA FIA Database User Guide.
+- `by_species`: If True, group results by species code (SPCD). This is a convenience
+parameter equivalent to adding 'SPCD' to grp_by.
+- `by_size_class`: If True, group results by diameter size classes. Size classes are
+defined as\: 1.0-4.9", 5.0-9.9", 10.0-19.9", 20.0-29.9", 30.0+".
+- `land_type`: Land type to include in estimation\:
+
+- 'forest'\: All forestland (COND_STATUS_CD = 1)
+- 'timber'\: Timberland only (unreserved, productive forestland with
+  SITECLCD < 7 and RESERVCD = 0)
+- 'all'\: All land types including non-forest
+- `tree_type`: Tree type to include\:
+
+- 'live'\: All live trees (STATUSCD = 1)
+- 'dead'\: Standing dead trees (STATUSCD = 2)
+- 'gs'\: Growing stock trees (live, TREECLCD = 2, no defects)
+- 'all'\: All trees regardless of status
+- `vol_type`: Volume type to estimate\:
+
+- 'net'\: Net cubic foot volume (VOLCFNET) - gross minus defects
+- 'gross'\: Gross cubic foot volume (VOLCFGRS) - total stem volume
+- 'sound'\: Sound cubic foot volume (VOLCFSND) - gross minus rot
+- 'sawlog'\: Sawlog board foot volume (VOLBFNET) - net board feet
+- `tree_domain`: SQL-like filter expression for tree-level attributes. Examples\:
+
+- "DIA >= 10.0"\: Trees 10 inches DBH and larger
+- "SPCD IN (131, 110)"\: Specific species (loblolly and Virginia pine)
+- "DIA BETWEEN 10 AND 20"\: Mid-sized trees
+- "HT > 50 AND CR > 30"\: Tall trees with good crowns
+- `area_domain`: SQL-like filter expression for COND-level attributes. Examples\:
+
+- "STDAGE > 50"\: Stands older than 50 years
+- "FORTYPCD IN (161, 162)"\: Specific forest types
+- "OWNGRPCD == 40"\: Private lands only
+- "SLOPE < 30 AND ASPECT BETWEEN 135 AND 225"\: Gentle south-facing slopes
+- `totals`: If True, include total volume estimates expanded to population level.
+If False, only return per-acre values.
+- `variance`: If True, return variance instead of standard error.
+- `most_recent`: If True, automatically select the most recent evaluation for each
+state/region. Equivalent to calling db.clip_most_recent() first.
+- `eval_type`: Evaluation type to select if most_recent=True. Options\:
+'ALL', 'VOL', 'GROW', 'MORT', 'REMV', 'CHANGE', 'DWM', 'INV'.
+Default is 'VOL' for volume estimation.
+
+**Returns:**
+- Volume estimates with the following columns:
+
+- **YEAR** : int
+    Inventory year
+- **[grouping columns]** : varies
+    Any columns specified in grp_by parameter
+- **VOLCFNET_ACRE** : float (if vol_type='net')
+    Net cubic foot volume per acre
+- **VOLCFGRS_ACRE** : float (if vol_type='gross')
+    Gross cubic foot volume per acre
+- **VOLCFSND_ACRE** : float (if vol_type='sound')
+    Sound cubic foot volume per acre
+- **VOLBFNET_ACRE** : float (if vol_type='sawlog')
+    Net board foot volume per acre
+- **VOLCFNET_ACRE_SE** : float (if variance=False)
+    Standard error of per-acre volume estimate
+- **VOLCFNET_ACRE_VAR** : float (if variance=True)
+    Variance of per-acre volume estimate
+- **N_PLOTS** : int
+    Number of plots in estimate
+- **N_TREES** : int
+    Number of trees in estimate
+- **AREA_TOTAL** : float
+    Total area (acres) represented by the estimation
+- **VOLCFNET_TOTAL** : float (if totals=True)
+    Total volume expanded to population level
+- **VOLCFNET_TOTAL_SE** : float (if totals=True and variance=False)
+    Standard error of total volume
+
+
+**Examples:**
+
+Basic net volume on forestland:
+>>> from pyfia import FIA, volume
+>>> with FIA("path/to/fia.duckdb") as db:
+...     db.clip_by_state(37)  # North Carolina
+...     results = volume(db, land_type="forest", vol_type="net")
+Volume by species on timberland:
+>>> results = volume(
+...     db,
+...     by_species=True,
+...     land_type="timber",
+...     tree_type="gs"  # Growing stock only
+... )
+>>> # Find top species by volume
+>>> if not results.is_empty():
+...     top_species = results.sort(by='VOLCFNET_ACRE', descending=True).head(5)
+Large tree volume by ownership:
+>>> results = volume(
+...     db,
+...     grp_by="OWNGRPCD",
+...     tree_domain="DIA >= 20.0",
+...     variance=True
+... )
+Sawlog volume by forest type:
+>>> results = volume(
+...     db,
+...     grp_by="FORTYPCD",
+...     vol_type="sawlog",
+...     tree_type="gs",
+...     tree_domain="DIA >= 11.0"  # Hardwood sawtimber size
+... )
+Volume by multiple grouping variables:
+>>> results = volume(
+...     db,
+...     grp_by=["STATECD", "OWNGRPCD", "STDSZCD"],
+...     land_type="forest",
+...     totals=True
+... )
+Complex filtering with domain expressions:
+>>> # High-value timber on productive sites
+>>> results = volume(
+...     db,
+...     grp_by="SPCD",
+...     land_type="timber",
+...     tree_domain="DIA >= 16.0 AND TREECLCD == 2",
+...     area_domain="SITECLCD &lt;= 3 AND SLOPE < 35"
+... )
+Dead tree volume assessment:
+&gt;>> results = volume(
+...     db,
+...     tree_type="dead",
+...     by_species=True,
+...     tree_domain="DIA >= 10.0 AND DECAYCD IN (1, 2)"  # Sound dead trees
+... )
+
+
+## Classes
+
+### `VolumeEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L27" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Volume estimator for FIA data.
+
+Estimates tree volume (cubic feet) using standard FIA methods.
+
+
+**Methods:**
+
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L38" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_required_tables(self) -> list[str]
+```
+
+Volume estimation requires tree, condition, and stratification tables.
+
+
+#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L42" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_tree_columns(self) -> list[str]
+```
+
+Required tree columns for volume estimation.
+
+Uses centralized column resolution from columns.py to reduce duplication.
+Volume estimation requires volume columns based on vol_type configuration.
+
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L62" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+Required condition columns.
+
+Uses centralized column resolution from columns.py to reduce duplication.
+Volume estimation needs PROP_BASIS for area adjustment calculations.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L74" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate volume per acre.
+
+Volume calculation: VOLUME * TPA_UNADJ
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L107" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate volume with two-stage aggregation for correct per-acre estimates.
+
+CRITICAL FIX: This method implements two-stage aggregation following FIA
+methodology. The previous single-stage approach caused ~22x underestimation
+by having each tree contribute its condition proportion to the denominator.
+
+Stage 1: Aggregate trees to plot-condition level
+Stage 2: Apply expansion factors and calculate ratio-of-means
+
+**Returns:**
+- Bundle containing results, plot_tree_data, and group_cols for
+explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L208" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for volume estimates using domain total variance formula.
+
+Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+
+This matches EVALIDator's variance calculation for tree-based estimates.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/volume.py#L246" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format volume estimation output.
+

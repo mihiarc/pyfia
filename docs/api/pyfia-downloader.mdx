@@ -1,0 +1,119 @@
+---
+title: Data Download
+sidebarTitle: Data Download
+---
+
+# `pyfia.downloader`
+
+
+
+FIA Data Download Module.
+
+This module provides functionality to download FIA data directly from the
+USDA Forest Service FIA DataMart, similar to rFIA's getFIA() function in R.
+
+Downloads CSV files from FIA DataMart and converts them to DuckDB format
+for use with pyFIA.
+
+Examples
+--------
+>>> from pyfia import download
+>>>
+>>> # Download Georgia data (returns path to DuckDB database)
+>>> db_path = download("GA")
+>>>
+>>> # Download multiple states (merged into single database)
+>>> db_path = download(["GA", "FL", "SC"])
+>>>
+>>> # Download to specific directory
+>>> db_path = download("GA", dir="./data")
+>>>
+>>> # Download only common tables (default)
+>>> db_path = download("GA", common=True)
+
+References
+----------
+- FIA DataMart: https://apps.fs.usda.gov/fia/datamart/datamart.html
+- rFIA Package: https://doserlab.com/files/rfia/
+
+
+## Functions
+
+### `download` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L264" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+download(states: str | list[str], dir: str | Path | None = None, common: bool = True, tables: list[str] | None = None, force: bool = False, show_progress: bool = True, use_cache: bool = True) -> Path
+```
+
+
+Download FIA data from the FIA DataMart.
+
+This function downloads FIA data for one or more states from the USDA
+Forest Service FIA DataMart, similar to rFIA's getFIA() function.
+Data is automatically converted to DuckDB format for use with pyFIA.
+
+**Args:**
+- `states`: State abbreviations (e.g., 'GA', 'NC').
+Supports multiple states\: ['GA', 'FL', 'SC']
+- `dir`: Directory to save downloaded data. Defaults to ~/.pyfia/data/
+- `common`: If True, download only tables required for pyFIA functions.
+If False, download all available tables.
+- `tables`: Specific tables to download. Overrides `common` parameter.
+- `force`: If True, re-download even if files exist locally.
+- `show_progress`: Show download progress bars.
+- `use_cache`: Use cached downloads if available.
+
+**Returns:**
+- Path to the DuckDB database file.
+
+
+**Examples:**
+
+>>> from pyfia import download
+>>>
+>>> # Download Georgia data
+>>> db_path = download("GA")
+>>>
+>>> # Download multiple states merged into one database
+>>> db_path = download(["GA", "FL", "SC"])
+>>>
+>>> # Download only specific tables
+>>> db_path = download("GA", tables=["PLOT", "TREE", "COND"])
+>>>
+>>> # Use with pyFIA immediately
+>>> from pyfia import FIA, area
+>>> with FIA(download("GA")) as db:
+...     db.clip_most_recent()
+...     result = area(db)
+
+
+### `clear_cache` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L672" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+clear_cache(older_than_days: int | None = None, state: str | None = None, delete_files: bool = False) -> int
+```
+
+
+Clear the download cache.
+
+**Args:**
+- `older_than_days`: Only clear entries older than this many days.
+- `state`: Only clear entries for this state.
+- `delete_files`: If True, also delete the cached files from disk.
+
+**Returns:**
+- Number of cache entries cleared.
+
+
+### `cache_info` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L706" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+cache_info() -> dict
+```
+
+
+Get information about the download cache.
+
+**Returns:**
+- Cache statistics including size, file count, etc.
+

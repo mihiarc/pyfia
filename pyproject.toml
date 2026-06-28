@@ -82,15 +82,13 @@ dev = [
     "types-requests>=2.32.0",
     "hypothesis>=6.130.0",
     "hypothesis[numpy]>=6.130.0",
-    "mkdocs>=1.6.0",
-    "mkdocs-material>=9.5.0",
     "pre-commit>=3.6.0",
 ]
 all = ["pyfia[spatial,pandas,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/mihiarc/pyfia"
-Documentation = "https://mihiarc.github.io/pyfia/"
+Documentation = "https://pyfia.mintlify.app"
 Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 Changelog = "https://github.com/mihiarc/pyfia/blob/main/CHANGELOG.md"

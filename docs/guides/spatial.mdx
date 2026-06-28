@@ -1,0 +1,92 @@
+---
+title: Spatial filtering
+description: "Filter and group FIA estimates by polygon boundaries — watersheds, management units, or administrative regions."
+---
+
+pyFIA can clip plots to a polygon boundary and join polygon attributes to plots, so you can estimate over custom regions like watersheds, management units, or counties.
+
+| Method | Purpose |
+|--------|---------|
+| `clip_by_polygon()` | Restrict plots to a polygon boundary |
+| `intersect_polygons()` | Join polygon attributes to plots for use in `grp_by` |
+
+Both accept any GDAL-supported format — Shapefile (`.shp`), GeoJSON (`.geojson`), GeoPackage (`.gpkg`), or GeoParquet (`.parquet`).
+
+## Clipping to a region
+
+```python
+from pyfia import FIA, tpa
+
+with FIA("southeast.duckdb") as db:
+    db.clip_by_state(37)                       # North Carolina
+    db.clip_most_recent(eval_type="VOL")
+
+    db.clip_by_polygon("my_region.geojson")    # restrict to the polygon
+
+    result = tpa(db, tree_type="live")         # estimates use only plots inside
+```
+
+Under the hood pyFIA loads the DuckDB spatial extension, runs a point-in-polygon test on plot coordinates, and applies the resulting plot filter when loading data.
+
+## Grouping by polygon attributes
+
+Use `intersect_polygons()` to attach polygon attributes, then group by them:
+
+```python
+from pyfia import FIA, tpa
+
+with FIA("southeast.duckdb") as db:
+    db.clip_by_state(37)
+    db.clip_most_recent(eval_type="VOL")
+
+    db.intersect_polygons("counties.shp", attributes=["NAME", "FIPS"])
+
+    result = tpa(db, grp_by=["NAME"], tree_type="live")
+```
+
+| NAME | TPA | BAA | N_PLOTS |
+|------|-----|-----|---------|
+| Wake | 523.4 | 89.2 | 45 |
+| Durham | 612.1 | 102.3 | 38 |
+| Orange | 487.9 | 78.6 | 29 |
+
+## Combining both
+
+Clip to a study area *and* group within it:
+
+```python
+with FIA("southeast.duckdb") as db:
+    db.clip_by_state(37)
+    db.clip_most_recent(eval_type="VOL")
+
+    db.clip_by_polygon("study_area.geojson")
+    db.intersect_polygons("management_units.shp", attributes=["UNIT_NAME"])
+
+    result = tpa(db, grp_by=["UNIT_NAME"], tree_type="live")
+```
+
+## Things to know
+
+<Warning>
+  **FIA public plot coordinates are fuzzed up to ~1 mile** for landowner privacy.
+  Spatial precision below ~1 mile is not meaningful, and small polygons may capture
+  few or no plots.
+</Warning>
+
+- Plots outside all polygons get `NULL` attribute values. They still contribute to non-grouped estimates, but `grp_by` excludes `NULL` groups.
+- The first spatial query loads the DuckDB spatial extension; subsequent queries are faster.
+
+## Method signatures
+
+```python
+db.clip_by_polygon(polygon: str | Path) -> FIA
+db.intersect_polygons(polygon: str | Path, attributes: list[str]) -> FIA
+```
+
+Both return `self`, so they chain.
+
+## See also
+
+- [Domain filtering](/guides/filtering) — non-spatial filtering
+- [Grouping results](/guides/grouping) — grouping by FIA attributes
+- [FIA Database API](/api/pyfia-core-fia) — full `FIA` class reference

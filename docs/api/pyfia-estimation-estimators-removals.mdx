@@ -1,0 +1,177 @@
+---
+title: removals
+sidebarTitle: removals
+---
+
+# `pyfia.estimation.estimators.removals`
+
+
+
+Removals estimation for FIA data.
+
+Simple implementation for calculating average annual removals of merchantable
+bole wood volume of growing-stock trees.
+
+
+## Functions
+
+### `removals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L196" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+removals(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, size_class_type: str = 'standard', land_type: str = 'forest', tree_type: str = 'gs', measure: str = 'volume', tree_domain: str | None = None, area_domain: str | None = None, totals: bool = True, variance: bool = False, most_recent: bool = False, remeasure_period: float = 5.0) -> pl.DataFrame
+```
+
+
+Estimate average annual removals from FIA data.
+
+Calculates average annual removals of merchantable bole wood volume of
+growing-stock trees (at least 5 inches d.b.h.) on forest land.
+
+**Args:**
+- `db`: Database connection or path
+- `grp_by`: Columns to group by (e.g., "STATECD", "FORTYPCD")
+- `by_species`: Group by species code
+- `by_size_class`: Group by diameter size classes
+- `size_class_type`: Type of size class grouping to use (only applies when by_size_class=True)\:
+- "standard"\: FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
+- "descriptive"\: Text labels (Saplings, Small, Medium, Large)
+- "market"\: Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
+- `land_type`: Land type\: "forest", "timber", or "all"
+- `tree_type`: Tree type\: "gs" (growing stock), "all"
+- `measure`: What to measure\: "volume", "biomass", or "count"
+- `tree_domain`: SQL-like filter for trees
+- `area_domain`: SQL-like filter for area
+- `totals`: Include population totals
+- `variance`: Return variance instead of SE
+- `most_recent`: Use most recent evaluation
+- `remeasure_period`: Remeasurement period in years for annualization
+
+**Returns:**
+- Removals estimates with columns:
+- REMOVALS_PER_ACRE: Annual removals per acre
+- REMOVALS_TOTAL: Total annual removals
+- REMOVALS_PER_ACRE_SE: Standard error of per-acre estimate
+- REMOVALS_TOTAL_SE: Standard error of total estimate
+- Additional grouping columns if specified
+
+
+**Examples:**
+
+>>> # Basic volume removals on forestland
+>>> results = removals(db, measure="volume")
+>>> # Removals by species (tree count)
+>>> results = removals(db, by_species=True, measure="count")
+>>> # Biomass removals by forest type
+>>> results = removals(
+...     db,
+...     grp_by="FORTYPCD",
+...     measure="biomass"
+... )
+>>> # Removals on timberland only
+>>> results = removals(
+...     db,
+...     land_type="timber",
+...     area_domain="SITECLCD >= 225"  # Productive sites
+... )
+
+
+## Classes
+
+### `RemovalsEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L20" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Removals estimator for FIA data.
+
+Estimates average annual removals of merchantable bole wood volume of
+growing-stock trees (at least 5 inches d.b.h.) on forest land.
+
+
+**Methods:**
+
+#### `component_type` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L29" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+component_type(self) -> Literal['growth', 'mortality', 'removals']
+```
+
+Return 'removals' as the GRM component type.
+
+
+#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L33" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_tree_columns(self) -> list[str]
+```
+
+Required tree columns for removals estimation.
+
+
+#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L43" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+load_data(self) -> pl.LazyFrame | None
+```
+
+Load GRM data for removals estimation.
+
+
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L48" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Apply removals-specific filters.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L53" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate removal values.
+
+EVALIDator methodology: TPAREMV_UNADJ * VOLCFNET
+TPAREMV_UNADJ is already annualized (trees removed per acre per year).
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L90" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate removals with two-stage aggregation.
+
+**Returns:**
+- Bundle containing results, plot_tree_data, and group_cols for
+explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L130" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for removals estimates using ratio-of-means formula.
+
+Implements Bechtold & Patterson (2005) stratified variance calculation.
+
+**Args:**
+- `agg_result`: Bundle containing results, plot_tree_data, and group_cols from
+aggregate_results().
+
+**Returns:**
+- Results with variance columns added.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/removals.py#L171" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format removals estimation output.
+

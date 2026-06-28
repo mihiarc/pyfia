@@ -1,0 +1,80 @@
+---
+title: Basic tree counts
+description: "EVALIDator-style tree enumeration with diameter-based adjustment factors and population expansion."
+---
+
+Tree-counting queries that demonstrate the core EVALIDator pattern: `TPA_UNADJ` × diameter-based adjustment factor × `EXPNS`, filtered to live trees on forest conditions.
+
+## Oregon — total live trees
+
+<Info>**EVALID:** 412101 (Oregon 2021) · **Result:** 10,481,113,490 live trees (357.8 trees/acre) on 29,292,380 forest acres · [source](https://github.com/mihiarc/pyfia/blob/main/reference/queries/basic_tree/oregon_total_live_trees.sql)</Info>
+
+The canonical template: it counts every live tree on forest land, applying the right adjustment factor for each tree's diameter and expanding to the population.
+
+<Accordion title="View SQL">
+
+```sql
+SELECT
+    SUM(
+        TREE.TPA_UNADJ *
+        CASE
+            WHEN TREE.DIA IS NULL THEN POP_STRATUM.ADJ_FACTOR_SUBP
+            WHEN TREE.DIA < 5.0 THEN POP_STRATUM.ADJ_FACTOR_MICR
+            WHEN TREE.DIA < COALESCE(CAST(PLOT.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN POP_STRATUM.ADJ_FACTOR_SUBP
+            ELSE POP_STRATUM.ADJ_FACTOR_MACR
+        END * POP_STRATUM.EXPNS
+    ) AS total_live_trees
+FROM POP_STRATUM
+JOIN POP_PLOT_STRATUM_ASSGN ON (POP_PLOT_STRATUM_ASSGN.STRATUM_CN = POP_STRATUM.CN)
+JOIN PLOT ON (POP_PLOT_STRATUM_ASSGN.PLT_CN = PLOT.CN)
+JOIN COND ON (COND.PLT_CN = PLOT.CN)
+JOIN TREE ON (TREE.PLT_CN = COND.PLT_CN AND TREE.CONDID = COND.CONDID)
+WHERE
+    TREE.STATUSCD = 1            -- Live trees
+    AND COND.COND_STATUS_CD = 1  -- Forest conditions
+    AND POP_STRATUM.EVALID = 412101;
+```
+
+</Accordion>
+
+## North Carolina — live trees by species
+
+<Info>**EVALID:** 372301 (North Carolina 2023) · **Result:** 13,541,944,859 trees across 129 species (729.1 trees/acre) · [source](https://github.com/mihiarc/pyfia/blob/main/reference/queries/basic_tree/north_carolina_trees_by_species.sql)</Info>
+
+The same pattern, grouped by species with common/scientific names joined from `REF_SPECIES`.
+
+<Accordion title="View SQL">
+
+```sql
+SELECT
+    t.SPCD,
+    rs.COMMON_NAME,
+    rs.SCIENTIFIC_NAME,
+    SUM(
+        t.TPA_UNADJ *
+        CASE
+            WHEN t.DIA IS NULL THEN ps.ADJ_FACTOR_SUBP
+            WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
+            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
+            ELSE ps.ADJ_FACTOR_MACR
+        END * ps.EXPNS
+    ) AS total_trees_expanded
+FROM POP_STRATUM ps
+JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
+JOIN PLOT p ON ppsa.PLT_CN = p.CN
+JOIN COND c ON c.PLT_CN = p.CN
+JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
+LEFT JOIN REF_SPECIES rs ON t.SPCD = rs.SPCD
+WHERE
+    t.STATUSCD = 1
+    AND c.COND_STATUS_CD = 1
+    AND ps.rscd = 33            -- North Carolina
+    AND ps.evalid = 372301
+GROUP BY t.SPCD, rs.COMMON_NAME, rs.SCIENTIFIC_NAME
+ORDER BY total_trees_expanded DESC
+LIMIT 10;
+```
+
+</Accordion>
+
+<Tip>The Python equivalent is [`tpa()`](/api/pyfia-estimation-estimators-tpa) with `by_species=True`.</Tip>

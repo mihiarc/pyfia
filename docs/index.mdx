@@ -1,0 +1,81 @@
+---
+title: pyFIA
+description: "High-performance Python for USDA Forest Inventory and Analysis (FIA) data — statistically valid estimates, 10-100x faster than EVALIDator."
+---
+
+**pyFIA** turns the USDA Forest Service's national forest inventory into a few lines of Python. Download a state, pick an estimator, and get design-based estimates — with proper variance — that match the official [EVALIDator](https://apps.fs.usda.gov/Evalidator/evalidator.jsp) tool.
+
+```python
+from pyfia import download, FIA, area
+
+db_path = download("RI")          # pull Rhode Island straight from the FIA DataMart
+
+with FIA(db_path) as db:
+    db.clip_most_recent()         # use one complete, valid evaluation
+    print(area(db, land_type="forest"))   # forest area, with SE and a 95% CI
+```
+
+## Start here
+
+<CardGroup cols={2}>
+  <Card title="Getting started" icon="rocket" href="/getting-started">
+    Install pyFIA and run your first estimate end-to-end in about five minutes.
+  </Card>
+  <Card title="How-to guides" icon="list-check" href="/guides/downloading">
+    Task-focused recipes: downloading data, filtering, grouping, and spatial analysis.
+  </Card>
+  <Card title="Concepts" icon="book-open" href="/concepts/fia-methodology">
+    How FIA sampling, the EVALID system, and design-based variance actually work.
+  </Card>
+  <Card title="API reference" icon="code" href="/api/pyfia-estimation-estimators-volume">
+    Every public function and class, generated from the source docstrings.
+  </Card>
+</CardGroup>
+
+## Why pyFIA
+
+<CardGroup cols={2}>
+  <Card title="Statistically valid" icon="square-root-variable">
+    Design-based estimation following Bechtold &amp; Patterson (2005), with standard errors and confidence intervals on every estimate.
+  </Card>
+  <Card title="Fast" icon="bolt">
+    Built on [Polars](https://pola.rs/) and [DuckDB](https://duckdb.org/) for 10-100x faster analysis than legacy tooling.
+  </Card>
+  <Card title="EVALIDator-validated" icon="circle-check">
+    Results checked against the official USFS estimates — typically within 1-3% on standard errors.
+  </Card>
+  <Card title="Simple API" icon="feather">
+    Direct functions — `volume(db)`, `mortality(db)`, `area(db)` — not factories and builders.
+  </Card>
+</CardGroup>
+
+## Estimation functions
+
+| Function | Estimates |
+|----------|-----------|
+| [`area()`](/api/pyfia-estimation-estimators-area) | Forest area by land type and category |
+| [`area_change()`](/api/pyfia-estimation-estimators-area_change) | Annual change in forest area |
+| [`volume()`](/api/pyfia-estimation-estimators-volume) | Standing tree volume |
+| [`tpa()`](/api/pyfia-estimation-estimators-tpa) | Trees per acre and basal area |
+| [`biomass()`](/api/pyfia-estimation-estimators-biomass) | Tree biomass and carbon |
+| [`site_index()`](/api/pyfia-estimation-estimators-site_index) | Area-weighted mean site index |
+| [`mortality()`](/api/pyfia-estimation-estimators-mortality) | Annual tree mortality |
+| [`growth()`](/api/pyfia-estimation-estimators-growth) | Annual tree growth |
+| [`removals()`](/api/pyfia-estimation-estimators-removals) | Timber removals |
+| [`tree_metrics()`](/api/pyfia-estimation-estimators-tree_metrics) | TPA-weighted statistics (QMD, mean height) |
+| [`panel()`](/api/pyfia-estimation-estimators-panel) | Remeasurement panels for change/harvest analysis |
+
+## Coming from rFIA?
+
+pyFIA brings the ergonomics of R's [rFIA](https://rfia.netlify.app/) to Python:
+
+| Task | rFIA (R) | pyFIA (Python) |
+|------|----------|----------------|
+| Download a state | `getFIA(states = 'RI')` | `download("RI")` |
+| Multiple states | `getFIA(states = c('RI','CT'))` | `download(["RI", "CT"])` |
+| Estimate area | `area(fia)` | `area(db)` |
+| Estimate volume | `volume(fia)` | `volume(db)` |
+
+<Note>
+  pyFIA is released under the MIT License and built by [Chris Mihiar](https://github.com/mihiarc). Found a bug or have a question? [Open an issue](https://github.com/mihiarc/pyfia/issues).
+</Note>

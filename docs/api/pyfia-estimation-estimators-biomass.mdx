@@ -1,0 +1,297 @@
+---
+title: biomass
+sidebarTitle: biomass
+---
+
+# `pyfia.estimation.estimators.biomass`
+
+
+
+Biomass estimation for FIA data.
+
+Simple implementation for calculating tree biomass and carbon
+without unnecessary abstractions.
+
+
+## Functions
+
+### `biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L283" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+biomass(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, land_type: str = 'forest', tree_type: str = 'live', component: str = 'AG', tree_domain: str | None = None, area_domain: str | None = None, plot_domain: str | None = None, totals: bool = True, variance: bool = False, most_recent: bool = False) -> pl.DataFrame
+```
+
+
+Estimate tree biomass and carbon from FIA data.
+
+Calculates dry weight biomass (in tons) and carbon content using FIA's
+standard biomass equations and expansion factors. Implements two-stage
+aggregation following FIA methodology for statistically valid per-acre
+and total estimates.
+
+**Args:**
+- `db`: Database connection or path to FIA database. Can be either a path
+string to a DuckDB/SQLite file or an existing FIA connection object.
+- `grp_by`: Column name(s) to group results by. Can be any column from the
+FIA tables used in the estimation (PLOT, COND, TREE). Common
+grouping columns include\:
+
+- 'FORTYPCD'\: Forest type code
+- 'OWNGRPCD'\: Ownership group (10=National Forest, 20=Other Federal,
+  30=State/Local, 40=Private)
+- 'STATECD'\: State FIPS code
+- 'COUNTYCD'\: County code
+- 'UNITCD'\: FIA survey unit
+- 'INVYR'\: Inventory year
+- 'STDAGE'\: Stand age class
+- 'SITECLCD'\: Site productivity class
+- 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3'\: Disturbance codes (from COND)
+- 'BALIVE'\: Basal area of live trees (from COND)
+
+For complete column descriptions, see USDA FIA Database User Guide.
+- `by_species`: If True, group results by species code (SPCD). This is a convenience
+parameter equivalent to adding 'SPCD' to grp_by.
+- `by_size_class`: If True, group results by diameter size classes. Size classes are
+defined as\: 1.0-4.9", 5.0-9.9", 10.0-19.9", 20.0-29.9", 30.0+".
+- `land_type`: Land type to include in estimation\:
+
+- 'forest'\: All forestland (land at least 10% stocked with forest
+  trees of any size, or formerly having such tree cover)
+- 'timber'\: Productive timberland only (unreserved forestland capable
+  of producing 20 cubic feet per acre per year)
+- 'all'\: All land conditions including non-forest
+- `tree_type`: Tree type to include\:
+
+- 'live'\: All live trees (STATUSCD == 1)
+- 'dead'\: Standing dead trees (STATUSCD == 2)
+- 'gs'\: Growing stock trees (live, merchantable, STATUSCD == 1 with
+  specific quality requirements)
+- 'all'\: All trees regardless of status
+- `component`: Biomass component to estimate. Valid options include\:
+
+- 'AG'\: Aboveground biomass (stem, bark, branches, foliage)
+- 'BG'\: Belowground biomass (coarse roots)
+- 'TOTAL'\: Total biomass (AG + BG)
+- 'BOLE'\: Main stem wood and bark
+- 'BRANCH'\: Live and dead branches
+- 'FOLIAGE'\: Leaves/needles
+- 'ROOTS'\: Coarse roots (same as BG)
+- 'STUMP'\: Stump biomass
+- 'SAPLING'\: Sapling biomass
+- 'TOP'\: Top and branches above merchantable height
+
+Note\: Not all components may be available for all species or regions.
+Check TREE table for available DRYBIO_* columns.
+- `tree_domain`: SQL-like filter expression for tree-level filtering. Applied to
+TREE table. Example\: "DIA >= 10.0 AND SPCD == 131".
+- `area_domain`: SQL-like filter expression for area/condition-level filtering.
+Applied to COND table. Example\: "OWNGRPCD == 40 AND FORTYPCD == 161".
+- `totals`: If True, include population-level total estimates in addition to
+per-acre values. Totals are expanded using FIA expansion factors.
+- `variance`: If True, calculate and include variance and standard error estimates.
+Note\: Currently uses simplified variance calculation (10% of estimate).
+- `most_recent`: If True, automatically filter to the most recent evaluation for
+each state in the database before estimation.
+
+**Returns:**
+- Biomass and carbon estimates with the following columns:
+
+- **BIO_ACRE** : float
+    Biomass per acre in tons (dry weight)
+- **BIO_TOTAL** : float (if totals=True)
+    Total biomass in tons expanded to population level
+- **CARB_ACRE** : float
+    Carbon per acre in tons (47% of biomass)
+- **CARB_TOTAL** : float (if totals=True)
+    Total carbon in tons expanded to population level
+- **BIO_ACRE_SE** : float (if variance=True)
+    Standard error of per-acre biomass estimate
+- **BIO_TOTAL_SE** : float (if variance=True and totals=True)
+    Standard error of total biomass estimate
+- **CARB_ACRE_SE** : float (if variance=True)
+    Standard error of per-acre carbon estimate
+- **CARB_TOTAL_SE** : float (if variance=True and totals=True)
+    Standard error of total carbon estimate
+- **AREA_TOTAL** : float
+    Total area (acres) represented by the estimation
+- **N_PLOTS** : int
+    Number of FIA plots included in the estimation
+- **N_TREES** : int
+    Number of individual tree records
+- **YEAR** : int
+    Evaluation reference year (from EVALID). This represents the year
+    of the complete statistical estimate, not individual plot measurement
+    years (INVYR) which vary due to FIA's rotating panel design
+- **[grouping columns]** : various
+    Any columns specified in grp_by or from by_species
+
+
+**Examples:**
+
+Basic aboveground biomass on forestland:
+>>> results = biomass(db, component="AG", land_type="forest")
+>>> if not results.is_empty():
+...     print(f"Aboveground biomass: {results['BIO_ACRE'][0]:.1f} tons/acre")
+...     print(f"Carbon storage: {results['CARB_ACRE'][0]:.1f} tons/acre")
+... else:
+...     print("No biomass data available")
+Total biomass (above + below ground) by species:
+>>> results = biomass(db, by_species=True, component="TOTAL")
+>>> # Sort by biomass to find dominant species
+>>> if not results.is_empty():
+...     top_species = results.sort(by='BIO_ACRE', descending=True).head(5)
+...     print("Top 5 species by biomass per acre:")
+...     for row in top_species.iter_rows(named=True):
+...         print(f"  SPCD {row['SPCD']}: {row['BIO_ACRE']:.1f} tons/acre")
+Biomass by ownership on timberland:
+>>> results = biomass(
+...     db,
+...     grp_by="OWNGRPCD",
+...     land_type="timber",
+...     component="AG",
+...     tree_type="gs",
+...     variance=True
+... )
+>>> # Display with standard errors
+>>> for row in results.iter_rows(named=True):
+...     ownership = {10: "National Forest", 20: "Other Federal",
+...                  30: "State/Local", 40: "Private"}
+...     name = ownership.get(row['OWNGRPCD'], f"Code {row['OWNGRPCD']}")
+...     print(f"{name}: {row['BIO_ACRE']:.1f} ± {row['BIO_ACRE_SE']:.1f} tons/acre")
+Large tree biomass by forest type:
+>>> results = biomass(
+...     db,
+...     grp_by="FORTYPCD",
+...     tree_domain="DIA >= 20.0",
+...     component="AG",
+...     totals=True
+... )
+>>> # Show both per-acre and total biomass
+>>> for row in results.iter_rows(named=True):
+...     print(f"Forest Type {row['FORTYPCD']}:")
+...     print(f"  Per acre: {row['BIO_ACRE']:.1f} tons")
+...     print(f"  Total: {row['BIO_TOTAL']/1e6:.2f} million tons")
+Carbon storage by multiple grouping variables:
+>>> results = biomass(
+...     db,
+...     grp_by=["STATECD", "OWNGRPCD"],
+...     component="TOTAL",
+...     most_recent=True
+... )
+>>> # Calculate total carbon by state
+>>> state_carbon = results.group_by("STATECD").agg([
+...     pl.col("CARB_TOTAL").sum()
+... ])
+Standing dead tree biomass:
+>>> results = biomass(
+...     db,
+...     tree_type="dead",
+...     component="AG",
+...     by_size_class=True
+... )
+>>> print("Dead tree biomass by size class:")
+>>> for row in results.iter_rows(named=True):
+...     print(f"  {row['SIZE_CLASS']}: {row['BIO_ACRE']:.1f} tons/acre")
+
+
+## Classes
+
+### `BiomassEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L26" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Biomass estimator for FIA data.
+
+Estimates tree biomass (dry weight in tons) and carbon content.
+
+
+**Methods:**
+
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_required_tables(self) -> list[str]
+```
+
+Biomass requires tree, condition, and stratification tables.
+
+
+#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L41" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_tree_columns(self) -> list[str]
+```
+
+Required tree columns for biomass estimation.
+
+Uses centralized column resolution from columns.py to reduce duplication.
+Biomass estimation always needs DRYBIO_AG and DRYBIO_BG, plus any
+component-specific columns.
+
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L64" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+Required condition columns.
+
+Uses centralized column resolution from columns.py to reduce duplication.
+Dynamically includes timber land columns when land_type='timber' and
+adds grouping columns as needed.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L77" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate biomass per acre.
+
+Biomass per acre = (DRYBIO * TPA_UNADJ) / 2000
+Carbon = Biomass * 0.47
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L121" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate biomass with two-stage aggregation for correct per-acre estimates.
+
+CRITICAL FIX: This method implements two-stage aggregation following FIA
+methodology. The previous single-stage approach caused ~20x underestimation
+by having each tree contribute its condition proportion to the denominator.
+
+Stage 1: Aggregate trees to plot-condition level
+Stage 2: Apply expansion factors and calculate ratio-of-means
+
+**Returns:**
+- Bundle containing results, plot_tree_data, and group_cols for
+explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L216" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for biomass estimates using domain total variance formula.
+
+Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+
+This matches EVALIDator's variance calculation for tree-based estimates.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L251" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format biomass estimation output.
+

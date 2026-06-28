@@ -1,0 +1,82 @@
+---
+title: Understanding variance
+description: "How pyFIA computes standard errors using FIA's stratified, design-based variance — and how it's validated against EVALIDator."
+---
+
+Every pyFIA estimate comes with a measure of uncertainty. This page explains how that standard error is calculated, why FIA's formula looks different from a textbook one, and how closely pyFIA matches the official EVALIDator tool.
+
+## EXPNS is not a survey weight
+
+The key to FIA variance is the expansion factor **EXPNS**:
+
+```
+EXPNS = total acres in stratum / number of plots in stratum
+```
+
+Unlike a standard survey weight, EXPNS already contains the inverse of the sample size (`1/n_h`). That single fact is why FIA's variance formula differs from the stratified-sampling formulas in most textbooks.
+
+## The domain-total variance formula
+
+For tree-based estimates (volume, biomass, tree count, growth, mortality, removals), pyFIA uses the stratified **domain total** variance:
+
+$$
+V(\hat{Y}) = \sum_h w_h^2 \, s^2_{yh} \, n_h
+$$
+
+where for each stratum $h$:
+
+- $w_h$ = `EXPNS` (acres per plot)
+- $s^2_{yh}$ = sample variance of the plot-level values (with `ddof=1`)
+- $n_h$ = number of plots
+
+<Note>
+  Multiplying by $n_h$ looks backwards compared to a textbook mean-variance
+  formula that divides by it. It's correct here because `EXPNS` already carries
+  $1/n_h$, and we're estimating a **total**, not a mean. The per-acre standard
+  error is then derived as `SE_total / total_area`.
+</Note>
+
+## Two principles that keep it unbiased
+
+1. **Include every plot, with zeros.** Plots without any trees in your domain still contribute — as zeros — to the stratum variance. Dropping them biases the result. pyFIA joins all evaluation plots and fills missing values with zero before computing variance.
+
+2. **Single-plot strata contribute no variance.** Variance is undefined for $n_h = 1$, so those strata are set to zero variance rather than dropped.
+
+## Reading the output
+
+By default, estimators return standard-error columns (suffix `_SE`). Pass `variance=True` to get variances (suffix `_VAR`) instead:
+
+```python
+volume(db, totals=True)                  # ...VOLCFNET_TOTAL, VOLCFNET_TOTAL_SE
+volume(db, totals=True, variance=True)   # ...VOLCFNET_TOTAL, VOLCFNET_TOTAL_VAR
+```
+
+There are no separate confidence-interval columns — construct one from the estimate and its standard error (for a 95% interval, ±1.96 × SE).
+
+## Validation against EVALIDator
+
+[EVALIDator](https://apps.fs.usda.gov/Evalidator/evalidator.jsp) is the official USFS estimation tool and pyFIA's reference for correctness. Validated against Georgia (EVALID 132301 / 132303):
+
+| Estimator | pyFIA SE | EVALIDator SE | Difference |
+|-----------|----------|---------------|------------|
+| Forest area | 138,928 | 136,048 | 2.1% |
+| Volume (growing stock) | 545,617,192 | 549,272,904 | 0.67% |
+| Biomass (aboveground) | 14,204,093 | 14,256,973 | 0.37% |
+| TPA (live) | 204,196,873 | 199,352,867 | 2.4% |
+| Growth | 35,406,501 | 35,445,004 | 0.11% |
+| Mortality | 18,549,971 | 18,517,419 | 0.18% |
+| Removals | 58,202,325 | 58,906,897 | 1.2% |
+
+Standard errors typically land within 1-3% of EVALIDator. Differences come from rounding, finite-population corrections, and edge cases like single-plot strata.
+
+You can run this comparison yourself — see [`validate_pyfia_estimate()`](/api/pyfia-evalidator-validation).
+
+## A note on temporal methods
+
+FIA defines several temporal estimators. pyFIA implements **TI (Temporally Indifferent)** — using all available data in an evaluation — which is EVALIDator's default. Annual and moving-average methods (SMA, LMA, EMA) are not currently implemented.
+
+## References
+
+- **Bechtold, W.A. &amp; Patterson, P.L. (2005).** *The Enhanced FIA Program.* Gen. Tech. Rep. SRS-80, Chapter 4. [DOI: 10.2737/SRS-GTR-80](https://doi.org/10.2737/SRS-GTR-80)
+- **Westfall, J.A.; Patterson, P.L.; Coulston, J.W. (2011).** Post-stratified estimation: within-strata and total sample size recommendations. *Can. J. For. Res.* 41(5): 1130-1139.
+- **USDA Forest Service (2018).** [Population Estimation User Guide](https://research.fs.usda.gov/sites/default/files/2024-05/wo-nov2018_ug_population_estimation.pdf).

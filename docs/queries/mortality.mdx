@@ -1,0 +1,98 @@
+---
+title: Mortality
+description: "Growing-stock mortality from the GRM tables — by cause, by disturbance, and with stratified variance."
+---
+
+Mortality queries use the GRM (growth/removal/mortality) tables and a **GRM evaluation** (EVALID ending in `03`). Annual rates come from `TREE_GRM_COMPONENT` filtered to `COMPONENT LIKE 'MORTALITY%'`, with subplot-type adjustment factors.
+
+## Colorado — annual merchantable volume mortality
+
+<Info>**EVALID:** 82003 (Colorado 2020 GRM) · Annual mortality of merchantable bole wood volume of growing-stock trees on forest land · [source](https://github.com/mihiarc/pyfia/blob/main/reference/queries/mortality/colorado_mortality_merchantable_volume.sql)</Info>
+
+<Accordion title="View SQL">
+
+```sql
+SELECT
+    ps.evalid,
+    SUM(
+        tgc.SUBP_COMPONENT_GS_FOREST * t.VOLCFNET *
+        CASE
+            WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
+            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
+            ELSE ps.ADJ_FACTOR_MACR
+        END * ps.EXPNS
+    ) AS annual_mortality_cuft,
+    COUNT(DISTINCT p.CN) AS plot_count
+FROM POP_STRATUM ps
+JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
+JOIN PLOT p ON ppsa.PLT_CN = p.CN
+JOIN COND c ON c.PLT_CN = p.CN
+JOIN TREE_GRM_COMPONENT tgc ON tgc.PLT_CN = p.CN
+JOIN TREE_GRM_BEGIN t ON t.TRE_CN = tgc.TRE_CN
+WHERE
+    c.COND_STATUS_CD = 1
+    AND tgc.COMPONENT LIKE 'MORTALITY%'
+    AND t.VOLCFNET > 0
+    AND ps.rscd = 8                -- Colorado
+    AND ps.evalid = 82003
+GROUP BY ps.evalid;
+```
+
+</Accordion>
+
+## North Carolina — mortality rate (trees/acre/year)
+
+<Info>**EVALID:** 372303 (North Carolina 2023 GRM) · Average annual mortality rate in trees per acre on forest land · [source](https://github.com/mihiarc/pyfia/blob/main/reference/queries/mortality/north_carolina_mortality_trees_per_acre.sql)</Info>
+
+Divides expanded annual mortality (trees) by expanded forest area to get a per-acre rate.
+
+<Accordion title="View SQL">
+
+```sql
+SELECT
+    ps.evalid,
+    SUM(
+        tgc.SUBP_TPAMORT_UNADJ_AL_FOREST *
+        CASE
+            WHEN t.DIA < 5.0 THEN ps.ADJ_FACTOR_MICR
+            WHEN t.DIA < COALESCE(CAST(p.MACRO_BREAKPOINT_DIA AS DOUBLE), 9999.0) THEN ps.ADJ_FACTOR_SUBP
+            ELSE ps.ADJ_FACTOR_MACR
+        END * ps.EXPNS
+    ) / NULLIF(SUM(
+        c.CONDPROP_UNADJ *
+        CASE c.PROP_BASIS WHEN 'MACR' THEN ps.ADJ_FACTOR_MACR ELSE ps.ADJ_FACTOR_SUBP END * ps.EXPNS
+    ), 0) AS mortality_trees_per_acre_per_year
+FROM POP_STRATUM ps
+JOIN POP_PLOT_STRATUM_ASSGN ppsa ON ppsa.STRATUM_CN = ps.CN
+JOIN PLOT p ON ppsa.PLT_CN = p.CN
+JOIN COND c ON c.PLT_CN = p.CN
+JOIN TREE_GRM_COMPONENT tgc ON tgc.PLT_CN = p.CN
+JOIN TREE_GRM_BEGIN t ON t.TRE_CN = tgc.TRE_CN
+WHERE
+    c.COND_STATUS_CD = 1
+    AND tgc.COMPONENT LIKE 'MORTALITY%'
+    AND tgc.SUBP_TPAMORT_UNADJ_AL_FOREST > 0
+    AND ps.rscd = 33               -- North Carolina
+    AND ps.evalid = 372303
+GROUP BY ps.evalid;
+```
+
+</Accordion>
+
+## Georgia — mortality by cause (132303)
+
+These EVALIDator translations group growing-stock mortality (trees ≥5" DBH on timberland) by cause. They're long, multi-join queries with full plot-condition grouping for correct expansion — view the authoritative `.sql` so the statistics stay exact:
+
+<CardGroup cols={2}>
+  <Card title="By damage agent" icon="bug" href="https://github.com/mihiarc/pyfia/blob/main/reference/queries/mortality/georgia_growing_stock_mortality_by_agent.sql">
+    Tree-level cause of death (`AGENTCD`) bucketed into insect / disease / fire / animal / weather / …, by species.
+  </Card>
+  <Card title="By disturbance type" icon="cloud-bolt" href="https://github.com/mihiarc/pyfia/blob/main/reference/queries/mortality/georgia_growing_stock_mortality_by_disturbance.sql">
+    Condition-level disturbance (`DSTRBCD1`) — fire, wind, drought, … — by species.
+  </Card>
+  <Card title="With stratified variance" icon="square-root-variable" href="https://github.com/mihiarc/pyfia/blob/main/reference/queries/mortality/mortality_with_variance.sql">
+    The full FIA handbook variance estimator — stratified at the estimation-unit level, aggregated to evaluation-group totals with SE (~180 lines).
+  </Card>
+</CardGroup>
+
+<Tip>The Python equivalent is [`mortality()`](/api/pyfia-estimation-estimators-mortality) — pass `grp_by="AGENTCD"` or `"DSTRBCD1"`, and `variance=True` for standard errors.</Tip>

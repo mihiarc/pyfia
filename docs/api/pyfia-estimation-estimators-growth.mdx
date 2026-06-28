@@ -1,0 +1,174 @@
+---
+title: growth
+sidebarTitle: growth
+---
+
+# `pyfia.estimation.estimators.growth`
+
+
+
+Growth estimation for FIA data using GRM methodology.
+
+Implements FIA's Growth-Removal-Mortality methodology for calculating
+annual tree growth using TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and
+TREE_GRM_BEGIN tables following EVALIDator approach.
+
+
+## Functions
+
+### `growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L527" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+growth(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, size_class_type: str = 'standard', land_type: str = 'forest', tree_type: str = 'gs', measure: str = 'volume', tree_domain: str | None = None, area_domain: str | None = None, totals: bool = True, variance: bool = False, most_recent: bool = False) -> pl.DataFrame
+```
+
+
+Estimate annual tree growth from FIA data using GRM methodology.
+
+Calculates annual growth of tree volume, biomass, or tree count using
+FIA's Growth-Removal-Mortality (GRM) tables following EVALIDator
+methodology.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+- `grp_by`: Column name(s) to group results by.
+- `by_species`: If True, group results by species code (SPCD).
+- `by_size_class`: If True, group results by diameter size classes.
+- `size_class_type`: Type of size class grouping to use (only applies when by_size_class=True)\:
+- "standard"\: FIA numeric ranges (1.0-4.9, 5.0-9.9, etc.)
+- "descriptive"\: Text labels (Saplings, Small, Medium, Large)
+- "market"\: Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
+- `land_type`: Land type to include in estimation.
+- `tree_type`: Tree type to include.
+- `measure`: What to measure in the growth estimation.
+- `tree_domain`: SQL-like filter expression for tree-level filtering.
+- `area_domain`: SQL-like filter expression for area/condition-level filtering.
+- `totals`: If True, include population-level total estimates.
+- `variance`: If True, calculate and include variance and standard error estimates.
+- `most_recent`: If True, automatically filter to the most recent evaluation.
+
+**Returns:**
+- Growth estimates with columns:
+- GROWTH_ACRE: Annual growth per acre
+- GROWTH_TOTAL: Total annual growth (if totals=True)
+- GROWTH_ACRE_SE: Standard error of per-acre estimate (if variance=True)
+- Additional grouping columns if specified
+
+
+**Examples:**
+
+Basic volume growth on forestland:
+>>> results = growth(db, measure="volume", land_type="forest")
+Growth by species (tree count):
+>>> results = growth(db, by_species=True, measure="count")
+
+
+## Classes
+
+### `GrowthEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L25" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Growth estimator for FIA data using GRM methodology.
+
+Estimates annual tree growth in terms of volume, biomass, or trees per acre
+using the TREE_GRM_COMPONENT, TREE_GRM_MIDPT, and TREE_GRM_BEGIN tables.
+Follows EVALIDator methodology with component-based calculations.
+
+
+**Methods:**
+
+#### `component_type` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L35" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+component_type(self) -> Literal['growth', 'mortality', 'removals']
+```
+
+Return 'growth' as the GRM component type.
+
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L39" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+Required condition columns for growth estimation.
+
+
+#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L63" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+load_data(self) -> pl.LazyFrame | None
+```
+
+Load and join tables following EVALIDator SQL join sequence.
+
+Growth requires complex join pattern with BEGINEND cross-join.
+Cannot use the simple GRM loading pattern.
+
+
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L272" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Apply growth-specific filters.
+
+CRITICAL: Include ALL components for BEGINEND cross-join methodology.
+Do NOT filter by COND_STATUS_CD - GRM columns already handle land basis.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L307" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate growth values using BEGINEND ONEORTWO methodology.
+
+Implements EVALIDator's ONEORTWO logic:
+- ONEORTWO=2: Add ending volumes (positive contribution)
+- ONEORTWO=1: Subtract beginning volumes (negative contribution)
+Sum across ONEORTWO rows gives NET growth = ending - beginning
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L404" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate growth with two-stage aggregation.
+
+**Returns:**
+- Bundle containing results, plot_tree_data, and group_cols for
+explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L476" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for growth estimates using ratio-of-means formula.
+
+Implements Bechtold & Patterson (2005) stratified variance calculation.
+
+**Args:**
+- `agg_result`: Bundle containing results, plot_tree_data, and group_cols from
+aggregate_results().
+
+**Returns:**
+- Results with variance columns added.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L518" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format growth estimation output.
+

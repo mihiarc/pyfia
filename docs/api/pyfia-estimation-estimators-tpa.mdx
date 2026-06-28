@@ -1,0 +1,313 @@
+---
+title: tpa
+sidebarTitle: tpa
+---
+
+# `pyfia.estimation.estimators.tpa`
+
+
+
+Trees per acre (TPA) and basal area (BAA) estimation for FIA data.
+
+Simple implementation for calculating tree density and basal area
+without unnecessary abstractions.
+
+
+## Functions
+
+### `tpa` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L359" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+tpa(db: 'FIA', grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, land_type: str = 'forest', tree_type: str = 'live', tree_domain: str | None = None, area_domain: str | None = None, plot_domain: str | None = None, totals: bool = False, variance: bool = False) -> pl.DataFrame
+```
+
+
+Estimate trees per acre (TPA) and basal area per acre (BAA) from FIA data.
+
+Calculates tree density and basal area estimates using FIA's design-based
+estimation methods with proper expansion factors and stratification. Automatically
+handles EVALID selection to prevent overcounting from multiple evaluations.
+
+**Args:**
+- `db`: FIA database connection object. If EVALID is not set, the function
+automatically selects the most recent EXPVOL evaluation with a warning.
+- `grp_by`: Column name(s) to group results by. Can be any column from the
+TREE, PLOT, and COND tables. Common grouping columns include\:
+
+**Tree Attributes\:**
+- 'SPCD'\: Species code (see REF_SPECIES)
+- 'SPGRPCD'\: Species group code
+- 'DIA'\: Diameter at breast height (inches)
+- 'HT'\: Total tree height (feet)
+- 'CR'\: Compacted crown ratio (percent)
+- 'CCLCD'\: Crown class code (1=Open grown, 2=Dominant, 3=Codominant,
+  4=Intermediate, 5=Overtopped)
+- 'TREECLCD'\: Tree class code (2=Growing stock, 3=Rough cull, 4=Rotten cull)
+- 'STATUSCD'\: Tree status (1=Live, 2=Dead, 3=Removed)
+
+**Forest Characteristics\:**
+- 'FORTYPCD'\: Forest type code (see REF_FOREST_TYPE)
+- 'STDSZCD'\: Stand size class (1=Large diameter, 2=Medium diameter,
+  3=Small diameter, 4=Seedling/sapling, 5=Nonstocked)
+- 'STDAGE'\: Stand age in years
+- 'SITECLCD'\: Site productivity class (1=225+ cu ft/ac/yr,
+  2=165-224, 3=120-164, 4=85-119, 5=50-84, 6=20-49, 7=0-19)
+
+**Ownership and Location\:**
+- 'OWNGRPCD'\: Ownership group (10=National Forest, 20=Other Federal,
+  30=State/Local, 40=Private)
+- 'STATECD'\: State FIPS code
+- 'UNITCD'\: FIA survey unit code
+- 'COUNTYCD'\: County code
+- 'INVYR'\: Inventory year
+
+**Disturbance and Treatment\:**
+- 'DSTRBCD1', 'DSTRBCD2', 'DSTRBCD3'\: Disturbance codes
+- 'TRTCD1', 'TRTCD2', 'TRTCD3'\: Treatment codes
+
+For complete column descriptions, see USDA FIA Database User Guide.
+- `by_species`: If True, group results by species code (SPCD). This is a convenience
+parameter equivalent to adding 'SPCD' to grp_by.
+- `by_size_class`: If True, group results by diameter size classes. Size classes are
+defined as 2-inch DBH classes\: 0-1.9", 2-3.9", 4-5.9", etc.
+- `land_type`: Land type to include in estimation\:
+
+- 'forest'\: All forestland (COND_STATUS_CD = 1)
+- 'timber'\: Timberland only (unreserved, productive forestland with
+  SITECLCD in [1,2,3,4,5,6] and RESERVCD = 0)
+- 'all'\: All land types including non-forest
+- `tree_type`: Tree type to include in estimation\:
+
+- 'live'\: All live trees (STATUSCD = 1)
+- 'dead'\: Standing dead trees (STATUSCD = 2)
+- 'gs'\: Growing stock trees (live trees meeting merchantability standards,
+  typically TREECLCD = 2)
+- 'all'\: All trees regardless of status
+- `tree_domain`: SQL-like filter expression for tree-level attributes. Applied to
+the TREE table. Examples\:
+
+- "DIA >= 10.0"\: Trees 10 inches DBH and larger
+- "SPCD IN (131, 110)"\: Specific species (loblolly and Virginia pine)
+- "HT > 50 AND CR > 30"\: Tall trees with good crowns
+- "TREECLCD == 2"\: Growing stock trees only
+- `area_domain`: SQL-like filter expression for area/condition-level attributes.
+Applied to the COND table. Examples\:
+
+- "STDAGE > 50"\: Stands older than 50 years
+- "FORTYPCD IN (161, 162)"\: Specific forest types
+- "OWNGRPCD == 40"\: Private lands only
+- "PHYSCLCD == 31 AND STDSZCD == 1"\: Xeric sites with large trees
+- `totals`: If True, include population-level total estimates (TPA_TOTAL, BAA_TOTAL)
+in addition to per-acre values. Total estimates are expanded using
+stratification factors.
+- `variance`: If True, return variance instead of standard error. Standard error
+is calculated as the square root of variance.
+
+**Returns:**
+- Trees per acre and basal area estimates with the following columns:
+
+- **YEAR** : int
+    Representative inventory year
+- **[grouping columns]** : varies
+    Any columns specified in grp_by parameter
+- **TPA** : float
+    Trees per acre
+- **BAA** : float
+    Basal area per acre (square feet)
+- **TPA_SE** : float (if variance=False)
+    Standard error of TPA estimate
+- **BAA_SE** : float (if variance=False)
+    Standard error of BAA estimate
+- **TPA_VAR** : float (if variance=True)
+    Variance of TPA estimate
+- **BAA_VAR** : float (if variance=True)
+    Variance of BAA estimate
+- **TPA_TOTAL** : float (if totals=True)
+    Total trees expanded to population level
+- **BAA_TOTAL** : float (if totals=True)
+    Total basal area expanded to population level
+- **TPA_TOTAL_SE** : float (if totals=True and variance=False)
+    Standard error of total TPA
+- **BAA_TOTAL_SE** : float (if totals=True and variance=False)
+    Standard error of total BAA
+- **N_PLOTS** : int
+    Number of FIA plots in estimate
+- **N_TREES** : int
+    Number of individual tree records
+
+
+**Examples:**
+
+Basic trees per acre on forestland:
+>>> from pyfia import FIA, tpa
+>>> db = FIA("path/to/fia.duckdb")
+>>> db.clip_by_state(37)  # North Carolina
+>>> results = tpa(db, land_type="forest")  # Auto-selects EVALID
+>>> print(f"TPA: {results['TPA'][0]:.1f} trees/acre")
+>>> print(f"BAA: {results['BAA'][0]:.1f} sq ft/acre")
+TPA and BAA by species:
+>>> results = tpa(db, by_species=True)
+>>> # Top 5 species by trees per acre
+>>> top_species = results.sort(by='TPA', descending=True).head(5)
+Large trees only (≥10 inches DBH):
+>>> results = tpa(
+...     db,
+...     tree_domain="DIA >= 10.0",
+...     land_type="forest"
+... )
+By size class on timberland:
+>>> results = tpa(
+...     db,
+...     by_size_class=True,
+...     land_type="timber",
+...     tree_type="live"
+... )
+>>> # Shows distribution across diameter classes
+Multiple grouping variables:
+>>> results = tpa(
+...     db,
+...     grp_by=["OWNGRPCD", "FORTYPCD"],
+...     land_type="forest",
+...     totals=True
+... )
+Growing stock trees by forest type:
+>>> results = tpa(
+...     db,
+...     grp_by="FORTYPCD",
+...     tree_type="gs",
+...     tree_domain="TREECLCD == 2"
+... )
+Standing dead trees by species:
+>>> results = tpa(
+...     db,
+...     by_species=True,
+...     tree_type="dead",
+...     tree_domain="DIA >= 5.0"
+... )
+Validation against FIA EVALIDator:
+>>> # Using Texas data (STATECD=48, EVALID=482300)
+>>> # Corrected two-stage aggregation produces:
+>>> # TPA: 23.8 trees/acre (matches EVALIDator)
+>>> # Previous incorrect aggregation would have produced:
+>>> # TPA: 619.3 trees/acre (26x higher - INCORRECT)
+>>> #
+>>> # This demonstrates the critical importance of proper
+>>> # condition-level aggregation before expansion
+
+
+## Classes
+
+### `TPAEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L30" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Trees per acre and basal area estimator for FIA data.
+
+Estimates tree density (TPA) and basal area per acre (BAA).
+
+
+**Methods:**
+
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L41" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_required_tables(self) -> list[str]
+```
+
+TPA requires tree, condition, and stratification tables.
+
+
+#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L45" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_tree_columns(self) -> list[str]
+```
+
+Required tree columns for TPA estimation.
+
+Uses centralized column resolution from columns.py to reduce duplication.
+TPA estimation needs only base tree columns (no estimator-specific columns
+like VOLCFNET or DRYBIO_AG).
+
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L57" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+Required condition columns.
+
+Uses centralized column resolution from columns.py to reduce duplication.
+Dynamically includes timber land columns when land_type='timber' and
+adds grouping columns as needed.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L70" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate TPA and BAA values.
+
+Trees per acre (TPA) and Basal Area per Acre (BAA) calculation:
+- TPA = TPA_UNADJ (direct from FIA field)
+- BAA = π × (DIA/24)² × TPA_UNADJ
+
+The BAA formula derivation:
+1. Basal area of one tree = π × radius²
+2. DIA is diameter at breast height in inches
+3. Convert to feet: DIA/12, then to radius: (DIA/12)/2 = DIA/24
+4. Basal area = π × (DIA/24)² square feet
+5. Multiply by TPA_UNADJ to get basal area per acre
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L109" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate TPA and BAA with proper FIA two-stage stratification.
+
+Implements FIA's two-stage aggregation methodology:
+Stage 1: Sum trees to plot-condition level
+Stage 2: Apply expansion factors and calculate ratio-of-means
+
+This follows the FIA EVALIDator pattern to ensure correct statistical estimates.
+
+**Returns:**
+- Bundle containing results, plot_tree_data, and group_cols for
+explicit variance calculation.
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L204" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance for TPA and BAA estimates using domain total variance formula.
+
+Uses the stratified domain total variance formula from Bechtold & Patterson (2005):
+V(Ŷ) = Σ_h w_h² × s²_yh × n_h
+
+This matches EVALIDator's variance calculation for tree-based estimates.
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L275" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format TPA estimation output with consistent column ordering.
+
+Follows FIA standard output format:
+1. YEAR (inventory year)
+2. Grouping columns (if any)
+3. Estimate columns (TPA, BAA)
+4. Uncertainty columns (SE or VAR)
+5. Total columns (if requested)
+6. Sample size columns (N_PLOTS, N_TREES)
+

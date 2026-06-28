@@ -1,0 +1,159 @@
+---
+title: Grouping results
+description: "Break estimates down by forest type, ownership, species, geography, and more — with readable names attached automatically."
+---
+
+Pass `grp_by` to any estimator to stratify the result by one or more FIA columns. When you group by common columns like forest type or ownership, pyFIA automatically adds descriptive name columns so the output is readable.
+
+## Basic grouping
+
+```python
+from pyfia import FIA, volume, area
+
+with FIA("RI.duckdb") as db:
+    db.clip_most_recent()
+
+    volume(db, grp_by="FORTYPCD")                 # by forest type
+    area(db, grp_by="OWNGRPCD")                   # by ownership
+    volume(db, grp_by=["FORTYPCD", "OWNGRPCD"])   # by both
+```
+
+## Auto-enhanced columns
+
+For common grouping codes, pyFIA adds a human-readable companion column automatically:
+
+| Grouping column | Auto-added column | Example values |
+|-----------------|-------------------|----------------|
+| `FORTYPCD` | `FOREST_TYPE_GROUP` | "Loblolly/Shortleaf Pine", "Oak/Hickory" |
+| `OWNGRPCD` | `OWNERSHIP_GROUP` | "Private", "Forest Service", "State and Local Government" |
+
+```python
+result = volume(db, grp_by="FORTYPCD", totals=True)
+# Output includes both FORTYPCD and FOREST_TYPE_GROUP
+```
+
+| FORTYPCD | FOREST_TYPE_GROUP | VOLCFNET_TOTAL |
+|----------|-------------------|----------------|
+| 161 | Loblolly/Shortleaf Pine | 15,913,000,000 |
+| 503 | Oak/Hickory | 8,592,600,000 |
+| 701 | Oak/Gum/Cypress | 2,145,000,000 |
+
+## Species and other names
+
+Species names require a database lookup and are **not** auto-enhanced. Add them after estimation with `join_species_names()`:
+
+```python
+from pyfia import volume, join_species_names
+
+result = volume(db, by_species=True)
+result = join_species_names(result, db)
+```
+
+| SPCD | COMMON_NAME | VOLCFNET_TOTAL |
+|------|-------------|----------------|
+| 131 | Loblolly pine | 8,234,000,000 |
+| 316 | Red maple | 1,456,000,000 |
+| 802 | White oak | 987,000,000 |
+
+The full set of reference-table helpers:
+
+```python
+from pyfia import (
+    join_species_names,
+    join_forest_type_names,
+    join_state_names,
+    join_multiple_references,
+)
+
+result = join_multiple_references(
+    result, db, species=True, forest_type=True, state=True
+)
+```
+
+## Convenience flags
+
+Some estimators expose flags for common groupings:
+
+```python
+volume(db, by_species=True)        # group by species code
+tpa(db, by_size_class=True)        # group by diameter size class
+```
+
+`by_size_class` is available for `tpa`, `volume`, `biomass`, `mortality`, `growth`, and `removals`, with three classification systems:
+
+```python
+# Standard FIA ranges (default): 1.0-4.9, 5.0-9.9, 10.0-19.9, 20.0-29.9, 30.0+
+mortality(db, by_size_class=True, size_class_type="standard")
+
+# Descriptive labels: Saplings, Small, Medium, Large
+mortality(db, by_size_class=True, size_class_type="descriptive")
+
+# Timber market categories (TimberMart-South style)
+removals(db, by_size_class=True, size_class_type="market")
+```
+
+<Note>
+  The `"market"` size classes use species-aware thresholds (pine vs. hardwood) that
+  align with timber pricing reports. Pre-merchantable trees (&lt; 5" DBH) require
+  `tree_type="live"`, since growing stock starts at ≥5" DBH.
+</Note>
+
+## Geographic and administrative groupings
+
+Group by columns from the `PLOT` table for regional analysis:
+
+```python
+volume(db, grp_by="COUNTYCD")                    # by county
+volume(db, grp_by=["STATECD", "COUNTYCD"])       # state + county
+mortality(db, grp_by=["STATECD", "UNITCD"])      # state + survey unit
+```
+
+| Column | Description |
+|--------|-------------|
+| `STATECD` | FIPS state code |
+| `COUNTYCD` | FIPS county code |
+| `UNITCD` | FIA survey unit code |
+| `INVYR` | Inventory year |
+| `CYCLE` / `SUBCYCLE` | Inventory cycle / subcycle |
+
+## Plot-condition level estimates
+
+Group by `PLT_CN` and `CONDID` to get one row per plot-condition — useful for linking pyFIA estimates to external plot-level models (e.g. harvest probability, growth models):
+
+```python
+from pyfia import FIA, biomass
+
+with FIA("RI.duckdb") as db:
+    db.clip_most_recent()
+    result = biomass(db, grp_by=["PLT_CN", "CONDID", "FORTYPCD"])
+```
+
+Each row is a single plot-condition's contribution to the population estimate, so you can join directly on `PLT_CN` + `CONDID` without writing raw SQL.
+
+## Mortality by cause
+
+For mortality, group by cause of death:
+
+```python
+mortality(db, grp_by="AGENTCD")    # tree-level cause (10=Insect, 30=Fire, ...)
+mortality(db, grp_by="DSTRBCD1")   # condition-level disturbance (52=Hurricane, ...)
+mortality(db, grp_by=["AGENTCD", "SPCD"], variance=True)
+```
+
+This supports timber casualty-loss analysis, where losses must be classified by cause.
+
+## Summary
+
+| Column | Auto-enhanced? | Manual helper |
+|--------|----------------|---------------|
+| `FORTYPCD` | Yes | `join_forest_type_names()` |
+| `OWNGRPCD` | Yes | — |
+| `SPCD` | No | `join_species_names()` |
+| `STATECD` | No | `join_state_names()` |
+| `COUNTYCD`, `UNITCD`, `INVYR` | No | — |
+| `AGENTCD`, `DSTRBCD1` | No | — (mortality only) |
+
+## See also
+
+- [Domain filtering](/guides/filtering) — define the population before grouping it
+- [Spatial filtering](/guides/spatial) — group by polygon attributes

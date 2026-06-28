@@ -1,0 +1,193 @@
+---
+title: site_index
+sidebarTitle: site_index
+---
+
+# `pyfia.estimation.estimators.site_index`
+
+
+
+Site index estimation for FIA data.
+
+Calculates area-weighted mean site index following Bechtold & Patterson (2005)
+methodology. Site index values represent expected dominant tree height (feet)
+at a specified base age, indicating site productivity.
+
+
+## Functions
+
+### `site_index` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L539" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+site_index(db: str | FIA, grp_by: str | list[str] | None = None, land_type: str = 'forest', area_domain: str | None = None, plot_domain: str | None = None, most_recent: bool = False, eval_type: str | None = None) -> pl.DataFrame
+```
+
+
+Estimate area-weighted mean site index from FIA data.
+
+Calculates area-weighted site index estimates using FIA's design-based
+estimation methods. Site index represents expected dominant tree height
+(in feet) at a specified base age, indicating site productivity.
+
+Results are always grouped by SIBASE (base age) because site index
+values are not comparable across different base ages.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+- `grp_by`: Column name(s) to group results by. Common grouping columns\:
+
+**Site Index Species\:**
+- 'SISP'\: Species code used for site index determination
+
+**Forest Characteristics\:**
+- 'FORTYPCD'\: Forest type code
+- 'STDSZCD'\: Stand size class
+- 'OWNGRPCD'\: Ownership group
+
+**Location\:**
+- 'STATECD'\: State FIPS code
+- 'COUNTYCD'\: County code
+- 'UNITCD'\: FIA survey unit
+- `land_type`: Land type to include\:
+
+- 'forest'\: All forestland
+- 'timber'\: Timberland only (unreserved, productive)
+- 'all'\: All land types
+- `area_domain`: SQL-like filter for condition-level attributes. Examples\:
+
+- "OWNGRPCD == 40"\: Private land only
+- "STDAGE > 20"\: Stands over 20 years old
+- "FORTYPCD IN (161, 162)"\: Specific forest types
+- `plot_domain`: SQL-like filter for plot-level attributes. Examples\:
+
+- "COUNTYCD == 183"\: Single county
+- "LAT >= 35.0 AND LAT <= 36.0"\: Latitude range
+- `most_recent`: If True, automatically select most recent evaluation.
+- `eval_type`: Evaluation type if most_recent=True. Default is 'ALL'.
+
+**Returns:**
+- Site index estimates with columns:
+
+- **YEAR** : int - Inventory year
+- **SIBASE** : int - Base age (always included)
+- **[grouping columns]** : varies - Columns from grp_by
+- **SI_MEAN** : float - Area-weighted mean site index (feet)
+- **SI_SE** : float - Standard error of mean
+- **SI_VARIANCE** : float - Variance of estimate
+- **N_PLOTS** : int - Number of plots in estimate
+- **N_CONDITIONS** : int - Number of conditions with site index
+
+
+**Examples:**
+
+Basic site index estimation:
+>>> from pyfia import FIA, site_index
+>>> with FIA("path/to/fia.duckdb") as db:
+...     db.clip_by_state(37)  # North Carolina
+...     results = site_index(db)
+Site index by ownership group:
+>>> results = site_index(db, grp_by="OWNGRPCD")
+Site index by site index species:
+>>> results = site_index(db, grp_by="SISP")
+Site index for private timberland:
+>>> results = site_index(
+...     db,
+...     land_type="timber",
+...     area_domain="OWNGRPCD == 40",
+... )
+County-level site index:
+>>> results = site_index(db, grp_by="COUNTYCD")
+
+
+## Classes
+
+### `SiteIndexEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L24" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+Site index estimator for FIA data.
+
+Estimates area-weighted mean site index values by various categories.
+Site index is a condition-level attribute representing expected dominant
+tree height at a base age.
+
+
+**Methods:**
+
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_required_tables(self) -> list[str]
+```
+
+Site index estimation requires COND, PLOT, and stratification tables.
+
+
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L41" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+get_cond_columns(self) -> list[str]
+```
+
+Get required condition columns for site index estimation.
+
+
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L92" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Calculate site index values for aggregation.
+
+For area-weighted mean, we need:
+- Numerator: SICOND * CONDPROP_UNADJ (weighted by area proportion)
+- Denominator: CONDPROP_UNADJ (total area with site index)
+
+
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L127" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
+```
+
+Apply land type and domain filters.
+
+Uses domain indicator approach for proper variance calculation,
+but also filters out null SICOND values since they cannot contribute
+to the mean calculation.
+
+
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L215" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
+```
+
+Aggregate site index with area weighting and stratification.
+
+Returns area-weighted mean: sum(SICOND * area) / sum(area)
+
+
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L411" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
+```
+
+Calculate variance using ratio-of-means formula.
+
+For site index (ratio estimator), variance is:
+V(R) = (1/X^2) * [V(Y) - 2R*Cov(Y,X) + R^2*V(X)]
+
+Where R = Y/X is the ratio (mean site index),
+Y = sum(SI * area), X = sum(area)
+
+
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L494" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+format_output(self, results: pl.DataFrame) -> pl.DataFrame
+```
+
+Format site index estimation output.
+

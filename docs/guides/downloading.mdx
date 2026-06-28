@@ -1,0 +1,161 @@
+---
+title: Downloading data
+description: "Download FIA data directly from the USDA Forest Service DataMart, with caching and multi-state support."
+---
+
+pyFIA downloads FIA data directly from the [FIA DataMart](https://apps.fs.usda.gov/fia/datamart/datamart.html) — the Python equivalent of rFIA's `getFIA()`. Data is converted to a fast DuckDB database and cached locally.
+
+## Quick start
+
+```python
+from pyfia import download, FIA, area
+
+db_path = download("RI")        # downloads to ~/.pyfia/data/ and caches
+
+with FIA(db_path) as db:
+    db.clip_most_recent()
+    print(area(db, land_type="forest"))
+```
+
+## Choosing what to download
+
+<Tabs>
+  <Tab title="One state">
+    ```python
+    db_path = download("RI")
+    ```
+  </Tab>
+  <Tab title="Multiple states">
+    ```python
+    # Merged into a single database
+    db_path = download(["GA", "FL", "SC"])
+    ```
+  </Tab>
+  <Tab title="Custom directory">
+    ```python
+    db_path = download("RI", dir="./data")
+    ```
+  </Tab>
+  <Tab title="Specific tables">
+    ```python
+    db_path = download("RI", tables=["PLOT", "TREE", "COND", "SURVEY"])
+    ```
+  </Tab>
+</Tabs>
+
+By default pyFIA downloads the ~20 tables required by the estimation functions (`common=True`). Pass `common=False` to fetch every available table (a much larger download).
+
+## Caching
+
+Downloads are cached, so repeated calls are instant:
+
+```python
+db_path = download("RI")   # first call fetches from the DataMart
+db_path = download("RI")   # subsequent calls return the cached path instantly
+```
+
+Force a fresh copy with `force=True`:
+
+```python
+db_path = download("RI", force=True)
+```
+
+### Managing the cache
+
+```python
+from pyfia.downloader import clear_cache, cache_info
+
+info = cache_info()
+print(f"Cache size: {info['total_size_mb']:.1f} MB")
+print(f"Cached states: {info['states']}")
+
+clear_cache(older_than_days=90)            # remove stale entries
+clear_cache(state="RI", delete_files=True) # clear one state
+```
+
+## Download and open in one step
+
+The `FIA` class can download and connect together:
+
+```python
+from pyfia import FIA
+
+db = FIA.from_download("RI")
+db.clip_most_recent()
+```
+
+Or combine with a context manager:
+
+```python
+from pyfia import download, FIA
+
+with FIA(download("RI")) as db:
+    db.clip_most_recent()
+    # run analyses...
+```
+
+## What gets downloaded
+
+With `common=True` (the default), pyFIA fetches the tables the estimators need, including:
+
+| Table | Description |
+|-------|-------------|
+| `PLOT` | Plot-level data |
+| `TREE` | Tree measurements |
+| `COND` | Condition data |
+| `SUBPLOT` | Subplot data |
+| `SEEDLING` | Seedling data |
+| `SURVEY` | Survey metadata |
+| `POP_EVAL`, `POP_EVAL_GRP`, `POP_EVAL_TYP` | Evaluation definitions |
+| `POP_STRATUM`, `POP_ESTN_UNIT`, `POP_PLOT_STRATUM_ASSGN` | Stratification |
+| `TREE_GRM_COMPONENT`, `TREE_GRM_MIDPT`, `TREE_GRM_BEGIN` | Growth/removal/mortality |
+
+<Tip>
+  **Download times and disk space** vary by state size:
+
+  - Small states (RI, DE): ~1-2 min, ~50-200 MB
+  - Medium states (GA, NC): ~5-10 min, ~0.5-1 GB
+  - Large states (CA, TX): ~15-30 min, 2-5 GB
+</Tip>
+
+## Coming from rFIA
+
+| Task | rFIA (R) | pyFIA (Python) |
+|------|----------|----------------|
+| Download a state | `getFIA(states = 'RI')` | `download("RI")` |
+| Multiple states | `getFIA(states = c('GA','FL'))` | `download(["GA", "FL"])` |
+| Common tables | `common = TRUE` | `common=True` |
+| Specific tables | `tables = c('PLOT')` | `tables=["PLOT"]` |
+| Save location | `dir = '/path'` | `dir="/path"` |
+
+## Troubleshooting
+
+<AccordionGroup>
+  <Accordion title="Network errors or timeouts">
+    Use the lower-level client with a longer timeout and more retries:
+
+    ```python
+    from pyfia.downloader import DataMartClient
+
+    client = DataMartClient(timeout=600, max_retries=5)
+    ```
+  </Accordion>
+  <Accordion title="Interrupted or corrupted download">
+    Re-download to get a fresh copy:
+
+    ```python
+    download("RI", force=True)
+    ```
+
+    Or clear the cached state first:
+
+    ```python
+    from pyfia.downloader import clear_cache
+    clear_cache(state="RI", delete_files=True)
+    ```
+  </Accordion>
+</AccordionGroup>
+
+## Reference
+
+See the [Data Download API](/api/pyfia-downloader) for the full `download()` signature and cache functions.

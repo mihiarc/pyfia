@@ -88,7 +88,7 @@ all = ["pyfia[spatial,pandas,dev]"]
 
 [project.urls]
 Homepage = "https://github.com/mihiarc/pyfia"
-Documentation = "https://mihiarc.mintlify.app"
+Documentation = "https://pyfia.mintlify.app"
 Repository = "https://github.com/mihiarc/pyfia"
 Issues = "https://github.com/mihiarc/pyfia/issues"
 Changelog = "https://github.com/mihiarc/pyfia/blob/main/CHANGELOG.md"

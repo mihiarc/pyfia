@@ -473,7 +473,7 @@ def biomass(
     meanings, refer to:
 
     - USDA FIA Database User Guide, Version 9.1
-    - pyFIA documentation: https://mihiarc.mintlify.app
+    - pyFIA documentation: https://pyfia.mintlify.app
     - FIA DataMart: https://apps.fs.usda.gov/fia/datamart/
 
     Biomass components availability varies by FIA region and evaluation type.

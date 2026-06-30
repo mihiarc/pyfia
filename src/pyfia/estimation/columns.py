@@ -73,6 +73,84 @@ PLOT_GROUPING_COLUMNS = [
 ]
 
 
+def collect_referenced_columns(
+    grp_by: str | list[str] | None,
+    area_domain: str | None = None,
+    tree_domain: str | None = None,
+) -> list[str]:
+    """Collect every column a user referenced via grp_by and domain filters.
+
+    Returns a de-duplicated, order-preserving list of column names drawn from
+    ``grp_by`` plus any columns referenced in ``area_domain`` / ``tree_domain``.
+    Callers route these to the table that actually holds each column (via
+    :func:`columns_in_table`) so that grouping and domain filtering resolve
+    consistently across estimators (issues #103 and #104).
+
+    Parameters
+    ----------
+    grp_by : str or list[str], optional
+        User-specified grouping column(s).
+    area_domain : str, optional
+        SQL-like area/condition filter expression.
+    tree_domain : str, optional
+        SQL-like tree filter expression.
+
+    Returns
+    -------
+    list[str]
+        Unique column names referenced by the user, in first-seen order.
+    """
+    # Local import avoids a module-load cycle (filtering imports estimation).
+    from ..filtering.parser import DomainExpressionParser
+
+    cols: list[str] = []
+    if grp_by:
+        cols.extend([grp_by] if isinstance(grp_by, str) else list(grp_by))
+    for expr in (area_domain, tree_domain):
+        if expr:
+            cols.extend(DomainExpressionParser.extract_columns(expr))
+
+    seen: set[str] = set()
+    out: list[str] = []
+    for col in cols:
+        if col and col not in seen:
+            seen.add(col)
+            out.append(col)
+    return out
+
+
+def columns_in_table(db, table_name: str, candidates: list[str]) -> list[str]:
+    """Return the subset of ``candidates`` that exist in ``table_name``'s schema.
+
+    Used to schema-route user-referenced columns into the correct table load.
+    Falls back to returning all candidates when the schema cannot be read
+    (e.g. a mock database in unit tests), preserving prior best-effort behavior.
+
+    Parameters
+    ----------
+    db : FIA
+        Database connection exposing ``_reader.get_table_schema``.
+    table_name : str
+        Name of the table whose schema to check (e.g. "COND", "TREE", "PLOT").
+    candidates : list[str]
+        Column names to test for membership.
+
+    Returns
+    -------
+    list[str]
+        Candidates present in the table schema (order preserved), or all
+        candidates if the schema is unavailable.
+    """
+    try:
+        schema = db._reader.get_table_schema(table_name)
+        if not isinstance(schema, dict):
+            return list(candidates)
+        names = set(schema.keys())
+    except (AttributeError, TypeError, KeyError):
+        return list(candidates)
+    return [c for c in candidates if c in names]
+
+
 def get_tree_columns(
     estimator_cols: list[str],
     grp_by: str | list[str] | None = None,

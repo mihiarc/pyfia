@@ -200,28 +200,28 @@ class DataLoader:
         tree_cols = list(tree_columns) if tree_columns else None
         cond_cols = list(cond_columns) if cond_columns else None
 
-        # Get table schemas to determine where grp_by columns live
+        # Get table schemas to determine where each referenced column lives
         tree_schema = list(self.db._reader.get_table_schema("TREE").keys())
         cond_schema = list(self.db._reader.get_table_schema("COND").keys())
 
-        # Add grouping columns from config if specified
-        # Note: Validation is done in __init__ via _validate_grp_by_columns()
-        grp_by = self.config.get("grp_by")
-        if grp_by:
-            if isinstance(grp_by, str):
-                grp_by = [grp_by]
+        # Route every user-referenced column (grp_by plus any column named in
+        # area_domain / tree_domain) into the table that actually holds it, so
+        # grouping and domain filtering resolve consistently (#103, #104).
+        # grp_by validity is checked in __init__ via _validate_grp_by_columns().
+        from .columns import collect_referenced_columns
 
-            for col in grp_by:
-                in_tree = col in tree_schema and (
-                    tree_cols is None or col not in tree_cols
-                )
-                in_cond = col in cond_schema and (
-                    cond_cols is None or col not in cond_cols
-                )
-                if tree_cols is not None and in_tree:
-                    tree_cols.append(col)
-                elif cond_cols is not None and in_cond:
-                    cond_cols.append(col)
+        referenced = collect_referenced_columns(
+            self.config.get("grp_by"),
+            self.config.get("area_domain"),
+            self.config.get("tree_domain"),
+        )
+        for col in referenced:
+            in_tree = col in tree_schema and (tree_cols is None or col not in tree_cols)
+            in_cond = col in cond_schema and (cond_cols is None or col not in cond_cols)
+            if tree_cols is not None and in_tree:
+                tree_cols.append(col)
+            elif cond_cols is not None and in_cond:
+                cond_cols.append(col)
 
         return tree_cols, cond_cols
 
@@ -650,8 +650,12 @@ class DataLoader:
         )
 
         # Select MACRO_BREAKPOINT_DIA from PLOT table
-        # This is CRITICAL for correct adjustment factor selection in states with macroplots
-        plot_cols = [pl.col("CN").alias("PLT_CN"), "MACRO_BREAKPOINT_DIA"]
+        # This is CRITICAL for correct adjustment factor selection in states with macroplots.
+        # Cast to numeric in case the source DuckDB stored it as VARCHAR (#106).
+        plot_cols = [
+            pl.col("CN").alias("PLT_CN"),
+            pl.col("MACRO_BREAKPOINT_DIA").cast(pl.Float64),
+        ]
 
         # Include polygon attributes if they exist (from intersect_polygons)
         # This allows grp_by to use polygon attribute columns
@@ -668,7 +672,7 @@ class DataLoader:
             plot_schema = plot.collect_schema().names()
             for col in polygon_attr_cols:
                 if col in plot_schema:
-                    plot_cols.append(col)
+                    plot_cols.append(pl.col(col))
 
         plot_selected = plot.select(plot_cols)
 

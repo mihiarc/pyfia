@@ -78,6 +78,47 @@ import polars as pl
 from .constants import Z_SCORE_90, Z_SCORE_95, Z_SCORE_99
 
 
+def align_join_key_dtypes(
+    left: pl.DataFrame, right: pl.DataFrame, keys: list[str]
+) -> pl.DataFrame:
+    """Cast ``right``'s join keys to ``left``'s dtypes where ``right`` is Null-typed.
+
+    Variance results are assembled per group (often from Python dicts), so when
+    a grouping key is null for every group -- e.g. a disturbance or treatment
+    code that is entirely null in a given state's filtered conditions -- polars
+    infers that key as ``Null`` dtype. Joining it against the concrete (e.g.
+    ``Int64``) key on the results frame then raises a ``SchemaError``. Casting
+    the Null-typed key to the results dtype before the join avoids the error
+    without changing any joined value, since an all-null column carries no data
+    (issue #105).
+
+    Parameters
+    ----------
+    left : pl.DataFrame
+        Frame whose key dtypes are authoritative (the results frame).
+    right : pl.DataFrame
+        Frame whose Null-typed keys should be aligned (the variance frame).
+    keys : list[str]
+        Join key column names.
+
+    Returns
+    -------
+    pl.DataFrame
+        ``right`` with any Null-typed join key cast to ``left``'s dtype.
+    """
+    casts = [
+        pl.col(k).cast(left.schema[k])
+        for k in keys
+        if k in left.columns
+        and k in right.columns
+        and right.schema[k] == pl.Null
+        and left.schema[k] != pl.Null
+    ]
+    if casts:
+        right = right.with_columns(casts)
+    return right
+
+
 def calculate_grouped_domain_total_variance(
     plot_data: pl.DataFrame,
     group_cols: list[str],

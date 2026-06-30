@@ -36,29 +36,10 @@ class GrowthEstimator(GRMBaseEstimator):
         """Return 'growth' as the GRM component type."""
         return "growth"
 
-    def get_cond_columns(self) -> list[str]:
-        """Required condition columns for growth estimation."""
-        base_cols = [
-            "PLT_CN",
-            "CONDID",
-            "COND_STATUS_CD",
-            "CONDPROP_UNADJ",
-            "OWNGRPCD",
-            "FORTYPCD",
-            "SITECLCD",
-            "RESERVCD",
-            "ALSTKCD",
-        ]
-
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                if col not in base_cols:
-                    base_cols.append(col)
-
-        return base_cols
+    # get_cond_columns is inherited from GRMBaseEstimator: it loads the base
+    # condition set plus any grp_by / area_domain / tree_domain column that
+    # exists in the COND table (schema-driven), so growth resolves condition
+    # columns identically to mortality/removals (#103, #104).
 
     def load_data(self) -> pl.LazyFrame | None:
         """
@@ -109,6 +90,9 @@ class GrowthEstimator(GRMBaseEstimator):
 
         data = tree.select(tree_cols)
         if tree_vol_col:
+            # Cast to numeric in case the source DuckDB stored it as VARCHAR
+            # (#106); growth divides this value by REMPER.
+            data = data.with_columns(pl.col(tree_vol_col).cast(pl.Float64))
             data = data.rename({tree_vol_col: f"TREE_{tree_vol_col}"})
 
         # Load and join GRM_COMPONENT
@@ -153,8 +137,10 @@ class GrowthEstimator(GRMBaseEstimator):
 
         # Join PTREE for fallback
         if measure in ("volume", "biomass") and tree_vol_col is not None:
-            ptree = tree.select(["CN", tree_vol_col]).rename(
-                {tree_vol_col: f"PTREE_{tree_vol_col}"}
+            ptree = (
+                tree.select(["CN", tree_vol_col])
+                .with_columns(pl.col(tree_vol_col).cast(pl.Float64))
+                .rename({tree_vol_col: f"PTREE_{tree_vol_col}"})
             )
             data = data.join(ptree, left_on="PREV_TRE_CN", right_on="CN", how="left")
 
@@ -193,6 +179,15 @@ class GrowthEstimator(GRMBaseEstimator):
                     plot_cols.append(col)
 
         plot = plot.select(plot_cols)
+
+        # Cast plot numerics in case the source DuckDB stored them as VARCHAR
+        # (#106); growth divides volumes by REMPER and uses MACRO_BREAKPOINT_DIA.
+        plot = plot.with_columns(
+            [
+                pl.col("REMPER").cast(pl.Float64),
+                pl.col("MACRO_BREAKPOINT_DIA").cast(pl.Float64),
+            ]
+        )
 
         data = data.join(plot, left_on="PLT_CN", right_on="CN", how="inner")
 

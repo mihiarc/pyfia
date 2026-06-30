@@ -30,6 +30,69 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
+# Mapping of user-facing ``eval_type`` tokens to the FIA ``POP_EVAL_TYP.EVAL_TYP``
+# codes they select. Most tokens map to a single ``EXP<token>`` code. ``"GRM"`` is
+# a convenience alias for the growth/removal/mortality family: those three
+# evaluation types share one annual EVALID per state, so resolving the family and
+# taking the common most-recent EVALID gives the documented one-call ergonomics
+# (see issue #102).
+EVAL_TYPE_ALIASES: dict[str, list[str]] = {
+    "ALL": ["EXPALL"],
+    "VOL": ["EXPVOL"],
+    "GRM": ["EXPGROW", "EXPMORT", "EXPREMV"],
+    "GROW": ["EXPGROW"],
+    "MORT": ["EXPMORT"],
+    "REMV": ["EXPREMV"],
+    "CHNG": ["EXPCHNG"],
+    "DWM": ["EXPDWM"],
+    "REGEN": ["EXPREGEN"],
+    "INV": ["EXPINV"],
+    "CURR": ["EXPCURR"],
+}
+
+# All recognized raw EVAL_TYP codes, so callers may pass a code (e.g. "EXPALL")
+# directly in addition to the friendly tokens above.
+KNOWN_EVAL_TYP_CODES: frozenset[str] = frozenset(
+    code for codes in EVAL_TYPE_ALIASES.values() for code in codes
+)
+
+
+def resolve_eval_typ_codes(eval_type: str) -> list[str]:
+    """Resolve an ``eval_type`` token to its FIA ``EVAL_TYP`` code(s).
+
+    Accepts both friendly tokens (``"VOL"``, ``"GRM"``, ``"GROW"`` ...) and raw
+    ``EVAL_TYP`` codes (``"EXPVOL"`` ...). ``"GRM"`` expands to the full
+    growth/removal/mortality family.
+
+    Parameters
+    ----------
+    eval_type : str
+        Evaluation type token or raw ``EVAL_TYP`` code (case-insensitive).
+
+    Returns
+    -------
+    list of str
+        One or more ``EVAL_TYP`` codes to match against ``POP_EVAL_TYP``.
+
+    Raises
+    ------
+    ValueError
+        If the token is not a recognized evaluation type, with a message
+        listing the valid options.
+    """
+    token = eval_type.strip().upper()
+    if token in EVAL_TYPE_ALIASES:
+        return list(EVAL_TYPE_ALIASES[token])
+    if token in KNOWN_EVAL_TYP_CODES:
+        return [token]
+    valid = ", ".join(sorted(EVAL_TYPE_ALIASES))
+    raise ValueError(
+        f"Unknown eval_type {eval_type!r}. Valid options: {valid}. "
+        "Use 'GRM' for growth/removal/mortality together, or the specific "
+        "'GROW', 'MORT', or 'REMV' for a single GRM component."
+    )
+
+
 class FIA:
     """
     Main FIA database class for working with Forest Inventory and Analysis data.
@@ -410,7 +473,10 @@ class FIA:
         year : int or list of int, optional
             End inventory year(s) to filter by.
         eval_type : str, optional
-            Evaluation type ('VOL', 'GRM', 'CHNG', 'ALL', etc.).
+            Evaluation type token. One of 'ALL', 'VOL', 'GRM', 'GROW', 'MORT',
+            'REMV', 'CHNG', 'DWM', 'REGEN', 'INV', 'CURR', or a raw EVAL_TYP
+            code (e.g. 'EXPVOL'). 'GRM' is an alias for the growth/removal/
+            mortality family. Unknown tokens raise ValueError.
 
         Returns
         -------
@@ -458,13 +524,11 @@ class FIA:
             df = df.filter(pl.col("END_INVYR").is_in(year))
 
         if eval_type is not None:
-            # FIA uses 'EXP' prefix for evaluation types
-            # Special case: "ALL" maps to "EXPALL" for area estimation
-            if eval_type.upper() == "ALL":
-                eval_type_full = "EXPALL"
-            else:
-                eval_type_full = f"EXP{eval_type}"
-            df = df.filter(pl.col("EVAL_TYP") == eval_type_full)
+            # Resolve the token to its EVAL_TYP code(s). "GRM" expands to the
+            # EXPGROW/EXPMORT/EXPREMV family (which share one EVALID per state),
+            # and unknown tokens raise a helpful ValueError. See issue #102.
+            eval_typ_codes = resolve_eval_typ_codes(eval_type)
+            df = df.filter(pl.col("EVAL_TYP").is_in(eval_typ_codes))
 
         if most_recent:
             # Sort by END_INVYR from POP_EVAL to find the most recent evaluation.
@@ -639,7 +703,10 @@ class FIA:
         Parameters
         ----------
         eval_type : str, default 'VOL'
-            Evaluation type ('VOL' for volume, 'GRM' for growth, etc.).
+            Evaluation type token. 'VOL' for volume/biomass/TPA/area;
+            'GRM' for growth, removals, and mortality together (or the
+            component-specific 'GROW', 'MORT', 'REMV'); 'CHNG' for change.
+            See find_evalid for the full list of accepted tokens.
 
         Returns
         -------

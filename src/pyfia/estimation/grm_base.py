@@ -63,8 +63,9 @@ class GRMBaseEstimator(BaseEstimator):
                 suggestion=(
                     "GRM estimates require an EVALID filter to avoid counting trees "
                     "multiple times across evaluations. Call "
-                    "db.clip_by_evalid(evalid) or db.clip_most_recent(eval_type='GRM') "
-                    "before calling estimation functions."
+                    "db.clip_by_evalid(evalid), or db.clip_most_recent(eval_type='GRM') "
+                    "for the whole growth/removal/mortality family, before calling "
+                    "estimation functions."
                 ),
             )
 
@@ -446,7 +447,11 @@ class GRMBaseEstimator(BaseEstimator):
             plot_level_cols.insert(1, "STRATUM_CN")
         if group_cols:
             plot_level_cols.extend(
-                [c for c in group_cols if c in plot_cond_data.columns and c not in plot_level_cols]
+                [
+                    c
+                    for c in group_cols
+                    if c in plot_cond_data.columns and c not in plot_level_cols
+                ]
             )
 
         # Include CONDPROP_UNADJ for area calculation

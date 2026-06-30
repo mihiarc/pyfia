@@ -558,7 +558,7 @@ def growth(
         - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'forest'
         Land type to include in estimation.
-    tree_type : {'gs', 'al', 'sl'}, default 'gs'
+    tree_type : {'all', 'dead', 'gs', 'live'}, default 'gs'
         Tree type to include.
     measure : {'volume', 'biomass', 'count'}, default 'volume'
         What to measure in the growth estimation.

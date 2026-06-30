@@ -686,18 +686,21 @@ def area(
             Inventory year
         - **[grouping columns]** : varies
             Any columns specified in grp_by parameter
-        - **AREA_PCT** : float
-            Percentage of total area
-        - **AREA_SE** : float (if variance=False)
-            Standard error of area percentage
-        - **AREA_VAR** : float (if variance=True)
-            Variance of area percentage
+        - **AREA_PERC** : float
+            Percentage of the sampled area in the requested land/condition
+            class
+        - **AREA_SE_PERCENT** : float
+            Standard error of AREA_PERC (the percentage)
+        - **AREA** : float
+            Total area in acres, expanded to the population
+        - **AREA_SE** : float
+            Standard error of AREA (the total, in acres)
+        - **AREA_VARIANCE** : float
+            Variance of the total area in acres (equals AREA_SE squared)
+        - **TOTAL_EXPNS** : float
+            Total expansion factor (population acres) for the evaluation
         - **N_PLOTS** : int
-            Number of plots in estimate
-        - **AREA** : float (if totals=True)
-            Total area in acres
-        - **AREA_TOTAL_SE** : float (if totals=True and variance=False)
-            Standard error of total area
+            Number of plots contributing to the estimate
 
     See Also
     --------

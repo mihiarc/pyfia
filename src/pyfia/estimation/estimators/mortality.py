@@ -299,7 +299,7 @@ def mortality(
         - "market": Timber market categories (Pre-merchantable, Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'timber'
         Land type to include in estimation.
-    tree_type : {'gs', 'al', 'sawtimber', 'live'}, default 'gs'
+    tree_type : {'all', 'dead', 'gs', 'live'}, default 'gs'
         Tree type to include.
     measure : {'volume', 'sawlog', 'biomass', 'tpa', 'count', 'basal_area'}, default 'volume'
         What to measure in the mortality estimation.
@@ -361,8 +361,8 @@ def mortality(
     **Pre-merchantable Tree Support:**
     By default (``tree_type="gs"``), only growing stock trees (≥5" DBH) are
     included. To include pre-merchantable trees (1.0"-4.9" DBH), use
-    ``tree_type="live"`` or ``tree_type="al"``. When using market size classes,
-    pre-merchantable trees are automatically categorized as "Pre-merchantable".
+    ``tree_type="live"``. When using market size classes, pre-merchantable
+    trees are automatically categorized as "Pre-merchantable".
 
     Note that FIA does not calculate volume for trees < 5" DBH, so
     ``measure="tpa"`` is recommended for pre-merchantable mortality analysis.

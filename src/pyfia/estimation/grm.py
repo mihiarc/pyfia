@@ -184,19 +184,23 @@ def load_grm_component(
     if not isinstance(grm_component, pl.LazyFrame):
         grm_component = grm_component.lazy()
 
-    # Build column selection
+    # Build column selection. Numeric columns are cast to their declared types:
+    # some state DuckDBs (built from CSV/older snapshots) store FIADB numeric
+    # fields as VARCHAR, which breaks downstream division/comparison (#106).
+    # Strict casts fail loudly naming the offending column rather than silently
+    # nulling values, preserving statistical integrity.
     cols = [
         pl.col("TRE_CN"),
         pl.col("PLT_CN"),
-        pl.col("DIA_BEGIN"),
-        pl.col("DIA_MIDPT"),
+        pl.col("DIA_BEGIN").cast(pl.Float64),
+        pl.col("DIA_MIDPT").cast(pl.Float64),
         pl.col(grm_columns.component).alias("COMPONENT"),
-        pl.col(grm_columns.tpa).alias("TPA_UNADJ"),
-        pl.col(grm_columns.subptyp).alias("SUBPTYP_GRM"),
+        pl.col(grm_columns.tpa).cast(pl.Float64).alias("TPA_UNADJ"),
+        pl.col(grm_columns.subptyp).cast(pl.Int64).alias("SUBPTYP_GRM"),
     ]
 
     if include_dia_end:
-        cols.insert(4, pl.col("DIA_END"))
+        cols.insert(4, pl.col("DIA_END").cast(pl.Float64))
 
     result: pl.LazyFrame = grm_component.select(cols)
     return result
@@ -250,6 +254,23 @@ def load_grm_midpt(
         cols.extend([c for c in include_additional_cols if c not in cols])
 
     result: pl.LazyFrame = grm_midpt.select(cols)
+
+    # Cast numeric columns to their declared types in case the source DuckDB
+    # stored them as VARCHAR (see #106). Strict casts surface bad data loudly.
+    float_cols = {
+        "DIA",
+        "VOLCFNET",
+        "VOLCSNET",
+        "DRYBIO_BOLE",
+        "DRYBIO_BRANCH",
+        "DRYBIO_AG",
+    }
+    int_cols = {"SPCD", "STATUSCD"}
+    casts = [pl.col(c).cast(pl.Float64) for c in cols if c in float_cols]
+    casts += [pl.col(c).cast(pl.Int64) for c in cols if c in int_cols]
+    if casts:
+        result = result.with_columns(casts)
+
     return result
 
 
@@ -284,13 +305,22 @@ def load_grm_begin(
         grm_begin = grm_begin.lazy()
 
     cols = ["TRE_CN"]
+    value_col = None
 
     if measure == "volume":
-        cols.append("VOLCFNET")
+        value_col = "VOLCFNET"
     elif measure == "biomass":
-        cols.append("DRYBIO_AG")
+        value_col = "DRYBIO_AG"
+    if value_col:
+        cols.append(value_col)
 
     result: pl.LazyFrame = grm_begin.select(cols)
+
+    # Cast the value column to numeric in case the source stored it as VARCHAR
+    # (see #106).
+    if value_col:
+        result = result.with_columns(pl.col(value_col).cast(pl.Float64))
+
     return result
 
 

@@ -650,8 +650,12 @@ class DataLoader:
         )
 
         # Select MACRO_BREAKPOINT_DIA from PLOT table
-        # This is CRITICAL for correct adjustment factor selection in states with macroplots
-        plot_cols = [pl.col("CN").alias("PLT_CN"), "MACRO_BREAKPOINT_DIA"]
+        # This is CRITICAL for correct adjustment factor selection in states with macroplots.
+        # Cast to numeric in case the source DuckDB stored it as VARCHAR (#106).
+        plot_cols = [
+            pl.col("CN").alias("PLT_CN"),
+            pl.col("MACRO_BREAKPOINT_DIA").cast(pl.Float64),
+        ]
 
         # Include polygon attributes if they exist (from intersect_polygons)
         # This allows grp_by to use polygon attribute columns
@@ -668,7 +672,7 @@ class DataLoader:
             plot_schema = plot.collect_schema().names()
             for col in polygon_attr_cols:
                 if col in plot_schema:
-                    plot_cols.append(col)
+                    plot_cols.append(pl.col(col))
 
         plot_selected = plot.select(plot_cols)
 

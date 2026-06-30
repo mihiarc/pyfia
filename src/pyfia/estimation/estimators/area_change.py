@@ -19,7 +19,7 @@ import polars as pl
 
 from ...core import FIA
 from ..base import AggregationResult, BaseEstimator
-from ..utils import format_output_columns
+from ..utils import apply_variance_columns, format_output_columns
 
 
 class AreaChangeEstimator(BaseEstimator):
@@ -50,7 +50,8 @@ class AreaChangeEstimator(BaseEstimator):
     grp_by : str or list of str, optional
         Column(s) to group results by
     variance : bool, default False
-        Whether to calculate sampling variance
+        If True, also return the AREA_CHANGE_VARIANCE column alongside
+        AREA_CHANGE_SE (which is always returned). Variance = SE squared.
     totals : bool, default False
         Whether to include state totals
 
@@ -450,18 +451,14 @@ class AreaChangeEstimator(BaseEstimator):
             group_cols=group_cols,
         )
 
-        # Join variance to result
-        if group_cols:
-            result = result.join(var_result, on=group_cols, how="left")
-        else:
-            # Single row result
-            if len(var_result) > 0:
-                result = result.with_columns(
-                    [
-                        pl.lit(var_result["VARIANCE"][0]).alias("VARIANCE"),
-                        pl.lit(var_result["SE"][0]).alias("SE"),
-                    ]
-                )
+        # Expose the standard error of the reported total as AREA_CHANGE_SE
+        # (group_cols always includes STATECD, so var_result joins cleanly). The
+        # matching AREA_CHANGE_VARIANCE column (when variance=True) is added
+        # uniformly by apply_variance_columns at the end of estimate().
+        var_result = var_result.select(
+            [*group_cols, pl.col("se_total").alias("AREA_CHANGE_SE")]
+        )
+        result = result.join(var_result, on=group_cols, how="left")
 
         return result
 
@@ -475,8 +472,10 @@ class AreaChangeEstimator(BaseEstimator):
             Area change estimates with columns:
             - STATECD: State code
             - AREA_CHANGE_TOTAL: Total area change (acres or acres/year)
+            - AREA_CHANGE_SE: Standard error of the total
             - N_PLOTS: Number of remeasured plots
-            - SE, VARIANCE: (if variance=True) Standard error and variance
+            - AREA_CHANGE_VARIANCE: (if variance=True) Variance of the total
+              (= AREA_CHANGE_SE squared)
             - Additional grouping columns if grp_by specified
         """
         # Load data
@@ -499,14 +498,15 @@ class AreaChangeEstimator(BaseEstimator):
         # Calculate totals
         result = self.calculate_totals(data)
 
-        # Calculate variance if requested
-        if self.config.get("variance", False):
-            result = self.calculate_variance(result)
+        # Standard errors are always computed (AREA_CHANGE_SE); the matching
+        # AREA_CHANGE_VARIANCE column is added only when variance=True, so the
+        # contract matches every other estimator.
+        result = self.calculate_variance(result)
 
         # Format output columns
         result = format_output_columns(result, "area_change")
 
-        return result
+        return apply_variance_columns(result, self.config.get("variance", False))
 
 
 def area_change(
@@ -547,7 +547,8 @@ def area_change(
     area_domain : str, optional
         SQL-like filter expression for conditions
     variance : bool, default False
-        Whether to calculate sampling variance and standard error
+        If True, also return the AREA_CHANGE_VARIANCE column alongside
+        AREA_CHANGE_SE (which is always returned). Variance = SE squared.
     totals : bool, default False
         Whether to include totals row
 
@@ -557,9 +558,10 @@ def area_change(
         Area change estimates with columns:
         - STATECD: State FIPS code
         - AREA_CHANGE_TOTAL: Area change (acres/year if annual=True, else acres)
+        - AREA_CHANGE_SE: Standard error of the total
         - N_PLOTS: Number of remeasured plots
-        - SE: Standard error (if variance=True)
-        - VARIANCE: Sampling variance (if variance=True)
+        - AREA_CHANGE_VARIANCE: Variance of the total, = AREA_CHANGE_SE squared
+          (if variance=True)
         - Grouping columns (if grp_by specified)
 
     Examples

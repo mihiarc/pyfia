@@ -64,14 +64,20 @@ class AreaEstimator(BaseEstimator):
                 if col not in core_cols:
                     filter_cols.add(col)
 
+        # Polygon attributes added by intersect_polygons() live on PLOT (joined
+        # in via the stratification path), not COND. Don't request them from
+        # COND or the COND query raises a BinderException (#116).
+        polygon_attrs: set[str] = set()
+        pa = getattr(self.db, "_polygon_attributes", None)
+        if isinstance(pa, pl.DataFrame):
+            polygon_attrs = {col for col in pa.columns if col != "CN"}
+
         # Add grouping columns if specified
-        grouping_cols = set()
+        grouping_cols: set[str] = set()
         grp_by = self.config.get("grp_by")
         if grp_by:
-            if isinstance(grp_by, str):
-                grouping_cols.add(grp_by)
-            else:
-                grouping_cols.update(grp_by)
+            cols = [grp_by] if isinstance(grp_by, str) else list(grp_by)
+            grouping_cols.update(col for col in cols if col not in polygon_attrs)
 
         # Combine all needed columns
         all_cols = core_cols + list(filter_cols) + list(grouping_cols)

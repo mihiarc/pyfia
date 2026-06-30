@@ -33,19 +33,21 @@ live-tree-stock implementations (#89).
 
 ## [1.4.2] - 2026-06-30
 
-Bug-fix release closing three estimator issues found in the v1.4.1 public-docs
-audit (#109, #110, #111). Point estimates and standard errors are unchanged for
-every previously-working query; the changes concern input validation and the
-opt-in variance columns only.
+Bug-fix release closing four estimator issues found in the v1.4.1 public-docs
+audit and the follow-up review (#109, #110, #111, #116). Point estimates and
+standard errors are unchanged for every previously-working query; the changes
+concern input validation, spatial grouping, and the opt-in variance columns.
 
 ### Fixed
 - **`biomass(component="ROOT")` crashed with a `BinderException`** (#110) — `"root"` passed validation but then selected a non-existent `DRYBIO_ROOT` column. `"root"` has been removed from the valid component set; use `"bg"` for belowground/coarse-root biomass (`DRYBIO_BG`). Valid components are `AG`, `BG`, `TOTAL`, `BOLE`, `BRANCH`, `FOLIAGE` (case-insensitive).
+- **`area(grp_by=<intersect_polygons attribute>)` crashed with a `BinderException`** (#116) — a spatial attribute (e.g. `REGION`) added by `intersect_polygons()` was routed into the `COND` query, where it does not exist. `area()` no longer requests polygon attributes from `COND` (they are supplied by the plot/stratification join), so spatial grouping works.
 - **GRM estimators rejected the `tree_type` values they actually support** (#111) — `growth()`/`mortality()`/`removals()` advertise and internally handle `gs`/`al`/`sl`/`live`/`sawtimber`, but the shared validator only allowed `{all, dead, gs, live}`, so following the documented API raised `ValueError`. These estimators now validate against `{gs, al, sl, live, sawtimber}` (`al`/`live` → all-live, `sl`/`sawtimber` → sawtimber-size). `area()`/`volume()`/`biomass()`/`tpa()` keep `{all, dead, gs, live}`.
 - **`variance=True` did not add variance columns (and broke `tpa()`)** (#109) — the flag was a no-op for most estimators, and for `tpa()` it dropped the standard-error columns entirely. Standard errors (`*_SE`) are now always returned, and `variance=True` adds matching `*_VARIANCE` columns (equal to the standard error squared) uniformly across every estimator.
 
 ### Changed
-- **The standard-error / variance output contract is now uniform and opt-in.** `area()` and `volume()` no longer emit variance columns by default — pass `variance=True`. Variance columns use the standard-error-mirrored name (e.g. `VOLCFNET_TOTAL_SE` → `VOLCFNET_TOTAL_VARIANCE`, `AREA_SE_PERCENT` → `AREA_VARIANCE_PERCENT`); `tpa()`'s previous `*_VAR` columns are renamed to `*_VARIANCE`.
+- **The standard-error / variance output contract is now uniform and opt-in.** `area()` and `volume()` no longer emit variance columns by default — pass `variance=True`. Variance columns use the standard-error-mirrored name (e.g. `VOLCFNET_TOTAL_SE` → `VOLCFNET_TOTAL_VARIANCE`, `AREA_SE_PERCENT` → `AREA_VARIANCE_PERCENT`); `tpa()`'s previous `*_VAR` columns are renamed to `*_VARIANCE`. `area_change()` now follows the same contract: it always returns `AREA_CHANGE_SE` and adds `AREA_CHANGE_VARIANCE` only with `variance=True` (replacing the previous `se_total`/`variance_total` columns).
 - **GRM estimators no longer silently accept `tree_type="all"`/`"dead"`** (part of #111) — these previously fell through to growing stock; they now raise a clear `ValueError`.
+- **`mortality(tree_type="sawtimber")` now matches `tree_type="sl"` exactly** — a redundant diameter/`VOLCSNET` filter was removed; the GRM `SL` population columns already encode sawtimber, so the two aliases are guaranteed identical.
 
 ## [1.4.1] - 2026-06-30
 

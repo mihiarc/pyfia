@@ -14,7 +14,7 @@ Simple, straightforward implementation without unnecessary abstractions.
 
 ## Functions
 
-### `area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L575" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L581" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 area(db: str | FIA, grp_by: str | list[str] | None = None, land_type: str = 'forest', area_domain: str | None = None, plot_domain: str | None = None, most_recent: bool = False, eval_type: str | None = None, variance: bool = False, totals: bool = True) -> pl.DataFrame
@@ -212,7 +212,7 @@ get_cond_columns(self) -> list[str]
 Get required condition columns based on actual usage.
 
 
-#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L89" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L95" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -224,7 +224,7 @@ For area estimation, the value is CONDPROP_UNADJ multiplied by
 the domain indicator to properly handle domain estimation.
 
 
-#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L108" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L114" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -239,7 +239,7 @@ This method operates entirely on LazyFrames to enable server-side
 execution on cloud backends like MotherDuck.
 
 
-#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L210" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L216" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
@@ -252,7 +252,7 @@ Aggregate area with stratification, preserving data for variance calculation.
 and group_cols for explicit variance calculation.
 
 
-#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L298" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L304" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
@@ -271,7 +271,7 @@ and group_cols from aggregate_results().
 - Results with variance columns added.
 
 
-#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L543" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area.py#L549" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 format_output(self, results: pl.DataFrame) -> pl.DataFrame

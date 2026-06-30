@@ -1,4 +1,5 @@
-"""Regression tests for the 1.4.2 estimator bug fixes (#109, #110, #111).
+"""Regression tests for the 1.4.2 estimator bug fixes (#109, #110, #111) and the
+follow-up cleanups (area_change variance contract; #116 spatial grp_by).
 
 These run against the real Georgia FIA database and skip automatically when no
 local database is available (e.g. in CI). The CI-safe guards live in
@@ -7,7 +8,7 @@ tests/unit/test_validation.py and tests/unit/test_variance_columns.py.
 
 import pytest
 
-from pyfia import FIA, biomass, growth, mortality, removals, tpa, volume
+from pyfia import FIA, area_change, biomass, growth, mortality, removals, tpa, volume
 
 pytestmark = [pytest.mark.integration, pytest.mark.db]
 
@@ -116,3 +117,26 @@ class TestGRMTreeType:
         for bad in ("all", "dead"):
             with pytest.raises(ValueError, match="Invalid tree_type"):
                 fn(db, measure="volume", tree_type=bad)
+
+
+class TestAreaChangeVarianceContract:
+    """Follow-up: area_change follows the same SE-always / variance-opt-in contract."""
+
+    def test_area_change_variance_is_additive(self, ga_path):
+        db = FIA(ga_path)
+        db.clip_by_state(GA_FIPS)
+        off = area_change(db, variance=False)
+        on = area_change(db, variance=True)
+
+        # SE is always present; estimate unchanged by the flag.
+        assert "AREA_CHANGE_SE" in off.columns
+        assert "AREA_CHANGE_SE" in on.columns
+        assert off["AREA_CHANGE_TOTAL"][0] == on["AREA_CHANGE_TOTAL"][0]
+
+        # Variance column is opt-in and equals SE squared.
+        assert "AREA_CHANGE_VARIANCE" not in off.columns
+        assert "AREA_CHANGE_VARIANCE" in on.columns
+        if on["AREA_CHANGE_SE"][0] is not None:
+            assert on["AREA_CHANGE_VARIANCE"][0] == pytest.approx(
+                on["AREA_CHANGE_SE"][0] ** 2, rel=1e-9
+            )

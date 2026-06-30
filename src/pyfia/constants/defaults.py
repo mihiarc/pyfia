@@ -61,7 +61,6 @@ class ValidationRanges:
     MAX_PLOTS = 1_000_000
 
 
-
 class ErrorMessages:
     """Standard error messages."""
 

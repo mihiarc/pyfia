@@ -59,8 +59,6 @@ def get_all_snums_by_category():
         if cat not in categories:
             categories[cat] = []
         desc = SNUM_DESCRIPTIONS.get(e.value, "Unknown")
-        # Truncate description for test ID readability
-        short_desc = desc[:50] + "..." if len(desc) > 50 else desc
         categories[cat].append(
             pytest.param(
                 e.value,

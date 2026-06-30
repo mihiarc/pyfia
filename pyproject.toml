@@ -110,6 +110,7 @@ select = ["E", "F", "I", "N", "W"]
 ignore = [
     "E501",  # line too long
     "N803",  # argument name should be lowercase (keeping R/FIA conventions)
+    "N806",  # variable in function should be lowercase (statistical notation: A, W_h, ...)
     "N815",  # mixed case variable in class scope (keeping R/FIA conventions)
     "E722",  # bare except
     "E402",  # module import not at top

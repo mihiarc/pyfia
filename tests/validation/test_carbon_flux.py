@@ -109,7 +109,6 @@ class TestCarbonFluxValidation:
         growth_biomass = growth_result["GROWTH_TOTAL"][0]
         growth_carbon = flux_result["GROWTH_CARBON_TOTAL"][0]
 
-        expected_carbon = growth_biomass * CARBON_FRACTION
         actual_fraction = growth_carbon / growth_biomass if growth_biomass > 0 else 0
 
         print("\nCarbon Fraction Validation:")

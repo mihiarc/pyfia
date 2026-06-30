@@ -1,6 +1,5 @@
 """Area estimation validation against EVALIDator."""
 
-
 from pyfia import FIA, area
 from pyfia.evalidator.validation import compare_estimates
 

@@ -86,7 +86,9 @@ class TestAtomicDownload:
         client = self._client()
         client.session.get.return_value = self._response([b"abc", b"def"])
         dest = tmp_path / "TREE.csv"
-        out = client._download_file("http://example/TREE.csv", dest, show_progress=False)
+        out = client._download_file(
+            "http://example/TREE.csv", dest, show_progress=False
+        )
         assert out == dest
         assert dest.read_bytes() == b"abcdef"
         assert not dest.with_name("TREE.csv.part").exists()

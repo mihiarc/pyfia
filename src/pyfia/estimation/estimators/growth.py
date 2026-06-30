@@ -558,8 +558,12 @@ def growth(
         - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'forest'
         Land type to include in estimation.
-    tree_type : {'all', 'dead', 'gs', 'live'}, default 'gs'
-        Tree type to include.
+    tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
+        Tree population to include (GRM tables):
+
+        - 'gs': growing stock
+        - 'al' or 'live': all live trees
+        - 'sl' or 'sawtimber': sawtimber-size trees
     measure : {'volume', 'biomass', 'count'}, default 'volume'
         What to measure in the growth estimation.
     tree_domain : str, optional
@@ -569,7 +573,8 @@ def growth(
     totals : bool, default True
         If True, include population-level total estimates.
     variance : bool, default False
-        If True, calculate and include variance and standard error estimates.
+        If True, also return variance columns (``*_VARIANCE``) alongside the
+        standard errors (``*_SE``, always returned). Variance = SE squared.
     most_recent : bool, default False
         If True, automatically filter to the most recent evaluation.
 
@@ -579,7 +584,10 @@ def growth(
         Growth estimates with columns:
         - GROWTH_ACRE: Annual growth per acre
         - GROWTH_TOTAL: Total annual growth (if totals=True)
-        - GROWTH_ACRE_SE: Standard error of per-acre estimate (if variance=True)
+        - GROWTH_ACRE_SE: Standard error of per-acre estimate
+        - GROWTH_TOTAL_SE: Standard error of total estimate (if totals=True)
+        - GROWTH_ACRE_VARIANCE, GROWTH_TOTAL_VARIANCE: Variance of the estimates,
+          equal to the matching _SE squared (if variance=True)
         - Additional grouping columns if specified
 
     See Also
@@ -609,11 +617,11 @@ def growth(
         validate_grp_by,
         validate_land_type,
         validate_mortality_measure,
-        validate_tree_type,
+        validate_tree_type_grm,
     )
 
     land_type = validate_land_type(land_type)
-    tree_type = validate_tree_type(tree_type)
+    tree_type = validate_tree_type_grm(tree_type)
     measure = validate_mortality_measure(measure)
     grp_by = validate_grp_by(grp_by)
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")

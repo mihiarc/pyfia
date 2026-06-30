@@ -672,7 +672,8 @@ def area(
         'ALL', 'VOL', 'GROW', 'MORT', 'REMV', 'CHANGE', 'DWM', 'INV'.
         Default is 'ALL' for area estimation.
     variance : bool, default False
-        If True, return variance instead of standard error.
+        If True, also return variance columns (``*_VARIANCE``) alongside the
+        standard errors (``*_SE``, always returned). Variance = SE squared.
     totals : bool, default True
         If True, include total area estimates expanded to population level.
         If False, only return per-acre values.
@@ -695,8 +696,10 @@ def area(
             Total area in acres, expanded to the population
         - **AREA_SE** : float
             Standard error of AREA (the total, in acres)
-        - **AREA_VARIANCE** : float
+        - **AREA_VARIANCE** : float (if variance=True)
             Variance of the total area in acres (equals AREA_SE squared)
+        - **AREA_VARIANCE_PERCENT** : float (if variance=True)
+            Variance of the percentage (equals AREA_SE_PERCENT squared)
         - **TOTAL_EXPNS** : float
             Total expansion factor (population acres) for the evaluation
         - **N_PLOTS** : int

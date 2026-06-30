@@ -75,16 +75,18 @@ By the end you'll have downloaded FIA data, selected a valid evaluation, estimat
     | Column | Meaning |
     |--------|---------|
     | `AREA` | Total area in acres |
-    | `AREA_PCT` | Percentage of the sampled area |
-    | `AREA_SE` | Standard error of the percentage |
+    | `AREA_SE` | Standard error of `AREA` (the total, in acres) |
+    | `AREA_PERC` | Percentage of the sampled area |
+    | `AREA_SE_PERCENT` | Standard error of `AREA_PERC` (the percentage) |
     | `N_PLOTS` | Plots contributing to the estimate |
     | `YEAR` | Inventory year |
 
     Other estimators follow the same pattern with their own prefixes — `VOLCFNET_ACRE`
     and `VOLCFNET_TOTAL` for [`volume()`](/api/pyfia-estimation-estimators-volume),
     `MORT_ACRE` for [`mortality()`](/api/pyfia-estimation-estimators-mortality), and so
-    on. Pass `variance=True` to get variances instead of standard errors; `totals=False`
-    to drop the population totals.
+    on. Every estimate comes with standard-error columns (suffix `_SE`); `area()` and
+    `volume()` also include variance columns — see [Understanding variance](/concepts/variance).
+    Pass `totals=False` to drop the population totals.
   </Step>
 </Steps>
 

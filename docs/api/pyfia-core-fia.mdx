@@ -13,9 +13,32 @@ This module provides the main FIA class that handles database connections,
 EVALID-based filtering, and common FIA data operations.
 
 
+## Functions
+
+### `resolve_eval_typ_codes` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L60" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+resolve_eval_typ_codes(eval_type: str) -> list[str]
+```
+
+
+Resolve an ``eval_type`` token to its FIA ``EVAL_TYP`` code(s).
+
+Accepts both friendly tokens (``"VOL"``, ``"GRM"``, ``"GROW"`` ...) and raw
+``EVAL_TYP`` codes (``"EXPVOL"`` ...). ``"GRM"`` expands to the full
+growth/removal/mortality family.
+
+**Args:**
+- `eval_type`: Evaluation type token or raw ``EVAL_TYP`` code (case-insensitive).
+
+**Returns:**
+- One or more ``EVAL_TYP`` codes to match against ``POP_EVAL_TYP``.
+
+
+
 ## Classes
 
-### `FIA` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L33" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `FIA` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L96" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 
 Main FIA database class for working with Forest Inventory and Analysis data.
@@ -32,7 +55,7 @@ filtering by EVALID, and preparing data for estimation functions.
 
 **Methods:**
 
-#### `from_download` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L96" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `from_download` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L159" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 from_download(cls, states: str | list[str], dir: str | Path | None = None, common: bool = True, tables: list[str] | None = None, force: bool = False, show_progress: bool = True) -> FIA
@@ -67,7 +90,7 @@ Supports multiple states\: ['GA', 'FL', 'SC']
 >>> db = FIA.from_download(["GA", "FL", "SC"])
 
 
-#### `query` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L165" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `query` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L228" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 query(self, sql: str) -> pl.DataFrame
@@ -91,7 +114,7 @@ Only SELECT statements are allowed.
 ...     result = db.query("SELECT FORTYPCD, COUNT(*) as n FROM COND GROUP BY FORTYPCD")
 
 
-#### `load_table` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L282" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `load_table` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L345" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 load_table(self, table_name: str, columns: list[str] | None = None, where: str | None = None) -> pl.LazyFrame
@@ -109,7 +132,7 @@ Used for database-side filtering to reduce memory usage.
 - Polars LazyFrame of the requested table.
 
 
-#### `find_evalid` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L392" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `find_evalid` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L455" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 find_evalid(self, most_recent: bool = True, state: int | list[int] | None = None, year: int | list[int] | None = None, eval_type: str | None = None) -> list[int]
@@ -123,13 +146,16 @@ Identify evaluation IDs for filtering FIA data based on specific criteria.
 - `most_recent`: If True, return only most recent evaluations per state.
 - `state`: State FIPS code(s) to filter by.
 - `year`: End inventory year(s) to filter by.
-- `eval_type`: Evaluation type ('VOL', 'GRM', 'CHNG', 'ALL', etc.).
+- `eval_type`: Evaluation type token. One of 'ALL', 'VOL', 'GRM', 'GROW', 'MORT',
+'REMV', 'CHNG', 'DWM', 'REGEN', 'INV', 'CURR', or a raw EVAL_TYP
+code (e.g. 'EXPVOL'). 'GRM' is an alias for the growth/removal/
+mortality family. Unknown tokens raise ValueError.
 
 **Returns:**
 - EVALID values matching the specified criteria.
 
 
-#### `clip_by_evalid` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L536" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `clip_by_evalid` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L600" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 clip_by_evalid(self, evalid: int | list[int]) -> FIA
@@ -147,7 +173,7 @@ plot groupings by evaluation.
 - Self for method chaining.
 
 
-#### `clip_by_state` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L574" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `clip_by_state` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L638" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 clip_by_state(self, state: int | list[int], most_recent: bool = True, eval_type: str | None = 'ALL') -> FIA
@@ -170,7 +196,7 @@ appropriate for area estimation. Use None to get all types.
 - Self for method chaining.
 
 
-#### `clip_most_recent` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L635" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `clip_most_recent` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L699" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 clip_most_recent(self, eval_type: str = 'VOL') -> FIA
@@ -179,13 +205,16 @@ clip_most_recent(self, eval_type: str = 'VOL') -> FIA
 Filter to most recent evaluation of specified type.
 
 **Args:**
-- `eval_type`: Evaluation type ('VOL' for volume, 'GRM' for growth, etc.).
+- `eval_type`: Evaluation type token. 'VOL' for volume/biomass/TPA/area;
+'GRM' for growth, removals, and mortality together (or the
+component-specific 'GROW', 'MORT', 'REMV'); 'CHNG' for change.
+See find_evalid for the full list of accepted tokens.
 
 **Returns:**
 - Self for method chaining.
 
 
-#### `clip_by_polygon` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L670" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `clip_by_polygon` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L737" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 clip_by_polygon(self, polygon: str | Path, predicate: str = 'intersects') -> FIA
@@ -223,7 +252,7 @@ Supports Shapefiles, GeoJSON, GeoPackage, and GeoParquet formats.
 ...     result = db.area()
 
 
-#### `intersect_polygons` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L838" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `intersect_polygons` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L905" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 intersect_polygons(self, polygon: str | Path, attributes: list[str]) -> FIA
@@ -263,7 +292,7 @@ exist in the polygon file and will be available for grp_by.
 ...     result = area(db, grp_by=["REGION", "DISTRICT"])
 
 
-#### `get_plots` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1018" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_plots` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1085" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_plots(self, columns: list[str] | None = None) -> pl.DataFrame
@@ -278,7 +307,7 @@ Get PLOT table filtered by current EVALID, state, and spatial settings.
 - Filtered PLOT dataframe.
 
 
-#### `get_trees` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1074" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_trees` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1141" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_trees(self, columns: list[str] | None = None) -> pl.DataFrame
@@ -293,7 +322,7 @@ Get TREE table filtered by current EVALID and state settings.
 - Filtered TREE dataframe.
 
 
-#### `get_conditions` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1110" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_conditions` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1177" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_conditions(self, columns: list[str] | None = None) -> pl.DataFrame
@@ -308,7 +337,7 @@ Get COND table filtered by current EVALID and state settings.
 - Filtered COND dataframe.
 
 
-#### `prepare_estimation_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1146" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `prepare_estimation_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1213" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 prepare_estimation_data(self, include_trees: bool = True) -> dict[str, pl.DataFrame]
@@ -331,7 +360,7 @@ memory on constrained environments).
 If include_trees=False, 'tree' will be an empty DataFrame.
 
 
-#### `tpa` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1227" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `tpa` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1294" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 tpa(self, **kwargs) -> pl.DataFrame
@@ -342,7 +371,7 @@ Estimate trees per acre.
 See tpa() function for full parameter documentation.
 
 
-#### `biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1238" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1305" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 biomass(self, **kwargs) -> pl.DataFrame
@@ -353,7 +382,7 @@ Estimate biomass.
 See biomass() function for full parameter documentation.
 
 
-#### `volume` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1249" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `volume` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1316" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 volume(self, **kwargs) -> pl.DataFrame
@@ -364,7 +393,7 @@ Estimate volume.
 See volume() function for full parameter documentation.
 
 
-#### `mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1260" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1327" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 mortality(self, **kwargs) -> pl.DataFrame
@@ -375,7 +404,7 @@ Estimate mortality.
 See mortality() function for full parameter documentation.
 
 
-#### `area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1270" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `area` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1337" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 area(self, **kwargs) -> pl.DataFrame
@@ -386,7 +415,7 @@ Estimate forest area.
 See area() function for full parameter documentation.
 
 
-#### `growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1280" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1347" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 growth(self, **kwargs) -> pl.DataFrame
@@ -397,7 +426,7 @@ Estimate annual growth.
 See growth() function for full parameter documentation.
 
 
-#### `removals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1290" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `removals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1357" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 removals(self, **kwargs) -> pl.DataFrame
@@ -408,7 +437,7 @@ Estimate annual removals/harvest.
 See removals() function for full parameter documentation.
 
 
-#### `area_change` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1316" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `area_change` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1383" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 area_change(self, **kwargs) -> pl.DataFrame
@@ -419,7 +448,7 @@ Estimate area change.
 See area_change() function for full parameter documentation.
 
 
-### `MotherDuckFIA` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1327" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `MotherDuckFIA` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1394" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 
 FIA database class for MotherDuck cloud-based access.
@@ -447,7 +476,7 @@ warehouse built on DuckDB.
 
 **Methods:**
 
-#### `close` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1397" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `close` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/core/fia.py#L1464" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 close(self)

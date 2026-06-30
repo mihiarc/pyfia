@@ -542,7 +542,13 @@ class GRMBaseEstimator(BaseEstimator):
                     )
 
             if variance_results:
+                from .variance import align_join_key_dtypes
+
                 var_df = pl.DataFrame(variance_results)
+                # Align all-null group keys so a Null-typed key (e.g. a
+                # disturbance code null across every group) does not break the
+                # join against the typed results key (#105).
+                var_df = align_join_key_dtypes(results, var_df, group_cols)
                 results = results.join(var_df, on=group_cols, how="left")
         else:
             # No grouping, calculate overall variance with ALL plots

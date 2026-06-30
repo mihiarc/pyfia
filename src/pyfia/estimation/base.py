@@ -676,7 +676,13 @@ class BaseEstimator(ABC):
         # Step 2: Aggregate to plot level
         plot_level_cols = ["PLT_CN", "STRATUM_CN", "EXPNS"]
         plot_level_cols = [c for c in plot_level_cols if c in plot_cond_data.columns]
-        plot_level_cols.extend([c for c in group_cols if c in plot_cond_data.columns and c not in plot_level_cols])
+        plot_level_cols.extend(
+            [
+                c
+                for c in group_cols
+                if c in plot_cond_data.columns and c not in plot_level_cols
+            ]
+        )
 
         plot_data = plot_cond_data.group_by(plot_level_cols).agg(
             [
@@ -823,6 +829,11 @@ class BaseEstimator(ABC):
             Results with variance columns added
         """
         if valid_group_cols:
+            from .variance import align_join_key_dtypes
+
+            # Align all-null group keys so a Null-typed key cannot break the
+            # join against the typed results key (#105).
+            variance_df = align_join_key_dtypes(results, variance_df, valid_group_cols)
             return results.join(variance_df, on=valid_group_cols, how="left")
         else:
             # No grouping - just add the single variance row's columns
@@ -1002,7 +1013,11 @@ class BaseEstimator(ABC):
             plot_level_cols.insert(1, "STRATUM_CN")
         if group_cols:
             plot_level_cols.extend(
-                [c for c in group_cols if c in plot_cond_data.columns and c not in plot_level_cols]
+                [
+                    c
+                    for c in group_cols
+                    if c in plot_cond_data.columns and c not in plot_level_cols
+                ]
             )
 
         # Build plot-level aggregation
@@ -1148,12 +1163,18 @@ class BaseEstimator(ABC):
 
         # Join variance results back to main results
         if variance_results:
+            from .variance import align_join_key_dtypes
+
             var_df = pl.DataFrame(variance_results)
             # Use only valid group columns that exist in both dataframes
             join_cols = [
                 c for c in group_cols if c in var_df.columns and c in results.columns
             ]
             if join_cols:
+                # Align all-null group keys so a Null-typed key (e.g. a
+                # disturbance code null across every group) does not break the
+                # join against the typed results key (#105).
+                var_df = align_join_key_dtypes(results, var_df, join_cols)
                 results = results.join(var_df, on=join_cols, how="left")
 
         return results

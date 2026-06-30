@@ -1,6 +1,5 @@
 """Tests for pyFIA constants and defaults."""
 
-
 from pyfia.constants.defaults import (
     Defaults,
     ErrorMessages,
@@ -79,7 +78,6 @@ class TestValidationRanges:
         assert ValidationRanges.MIN_PLOTS == 1
         assert ValidationRanges.MAX_PLOTS == 1_000_000
         assert ValidationRanges.MIN_PLOTS < ValidationRanges.MAX_PLOTS
-
 
 
 class TestErrorMessages:

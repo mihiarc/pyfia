@@ -365,15 +365,13 @@ class AreaEstimator(BaseEstimator):
         try:
             strat_data = self._get_stratification_data()
             strat_schema = strat_data.collect_schema().names()
-            select_cols = ["PLT_CN"] + [
-                c for c in strat_cols if c in strat_schema
-            ] + ["EXPNS"]
+            select_cols = (
+                ["PLT_CN"] + [c for c in strat_cols if c in strat_schema] + ["EXPNS"]
+            )
             all_plots = strat_data.select(select_cols).unique().collect()
         except (KeyError, AttributeError):
             # Fallback: derive all plots from the plot data itself
-            all_plots = plot_data.select(
-                ["PLT_CN"] + strat_cols + ["EXPNS"]
-            ).unique()
+            all_plots = plot_data.select(["PLT_CN"] + strat_cols + ["EXPNS"]).unique()
 
         # If we have grouping variables, calculate variance for each group
         if group_cols:
@@ -410,7 +408,9 @@ class AreaEstimator(BaseEstimator):
                         all_plots_group, strat_cols
                     )
                     # Calculate SE% from the area total in results
-                    area_col = "AREA_TOTAL" if "AREA_TOTAL" in results.columns else "AREA"
+                    area_col = (
+                        "AREA_TOTAL" if "AREA_TOTAL" in results.columns else "AREA"
+                    )
                     area_idx = results.columns.index(area_col)
                     area_total = group_vals[area_idx]
                     se_total = var_stats["se_total"]

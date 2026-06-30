@@ -26,7 +26,6 @@ References:
 - EVALIDator snum table: https://apps.fs.usda.gov/fiadb-api/fullreport/parameters/snum
 """
 
-
 from pyfia import FIA, area_change
 
 from .conftest import (

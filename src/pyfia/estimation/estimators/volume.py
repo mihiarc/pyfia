@@ -418,7 +418,8 @@ def volume(
         If True, include total volume estimates expanded to population level.
         If False, only return per-acre values.
     variance : bool, default False
-        If True, return variance instead of standard error.
+        If True, also return variance columns (``*_VARIANCE``) alongside the
+        standard errors (``*_SE``, always returned). Variance = SE squared.
     most_recent : bool, default False
         If True, automatically select the most recent evaluation for each
         state/region. Equivalent to calling db.clip_most_recent() first.
@@ -444,10 +445,10 @@ def volume(
             Sound cubic foot volume per acre
         - **VOLBFNET_ACRE** : float (if vol_type='sawlog')
             Net board foot volume per acre
-        - **VOLCFNET_ACRE_SE** : float (if variance=False)
+        - **VOLCFNET_ACRE_SE** : float
             Standard error of per-acre volume estimate
-        - **VOLCFNET_ACRE_VAR** : float (if variance=True)
-            Variance of per-acre volume estimate
+        - **VOLCFNET_ACRE_VARIANCE** : float (if variance=True)
+            Variance of per-acre volume estimate (= VOLCFNET_ACRE_SE squared)
         - **N_PLOTS** : int
             Number of plots in estimate
         - **N_TREES** : int
@@ -456,8 +457,10 @@ def volume(
             Total area (acres) represented by the estimation
         - **VOLCFNET_TOTAL** : float (if totals=True)
             Total volume expanded to population level
-        - **VOLCFNET_TOTAL_SE** : float (if totals=True and variance=False)
+        - **VOLCFNET_TOTAL_SE** : float (if totals=True)
             Standard error of total volume
+        - **VOLCFNET_TOTAL_VARIANCE** : float (if totals=True and variance=True)
+            Variance of total volume (= VOLCFNET_TOTAL_SE squared)
 
     See Also
     --------

@@ -348,8 +348,8 @@ def biomass(
         - 'gs': Growing stock trees (live, merchantable, STATUSCD == 1 with
           specific quality requirements)
         - 'all': All trees regardless of status
-    component : str, default 'AG'
-        Biomass component to estimate. Valid options include:
+    component : {'AG', 'BG', 'TOTAL', 'BOLE', 'BRANCH', 'FOLIAGE'}, default 'AG'
+        Biomass component to estimate (case-insensitive):
 
         - 'AG': Aboveground biomass (stem, bark, branches, foliage)
         - 'BG': Belowground biomass (coarse roots)
@@ -357,13 +357,10 @@ def biomass(
         - 'BOLE': Main stem wood and bark
         - 'BRANCH': Live and dead branches
         - 'FOLIAGE': Leaves/needles
-        - 'ROOTS': Coarse roots (same as BG)
-        - 'STUMP': Stump biomass
-        - 'SAPLING': Sapling biomass
-        - 'TOP': Top and branches above merchantable height
 
-        Note: Not all components may be available for all species or regions.
-        Check TREE table for available DRYBIO_* columns.
+        For belowground/coarse-root biomass use 'BG'. Each value maps to a
+        DRYBIO_* column in the TREE table; values without a corresponding
+        column (e.g. 'ROOT', 'STUMP', 'TOP') are not supported.
     tree_domain : str, optional
         SQL-like filter expression for tree-level filtering. Applied to
         TREE table. Example: "DIA >= 10.0 AND SPCD == 131".
@@ -374,7 +371,8 @@ def biomass(
         If True, include population-level total estimates in addition to
         per-acre values. Totals are expanded using FIA expansion factors.
     variance : bool, default False
-        If True, calculate and include variance and standard error estimates.
+        If True, also return variance columns (``*_VARIANCE``) alongside the
+        standard errors (``*_SE``, always returned). Variance = SE squared.
         Note: Currently uses simplified variance calculation (10% of estimate).
     most_recent : bool, default False
         If True, automatically filter to the most recent evaluation for
@@ -393,14 +391,16 @@ def biomass(
             Carbon per acre in tons (47% of biomass)
         - **CARB_TOTAL** : float (if totals=True)
             Total carbon in tons expanded to population level
-        - **BIO_ACRE_SE** : float (if variance=True)
+        - **BIO_ACRE_SE** : float
             Standard error of per-acre biomass estimate
-        - **BIO_TOTAL_SE** : float (if variance=True and totals=True)
+        - **BIO_TOTAL_SE** : float (if totals=True)
             Standard error of total biomass estimate
-        - **CARB_ACRE_SE** : float (if variance=True)
+        - **CARB_ACRE_SE** : float
             Standard error of per-acre carbon estimate
-        - **CARB_TOTAL_SE** : float (if variance=True and totals=True)
+        - **CARB_TOTAL_SE** : float (if totals=True)
             Standard error of total carbon estimate
+        - **BIO_ACRE_VARIANCE**, **BIO_TOTAL_VARIANCE**, **CARB_ACRE_VARIANCE**, **CARB_TOTAL_VARIANCE** : float (if variance=True)
+            Variance of the corresponding estimate (= the matching _SE squared)
         - **AREA_TOTAL** : float
             Total area (acres) represented by the estimation
         - **N_PLOTS** : int

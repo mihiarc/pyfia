@@ -14,6 +14,7 @@ from pyfia.validation import (
     validate_sql_identifier,
     validate_temporal_method,
     validate_tree_type,
+    validate_tree_type_grm,
     validate_vol_type,
 )
 
@@ -47,6 +48,23 @@ class TestValidators:
         with pytest.raises(ValueError, match="Invalid tree_type"):
             validate_tree_type("growing_stock")
 
+    def test_validate_tree_type_rejects_grm_only_values(self):
+        """#111: al/sl/sawtimber are GRM-only; the base validator rejects them."""
+        for value in ("al", "sl", "sawtimber"):
+            with pytest.raises(ValueError, match="Invalid tree_type"):
+                validate_tree_type(value)
+
+    def test_validate_tree_type_grm_valid(self):
+        """#111: GRM estimators accept the wider tree-type vocabulary."""
+        for value in ("gs", "al", "sl", "live", "sawtimber"):
+            assert validate_tree_type_grm(value) == value
+
+    def test_validate_tree_type_grm_invalid(self):
+        """#111: GRM validator rejects all/dead (they would silently map to GS)."""
+        for value in ("all", "dead", "growing_stock"):
+            with pytest.raises(ValueError, match="Invalid tree_type"):
+                validate_tree_type_grm(value)
+
     def test_validate_vol_type_valid(self):
         """Test valid volume type values."""
         assert validate_vol_type("net") == "net"
@@ -70,6 +88,16 @@ class TestValidators:
         """Test invalid biomass component values."""
         with pytest.raises(ValueError, match="Invalid biomass component"):
             validate_biomass_component("invalid")
+
+    def test_validate_biomass_component_rejects_root(self):
+        """#110: 'root' is not a valid component (no DRYBIO_ROOT; use 'bg')."""
+        with pytest.raises(ValueError, match="Invalid biomass component"):
+            validate_biomass_component("root")
+
+    def test_validate_biomass_component_supported_set(self):
+        """#110: every advertised component validates (lowercased input)."""
+        for value in ("ag", "bg", "total", "bole", "branch", "foliage"):
+            assert validate_biomass_component(value) == value
 
     def test_validate_mortality_measure_valid(self):
         """Test valid mortality measure values."""

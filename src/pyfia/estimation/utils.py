@@ -349,6 +349,50 @@ def _enhance_grouping_columns(df: pl.DataFrame) -> pl.DataFrame:
     return df
 
 
+def apply_variance_columns(df: pl.DataFrame, variance: bool) -> pl.DataFrame:
+    """Apply pyFIA's standard-error / variance output contract.
+
+    pyFIA always reports standard errors (``*_SE`` columns). Variance columns
+    are opt-in: when ``variance=True`` every standard-error column gets a
+    matching ``*_VARIANCE`` column equal to the standard error squared
+    (e.g. ``VOLCFNET_TOTAL_SE`` -> ``VOLCFNET_TOTAL_VARIANCE``,
+    ``AREA_SE_PERCENT`` -> ``AREA_VARIANCE_PERCENT``). Standard-error columns
+    are never removed.
+
+    This is applied once, at the end of the estimation pipeline, so the
+    contract is uniform across every estimator regardless of how each one
+    formats its own output.
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Formatted estimator output.
+    variance : bool
+        If True, add ``*_VARIANCE`` columns alongside the ``*_SE`` columns.
+
+    Returns
+    -------
+    pl.DataFrame
+        Output with variance columns added (variance=True) or with any
+        pre-existing variance columns removed (variance=False).
+    """
+    # Drop any pre-existing variance columns so the naming/contract is uniform
+    # regardless of what individual estimators compute internally.
+    preexisting = [c for c in df.columns if "_VARIANCE" in c]
+    if preexisting:
+        df = df.drop(preexisting)
+
+    if not variance:
+        return df
+
+    se_cols = [c for c in df.columns if c.endswith("_SE") or c.endswith("_SE_PERCENT")]
+    if se_cols:
+        df = df.with_columns(
+            [(pl.col(c) ** 2).alias(c.replace("_SE", "_VARIANCE")) for c in se_cols]
+        )
+    return df
+
+
 def format_output_columns(
     df: pl.DataFrame,
     estimation_type: str,

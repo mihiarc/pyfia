@@ -299,8 +299,12 @@ def mortality(
         - "market": Timber market categories (Pre-merchantable, Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'timber'
         Land type to include in estimation.
-    tree_type : {'all', 'dead', 'gs', 'live'}, default 'gs'
-        Tree type to include.
+    tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
+        Tree population to include (GRM tables):
+
+        - 'gs': growing stock
+        - 'al' or 'live': all live trees
+        - 'sl' or 'sawtimber': sawtimber-size trees
     measure : {'volume', 'sawlog', 'biomass', 'tpa', 'count', 'basal_area'}, default 'volume'
         What to measure in the mortality estimation.
     tree_domain : str, optional
@@ -312,7 +316,8 @@ def mortality(
     totals : bool, default True
         If True, include population-level total estimates.
     variance : bool, default False
-        If True, calculate and include variance and standard error estimates.
+        If True, also return variance columns (``*_VARIANCE``) alongside the
+        standard errors (``*_SE``, always returned). Variance = SE squared.
     most_recent : bool, default False
         If True, automatically filter to the most recent evaluation.
 
@@ -322,8 +327,10 @@ def mortality(
         Mortality estimates with columns:
         - MORT_ACRE: Annual mortality per acre
         - MORT_TOTAL: Total annual mortality (if totals=True)
-        - MORT_ACRE_SE: Standard error of per-acre estimate (if variance=True)
-        - MORT_TOTAL_SE: Standard error of total estimate (if variance=True)
+        - MORT_ACRE_SE: Standard error of per-acre estimate
+        - MORT_TOTAL_SE: Standard error of total estimate (if totals=True)
+        - MORT_ACRE_VARIANCE, MORT_TOTAL_VARIANCE: Variance of the estimates,
+          equal to the matching _SE squared (if variance=True)
         - Additional grouping columns if specified
 
     See Also
@@ -376,11 +383,11 @@ def mortality(
         validate_grp_by,
         validate_land_type,
         validate_mortality_measure,
-        validate_tree_type,
+        validate_tree_type_grm,
     )
 
     land_type = validate_land_type(land_type)
-    tree_type = validate_tree_type(tree_type)
+    tree_type = validate_tree_type_grm(tree_type)
     measure = validate_mortality_measure(measure)
     grp_by = validate_grp_by(grp_by)
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")

@@ -10,7 +10,10 @@ from typing import Any
 VALID_LAND_TYPES = {"forest", "timber", "all"}
 VALID_TREE_TYPES = {"live", "dead", "gs", "all"}
 VALID_VOL_TYPES = {"net", "gross", "sound", "sawlog"}
-VALID_BIOMASS_COMPONENTS = {"total", "ag", "bg", "bole", "branch", "foliage", "root"}
+# NOTE: keep in sync with BiomassEstimator.get_tree_columns(); each non-AG/BG/TOTAL
+# value must map to an existing DRYBIO_<COMPONENT> column in the TREE table.
+# Belowground/coarse-root biomass is "bg" (DRYBIO_BG); there is no DRYBIO_ROOT.
+VALID_BIOMASS_COMPONENTS = {"total", "ag", "bg", "bole", "branch", "foliage"}
 VALID_TEMPORAL_METHODS = {"TI", "ANNUAL", "SMA", "LMA", "EMA"}
 
 
@@ -30,6 +33,25 @@ def validate_tree_type(tree_type: str) -> str:
         raise ValueError(
             f"Invalid tree_type '{tree_type}'. "
             f"Must be one of: {', '.join(sorted(VALID_TREE_TYPES))}"
+        )
+    return tree_type
+
+
+# GRM estimators (growth / mortality / removals) accept a wider tree-type
+# vocabulary than the area/volume/biomass/tpa estimators: the GRM tables carry
+# growing-stock (GS), all-live (AL), and sawlog/sawtimber (SL) population
+# columns. 'live' is an alias for 'al' and 'sawtimber' for 'sl'. See
+# grm.normalize_tree_type / grm.resolve_grm_columns. Note 'all'/'dead' are NOT
+# valid here — they would silently fall through to growing stock.
+VALID_TREE_TYPES_GRM = {"gs", "al", "sl", "live", "sawtimber"}
+
+
+def validate_tree_type_grm(tree_type: str) -> str:
+    """Validate tree_type for GRM estimators (growth/mortality/removals)."""
+    if tree_type not in VALID_TREE_TYPES_GRM:
+        raise ValueError(
+            f"Invalid tree_type '{tree_type}'. "
+            f"Must be one of: {', '.join(sorted(VALID_TREE_TYPES_GRM))}"
         )
     return tree_type
 

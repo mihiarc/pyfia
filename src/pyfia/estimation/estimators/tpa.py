@@ -237,24 +237,9 @@ class TPAEstimator(BaseEstimator):
 
         results = self._calculate_variance_for_metrics(agg_result, metric_configs)
 
-        # Convert to variance if requested (swap SE columns for VAR columns)
-        if self.config.get("variance", False):
-            results = results.with_columns(
-                [
-                    (pl.col("TPA_SE") ** 2).alias("TPA_VAR"),
-                    (pl.col("BAA_SE") ** 2).alias("BAA_VAR"),
-                ]
-            )
-            results = results.drop(["TPA_SE", "BAA_SE"])
-
-            if "TPA_TOTAL_SE" in results.columns:
-                results = results.with_columns(
-                    [
-                        (pl.col("TPA_TOTAL_SE") ** 2).alias("TPA_TOTAL_VAR"),
-                        (pl.col("BAA_TOTAL_SE") ** 2).alias("BAA_TOTAL_VAR"),
-                    ]
-                )
-                results = results.drop(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
+        # Standard errors are always retained. Variance columns (if requested
+        # via variance=True) are added uniformly by apply_variance_columns at
+        # the end of the pipeline, so we no longer swap/drop SE columns here.
 
         # Add warning for small sample sizes
         if "N_PLOTS" in results.columns:
@@ -314,24 +299,17 @@ class TPAEstimator(BaseEstimator):
         # Add per-acre estimate columns
         col_order.extend(["TPA", "BAA"])
 
-        # Add uncertainty columns (SE or VAR based on config)
-        if self.config.get("variance", False):
-            if "TPA_VAR" in results.columns:
-                col_order.extend(["TPA_VAR", "BAA_VAR"])
-        else:
-            if "TPA_SE" in results.columns:
-                col_order.extend(["TPA_SE", "BAA_SE"])
+        # Add uncertainty columns (standard errors). Variance columns, if
+        # requested, are appended uniformly by apply_variance_columns.
+        if "TPA_SE" in results.columns:
+            col_order.extend(["TPA_SE", "BAA_SE"])
 
         # Add total columns if present
         if self.config.get("totals", False):
             if "TPA_TOTAL" in results.columns:
                 col_order.extend(["TPA_TOTAL", "BAA_TOTAL"])
-                if self.config.get("variance", False):
-                    if "TPA_TOTAL_VAR" in results.columns:
-                        col_order.extend(["TPA_TOTAL_VAR", "BAA_TOTAL_VAR"])
-                else:
-                    if "TPA_TOTAL_SE" in results.columns:
-                        col_order.extend(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
+                if "TPA_TOTAL_SE" in results.columns:
+                    col_order.extend(["TPA_TOTAL_SE", "BAA_TOTAL_SE"])
 
         # Add CV columns if present
         if self.config.get("include_cv", False):
@@ -459,8 +437,9 @@ def tpa(
         in addition to per-acre values. Total estimates are expanded using
         stratification factors.
     variance : bool, default False
-        If True, return variance instead of standard error. Standard error
-        is calculated as the square root of variance.
+        If True, also return variance columns (``*_VARIANCE``) alongside the
+        standard errors. Standard errors (``*_SE``) are always returned;
+        variance equals the standard error squared.
 
     Returns
     -------
@@ -475,22 +454,22 @@ def tpa(
             Trees per acre
         - **BAA** : float
             Basal area per acre (square feet)
-        - **TPA_SE** : float (if variance=False)
+        - **TPA_SE** : float
             Standard error of TPA estimate
-        - **BAA_SE** : float (if variance=False)
+        - **BAA_SE** : float
             Standard error of BAA estimate
-        - **TPA_VAR** : float (if variance=True)
-            Variance of TPA estimate
-        - **BAA_VAR** : float (if variance=True)
-            Variance of BAA estimate
+        - **TPA_VARIANCE**, **BAA_VARIANCE** : float (if variance=True)
+            Variance of the per-acre estimates (= the SE columns squared)
         - **TPA_TOTAL** : float (if totals=True)
             Total trees expanded to population level
         - **BAA_TOTAL** : float (if totals=True)
             Total basal area expanded to population level
-        - **TPA_TOTAL_SE** : float (if totals=True and variance=False)
+        - **TPA_TOTAL_SE** : float (if totals=True)
             Standard error of total TPA
-        - **BAA_TOTAL_SE** : float (if totals=True and variance=False)
+        - **BAA_TOTAL_SE** : float (if totals=True)
             Standard error of total BAA
+        - **TPA_TOTAL_VARIANCE**, **BAA_TOTAL_VARIANCE** : float (if totals=True and variance=True)
+            Variance of the totals (= the total SE columns squared)
         - **N_PLOTS** : int
             Number of FIA plots in estimate
         - **N_TREES** : int

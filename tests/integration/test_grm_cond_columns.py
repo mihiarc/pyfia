@@ -18,9 +18,9 @@ GA_FIPS = 13
 
 # (function, eval_type token, estimator-specific kwargs)
 GRM_SPECS = [
-    (growth, "GROW", dict(measure="biomass", tree_type="all")),
-    (mortality, "MORT", dict(measure="biomass", tree_type="all")),
-    (removals, "REMV", dict(measure="biomass", tree_type="all")),
+    (growth, "GROW", dict(measure="biomass", tree_type="al")),
+    (mortality, "MORT", dict(measure="biomass", tree_type="al")),
+    (removals, "REMV", dict(measure="biomass", tree_type="al")),
     (biomass, "VOL", dict(component="AG", tree_type="live")),
 ]
 

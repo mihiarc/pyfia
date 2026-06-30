@@ -84,9 +84,10 @@ By the end you'll have downloaded FIA data, selected a valid evaluation, estimat
     Other estimators follow the same pattern with their own prefixes — `VOLCFNET_ACRE`
     and `VOLCFNET_TOTAL` for [`volume()`](/api/pyfia-estimation-estimators-volume),
     `MORT_ACRE` for [`mortality()`](/api/pyfia-estimation-estimators-mortality), and so
-    on. Every estimate comes with standard-error columns (suffix `_SE`); `area()` and
-    `volume()` also include variance columns — see [Understanding variance](/concepts/variance).
-    Pass `totals=False` to drop the population totals.
+    on. Every estimate comes with standard-error columns (suffix `_SE`); pass
+    `variance=True` to also get the matching `_VARIANCE` columns — see
+    [Understanding variance](/concepts/variance). Pass `totals=False` to drop the
+    population totals.
   </Step>
 </Steps>
 

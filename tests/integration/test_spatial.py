@@ -260,8 +260,10 @@ class TestSpatialWithEstimators:
             result = tpa(db, grp_by=["REGION"], tree_type="live", variance=True)
 
             assert result is not None
-            # Should have variance columns (TPA_VAR contains variance for TPA)
-            assert "TPA_VAR" in result.columns or "TPA_SE" in result.columns
+            # variance=True keeps the standard errors and adds matching
+            # *_VARIANCE columns (variance = SE squared).
+            assert "TPA_SE" in result.columns
+            assert "TPA_VARIANCE" in result.columns
 
     def test_north_south_region_assignment(self, db_path, north_south_regions):
         """Test that plots are correctly assigned to North/South regions."""

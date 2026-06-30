@@ -15,7 +15,7 @@ without unnecessary abstractions.
 
 ## Functions
 
-### `tpa` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L359" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `tpa` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L337" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 tpa(db: 'FIA', grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, land_type: str = 'forest', tree_type: str = 'live', tree_domain: str | None = None, area_domain: str | None = None, plot_domain: str | None = None, totals: bool = False, variance: bool = False) -> pl.DataFrame
@@ -100,8 +100,9 @@ Applied to the COND table. Examples\:
 - `totals`: If True, include population-level total estimates (TPA_TOTAL, BAA_TOTAL)
 in addition to per-acre values. Total estimates are expanded using
 stratification factors.
-- `variance`: If True, return variance instead of standard error. Standard error
-is calculated as the square root of variance.
+- `variance`: If True, also return variance columns (``*_VARIANCE``) alongside the
+standard errors. Standard errors (``*_SE``) are always returned;
+variance equals the standard error squared.
 
 **Returns:**
 - Trees per acre and basal area estimates with the following columns:
@@ -114,22 +115,22 @@ is calculated as the square root of variance.
     Trees per acre
 - **BAA** : float
     Basal area per acre (square feet)
-- **TPA_SE** : float (if variance=False)
+- **TPA_SE** : float
     Standard error of TPA estimate
-- **BAA_SE** : float (if variance=False)
+- **BAA_SE** : float
     Standard error of BAA estimate
-- **TPA_VAR** : float (if variance=True)
-    Variance of TPA estimate
-- **BAA_VAR** : float (if variance=True)
-    Variance of BAA estimate
+- **TPA_VARIANCE**, **BAA_VARIANCE** : float (if variance=True)
+    Variance of the per-acre estimates (= the SE columns squared)
 - **TPA_TOTAL** : float (if totals=True)
     Total trees expanded to population level
 - **BAA_TOTAL** : float (if totals=True)
     Total basal area expanded to population level
-- **TPA_TOTAL_SE** : float (if totals=True and variance=False)
+- **TPA_TOTAL_SE** : float (if totals=True)
     Standard error of total TPA
-- **BAA_TOTAL_SE** : float (if totals=True and variance=False)
+- **BAA_TOTAL_SE** : float (if totals=True)
     Standard error of total BAA
+- **TPA_TOTAL_VARIANCE**, **BAA_TOTAL_VARIANCE** : float (if totals=True and variance=True)
+    Variance of the totals (= the total SE columns squared)
 - **N_PLOTS** : int
     Number of FIA plots in estimate
 - **N_TREES** : int
@@ -295,7 +296,7 @@ V(Ŷ) = Σ_h w_h² × s²_yh × n_h
 This matches EVALIDator's variance calculation for tree-based estimates.
 
 
-#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L275" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/tpa.py#L260" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 format_output(self, results: pl.DataFrame) -> pl.DataFrame

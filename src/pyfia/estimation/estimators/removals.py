@@ -232,8 +232,9 @@ def removals(
         - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : str
         Land type: "forest", "timber", or "all"
-    tree_type : str
-        Tree type: "gs" (growing stock), "all"
+    tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
+        Tree population to include (GRM tables): 'gs' (growing stock),
+        'al'/'live' (all live), 'sl'/'sawtimber' (sawtimber-size).
     measure : str
         What to measure: "volume", "biomass", or "count"
     tree_domain : str | None
@@ -297,11 +298,11 @@ def removals(
         validate_land_type,
         validate_mortality_measure,
         validate_positive_number,
-        validate_tree_type,
+        validate_tree_type_grm,
     )
 
     land_type = validate_land_type(land_type)
-    tree_type = validate_tree_type(tree_type)
+    tree_type = validate_tree_type_grm(tree_type)
     measure = validate_mortality_measure(measure)
     grp_by = validate_grp_by(grp_by)
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")

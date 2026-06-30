@@ -32,6 +32,7 @@ from .aggregation import (
     compute_per_acre_values as _compute_per_acre_values_impl,
 )
 from .data_loading import DataLoader
+from .utils import apply_variance_columns
 
 logger = logging.getLogger(__name__)
 
@@ -129,7 +130,11 @@ class BaseEstimator(ABC):
         results = self.calculate_variance(agg_result)
 
         # 6. Format output
-        return self.format_output(results)
+        formatted = self.format_output(results)
+
+        # 7. Apply the standard-error / variance column contract uniformly:
+        #    always keep _SE columns; add _VARIANCE columns only if requested.
+        return apply_variance_columns(formatted, self.config.get("variance", False))
 
     def load_data(self) -> pl.LazyFrame | None:
         """

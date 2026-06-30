@@ -39,19 +39,27 @@ methodology.
 - "descriptive"\: Text labels (Saplings, Small, Medium, Large)
 - "market"\: Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
 - `land_type`: Land type to include in estimation.
-- `tree_type`: Tree type to include.
+- `tree_type`: Tree population to include (GRM tables)\:
+
+- 'gs'\: growing stock
+- 'al' or 'live'\: all live trees
+- 'sl' or 'sawtimber'\: sawtimber-size trees
 - `measure`: What to measure in the growth estimation.
 - `tree_domain`: SQL-like filter expression for tree-level filtering.
 - `area_domain`: SQL-like filter expression for area/condition-level filtering.
 - `totals`: If True, include population-level total estimates.
-- `variance`: If True, calculate and include variance and standard error estimates.
+- `variance`: If True, also return variance columns (``*_VARIANCE``) alongside the
+standard errors (``*_SE``, always returned). Variance = SE squared.
 - `most_recent`: If True, automatically filter to the most recent evaluation.
 
 **Returns:**
 - Growth estimates with columns:
 - GROWTH_ACRE: Annual growth per acre
 - GROWTH_TOTAL: Total annual growth (if totals=True)
-- GROWTH_ACRE_SE: Standard error of per-acre estimate (if variance=True)
+- GROWTH_ACRE_SE: Standard error of per-acre estimate
+- GROWTH_TOTAL_SE: Standard error of total estimate (if totals=True)
+- GROWTH_ACRE_VARIANCE, GROWTH_TOTAL_VARIANCE: Variance of the estimates,
+  equal to the matching _SE squared (if variance=True)
 - Additional grouping columns if specified
 
 

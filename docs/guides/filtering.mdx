@@ -42,6 +42,10 @@ pyfia.tpa(db, tree_type="live")       # all live trees
   Defaults vary by estimator to match the most common use case — for example,
   `mortality()` defaults to growing stock on timberland. Check each function's
   [API reference](/api/pyfia-estimation-estimators-mortality) for its defaults.
+
+  The growth/removal/mortality estimators (`growth()`, `mortality()`,
+  `removals()`) additionally accept `"al"` (all live) and `"sl"` / `"sawtimber"`
+  (sawtimber-size), which select the matching FIA GRM tree populations.
 </Note>
 
 ## Custom domain filters

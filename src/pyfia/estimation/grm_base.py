@@ -15,7 +15,7 @@ import polars as pl
 from ..core.exceptions import NoEVALIDError
 from ..filtering.utils import create_size_class_expr
 from .base import AggregationResult, BaseEstimator
-from .columns import get_cond_columns as _get_cond_columns
+from .columns import collect_referenced_columns, columns_in_table
 
 logger = logging.getLogger(__name__)
 
@@ -97,21 +97,35 @@ class GRMBaseEstimator(BaseEstimator):
         return get_grm_required_tables(self.component_type)
 
     def get_cond_columns(self) -> list[str]:
-        """Standard condition columns for GRM estimation.
+        """Condition columns for GRM estimation.
 
-        Uses centralized column resolution from columns.py to reduce duplication.
-        GRM estimation needs additional columns for filtering and grouping.
+        Loads the base condition set plus the GRM helper columns used by
+        aggregate_cond_to_plot() and land-basis filtering, then adds any
+        grp_by / area_domain / tree_domain column that actually lives in the
+        COND table. Resolving against the real COND schema (rather than a fixed
+        allowlist) lets grouping and domain filtering use the same set of
+        condition columns, fixing #103 and #104.
         """
-        base_cols = _get_cond_columns(
-            land_type=self.config.get("land_type", "forest"),
-            grp_by=self.config.get("grp_by"),
-            include_prop_basis=False,
-        )
+        base_cols = [
+            "PLT_CN",
+            "CONDID",
+            "COND_STATUS_CD",
+            "CONDPROP_UNADJ",
+            "OWNGRPCD",
+            "FORTYPCD",
+            "SITECLCD",
+            "RESERVCD",
+            "ALSTKCD",
+        ]
 
-        # GRM estimation needs these columns for aggregate_cond_to_plot()
-        # and filtering by forest type, ownership, etc.
-        grm_cols = ["OWNGRPCD", "FORTYPCD", "SITECLCD", "RESERVCD", "ALSTKCD"]
-        for col in grm_cols:
+        # Add any user-referenced column that exists in the COND table so that
+        # grp_by and area_domain/tree_domain resolve identically.
+        referenced = collect_referenced_columns(
+            self.config.get("grp_by"),
+            self.config.get("area_domain"),
+            self.config.get("tree_domain"),
+        )
+        for col in columns_in_table(self.db, "COND", referenced):
             if col not in base_cols:
                 base_cols.append(col)
 

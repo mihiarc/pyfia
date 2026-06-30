@@ -354,32 +354,32 @@ def aggregate_cond_to_plot(cond: pl.LazyFrame) -> pl.LazyFrame:
         - PLT_CN
         - COND_STATUS_CD (from first/dominant condition)
         - CONDPROP_UNADJ (sum of all condition proportions)
-        - OWNGRPCD, FORTYPCD, SITECLCD, RESERVCD (from first condition, if present)
         - CONDID (dummy value of 1)
+        - every other loaded condition column (from the first condition)
+
+    Notes
+    -----
+    All loaded condition columns other than the explicitly handled keys are
+    carried to plot level via ``first()``. This preserves any grouping or
+    domain column threaded through the COND load (e.g. TRTCD1, DSTRBCD1)
+    instead of dropping anything outside a fixed allowlist, which is what
+    caused mortality()/removals() to lose group columns (#104).
     """
     # Get available columns
     available_cols = cond.collect_schema().names()
 
-    # Build aggregation list dynamically
+    # Columns aggregated with bespoke logic; all others are carried via first().
+    handled = {"PLT_CN", "COND_STATUS_CD", "CONDPROP_UNADJ", "CONDID"}
+
     agg_exprs = [
         pl.col("COND_STATUS_CD").first().alias("COND_STATUS_CD"),
         pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
         pl.lit(1).alias("CONDID"),
     ]
 
-    # Add optional columns if available
-    optional_cols = [
-        "OWNGRPCD",
-        "FORTYPCD",
-        "SITECLCD",
-        "RESERVCD",
-        "ALSTKCD",
-        "DSTRBCD1",  # Primary disturbance code
-        "DSTRBCD2",  # Secondary disturbance code
-        "DSTRBCD3",  # Tertiary disturbance code
-    ]
-    for col in optional_cols:
-        if col in available_cols:
+    # Carry every other loaded condition column to plot level (first condition).
+    for col in available_cols:
+        if col not in handled:
             agg_exprs.append(pl.col(col).first().alias(col))
 
     return cond.group_by("PLT_CN").agg(agg_exprs)

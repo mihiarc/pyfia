@@ -36,29 +36,10 @@ class GrowthEstimator(GRMBaseEstimator):
         """Return 'growth' as the GRM component type."""
         return "growth"
 
-    def get_cond_columns(self) -> list[str]:
-        """Required condition columns for growth estimation."""
-        base_cols = [
-            "PLT_CN",
-            "CONDID",
-            "COND_STATUS_CD",
-            "CONDPROP_UNADJ",
-            "OWNGRPCD",
-            "FORTYPCD",
-            "SITECLCD",
-            "RESERVCD",
-            "ALSTKCD",
-        ]
-
-        if self.config.get("grp_by"):
-            grp_cols = self.config["grp_by"]
-            if isinstance(grp_cols, str):
-                grp_cols = [grp_cols]
-            for col in grp_cols:
-                if col not in base_cols:
-                    base_cols.append(col)
-
-        return base_cols
+    # get_cond_columns is inherited from GRMBaseEstimator: it loads the base
+    # condition set plus any grp_by / area_domain / tree_domain column that
+    # exists in the COND table (schema-driven), so growth resolves condition
+    # columns identically to mortality/removals (#103, #104).
 
     def load_data(self) -> pl.LazyFrame | None:
         """

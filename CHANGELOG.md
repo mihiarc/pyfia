@@ -31,6 +31,22 @@ live-tree-stock implementations (#89).
 - **Woodland-species biomass collapse** in `live_tree()`; **woodland-species zeroing** in `standing_dead()` (shared guard in the carbon estimator base class).
 - DECAYCD empty-string filter leak in the standing-dead path.
 
+## [1.4.2] - 2026-06-30
+
+Bug-fix release closing three estimator issues found in the v1.4.1 public-docs
+audit (#109, #110, #111). Point estimates and standard errors are unchanged for
+every previously-working query; the changes concern input validation and the
+opt-in variance columns only.
+
+### Fixed
+- **`biomass(component="ROOT")` crashed with a `BinderException`** (#110) — `"root"` passed validation but then selected a non-existent `DRYBIO_ROOT` column. `"root"` has been removed from the valid component set; use `"bg"` for belowground/coarse-root biomass (`DRYBIO_BG`). Valid components are `AG`, `BG`, `TOTAL`, `BOLE`, `BRANCH`, `FOLIAGE` (case-insensitive).
+- **GRM estimators rejected the `tree_type` values they actually support** (#111) — `growth()`/`mortality()`/`removals()` advertise and internally handle `gs`/`al`/`sl`/`live`/`sawtimber`, but the shared validator only allowed `{all, dead, gs, live}`, so following the documented API raised `ValueError`. These estimators now validate against `{gs, al, sl, live, sawtimber}` (`al`/`live` → all-live, `sl`/`sawtimber` → sawtimber-size). `area()`/`volume()`/`biomass()`/`tpa()` keep `{all, dead, gs, live}`.
+- **`variance=True` did not add variance columns (and broke `tpa()`)** (#109) — the flag was a no-op for most estimators, and for `tpa()` it dropped the standard-error columns entirely. Standard errors (`*_SE`) are now always returned, and `variance=True` adds matching `*_VARIANCE` columns (equal to the standard error squared) uniformly across every estimator.
+
+### Changed
+- **The standard-error / variance output contract is now uniform and opt-in.** `area()` and `volume()` no longer emit variance columns by default — pass `variance=True`. Variance columns use the standard-error-mirrored name (e.g. `VOLCFNET_TOTAL_SE` → `VOLCFNET_TOTAL_VARIANCE`, `AREA_SE_PERCENT` → `AREA_VARIANCE_PERCENT`); `tpa()`'s previous `*_VAR` columns are renamed to `*_VARIANCE`.
+- **GRM estimators no longer silently accept `tree_type="all"`/`"dead"`** (part of #111) — these previously fell through to growing stock; they now raise a clear `ValueError`.
+
 ## [1.4.1] - 2026-06-30
 
 Bug-fix release for the Growth-Removal-Mortality (GRM) / condition-column paths,

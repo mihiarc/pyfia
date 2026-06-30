@@ -31,6 +31,21 @@ live-tree-stock implementations (#89).
 - **Woodland-species biomass collapse** in `live_tree()`; **woodland-species zeroing** in `standing_dead()` (shared guard in the carbon estimator base class).
 - DECAYCD empty-string filter leak in the standing-dead path.
 
+## [1.4.1] - 2026-06-30
+
+Bug-fix release for the Growth-Removal-Mortality (GRM) / condition-column paths,
+reported while building disturbance × treatment-stratified carbon stock-change
+against per-state FIADB DuckDBs. All public APIs from 1.4.0 remain backward
+compatible; no estimation math, variance formulas, or EVALIDator-validated
+numbers change for previously-working queries.
+
+### Fixed
+- **`clip_most_recent(eval_type="GRM")` always raised `NoEVALIDError`** (#102) — `find_evalid()` built a non-existent `EXPGRM` evaluation type. `eval_type` is now resolved through an explicit token → `EVAL_TYP` map: `"GRM"` is a working alias for the shared growth/removal/mortality family EVALID, raw `EXP*` codes pass through, and unknown tokens raise a clear error listing the valid options.
+- **`area_domain` could not filter on COND columns that `grp_by` accepts** (#103) — e.g. `area_domain="DSTRBCD1 > 0"` raised `ColumnNotFoundError` for `growth()`/`mortality()`/`removals()`. Columns referenced in `grp_by`, `area_domain`, and `tree_domain` are now resolved against the real table schemas and threaded into the COND/TREE/PLOT loads uniformly across all four estimators.
+- **`mortality()` / `removals()` crashed on `grp_by` columns outside a fixed allowlist** (#104) — e.g. `TRTCD1` was dropped before the variance step (a `ColumnNotFoundError`) where `growth()`/`biomass()` succeeded. `aggregate_cond_to_plot()` now carries every loaded condition column to plot level, so any grouping column survives.
+- **`biomass(grp_by=...)` crashed on states where a grouping key is null for every group** (#105) — e.g. `DSTRBCD1` on Oregon raised a polars `SchemaError` (`i64` vs `null`) when the per-group variance frame inferred a `Null` dtype. Variance join keys are now dtype-aligned before joining; no joined value changes.
+- **GRM estimators crashed on state databases that store numeric columns as `VARCHAR`** (#106) — e.g. `growth()` on AZ/NM/WY (`division with 'String'`) and `removals()` on MT/NV (`cannot compare string with numeric`). GRM arithmetic columns (`SUBP_TPA*_UNADJ_*`, `REMPER`, `DIA*`, `DRYBIO_*`, `MACRO_BREAKPOINT_DIA`, …) are cast to their declared numeric types at load.
+
 ## [1.4.0] - 2026-06-26
 
 Adds the `tree_metrics()` estimator and a public `query()` method, plus EVALID,
@@ -222,7 +237,8 @@ versions predate git tagging, so per-patch attribution is approximate.)
 - FIA database abstraction layer
 - Basic data reading capabilities
 
-[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.4.1...HEAD
+[1.4.1]: https://github.com/mihiarc/pyfia/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/mihiarc/pyfia/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/mihiarc/pyfia/compare/v1.2.3...v1.3.0
 [1.2.1]: https://github.com/mihiarc/pyfia/compare/v1.2.0...v1.2.3

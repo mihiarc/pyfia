@@ -47,16 +47,18 @@ points contribute to the estimate.
 If False, return total change over remeasurement period
 - `grp_by`: Column(s) to group results by (e.g., 'OWNGRPCD', 'FORTYPCD')
 - `area_domain`: SQL-like filter expression for conditions
-- `variance`: Whether to calculate sampling variance and standard error
+- `variance`: If True, also return the AREA_CHANGE_VARIANCE column alongside
+AREA_CHANGE_SE (which is always returned). Variance = SE squared.
 - `totals`: Whether to include totals row
 
 **Returns:**
 - Area change estimates with columns:
 - STATECD: State FIPS code
 - AREA_CHANGE_TOTAL: Area change (acres/year if annual=True, else acres)
+- AREA_CHANGE_SE: Standard error of the total
 - N_PLOTS: Number of remeasured plots
-- SE: Standard error (if variance=True)
-- VARIANCE: Sampling variance (if variance=True)
+- AREA_CHANGE_VARIANCE: Variance of the total, = AREA_CHANGE_SE squared
+  (if variance=True)
 - Grouping columns (if grp_by specified)
 
 
@@ -96,7 +98,7 @@ Results are annualized by dividing by the remeasurement period (REMPER).
 
 **Methods:**
 
-#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L76" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L77" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_required_tables(self) -> list[str]
@@ -105,7 +107,7 @@ get_required_tables(self) -> list[str]
 Area change requires SUBP_COND_CHNG_MTRX, COND, PLOT, and stratification.
 
 
-#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L86" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L87" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_cond_columns(self) -> list[str]
@@ -114,7 +116,7 @@ get_cond_columns(self) -> list[str]
 Get required condition columns.
 
 
-#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L112" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L113" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 load_data(self) -> pl.LazyFrame | None
@@ -130,7 +132,7 @@ Join sequence:
 5. Stratification data - for expansion factors
 
 
-#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L238" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L239" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -146,7 +148,7 @@ For each subplot-condition, determine if it represents:
 The change value is weighted by SUBPTYP_PROP_CHNG.
 
 
-#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L278" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L279" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -158,7 +160,7 @@ For area change, we keep all remeasured subplot-conditions
 but the change calculation already handles the forest/non-forest logic.
 
 
-#### `aggregate_to_plot` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L299" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `aggregate_to_plot` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L300" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 aggregate_to_plot(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -170,7 +172,7 @@ Sum change values across all subplots within each plot,
 then apply expansion factors.
 
 
-#### `apply_expansion_factors` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L343" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `apply_expansion_factors` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L344" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 apply_expansion_factors(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -182,7 +184,7 @@ For area change, we multiply by EXPNS * ADJ_FACTOR_SUBP.
 If annual=True (default), we also divide by REMPER.
 
 
-#### `calculate_totals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L377" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_totals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L378" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_totals(self, data: pl.LazyFrame) -> pl.DataFrame
@@ -193,7 +195,7 @@ Calculate area change totals by grouping.
 Sum expanded area change values, optionally by grouping columns.
 
 
-#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L417" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L418" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_variance(self, result: AggregationResult | pl.DataFrame) -> pl.DataFrame
@@ -204,7 +206,7 @@ Calculate variance for area change estimates.
 Uses stratified variance estimation following Bechtold & Patterson.
 
 
-#### `estimate` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L468" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `estimate` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/area_change.py#L465" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 estimate(self) -> pl.DataFrame
@@ -216,7 +218,9 @@ Run the area change estimation pipeline.
 - Area change estimates with columns:
 - STATECD: State code
 - AREA_CHANGE_TOTAL: Total area change (acres or acres/year)
+- AREA_CHANGE_SE: Standard error of the total
 - N_PLOTS: Number of remeasured plots
-- SE, VARIANCE: (if variance=True) Standard error and variance
+- AREA_CHANGE_VARIANCE: (if variance=True) Variance of the total
+  (= AREA_CHANGE_SE squared)
 - Additional grouping columns if grp_by specified
 

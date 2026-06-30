@@ -78,7 +78,9 @@ class MortalityEstimator(GRMBaseEstimator):
         # Use common GRM filter application
         data = self._apply_grm_filters(data)
 
-        # Additional mortality-specific filters
+        # Additional mortality-specific filters. Sawtimber ('sl'/'sawtimber') is
+        # already encoded by the GRM SL population columns, so it needs no extra
+        # diameter filter here — that kept 'sawtimber' identical to 'sl'.
         tree_type = self.config.get("tree_type", "gs")
 
         if tree_type == "gs":
@@ -86,15 +88,6 @@ class MortalityEstimator(GRMBaseEstimator):
             schema = data.collect_schema().names()
             if "VOLCFNET" in schema:
                 data = data.filter(pl.col("VOLCFNET") > 0)
-        elif tree_type == "sawtimber":
-            # Sawtimber requires larger diameter thresholds
-            data = data.filter(
-                ((pl.col("SPCD") < 300) & (pl.col("DIA_MIDPT") >= 9.0))
-                | ((pl.col("SPCD") >= 300) & (pl.col("DIA_MIDPT") >= 11.0))
-            )
-            schema = data.collect_schema().names()
-            if "VOLCSNET" in schema:
-                data = data.filter(pl.col("VOLCSNET") > 0)
 
         return data
 

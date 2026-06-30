@@ -44,12 +44,18 @@ where for each stratum $h$:
 
 ## Reading the output
 
-By default, estimators return standard-error columns (suffix `_SE`). Pass `variance=True` to get variances (suffix `_VAR`) instead:
+Estimators always return **both** standard-error columns (suffix `_SE`) and variance columns. The standard errors are prefixed with the measure (e.g. `VOLCFNET_TOTAL_SE`), while the variance columns use generic names — `VOLUME_ACRE_VARIANCE` / `VOLUME_TOTAL_VARIANCE` for tree estimates and `AREA_VARIANCE` for area. The variance always equals the corresponding standard error squared:
 
 ```python
-volume(db, totals=True)                  # ...VOLCFNET_TOTAL, VOLCFNET_TOTAL_SE
-volume(db, totals=True, variance=True)   # ...VOLCFNET_TOTAL, VOLCFNET_TOTAL_VAR
+volume(db, totals=True)
+# ...VOLCFNET_TOTAL, VOLCFNET_TOTAL_SE, VOLUME_TOTAL_VARIANCE
 ```
+
+<Note>
+  The `variance=True` parameter currently has **no effect** — both the `_SE`
+  and variance columns are returned regardless of its value (tracked in
+  [#109](https://github.com/mihiarc/pyfia/issues/109)).
+</Note>
 
 There are no separate confidence-interval columns — construct one from the estimate and its standard error (for a 95% interval, ±1.96 × SE).
 

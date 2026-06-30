@@ -79,7 +79,7 @@ with FIA("southeast.duckdb") as db:
 ## Method signatures
 
 ```python
-db.clip_by_polygon(polygon: str | Path) -> FIA
+db.clip_by_polygon(polygon: str | Path, predicate: str = "intersects") -> FIA
 db.intersect_polygons(polygon: str | Path, attributes: list[str]) -> FIA
 ```
 

@@ -85,7 +85,7 @@ print(f"Aboveground biomass: {result['BIO_TOTAL'][0]:,.0f} tons")
 print(f"Carbon:              {result['CARB_TOTAL'][0]:,.0f} tons")
 ```
 
-Components: `"AG"` (aboveground, default), `"BG"` (belowground), `"TOTAL"`, `"STEM"`, `"STUMP"`, `"TOP"`, `"FOLIAGE"`.
+Components: `"AG"` (aboveground, default), `"BG"` (belowground), `"TOTAL"`, `"BOLE"`, `"BRANCH"`, `"FOLIAGE"` (case-insensitive).
 
 ## Custom domain filtering
 
@@ -130,7 +130,7 @@ result = validate_pyfia_estimate(
     year=2023,
     estimate_type="volume",
 )
-print(f"Difference: {result.percent_difference:.2f}%")
+print(f"Difference: {result.pct_diff:.2f}%")
 ```
 
 See [`validate_pyfia_estimate()`](/api/pyfia-evalidator-validation) for the full signature.

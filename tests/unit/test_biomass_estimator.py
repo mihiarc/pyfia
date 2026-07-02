@@ -460,3 +460,28 @@ class TestConversionFactors:
         result = estimator.calculate_values(data).collect()
         assert result["BIOMASS_ACRE"][0] == 1.0
         assert result["CARBON_ACRE"][0] == 0.47
+
+
+class TestBiomassBySizeClassEndToEnd:
+    """Regression: biomass() honors the documented by_size_class parameter.
+
+    Previously by_size_class was validated and documented (five standard FIA
+    diameter classes) but never built the SIZE_CLASS column — a silent no-op
+    that returned a single ungrouped row. Skipped when no database is
+    available (``georgia_db`` fixture calls ``pytest.skip``).
+    """
+
+    def test_by_size_class_returns_size_class_column(self, georgia_db):
+        from pyfia import biomass
+
+        result = biomass(georgia_db, by_size_class=True, most_recent=True)
+        assert "SIZE_CLASS" in result.columns
+        classes = set(result["SIZE_CLASS"].to_list())
+        assert len(classes) > 1
+        assert classes <= {"1.0-4.9", "5.0-9.9", "10.0-19.9", "20.0-29.9", "30.0+"}
+
+    def test_grp_by_spcd_with_by_species_does_not_raise(self, georgia_db):
+        from pyfia import biomass
+
+        result = biomass(georgia_db, grp_by="SPCD", by_species=True, most_recent=True)
+        assert result.columns.count("SPCD") == 1

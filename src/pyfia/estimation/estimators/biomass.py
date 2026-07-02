@@ -10,6 +10,7 @@ from __future__ import annotations
 import polars as pl
 
 from ...core import FIA
+from ...filtering.utils import create_size_class_expr
 from ..base import AggregationResult, BaseEstimator
 from ..columns import get_cond_columns as _get_cond_columns
 from ..columns import get_tree_columns as _get_tree_columns
@@ -167,6 +168,15 @@ class BiomassEstimator(BaseEstimator):
 
         # Setup grouping
         group_cols = self._setup_grouping()
+
+        # Diameter size-class grouping. Built here (not in _setup_grouping)
+        # because it needs the tree-level DIA column; uses the shared "standard"
+        # FIA size classes the docstring documents (1.0-4.9" ... 30.0+").
+        if self.config.get("by_size_class") and "SIZE_CLASS" not in group_cols:
+            data_with_strat = data_with_strat.with_columns(
+                create_size_class_expr("DIA", size_class_type="standard")
+            )
+            group_cols.append("SIZE_CLASS")
 
         # Preserve plot-tree level data for variance calculation
         plot_tree_data, data_with_strat = self._preserve_plot_tree_data(

@@ -67,9 +67,10 @@ class LiveTreeEstimator(CarbonEstimatorBase):
         """
         pool = self.config.get("pool", "ag").lower()
 
-        # Join REF_SPECIES and PLOTGEOM/DIVISION
+        # Join REF_SPECIES and PLOTGEOM/DIVISION; normalize stand origin
         data = self._join_ref_species(data)
         data = self._join_plotgeom_division(data)
+        data = self._prepare_stdorgcd(data)
 
         # Filter sub-inch trees (NSVB not parameterized below 1.0")
         data = data.filter(pl.col("DIA") >= 1.0)
@@ -97,6 +98,9 @@ class LiveTreeEstimator(CarbonEstimatorBase):
                 (pl.col("agb") * pl.col("CARBON_FRAC_LIVE")).alias("_CARBON_AG_LB")
             )
             data = self._substitute_woodland_carbon_ag(data)
+            # Fail loud on any tree the pipeline left with null carbon (#124),
+            # rather than silently dropping it from the population sum.
+            self._assert_biomass_nonnull(data)
         else:  # pool == "bg"
             data = data.with_columns(pl.lit(0.0).alias("_CARBON_AG_LB"))
 

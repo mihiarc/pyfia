@@ -19,6 +19,7 @@ import polars as pl
 from pyfia.carbon.nsvb import carbon_fractions
 from pyfia.carbon.nsvb.carbon_fractions import (
     DEFAULT_LIVE_CARBON_FRACTION,
+    _compute_default_dead_carbon_fraction,
     get_carbon_fraction_dead,
     get_carbon_fraction_live,
     load_carbon_fractions_dead,
@@ -205,6 +206,14 @@ class TestLoadCarbonFractionsDead:
         a = get_carbon_fraction_dead("Hardwood", 1)
         b = get_carbon_fraction_dead("hardwood", 1)
         assert a == b
+
+    def test_default_dead_fraction_is_s10b_mean(self):
+        """The fill_null fallback (issue #124) is the S10b arithmetic mean, in
+        the dead carbon-fraction range, and tracks the vendored CSV."""
+        default = _compute_default_dead_carbon_fraction()
+        assert 0.45 < default < 0.55
+        table = load_carbon_fractions_dead()
+        assert default == sum(table.values()) / len(table)
 
     def test_all_decay_classes_present(self):
         """Every decay class 1-5 must exist for both hardwood and softwood."""

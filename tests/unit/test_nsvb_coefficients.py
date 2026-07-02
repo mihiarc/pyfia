@@ -272,7 +272,7 @@ class TestBuildSpeciesLevelLookup:
         """Returns only the columns the vectorized biomass expression needs."""
         coefs = load_nsvb_coefficients()
         result = build_species_level_lookup(coefs.volib_spcd)
-        assert result.columns == ["SPCD", "model", "a", "b", "b1", "c"]
+        assert result.columns == ["SPCD", "model", "a", "a1", "b", "b1", "c", "c1"]
 
     def test_keeps_only_species_level_rows(self):
         """Rows where DIVISION or STDORGCD is non-null are filtered out.
@@ -309,12 +309,13 @@ class TestBuildSpeciesLevelLookup:
             assert result["SPCD"].is_unique().all()
 
     def test_works_on_narrow_biomass_tables(self):
-        """bark_biomass_spcd / branch_biomass_spcd have no a1/c1 but still
-        expose (a, b, b1, c) — the builder must handle both schemas."""
+        """bark_biomass_spcd / branch_biomass_spcd ship without a1/c1 (no Model
+        3 rows); load_nsvb_coefficients normalizes them to null so every spcd
+        table exposes the uniform (a, a1, b, b1, c, c1) coefficient schema."""
         coefs = load_nsvb_coefficients()
         for tbl in (coefs.bark_biomass_spcd, coefs.branch_biomass_spcd):
             result = build_species_level_lookup(tbl)
-            assert result.columns == ["SPCD", "model", "a", "b", "b1", "c"]
+            assert result.columns == ["SPCD", "model", "a", "a1", "b", "b1", "c", "c1"]
             assert result.height > 0
 
 
@@ -322,16 +323,18 @@ class TestBuildJenkinsLookup:
     """Vectorized path helper: Jenkins fallback table for *_jenkins tables."""
 
     def test_selected_columns(self):
-        """Returns uniform columns including synthesized b1=0."""
+        """Returns uniform columns including synthesized a1/b1/c1."""
         coefs = load_nsvb_coefficients()
         result = build_jenkins_lookup(coefs.volib_jenkins)
         assert result.columns == [
             "JENKINS_SPGRPCD",
             "model",
             "a",
+            "a1",
             "b",
             "b1",
             "c",
+            "c1",
         ]
 
     def test_b1_is_always_zero(self):
@@ -370,8 +373,8 @@ class TestGetVectorizedLookupTables:
         """Each table has the vectorized-path column layout."""
         bundle = get_vectorized_lookup_tables()
 
-        spcd_expected = ["SPCD", "model", "a", "b", "b1", "c"]
-        jen_expected = ["JENKINS_SPGRPCD", "model", "a", "b", "b1", "c"]
+        spcd_expected = ["SPCD", "model", "a", "a1", "b", "b1", "c", "c1"]
+        jen_expected = ["JENKINS_SPGRPCD", "model", "a", "a1", "b", "b1", "c", "c1"]
 
         for name in (
             "volib_spcd",
@@ -410,7 +413,7 @@ class TestGetVectorizedLookupTables:
     def test_division_lookups_present(self):
         """Each component now has a DIVISION-keyed lookup (Level 2)."""
         bundle = get_vectorized_lookup_tables()
-        div_expected = ["SPCD", "DIVISION", "model", "a", "b", "b1", "c"]
+        div_expected = ["SPCD", "DIVISION", "model", "a", "a1", "b", "b1", "c", "c1"]
         for name in (
             "volib_div",
             "volbk_div",
@@ -443,10 +446,20 @@ class TestBuildDivisionLookup:
     """Vectorized path helper: DIVISION-keyed row filter for *_spcd tables."""
 
     def test_selected_columns(self):
-        """Returns a (SPCD, DIVISION, model, a, b, b1, c) lookup."""
+        """Returns a (SPCD, DIVISION, model, a, a1, b, b1, c, c1) lookup."""
         coefs = load_nsvb_coefficients()
         result = build_division_lookup(coefs.volib_spcd)
-        assert result.columns == ["SPCD", "DIVISION", "model", "a", "b", "b1", "c"]
+        assert result.columns == [
+            "SPCD",
+            "DIVISION",
+            "model",
+            "a",
+            "a1",
+            "b",
+            "b1",
+            "c",
+            "c1",
+        ]
 
     def test_only_division_rows(self):
         """Rows where DIVISION is null are filtered out."""

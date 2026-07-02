@@ -5,28 +5,30 @@ Pure-math equation library for the National Scale Volume and Biomass framework.
 No I/O, no Polars dependency — just floats in and floats out. Coefficient lookup
 lives in coefficients.py; carbon fractions live in carbon_fractions.py.
 
-The four model forms used in Phase 1 (live tree biomass) are:
+The five model forms used for biomass components (GTR-WO-104 eqs. 1-5) are:
 
-- **Model 1**: ``y = a * D^b * H^c`` — power form, the most common.
-- **Model 2**: ``y = a * k^(b-b1) * D^b1 * H^c`` — with ``k = 9`` for softwoods
-  (SPCD < 300) and ``k = 11`` for hardwoods (SPCD >= 300). The constants 9 and 11
-  match the sawlog top-diameter cutoffs used elsewhere in NSVB. Verified against
-  the Douglas-fir (SPCD=202) wood-volume worked example and back-solved against
-  the red maple (SPCD=316) bark-volume worked example.
-- **Model 4**: ``y = a * D^b * H^c * exp(-b1 * D)`` — power form modulated by an
-  exponential of D. The b1 parameter is typically a small negative number, so
-  the multiplicative factor is slightly greater than 1 across the practical D
-  range. Verified against the red maple S8a (total AGB) worked example.
+- **Model 1 (Schumacher-Hall)**: ``y = a * D^b * H^c`` — power form, the most common.
+- **Model 2 (Segmented)**: ``y = a * D^b * H^c`` for ``D < k``, else
+  ``y = a * k^(b-b1) * D^b1 * H^c`` — with ``k = 9`` for softwoods (SPCD < 300)
+  and ``k = 11`` for hardwoods (SPCD >= 300). The two branches are continuous at
+  ``D = k``. Verified against the Douglas-fir (SPCD=202) wood-volume worked example
+  and back-solved against the red maple (SPCD=316) bark-volume worked example.
+- **Model 3 (Continuously Variable)**: ``y = a * D^(a1*(1-exp(-b*D))^c1) * H^c`` —
+  the diameter exponent varies continuously with D. Used for a few species/
+  components (e.g. planted slash pine SPCD=111 total AGB, oak spp. SPCD=800 stem
+  wood volume). Transcribed from GTR-WO-104 eq. 3 (source PDF p. 7).
+- **Model 4 (Modified Wiley)**: ``y = a * D^b * H^c * exp(-b1 * D)`` — power form
+  modulated by an exponential of D. Verified against the red maple S8a worked example.
 - **Model 5 (Jenkins fallback)**: ``y = a * D^b * H^c * WDSG`` — used when a
   species lacks SPCD-specific coefficients and falls back to its Jenkins species
   group. Wood density (WDSG) comes from FIADB ``REF_SPECIES.WOOD_SPGR_GREENVOL_DRYWT``.
 
-**Model 3 and Model 6 are NOT implemented in Phase 1**. Model 3 is a three-parameter
-form whose exact shape is picture-omitted in the source PDF and unverified.
-Model 6 is the iterative Schumacher-Hall volume-ratio model used for merchantable
-subdivision (DRYBIO_BOLE / DRYBIO_TOP / DRYBIO_STUMP); total above-ground biomass
-and total carbon do not require it. Both will arrive in a later phase if downstream
-work needs them.
+**Model 6 is not implemented** — it is the iterative Schumacher-Hall volume-ratio
+model used for merchantable subdivision (DRYBIO_BOLE / DRYBIO_TOP / DRYBIO_STUMP)
+and broken-top reductions, and never appears in the five biomass-component tables;
+total above-ground biomass and total carbon do not require it. A coefficient row
+dispatching to any unimplemented model is rejected up front by the carbon
+estimator's coverage guard rather than producing a silent null.
 
 The orchestrator :func:`predict_tree_biomass` runs the full per-tree pipeline:
 predict component biomasses (wood, bark, branches), predict directly the total AGB,
@@ -98,12 +100,19 @@ def model_1(d: float, h: float, a: float, b: float, c: float) -> float:
 def model_2(
     d: float, h: float, a: float, b: float, b1: float, c: float, k: float
 ) -> float:
-    """NSVB Model 2: ``y = a * k^(b - b1) * D^b1 * H^c``.
+    """NSVB Model 2 (Segmented): a two-branch power form split at ``k``.
 
-    Power form with a species-class base constant ``k``. Used for stem wood
-    volume and stem bark volume on a subset of species. The ``k`` constant
-    is 9 for softwoods (SPCD < 300) and 11 for hardwoods (SPCD >= 300); use
-    :func:`_model_k` (or pass it explicitly) when calling from the orchestrator.
+    Per GTR-WO-104 eq. 2::
+
+        y = a * D^b * H^c                    for D < k
+        y = a * k^(b - b1) * D^b1 * H^c       for D >= k
+
+    ``k`` is the segmentation point: 9 inches for softwoods (SPCD < 300) and
+    11 inches for hardwoods (SPCD >= 300). The two branches are continuous at
+    ``D = k`` (both equal ``a * k^b * H^c``). Below the segmentation point the
+    model reduces to the plain Schumacher-Hall form (Model 1); above it, the
+    diameter exponent switches to ``b1``. Use :func:`_model_k` (or pass ``k``
+    explicitly) when calling from the orchestrator.
 
     Parameters
     ----------
@@ -114,14 +123,46 @@ def model_2(
     a, b, b1, c : float
         Model 2 coefficients from the relevant ``S*a`` table.
     k : float
-        Species-class base constant — typically 9.0 (softwood) or 11.0 (hardwood).
+        Species-class segmentation point — 9.0 (softwood) or 11.0 (hardwood).
 
     Returns
     -------
     float
         Predicted quantity in source-table units.
     """
+    if d < k:
+        return float(a * (d**b) * (h**c))
     return float(a * (k ** (b - b1)) * (d**b1) * (h**c))
+
+
+def model_3(
+    d: float, h: float, a: float, a1: float, b: float, c1: float, c: float
+) -> float:
+    """NSVB Model 3 (Continuously Variable): ``y = a * D^(a1*(1-exp(-b*D))^c1) * H^c``.
+
+    Per GTR-WO-104 eq. 3 (the "Continuously Variable model"): the diameter
+    exponent varies continuously with ``D`` through the factor
+    ``a1 * (1 - exp(-b * D))^c1``, which rises from 0 toward ``a1`` as ``D``
+    grows. Used for a handful of species/components (e.g. planted slash pine
+    total AGB, SPCD 111 STDORGCD=1; oak spp. SPCD 800 stem wood volume). Uses
+    the ``a1`` and ``c1`` coefficients (not ``b1``).
+
+    Parameters
+    ----------
+    d : float
+        Diameter at breast height (inches).
+    h : float
+        Total tree height (feet).
+    a, a1, b, c1, c : float
+        Model 3 coefficients from the relevant ``S*a`` table.
+
+    Returns
+    -------
+    float
+        Predicted quantity in source-table units.
+    """
+    exponent = a1 * ((1.0 - math.exp(-b * d)) ** c1)
+    return float(a * (d**exponent) * (h**c))
 
 
 def model_4(d: float, h: float, a: float, b: float, b1: float, c: float) -> float:
@@ -276,12 +317,16 @@ def _eval_component(coef: dict, d: float, h: float, spcd: int, wdsg: float) -> f
         return model_2(
             d, h, coef["a"], coef["b"], coef["b1"], coef["c"], _model_k(spcd)
         )
+    if model == 3:
+        return model_3(d, h, coef["a"], coef["a1"], coef["b"], coef["c1"], coef["c"])
     if model == 4:
         return model_4(d, h, coef["a"], coef["b"], coef["b1"], coef["c"])
     if model == 5:
         return model_5_jenkins(d, h, coef["a"], coef["b"], coef["c"], wdsg)
     raise ValueError(
-        f"NSVB model {model} not supported in Phase 1 — only models 1, 2, 4, 5 are implemented."
+        f"NSVB model {model} not supported — only models 1, 2, 3, 4, 5 are "
+        "implemented (model 6 is the volume-ratio model, used for merchantable "
+        "volume/broken-top corrections, not for biomass components)."
     )
 
 
@@ -367,8 +412,8 @@ def predict_tree_biomass(
         complex-number results for d<1 with fractional b).
         If ``hw_sw`` is not one of ``"hardwood"``/``"softwood"`` (after
         case-insensitive normalization).
-        If a coefficient row specifies a Model 3 or Model 6 (not implemented
-        in Phase 1).
+        If a coefficient row specifies Model 6 (the volume-ratio model, not
+        used for biomass components and not implemented).
     """
     # TODO(PR 2): Scalar reference implementation. PR 2's LiveTreeEstimator
     # must implement this pipeline as polars expressions on a LazyFrame
@@ -453,15 +498,17 @@ def nsvb_biomass_expr(
     *,
     model: pl.Expr,
     a: pl.Expr,
+    a1: pl.Expr,
     b: pl.Expr,
     b1: pl.Expr,
     c: pl.Expr,
+    c1: pl.Expr,
     d: pl.Expr,
     h: pl.Expr,
     spcd: pl.Expr,
     wdsg: pl.Expr,
 ) -> pl.Expr:
-    """Build a polars expression that dispatches NSVB Models 1/2/4/5.
+    """Build a polars expression that dispatches NSVB Models 1/2/3/4/5.
 
     The scalar equivalent of this function is :func:`_eval_component`.
     It returns a single expression suitable for use inside
@@ -469,12 +516,15 @@ def nsvb_biomass_expr(
     (volume or biomass, in source-table units) for every row, with the
     model form selected per-row from the ``model`` column.
 
-    Models 3 and 6 are not implemented in Phase 1; rows dispatching to
-    those return ``None`` which will surface as a null downstream. The
-    orchestrator :func:`compute_nsvb_biomass` asserts that no nulls appear
-    in the output columns, so an unsupported model becomes a loud failure.
+    Models 1-5 are implemented (see :func:`model_1`-:func:`model_5_jenkins`).
+    Model 6 (the volume-ratio model) is not used for biomass components — it
+    predicts merchantable volume / broken-top reductions — and never appears
+    in the five component tables consumed here; a row dispatching to any
+    unhandled model returns ``None``, which the coverage guard
+    (:meth:`CarbonEstimatorBase._guard_nsvb_coverage`) and the post-pipeline
+    non-null assertion turn into a loud failure rather than a silent 0.
 
-    The Model 2 base constant ``k`` is ``11`` for hardwoods (SPCD >= 300)
+    The Model 2 segmentation point ``k`` is ``11`` for hardwoods (SPCD >= 300)
     and ``9`` for softwoods, matching :func:`_model_k` used by the scalar
     path. This also resolves the SPCD=10 misclassification that S10a
     carries — see ``pyfia/carbon/__init__.py`` for the architectural
@@ -482,12 +532,13 @@ def nsvb_biomass_expr(
 
     Parameters
     ----------
-    model, a, b, b1, c : pl.Expr
+    model, a, a1, b, b1, c, c1 : pl.Expr
         Coefficient column expressions (typically the output of a coalesce
-        across species-level + Jenkins lookup joins, or ``pl.col(...)``
-        references to pre-joined coefficient columns). All numeric
-        coefficient columns must be ``Float64``; ``model`` must be an
-        integer dtype.
+        across the stand-origin / division / species-level / Jenkins lookup
+        joins, or ``pl.col(...)`` references to pre-joined coefficient
+        columns). All numeric coefficient columns must be ``Float64``;
+        ``model`` must be an integer dtype. ``a1``/``c1`` are used only by
+        Model 3; ``b1`` by Models 2 and 4.
     d, h : pl.Expr
         Diameter at breast height (inches) and total height (feet) column
         expressions. Must be ``Float64``.
@@ -510,17 +561,32 @@ def nsvb_biomass_expr(
         .then(_K_HARDWOOD)
         .otherwise(_K_SOFTWOOD)
     )
+    # Model 2 is segmented at k: Schumacher-Hall below, b1-exponent above.
+    model_2_expr = (
+        pl.when(d < k)
+        .then(a * d.pow(b) * h.pow(c))
+        .otherwise(a * k.pow(b - b1) * d.pow(b1) * h.pow(c))
+    )
+    # Model 3 (Continuously Variable): D exponent = a1 * (1 - exp(-b*D))^c1.
+    model_3_expr = a * d.pow(a1 * (1.0 - (-b * d).exp()).pow(c1)) * h.pow(c)
     return (
         pl.when(model == 1)
         .then(a * d.pow(b) * h.pow(c))
         .when(model == 2)
-        .then(a * k.pow(b - b1) * d.pow(b1) * h.pow(c))
+        .then(model_2_expr)
+        .when(model == 3)
+        .then(model_3_expr)
         .when(model == 4)
         .then(a * d.pow(b) * h.pow(c) * (-b1 * d).exp())
         .when(model == 5)
         .then(a * d.pow(b) * h.pow(c) * wdsg)
         .otherwise(None)
     )
+
+
+# Coefficient columns carried through every lookup tier and coalesced per-row.
+# Must match the inputs consumed by ``nsvb_biomass_expr`` (a1/c1 added for Model 3).
+_COEF_COLS = ("model", "a", "a1", "b", "b1", "c", "c1")
 
 
 def _join_and_eval_component(
@@ -531,121 +597,100 @@ def _join_and_eval_component(
     out_col: str,
     *,
     has_division: bool,
+    divorg_table: pl.DataFrame | None = None,
+    org_table: pl.DataFrame | None = None,
+    has_stdorgcd: bool = False,
 ) -> pl.LazyFrame:
-    """Join a LazyFrame to the (division, species-level, Jenkins) coefficient
-    triple for one component and evaluate the NSVB biomass expression.
+    """Join a LazyFrame to the NSVB coefficient tiers for one component and
+    evaluate the biomass expression.
 
-    Implementation of NSVB lookup precedence Levels 2 → 3 → 4 as polars
-    joins:
+    Implements the full NSVB lookup precedence (GTR-WO-104 p. 11) as a chain
+    of left joins followed by a per-column coalesce that picks the most
+    specific matching tier for every tree:
 
-    1. If ``has_division`` is True: left-join ``div_table`` on
-       ``(SPCD, DIVISION)`` (Level 2).
-    2. Left-join ``spcd_table`` on ``SPCD`` (species-level fallback, Level 3).
-    3. Left-join ``jen_table`` on ``JENKINS_SPGRPCD`` (Jenkins fallback,
-       Level 4).
-    4. Coalesce the three coefficient rows in precedence order:
-       division → species-level → Jenkins.
-    5. Evaluate :func:`nsvb_biomass_expr` to produce ``out_col``.
-    6. Drop the temporary coefficient columns.
+    1. ``(SPCD, DIVISION, STDORGCD)`` — Level 1, ``divorg_table`` (needs both
+       a ``DIVISION`` and a ``STDORGCD`` column on the trees frame).
+    2. ``(SPCD, STDORGCD)`` — Level 1b, ``org_table``, the stand-origin
+       "no ecodivision noted" row (needs ``STDORGCD``). Slash/loblolly pine
+       (SPCD 111/131) are the only species fit separately by stand origin and
+       have *no* STDORGCD-null row, so Levels 1/1b are what keeps them off the
+       Jenkins fallback (issue #123).
+    3. ``(SPCD, DIVISION)`` — Level 2, ``div_table`` (needs ``DIVISION``).
+    4. ``(SPCD)`` — Level 3, ``spcd_table`` (species-level, always joined).
+    5. ``(JENKINS_SPGRPCD)`` — Level 4, ``jen_table`` (always joined).
 
-    When ``has_division`` is False (the trees frame has no ``DIVISION``
-    column — backward-compatible path for synthetic tests and for callers
-    that haven't yet wired the ``PLOTGEOM.ECOSUBCD`` join), the division
-    join is skipped entirely and the behavior matches the old 2-way
-    coalesce exactly.
+    Each tier that matches a row populates *all* of its coefficient columns
+    together, so the per-column coalesce is self-consistent: the model form
+    and its coefficients always come from the same winning tier. The lookup
+    builders drop rows whose model's required coefficients are null (Model
+    2/4 ``b1``, Model 3 ``a1``/``c1``), so a coalesced coefficient is never
+    silently back-filled from a lower tier for a coefficient the model uses.
+
+    When ``has_stdorgcd`` / ``has_division`` are False (synthetic tests, or
+    callers that haven't wired the COND / PLOTGEOM joins), the corresponding
+    tiers are skipped and behavior degrades gracefully to the remaining
+    levels — with neither, it matches the original species-level + Jenkins
+    2-way coalesce exactly.
 
     Parameters
     ----------
     trees : pl.LazyFrame
         Input frame with at least ``SPCD``, ``DIA``, ``HT``, ``WDSG``,
-        ``JENKINS_SPGRPCD`` columns. If ``has_division`` is True, must also
-        have a ``DIVISION`` column (Utf8/String, nullable).
-    spcd_table : pl.DataFrame
-        Species-level lookup from
-        :func:`pyfia.carbon.nsvb.coefficients.build_species_level_lookup`
-        with columns ``(SPCD, model, a, b, b1, c)``.
-    jen_table : pl.DataFrame
-        Jenkins fallback from
-        :func:`pyfia.carbon.nsvb.coefficients.build_jenkins_lookup` with
-        columns ``(JENKINS_SPGRPCD, model, a, b, b1, c)``.
-    div_table : pl.DataFrame
-        DIVISION-specific lookup from
-        :func:`pyfia.carbon.nsvb.coefficients.build_division_lookup` with
-        columns ``(SPCD, DIVISION, model, a, b, b1, c)``. Only consulted
-        when ``has_division`` is True.
+        ``JENKINS_SPGRPCD``. With ``has_division`` a ``DIVISION`` column
+        (Utf8, nullable); with ``has_stdorgcd`` a ``STDORGCD`` column (Int64).
+    spcd_table, jen_table, div_table : pl.DataFrame
+        Level 3 / Level 4 / Level 2 lookups from the ``build_*`` helpers in
+        :mod:`pyfia.carbon.nsvb.coefficients`, each with the ``_COEF_COLS``.
     out_col : str
         Name for the output column (e.g., ``"v_wood_ib"``).
     has_division : bool
-        Whether the caller has populated a ``DIVISION`` column on the trees
-        frame. When False, skip the division join entirely.
+        Whether the trees frame carries a populated ``DIVISION`` column.
+    divorg_table, org_table : pl.DataFrame, optional
+        Level 1 / Level 1b stand-origin lookups from
+        :func:`build_division_stdorg_lookup` / :func:`build_stdorg_lookup`.
+    has_stdorgcd : bool
+        Whether the trees frame carries a populated ``STDORGCD`` column.
 
     Returns
     -------
     pl.LazyFrame
-        The input frame with ``out_col`` appended. Temporary coefficient
-        columns are dropped before return.
+        The input frame with ``out_col`` appended and temporary coefficient
+        columns dropped.
     """
-    # Rename coefficient columns on each side so they don't collide with the
-    # trees frame or with each other.
-    spcd_lf = spcd_table.lazy().rename(
-        {
-            "model": "_model_s",
-            "a": "_a_s",
-            "b": "_b_s",
-            "b1": "_b1_s",
-            "c": "_c_s",
-        }
-    )
-    jen_lf = jen_table.lazy().rename(
-        {
-            "model": "_model_j",
-            "a": "_a_j",
-            "b": "_b_j",
-            "b1": "_b1_j",
-            "c": "_c_j",
-        }
-    )
 
-    if has_division:
-        div_lf = div_table.lazy().rename(
-            {
-                "model": "_model_d",
-                "a": "_a_d",
-                "b": "_b_d",
-                "b1": "_b1_d",
-                "c": "_c_d",
-            }
+    def _rename(table: pl.DataFrame, suffix: str) -> pl.LazyFrame:
+        return table.lazy().rename({col: f"_{col}_{suffix}" for col in _COEF_COLS})
+
+    # Join each available tier, recording its suffix in precedence order.
+    tiers: list[str] = []
+    if has_stdorgcd and has_division and divorg_table is not None:
+        trees = trees.join(
+            _rename(divorg_table, "do"), on=["SPCD", "DIVISION", "STDORGCD"], how="left"
         )
-        trees = trees.join(div_lf, on=["SPCD", "DIVISION"], how="left")
-
-    trees = trees.join(spcd_lf, on="SPCD", how="left")
-    trees = trees.join(jen_lf, on="JENKINS_SPGRPCD", how="left")
-
-    # Coalesce: division (Level 2) → species-level (Level 3) → Jenkins (Level 4).
-    # When has_division=False, the _*_d columns don't exist and we fall back
-    # to the 2-way coalesce matching the original implementation.
+        tiers.append("do")
+    if has_stdorgcd and org_table is not None:
+        trees = trees.join(_rename(org_table, "o"), on=["SPCD", "STDORGCD"], how="left")
+        tiers.append("o")
     if has_division:
-        model_expr = pl.coalesce(
-            pl.col("_model_d"), pl.col("_model_s"), pl.col("_model_j")
-        )
-        a_expr = pl.coalesce(pl.col("_a_d"), pl.col("_a_s"), pl.col("_a_j"))
-        b_expr = pl.coalesce(pl.col("_b_d"), pl.col("_b_s"), pl.col("_b_j"))
-        b1_expr = pl.coalesce(pl.col("_b1_d"), pl.col("_b1_s"), pl.col("_b1_j"))
-        c_expr = pl.coalesce(pl.col("_c_d"), pl.col("_c_s"), pl.col("_c_j"))
-    else:
-        model_expr = pl.coalesce(pl.col("_model_s"), pl.col("_model_j"))
-        a_expr = pl.coalesce(pl.col("_a_s"), pl.col("_a_j"))
-        b_expr = pl.coalesce(pl.col("_b_s"), pl.col("_b_j"))
-        b1_expr = pl.coalesce(pl.col("_b1_s"), pl.col("_b1_j"))
-        c_expr = pl.coalesce(pl.col("_c_s"), pl.col("_c_j"))
+        trees = trees.join(_rename(div_table, "d"), on=["SPCD", "DIVISION"], how="left")
+        tiers.append("d")
+    trees = trees.join(_rename(spcd_table, "s"), on="SPCD", how="left")
+    tiers.append("s")
+    trees = trees.join(_rename(jen_table, "j"), on="JENKINS_SPGRPCD", how="left")
+    tiers.append("j")
+
+    def _coalesce(col: str) -> pl.Expr:
+        return pl.coalesce([pl.col(f"_{col}_{suf}") for suf in tiers])
 
     trees = trees.with_columns(
         nsvb_biomass_expr(
-            model=model_expr,
-            a=a_expr,
-            b=b_expr,
-            b1=b1_expr,
-            c=c_expr,
+            model=_coalesce("model"),
+            a=_coalesce("a"),
+            a1=_coalesce("a1"),
+            b=_coalesce("b"),
+            b1=_coalesce("b1"),
+            c=_coalesce("c"),
+            c1=_coalesce("c1"),
             d=pl.col("DIA").cast(pl.Float64),
             h=pl.col("HT").cast(pl.Float64),
             spcd=pl.col("SPCD"),
@@ -653,20 +698,7 @@ def _join_and_eval_component(
         ).alias(out_col)
     )
 
-    drop_cols = [
-        "_model_s",
-        "_a_s",
-        "_b_s",
-        "_b1_s",
-        "_c_s",
-        "_model_j",
-        "_a_j",
-        "_b_j",
-        "_b1_j",
-        "_c_j",
-    ]
-    if has_division:
-        drop_cols.extend(["_model_d", "_a_d", "_b_d", "_b1_d", "_c_d"])
+    drop_cols = [f"_{col}_{suf}" for suf in tiers for col in _COEF_COLS]
     return trees.drop(drop_cols)
 
 
@@ -742,8 +774,11 @@ def compute_nsvb_biomass(
         lookup = get_vectorized_lookup_tables()
 
     # Probe the schema once so the 5 per-component joins don't each re-collect
-    # it. DIVISION column detection activates the Level 2 lookup path.
-    has_division = "DIVISION" in trees.collect_schema().names()
+    # it. DIVISION activates the Level 2 lookup path; STDORGCD activates the
+    # Level 1/1b stand-origin path (issue #123).
+    schema_names = trees.collect_schema().names()
+    has_division = "DIVISION" in schema_names
+    has_stdorgcd = "STDORGCD" in schema_names
 
     # Step 1 — Total stem inside-bark wood volume (cubic feet).
     trees = _join_and_eval_component(
@@ -753,6 +788,9 @@ def compute_nsvb_biomass(
         lookup.volib_div,
         "v_wood_ib",
         has_division=has_division,
+        divorg_table=lookup.volib_divorg,
+        org_table=lookup.volib_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 2 — Total stem bark volume (cubic feet).
@@ -763,6 +801,9 @@ def compute_nsvb_biomass(
         lookup.volbk_div,
         "v_bark",
         has_division=has_division,
+        divorg_table=lookup.volbk_divorg,
+        org_table=lookup.volbk_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 5 — Stem bark biomass (lb).
@@ -773,6 +814,9 @@ def compute_nsvb_biomass(
         lookup.bark_bio_div,
         "_w_bark_pre",
         has_division=has_division,
+        divorg_table=lookup.bark_bio_divorg,
+        org_table=lookup.bark_bio_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 6 — Branch biomass (lb).
@@ -783,6 +827,9 @@ def compute_nsvb_biomass(
         lookup.branch_bio_div,
         "_w_branch_pre",
         has_division=has_division,
+        divorg_table=lookup.branch_bio_divorg,
+        org_table=lookup.branch_bio_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 7 — Directly-predicted total AGB (lb).
@@ -793,6 +840,9 @@ def compute_nsvb_biomass(
         lookup.total_agb_div,
         "_agb_predicted",
         has_division=has_division,
+        divorg_table=lookup.total_agb_divorg,
+        org_table=lookup.total_agb_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 3-4 — Convert wood volume to weight, with a cull-reduced variant.
@@ -974,7 +1024,9 @@ def compute_nsvb_dead_biomass(
 
         lookup = get_vectorized_lookup_tables()
 
-    has_division = "DIVISION" in trees.collect_schema().names()
+    schema_names_in = trees.collect_schema().names()
+    has_division = "DIVISION" in schema_names_in
+    has_stdorgcd = "STDORGCD" in schema_names_in
 
     # Steps 1-2 — Stem wood and stem bark volumes (cu ft).
     trees = _join_and_eval_component(
@@ -984,6 +1036,9 @@ def compute_nsvb_dead_biomass(
         lookup.volib_div,
         "v_wood_ib",
         has_division=has_division,
+        divorg_table=lookup.volib_divorg,
+        org_table=lookup.volib_org,
+        has_stdorgcd=has_stdorgcd,
     )
     trees = _join_and_eval_component(
         trees,
@@ -992,6 +1047,9 @@ def compute_nsvb_dead_biomass(
         lookup.volbk_div,
         "v_bark",
         has_division=has_division,
+        divorg_table=lookup.volbk_divorg,
+        org_table=lookup.volbk_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Steps 4-5 — Bark and branch biomass (lb), gross intact predictions.
@@ -1002,6 +1060,9 @@ def compute_nsvb_dead_biomass(
         lookup.bark_bio_div,
         "_w_bark_pre",
         has_division=has_division,
+        divorg_table=lookup.bark_bio_divorg,
+        org_table=lookup.bark_bio_org,
+        has_stdorgcd=has_stdorgcd,
     )
     trees = _join_and_eval_component(
         trees,
@@ -1010,6 +1071,9 @@ def compute_nsvb_dead_biomass(
         lookup.branch_bio_div,
         "_w_branch_pre",
         has_division=has_division,
+        divorg_table=lookup.branch_bio_divorg,
+        org_table=lookup.branch_bio_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 6 — Directly-predicted total AGB (lb), intact.
@@ -1020,6 +1084,9 @@ def compute_nsvb_dead_biomass(
         lookup.total_agb_div,
         "_agb_predicted",
         has_division=has_division,
+        divorg_table=lookup.total_agb_divorg,
+        org_table=lookup.total_agb_org,
+        has_stdorgcd=has_stdorgcd,
     )
 
     # Step 3 — Convert wood volume to gross weight.

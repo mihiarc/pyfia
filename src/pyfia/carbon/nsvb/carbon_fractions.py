@@ -46,6 +46,22 @@ def _compute_default_live_carbon_fraction() -> float:
     return sum(table.values()) / len(table)
 
 
+@functools.cache
+def _compute_default_dead_carbon_fraction() -> float:
+    """Compute the S10b arithmetic-mean dead carbon fraction.
+
+    The dead-path analog of :func:`_compute_default_live_carbon_fraction`:
+    the mean over the hardwood/softwood × DECAYCD S10b table. Used as the
+    ``fill_null`` fallback in the standing-dead estimator for the rare tree
+    whose ``(hw_sw, DECAYCD)`` pair is not in S10b (e.g. an out-of-domain
+    ``DECAYCD``), mirroring the live path so such trees carry a plausible
+    fraction instead of a silent null (issue #124). Computed from the vendored
+    CSV so a re-vendor cannot silently drift a hardcoded constant.
+    """
+    table = load_carbon_fractions_dead()
+    return sum(table.values()) / len(table)
+
+
 def __getattr__(name: str) -> Any:
     """PEP 562 lazy module attribute resolver.
 

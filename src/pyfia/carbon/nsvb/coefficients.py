@@ -5,17 +5,26 @@ Loads the vendored CSVs from ``pyfia.carbon.nsvb.data`` via ``importlib.resource
 (wheel-safe) and provides per-tree coefficient resolution following the NSVB
 lookup precedence documented in the GTR-WO-104 worked examples.
 
-Lookup precedence (per ``gtr_wo104_westfall2023.md:684``):
+Lookup precedence (GTR-WO-104 p. 8, 11 — spcd tables are keyed on
+species-ecodivision-stand origin; DIVISION falls back to "no ecodivision
+noted"):
 
-1. ``SPCD + DIVISION + STDORGCD`` exact match
-2. ``SPCD + DIVISION`` (STDORGCD null)
-3. ``SPCD`` only (DIVISION and STDORGCD both null) — the species-level fallback
-4. ``JENKINS_SPGRPCD`` fallback (Model 5, with WDSG multiplication required)
+1.  ``SPCD + DIVISION + STDORGCD`` exact match (:func:`build_division_stdorg_lookup`)
+1b. ``SPCD + STDORGCD`` (DIVISION null) — stand-origin, no ecodivision noted
+    (:func:`build_stdorg_lookup`)
+2.  ``SPCD + DIVISION`` (STDORGCD null) — ecodivision, no stand-origin split
+    (:func:`build_division_lookup`)
+3.  ``SPCD`` only (DIVISION and STDORGCD both null) — species-level fallback
+    (:func:`build_species_level_lookup`)
+4.  ``JENKINS_SPGRPCD`` fallback (Model 5, with WDSG multiplication required)
 
 The CSVs already include species-level fallback rows; we do not need to synthesize
 them. Phase 1.5 added the ``ECOSUBCD → Bailey DIVISION`` mapping via
-:func:`ecosubcd_to_division`, activating Level 2 of the lookup precedence.
-Level 1 (STDORGCD) is still unused (~10 rows across all 5 tables).
+:func:`ecosubcd_to_division`, activating Level 2. Levels 1/1b (STDORGCD) were
+activated for issue #123: slash pine (SPCD 111) and loblolly pine (SPCD 131)
+are fit separately for planted (STDORGCD=1) vs natural (0) stands and carry
+*no* STDORGCD-null row, so without these tiers they collapse to the Jenkins
+fallback. ``COND.STDORGCD`` is threaded through the estimators to drive them.
 """
 
 from __future__ import annotations
@@ -67,71 +76,97 @@ class CoefficientTables:
 class VectorizedLookupTables:
     """Bundle of join-ready NSVB coefficient lookup tables for the vectorized path.
 
-    Each component is represented by three parallel lookups for Levels 2–4 of
-    the NSVB precedence:
+    Each component is represented by five parallel lookups spanning the full
+    NSVB precedence (GTR-WO-104 p. 11), joined and coalesced most-specific
+    first by ``_join_and_eval_component``:
 
-    - ``*_div``: DIVISION-specific rows (DIVISION non-null + STDORGCD null) with
-      the columns ``(SPCD, DIVISION, model, a, b, b1, c)`` — joined on the
-      ``(SPCD, DIVISION)`` composite key (Level 2).
-    - ``*_spcd``: species-level rows (DIVISION null + STDORGCD null) with the
-      columns ``(SPCD, model, a, b, b1, c)`` — ready for a left join on
-      ``SPCD`` (Level 3).
-    - ``*_jen``: Jenkins-group fallback rows with the columns
-      ``(JENKINS_SPGRPCD, model, a, b, b1, c)`` — ready for a left join on
-      ``JENKINS_SPGRPCD`` (Level 4). ``b1`` is synthesized as ``0.0`` because
-      the Jenkins tables only carry ``(a, b, c)`` and Model 5 (the only form
-      Jenkins rows dispatch to) does not use ``b1``.
+    - ``*_divorg``: ``(SPCD, DIVISION, STDORGCD)`` rows (both non-null) —
+      Level 1, the ecodivision + stand-origin coefficients.
+    - ``*_org``: ``(SPCD, STDORGCD)`` rows (DIVISION null, STDORGCD non-null) —
+      Level 1b, the stand-origin "no ecodivision noted" row.
+    - ``*_div``: ``(SPCD, DIVISION)`` rows (DIVISION non-null, STDORGCD null) —
+      Level 2.
+    - ``*_spcd``: species-level rows (DIVISION null, STDORGCD null) — Level 3,
+      joined on ``SPCD``.
+    - ``*_jen``: Jenkins-group fallback rows joined on ``JENKINS_SPGRPCD`` —
+      Level 4. ``b1`` is synthesized as ``0.0`` and ``a1``/``c1`` as null
+      because the Jenkins tables only carry ``(a, b, c)`` and Model 5 (the only
+      form Jenkins rows dispatch to) uses none of them.
 
-    The vectorized orchestrator runs all three joins per component and then
-    coalesces DIVISION first, species-level second, Jenkins third, replicating
-    the NSVB lookup precedence (Level 2 → Level 3 → Level 4) without any
-    Python-level loops. Level 1 (SPCD + DIVISION + STDORGCD) is still dead
-    code in Phase 1.5 — only ~10 rows across all 5 tables — and is deferred
-    until the validation gate justifies it.
+    All ``*_divorg`` / ``*_org`` rows exist only for the two stand-origin
+    species (slash pine SPCD 111, loblolly pine SPCD 131), which have no
+    STDORGCD-null row and so depend on Levels 1/1b to avoid collapsing to the
+    Jenkins fallback (issue #123). The Level 1/1b joins are skipped when the
+    trees frame lacks a ``STDORGCD`` column, and Levels 1/2 when it lacks
+    ``DIVISION`` — degrading gracefully to the remaining tiers.
     """
 
     volib_spcd: pl.DataFrame
     volib_jen: pl.DataFrame
     volib_div: pl.DataFrame
+    volib_divorg: pl.DataFrame
+    volib_org: pl.DataFrame
     volbk_spcd: pl.DataFrame
     volbk_jen: pl.DataFrame
     volbk_div: pl.DataFrame
+    volbk_divorg: pl.DataFrame
+    volbk_org: pl.DataFrame
     bark_bio_spcd: pl.DataFrame
     bark_bio_jen: pl.DataFrame
     bark_bio_div: pl.DataFrame
+    bark_bio_divorg: pl.DataFrame
+    bark_bio_org: pl.DataFrame
     branch_bio_spcd: pl.DataFrame
     branch_bio_jen: pl.DataFrame
     branch_bio_div: pl.DataFrame
+    branch_bio_divorg: pl.DataFrame
+    branch_bio_org: pl.DataFrame
     total_agb_spcd: pl.DataFrame
     total_agb_jen: pl.DataFrame
     total_agb_div: pl.DataFrame
+    total_agb_divorg: pl.DataFrame
+    total_agb_org: pl.DataFrame
 
 
 # Common coefficient columns used by the vectorized path. Matches the inputs
-# consumed by ``nsvb_biomass_expr``.
-_VECTORIZED_COEF_COLS = ("model", "a", "b", "b1", "c")
+# consumed by ``nsvb_biomass_expr`` (a1/c1 added for Model 3).
+_VECTORIZED_COEF_COLS = ("model", "a", "a1", "b", "b1", "c", "c1")
+
+
+def _valid_coef_filter() -> pl.Expr:
+    """Filter expression dropping rows whose model needs a null coefficient.
+
+    The downstream vectorized coalesce (:func:`nsvb_biomass_expr` via
+    ``_join_and_eval_component``) picks each coefficient column independently
+    across lookup tiers. That is only sound if, for the tier a row belongs to,
+    every coefficient its model *reads* is non-null — otherwise a null required
+    coefficient would be silently back-filled from a lower-precedence tier and
+    corrupt the per-row math. Model 2/4 read ``b1``; Model 3 reads ``a1`` and
+    ``c1``. Rows violating this are dropped from the lookup, so the whole SPCD
+    falls through to the next precedence level (or Jenkins) rather than mixing
+    coefficients. The current vendored CSVs have no such rows; this is a guard
+    against future re-vendor drift.
+    """
+    return ~(
+        (pl.col("model").is_in([2, 4]) & pl.col("b1").is_null())
+        | ((pl.col("model") == 3) & (pl.col("a1").is_null() | pl.col("c1").is_null()))
+    )
 
 
 def build_species_level_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
     """Prepare a ``*_spcd`` coefficient table for vectorized SPCD joins.
 
-    Filters to Phase 1's species-level rows (``DIVISION`` is null AND
-    ``STDORGCD`` is null), selects the common coefficient columns used by
-    the vectorized biomass expression, and returns a DataFrame keyed on
-    ``SPCD``. The DIVISION-specific rows (Levels 1-2 of the NSVB lookup
-    precedence) are deliberately dropped because Phase 1 has no
-    ``PLOT.ECOSUBCD → DIVISION`` mapping.
+    Filters to the species-level rows (``DIVISION`` is null AND ``STDORGCD``
+    is null — Level 3 of the NSVB precedence), selects the coefficient columns
+    used by the vectorized biomass expression, and returns a DataFrame keyed
+    on ``SPCD``. The more specific rows (Levels 1/1b/2, which match
+    ``DIVISION`` and/or ``STDORGCD``) are handled by the ``build_*_lookup``
+    siblings and coalesced ahead of this tier.
 
-    Also drops Model 2 / Model 4 rows with a null ``b1`` as a defensive
-    measure. In the downstream ``_join_and_eval_component`` coalesce, a
-    null ``b1`` on the species-level side would silently fall back to the
-    Jenkins ``b1=0.0`` synthetic value and corrupt the Model 2/4 math
-    row-wise. The current vendored CSVs have no such rows (all null
-    ``b1`` entries are on Model 1 rows, which do not consume ``b1``),
-    so this filter is a no-op today. It is a regression guard against
-    future CSV re-vendor drift: a rogue null ``b1`` on a Model 2/4 row
-    will be dropped here and the SPCD will fall through to Jenkins as a
-    whole, rather than silently producing wrong per-row math.
+    Applies the shared defensive coefficient-null filter
+    (:func:`_valid_coef_filter`), dropping rows whose model form reads a null
+    coefficient so the SPCD falls through to the next tier rather than mixing
+    coefficients in the downstream coalesce.
 
     Parameters
     ----------
@@ -142,13 +177,13 @@ def build_species_level_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
     Returns
     -------
     pl.DataFrame
-        Columns ``(SPCD, model, a, b, b1, c)``. One row per SPCD that has a
-        species-level entry in the source table.
+        Columns ``(SPCD, model, a, a1, b, b1, c, c1)``. One row per SPCD that
+        has a species-level entry in the source table.
     """
     return table_spcd.filter(
         pl.col("DIVISION").is_null()
         & pl.col("STDORGCD").is_null()
-        & ~(pl.col("model").is_in([2, 4]) & pl.col("b1").is_null())
+        & _valid_coef_filter()
     ).select(["SPCD", *_VECTORIZED_COEF_COLS])
 
 
@@ -178,9 +213,11 @@ def build_jenkins_lookup(table_jenkins: pl.DataFrame) -> pl.DataFrame:
             pl.col("JENKINS_SPGRPCD"),
             pl.col("model"),
             pl.col("a"),
+            pl.lit(None, dtype=pl.Float64).alias("a1"),
             pl.col("b"),
             pl.lit(0.0, dtype=pl.Float64).alias("b1"),
             pl.col("c"),
+            pl.lit(None, dtype=pl.Float64).alias("c1"),
         ]
     )
 
@@ -196,15 +233,12 @@ def build_division_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
     first, then falls through to the species-level lookup (Level 3) and
     the Jenkins fallback (Level 4) via a 3-way coalesce.
 
-    Level 1 of the NSVB precedence (``SPCD + DIVISION + STDORGCD``) is still
-    deliberately excluded — across all 5 coefficient tables it is only ~10
-    rows and would require threading ``COND.STDORGCD`` through the pipeline.
-    Revisit once the DIVISION closure has been measured.
+    Levels 1 and 1b of the NSVB precedence (which also match ``STDORGCD``) are
+    built separately by :func:`build_division_stdorg_lookup` and
+    :func:`build_stdorg_lookup` and coalesced ahead of this tier.
 
-    Applies the same defensive null-``b1`` filter as
-    :func:`build_species_level_lookup`: a Model 2 / Model 4 row with a null
-    ``b1`` would silently mix rows in the downstream coalesce, so such rows
-    are dropped from the lookup.
+    Applies the same defensive coefficient-null filter as
+    :func:`build_species_level_lookup` (see :func:`_valid_coef_filter`).
 
     Parameters
     ----------
@@ -221,8 +255,71 @@ def build_division_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
     return table_spcd.filter(
         pl.col("DIVISION").is_not_null()
         & pl.col("STDORGCD").is_null()
-        & ~(pl.col("model").is_in([2, 4]) & pl.col("b1").is_null())
+        & _valid_coef_filter()
     ).select(["SPCD", "DIVISION", *_VECTORIZED_COEF_COLS])
+
+
+def build_division_stdorg_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
+    """Prepare a ``*_spcd`` table for ``(SPCD, DIVISION, STDORGCD)`` joins
+    (Level 1 of the NSVB lookup precedence — the most specific tier).
+
+    Filters to rows where both ``DIVISION`` and ``STDORGCD`` are non-null:
+    the ecodivision-specific, stand-origin-specific coefficients. In the
+    vendored CSVs these rows exist only for the two species FIA fits
+    separately by stand origin — slash pine (SPCD 111) and loblolly pine
+    (SPCD 131) (GTR-WO-104 p. 8). The vectorized orchestrator joins this
+    first (keyed on the ``(SPCD, DIVISION, STDORGCD)`` triple), then falls
+    through to the ``(SPCD, STDORGCD)`` stand-origin lookup (Level 1b),
+    ``(SPCD, DIVISION)`` (Level 2), species-level (Level 3), and Jenkins
+    (Level 4).
+
+    Requires the trees frame to carry both a ``DIVISION`` (from
+    ``PLOTGEOM.ECOSUBCD``) and a ``STDORGCD`` (from ``COND``) column.
+
+    Applies the same defensive coefficient-null filter as
+    :func:`build_species_level_lookup`.
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns ``(SPCD, DIVISION, STDORGCD, model, a, a1, b, b1, c, c1)``.
+    """
+    return table_spcd.filter(
+        pl.col("DIVISION").is_not_null()
+        & pl.col("STDORGCD").is_not_null()
+        & _valid_coef_filter()
+    ).select(["SPCD", "DIVISION", "STDORGCD", *_VECTORIZED_COEF_COLS])
+
+
+def build_stdorg_lookup(table_spcd: pl.DataFrame) -> pl.DataFrame:
+    """Prepare a ``*_spcd`` table for ``(SPCD, STDORGCD)`` joins (Level 1b of
+    the NSVB lookup precedence — the stand-origin "no ecodivision noted" row).
+
+    Filters to rows where ``STDORGCD`` is non-null AND ``DIVISION`` is null:
+    the stand-origin-specific coefficients that apply when a tree's
+    ecodivision is not explicitly listed for the species. Per GTR-WO-104
+    p. 11, "if a species occurs in an ecodivision not explicitly listed, the
+    entry having no ecodivision noted is used" — this is that entry, for the
+    stand-origin species (slash/loblolly pine).
+
+    This tier is essential: SPCD 111/131 have *no* STDORGCD-null row at all,
+    so without it (and Level 1) they are dropped from every species-level and
+    division lookup and collapse to the Jenkins fallback (issue #123). Keyed
+    on ``(SPCD, STDORGCD)``; requires a ``STDORGCD`` column on the trees frame.
+
+    Applies the same defensive coefficient-null filter as
+    :func:`build_species_level_lookup`.
+
+    Returns
+    -------
+    pl.DataFrame
+        Columns ``(SPCD, STDORGCD, model, a, a1, b, b1, c, c1)``.
+    """
+    return table_spcd.filter(
+        pl.col("DIVISION").is_null()
+        & pl.col("STDORGCD").is_not_null()
+        & _valid_coef_filter()
+    ).select(["SPCD", "STDORGCD", *_VECTORIZED_COEF_COLS])
 
 
 def ecosubcd_to_division(ecosubcd: str | None) -> str | None:
@@ -351,18 +448,28 @@ def get_vectorized_lookup_tables() -> VectorizedLookupTables:
         volib_spcd=build_species_level_lookup(raw.volib_spcd),
         volib_jen=build_jenkins_lookup(raw.volib_jenkins),
         volib_div=build_division_lookup(raw.volib_spcd),
+        volib_divorg=build_division_stdorg_lookup(raw.volib_spcd),
+        volib_org=build_stdorg_lookup(raw.volib_spcd),
         volbk_spcd=build_species_level_lookup(raw.volbk_spcd),
         volbk_jen=build_jenkins_lookup(raw.volbk_jenkins),
         volbk_div=build_division_lookup(raw.volbk_spcd),
+        volbk_divorg=build_division_stdorg_lookup(raw.volbk_spcd),
+        volbk_org=build_stdorg_lookup(raw.volbk_spcd),
         bark_bio_spcd=build_species_level_lookup(raw.bark_biomass_spcd),
         bark_bio_jen=build_jenkins_lookup(raw.bark_biomass_jenkins),
         bark_bio_div=build_division_lookup(raw.bark_biomass_spcd),
+        bark_bio_divorg=build_division_stdorg_lookup(raw.bark_biomass_spcd),
+        bark_bio_org=build_stdorg_lookup(raw.bark_biomass_spcd),
         branch_bio_spcd=build_species_level_lookup(raw.branch_biomass_spcd),
         branch_bio_jen=build_jenkins_lookup(raw.branch_biomass_jenkins),
         branch_bio_div=build_division_lookup(raw.branch_biomass_spcd),
+        branch_bio_divorg=build_division_stdorg_lookup(raw.branch_biomass_spcd),
+        branch_bio_org=build_stdorg_lookup(raw.branch_biomass_spcd),
         total_agb_spcd=build_species_level_lookup(raw.total_biomass_spcd),
         total_agb_jen=build_jenkins_lookup(raw.total_biomass_jenkins),
         total_agb_div=build_division_lookup(raw.total_biomass_spcd),
+        total_agb_divorg=build_division_stdorg_lookup(raw.total_biomass_spcd),
+        total_agb_org=build_stdorg_lookup(raw.total_biomass_spcd),
     )
 
 
@@ -415,6 +522,13 @@ def load_nsvb_coefficients() -> CoefficientTables:
         schema = _JENKINS_DTYPES if key.endswith("_jenkins") else _SPCD_DTYPES
         with resources.as_file(data_pkg / filename) as path:
             df = pl.read_csv(path, schema_overrides=schema)
+        # The bark/branch biomass spcd tables carry no Model 3 rows and so ship
+        # without the a1/c1 columns. Add them as null so every spcd table shares
+        # the uniform schema the vectorized lookup builders select.
+        if not key.endswith("_jenkins"):
+            for col in ("a1", "c1"):
+                if col not in df.columns:
+                    df = df.with_columns(pl.lit(None, dtype=pl.Float64).alias(col))
         loaded[key] = df
     return CoefficientTables(**loaded)
 

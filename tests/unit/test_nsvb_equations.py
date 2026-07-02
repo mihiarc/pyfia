@@ -41,6 +41,7 @@ from pyfia.carbon.nsvb.equations import (
     harmonize_components,
     model_1,
     model_2,
+    model_3,
     model_4,
     model_5_jenkins,
     predict_tree_biomass,
@@ -325,6 +326,57 @@ class TestModel2:
         )
         assert _close(result, 2.155106401987)
 
+    def test_below_segmentation_point_is_schumacher_hall(self):
+        """GTR-WO-104 eq. 2: for D < k the model reduces to a * D^b * H^c.
+
+        A softwood (k=9) with D=5 is below the segmentation point, so Model 2
+        must equal the plain Model 1 form — NOT the D>=k branch (which would
+        use the b1 exponent). This is the branch the pre-fix code omitted.
+        """
+        a, b, b1, c = 0.001929099661, 2.162413104203, 1.690400253097, 0.985444005253
+        d, h, k = 5.0, 45.0, 9.0
+        result = model_2(d=d, h=h, a=a, b=b, b1=b1, c=c, k=k)
+        assert _close(result, model_1(d, h, a, b, c))
+        # And it must differ from the (wrong) unconditional D>=k branch.
+        wrong = a * (k ** (b - b1)) * (d**b1) * (h**c)
+        assert not _close(result, wrong)
+
+    def test_segmentation_is_continuous_at_k(self):
+        """The two branches agree exactly at D = k (both are a * k^b * H^c)."""
+        a, b, b1, c = 0.001929099661, 2.162413104203, 1.690400253097, 0.985444005253
+        k, h = 9.0, 60.0
+        just_below = model_2(d=k - 1e-7, h=h, a=a, b=b, b1=b1, c=c, k=k)
+        at_k = model_2(d=k, h=h, a=a, b=b, b1=b1, c=c, k=k)
+        assert _close(just_below, at_k, tol=1e-6)
+        assert _close(at_k, a * (k**b) * (h**c))
+
+
+# ---------------------------------------------------------------------------
+# Model 3 — continuously variable form
+# ---------------------------------------------------------------------------
+
+
+class TestModel3:
+    """Continuously Variable model: y = a * D^(a1*(1-exp(-b*D))^c1) * H^c."""
+
+    def test_matches_gtr_eq3_form(self):
+        """Model 3 evaluates GTR-WO-104 eq. 3 exactly.
+
+        Uses planted slash pine (SPCD=111, STDORGCD=1) total-AGB coefficients.
+        The expected value is computed independently from the closed form.
+        """
+        a, a1, b, c1, c = 0.358815, 1.5, 0.149984, 0.332485, 0.841296
+        d, h = 12.0, 55.0
+        expected = a * (d ** (a1 * (1.0 - math.exp(-b * d)) ** c1)) * (h**c)
+        result = model_3(d=d, h=h, a=a, a1=a1, b=b, c1=c1, c=c)
+        assert _close(result, expected)
+
+    def test_positive_and_finite(self):
+        """Model 3 returns a positive, finite biomass for a realistic tree."""
+        result = model_3(d=8.0, h=40.0, a=0.358815, a1=1.5, b=0.149984, c1=0.33, c=0.84)
+        assert result > 0
+        assert math.isfinite(result)
+
 
 # ---------------------------------------------------------------------------
 # Model 4 — exp-modulated power form
@@ -496,10 +548,10 @@ class TestPredictTreeBiomass:
         assert _close(carbon, DOUGFIR_EXPECTED["carbon_total"])
 
     def test_unsupported_model_raises(self):
-        """Model 3 and Model 6 are not implemented in Phase 1."""
+        """Model 6 (volume-ratio) is not implemented for biomass components."""
         bad_coefs = Coefficients(
             volib={
-                "model": 3,  # Model 3 not implemented
+                "model": 6,  # Model 6 not implemented
                 "a": 0.001,
                 "a1": 0.0,
                 "b": 1.5,
@@ -513,7 +565,7 @@ class TestPredictTreeBiomass:
             branch_bio=DOUGFIR_COEFS.branch_bio,
             total_agb=DOUGFIR_COEFS.total_agb,
         )
-        with pytest.raises(ValueError, match="model 3 not supported"):
+        with pytest.raises(ValueError, match="model 6 not supported"):
             predict_tree_biomass(
                 coefficients=bad_coefs,
                 **DOUGFIR_INPUTS,

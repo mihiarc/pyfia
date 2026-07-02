@@ -10,6 +10,7 @@ variance calculation, and output formatting. Pool-specific logic
 
 from __future__ import annotations
 
+import dataclasses
 import logging
 from typing import TYPE_CHECKING
 
@@ -30,6 +31,29 @@ if TYPE_CHECKING:
     from .nsvb.coefficients import VectorizedLookupTables
 
 logger = logging.getLogger(__name__)
+
+# Model forms implemented by ``nsvb_biomass_expr`` (GTR-WO-104 Models 1-5).
+# Model 6 is the volume-ratio model (merchantable volume / broken-top), which
+# never appears in the five biomass-component tables; any row dispatching to an
+# unimplemented model would evaluate to null biomass, so we reject it up front.
+_IMPLEMENTED_MODELS = frozenset({1, 2, 3, 4, 5})
+
+
+def _unimplemented_lookup_models(lookup: VectorizedLookupTables) -> list[int]:
+    """Return model codes present in the coefficient lookup that NSVB cannot
+    evaluate (i.e. not in :data:`_IMPLEMENTED_MODELS`).
+
+    A static, data-independent scan across every tier of every component table
+    (~1200 rows total). Catches CSV re-vendor drift that would introduce a
+    Model 6 (or future form) into a biomass component and otherwise produce a
+    silent null. Empty when every model is implemented.
+    """
+    models: set[int] = set()
+    for field in dataclasses.fields(lookup):
+        table = getattr(lookup, field.name)
+        if "model" in table.columns:
+            models |= set(table["model"].drop_nulls().cast(pl.Int64).to_list())
+    return sorted(m for m in models if m not in _IMPLEMENTED_MODELS)
 
 
 def _uncovered_nonwoodland_spcds(
@@ -117,11 +141,18 @@ class CarbonEstimatorBase(BaseEstimator):
         return ["TREE", "COND", "PLOT", "POP_PLOT_STRATUM_ASSGN", "POP_STRATUM"]
 
     def get_cond_columns(self) -> list[str]:
-        return _get_cond_columns(
+        cols = _get_cond_columns(
             land_type=self.config.get("land_type", "forest"),
             grp_by=self.config.get("grp_by"),
             include_prop_basis=False,
         )
+        # STDORGCD selects the planted vs. natural NSVB coefficient sets for
+        # the stand-origin species (slash/loblolly pine). Load it
+        # unconditionally (issue #123); otherwise it is pulled in only when the
+        # user groups by it, and 111/131 collapse to the Jenkins fallback.
+        if "STDORGCD" not in cols:
+            cols.append("STDORGCD")
+        return cols
 
     # ------------------------------------------------------------------
     # Reference-table helpers
@@ -228,6 +259,27 @@ class CarbonEstimatorBase(BaseEstimator):
         )
         return data
 
+    def _prepare_stdorgcd(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """Normalize ``COND.STDORGCD`` for the stand-origin coefficient lookup.
+
+        Casts to Int64 and fills nulls with 0 (natural — FIA's meaning of "no
+        evidence of artificial regeneration"), so the Level 1/1b stand-origin
+        joins resolve for every tree of a stand-origin species (issue #123).
+        Only slash/loblolly pine (SPCD 111/131) carry STDORGCD-specific NSVB
+        coefficients; for every other species the value is inert (their lookup
+        rows have a null STDORGCD, so they match via the division/species
+        tiers regardless). No-op if the column is absent (e.g. a caller that
+        did not load COND).
+        """
+        if "STDORGCD" not in data.collect_schema().names():
+            return data
+        return data.with_columns(
+            pl.col("STDORGCD")
+            .cast(pl.Int64, strict=False)
+            .fill_null(0)
+            .alias("STDORGCD")
+        )
+
     def _apply_bg_bridge(self, data: pl.LazyFrame, pool: str) -> pl.LazyFrame:
         """Add ``_CARBON_BG_LB`` column from the FIADB BG bridge.
 
@@ -272,7 +324,23 @@ class CarbonEstimatorBase(BaseEstimator):
         :class:`ValueError` naming the offending SPCDs. Real non-woodland
         species always carry a Jenkins-group (1-9) fallback, so this only
         fires on genuine data anomalies (e.g. an SPCD absent from REF_SPECIES).
+
+        Also statically rejects a coefficient lookup that dispatches any row to
+        an unimplemented model form (issue #124) — a re-vendor drift guard, so
+        an unhandled model becomes a loud failure instead of a silent null.
         """
+        bad_models = _unimplemented_lookup_models(lookup)
+        if bad_models:
+            raise ValueError(
+                f"{self._estimator_label}: NSVB coefficient lookup contains "
+                f"unimplemented model form(s) {bad_models} (only "
+                f"{sorted(_IMPLEMENTED_MODELS)} are evaluated by "
+                "nsvb_biomass_expr). Rows dispatching to these would produce "
+                "null biomass and be silently dropped from the population sum. "
+                "This indicates a coefficient CSV re-vendor introduced a new "
+                "model form — extend nsvb_biomass_expr before proceeding."
+            )
+
         uncovered = _uncovered_nonwoodland_spcds(data, lookup)
         if uncovered:
             raise ValueError(
@@ -285,6 +353,40 @@ class CarbonEstimatorBase(BaseEstimator):
                 "CARBON_AG automatically; these SPCDs are an unexpected "
                 "coverage gap — verify they exist in REF_SPECIES with a valid "
                 "JENKINS_SPGRPCD."
+            )
+
+    def _assert_biomass_nonnull(
+        self, data: pl.LazyFrame, col: str = "_CARBON_AG_LB"
+    ) -> None:
+        """Fail loud if the NSVB pipeline produced a null carbon value (#124).
+
+        A null per-tree carbon is silently skipped by the downstream ``sum``
+        aggregation — the tree stays in ``N_TREES`` but contributes 0 carbon,
+        an undetectable undercount. This is the guard the pipeline docstrings
+        promised: it collects the distinct SPCDs whose ``col`` is null and
+        raises naming them.
+
+        With Models 1-5 implemented, the coverage/model guards
+        (:meth:`_guard_nsvb_coverage`), and the dead-path carbon-fraction
+        ``fill_null``, the only residual null sources are data anomalies (e.g.
+        a null ``HT`` or ``WDSG`` feeding an ``a*D^b*H^c`` form). This converts
+        each from a silent wrong answer into a loud failure. Runs one filtered
+        collect over the (tiny-lookup-joined) tree frame per estimator call.
+        """
+        offending = (
+            data.filter(pl.col(col).is_null())
+            .select(pl.col("SPCD").cast(pl.Int64).unique())
+            .collect()
+        )
+        spcds = sorted(offending["SPCD"].to_list())
+        if spcds:
+            raise ValueError(
+                f"{self._estimator_label}: the NSVB pipeline produced a null "
+                f"{col} for {len(spcds)} species code(s) {spcds}. These trees "
+                "would be counted in N_TREES but contribute 0 carbon (a silent "
+                "undercount). Likely a null HT/WDSG feeding the allometric "
+                "model, or a coefficient row dispatching to an unimplemented "
+                "model form — investigate before trusting the estimate."
             )
 
     def _substitute_woodland_carbon_ag(self, data: pl.LazyFrame) -> pl.LazyFrame:

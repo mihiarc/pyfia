@@ -36,6 +36,7 @@ from ..estimation.utils import (
 )
 from ._estimator_base import CarbonEstimatorBase
 from .nsvb.carbon_fractions import (
+    _compute_default_dead_carbon_fraction,
     load_carbon_fractions_dead_df,
     load_dead_cr_prop_df,
     load_dead_decay_proportions_df,
@@ -106,9 +107,10 @@ class StandingDeadEstimator(CarbonEstimatorBase):
         """
         pool = self.config.get("pool", "ag").lower()
 
-        # Join REF_SPECIES and PLOTGEOM/DIVISION
+        # Join REF_SPECIES and PLOTGEOM/DIVISION; normalize stand origin
         data = self._join_ref_species(data)
         data = self._join_plotgeom_division(data)
+        data = self._prepare_stdorgcd(data)
 
         # Cast DECAYCD from Utf8 to Int64 for the decay-prop join
         data = data.with_columns(pl.col("DECAYCD").cast(pl.Int64, strict=False))
@@ -146,11 +148,23 @@ class StandingDeadEstimator(CarbonEstimatorBase):
                 on=["_hw_sw_cf", "DECAYCD"],
                 how="left",
             )
+            # Fall back to the S10b mean for any (hw_sw, DECAYCD) not in the
+            # table (e.g. an out-of-domain DECAYCD), matching the live path's
+            # CARBON_FRAC_LIVE handling — otherwise the tree's carbon would be
+            # a silent null and drop from the sum (issue #124).
+            default_dead_frac = _compute_default_dead_carbon_fraction()
+            data = data.with_columns(
+                pl.col("CARBON_FRAC_DEAD")
+                .fill_null(default_dead_frac)
+                .alias("CARBON_FRAC_DEAD")
+            )
             data = data.with_columns(
                 (pl.col("agb") * pl.col("CARBON_FRAC_DEAD")).alias("_CARBON_AG_LB")
             )
             data = data.drop(["_hw_sw_cf"])
             data = self._substitute_woodland_carbon_ag(data)
+            # Fail loud on any tree the pipeline left with null carbon (#124).
+            self._assert_biomass_nonnull(data)
         else:  # pool == "bg"
             data = data.with_columns(pl.lit(0.0).alias("_CARBON_AG_LB"))
 

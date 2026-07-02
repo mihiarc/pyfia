@@ -326,8 +326,14 @@ class BaseEstimator(ABC):
         return results
 
     def _setup_grouping(self) -> list[str]:
-        """Setup grouping columns based on config."""
-        group_cols = []
+        """Setup grouping columns based on config.
+
+        Deduplicates while preserving first-seen order so that, e.g.,
+        ``grp_by="SPCD"`` combined with ``by_species=True`` collapses to a
+        single ``SPCD`` key rather than the ``["SPCD", "SPCD"]`` that polars'
+        ``group_by`` rejects with a ``DuplicateError`` (issue #125).
+        """
+        group_cols: list[str] = []
 
         # Custom grouping columns
         if self.config.get("grp_by"):
@@ -341,10 +347,11 @@ class BaseEstimator(ABC):
         if self.config.get("by_species"):
             group_cols.append("SPCD")
 
-        # Size class grouping would be added here
-        # but requires the actual data to create the column
+        # Size-class grouping (SIZE_CLASS) is appended by each estimator in its
+        # aggregate_results, where the column is built from the tree data.
 
-        return group_cols
+        # Deduplicate, preserving first-seen order (dict keeps insertion order).
+        return list(dict.fromkeys(group_cols))
 
     def _aggregate_to_condition_level(
         self,

@@ -235,7 +235,9 @@ class TestLiveTreeFunctionValidation:
         # attribute access.
         import importlib
 
-        live_tree_module = importlib.import_module("pyfia.carbon.live_tree")
+        # ensure_fia_instance / ensure_evalid_set live in the shared
+        # _estimator_base runner (run_carbon_estimator) since the #127 hoist.
+        estimator_base_module = importlib.import_module("pyfia.carbon._estimator_base")
 
         def fake_ensure_fia_instance(db):
             return (MockDB(), False)
@@ -250,10 +252,10 @@ class TestLiveTreeFunctionValidation:
             raise ShortCircuitError()
 
         monkeypatch.setattr(
-            live_tree_module, "ensure_fia_instance", fake_ensure_fia_instance
+            estimator_base_module, "ensure_fia_instance", fake_ensure_fia_instance
         )
         monkeypatch.setattr(
-            live_tree_module, "ensure_evalid_set", fake_ensure_evalid_set
+            estimator_base_module, "ensure_evalid_set", fake_ensure_evalid_set
         )
         monkeypatch.setattr(LiveTreeEstimator, "estimate", fake_estimate)
 
@@ -266,7 +268,9 @@ class TestLiveTreeFunctionValidation:
         # Validation path should accept 'total' without raising.
         import importlib
 
-        live_tree_module = importlib.import_module("pyfia.carbon.live_tree")
+        # ensure_fia_instance / ensure_evalid_set live in the shared
+        # _estimator_base runner (run_carbon_estimator) since the #127 hoist.
+        estimator_base_module = importlib.import_module("pyfia.carbon._estimator_base")
 
         def fake_ensure_fia_instance(db):
             return (MockDB(), False)
@@ -281,10 +285,10 @@ class TestLiveTreeFunctionValidation:
             raise ShortCircuitError()
 
         monkeypatch.setattr(
-            live_tree_module, "ensure_fia_instance", fake_ensure_fia_instance
+            estimator_base_module, "ensure_fia_instance", fake_ensure_fia_instance
         )
         monkeypatch.setattr(
-            live_tree_module, "ensure_evalid_set", fake_ensure_evalid_set
+            estimator_base_module, "ensure_evalid_set", fake_ensure_evalid_set
         )
         monkeypatch.setattr(LiveTreeEstimator, "estimate", fake_estimate)
 
@@ -365,3 +369,162 @@ class TestLiveTreeEndToEnd:
         result = live_tree(georgia_db, pool="ag", by_species=True, most_recent=True)
         assert result.height > 1
         assert "SPCD" in result.columns
+
+
+# ---------------------------------------------------------------------------
+# Regression tests for the #125 / #126 / #127 cleanup
+# ---------------------------------------------------------------------------
+
+
+class TestSetupGroupingDedup:
+    """``BaseEstimator._setup_grouping`` deduplicates group columns (issue #125).
+
+    ``grp_by="SPCD"`` combined with ``by_species=True`` previously produced
+    ``["SPCD", "SPCD"]``, which polars' ``group_by`` rejects with a
+    ``DuplicateError``. The fix lives in the shared base method, so it is
+    exercised here through a carbon estimator instance.
+    """
+
+    def test_grp_by_spcd_plus_by_species_dedups(self):
+        est = LiveTreeEstimator(
+            MockDB(), {"pool": "ag", "grp_by": ["SPCD"], "by_species": True}
+        )
+        assert est._setup_grouping() == ["SPCD"]
+
+    def test_grp_by_list_with_spcd_and_by_species_dedups(self):
+        est = LiveTreeEstimator(
+            MockDB(),
+            {"pool": "ag", "grp_by": ["OWNGRPCD", "SPCD"], "by_species": True},
+        )
+        # SPCD kept once; first-seen order preserved.
+        assert est._setup_grouping() == ["OWNGRPCD", "SPCD"]
+
+    def test_no_duplicates_preserves_order(self):
+        est = LiveTreeEstimator(
+            MockDB(),
+            {"pool": "ag", "grp_by": ["OWNGRPCD", "FORTYPCD"], "by_species": True},
+        )
+        assert est._setup_grouping() == ["OWNGRPCD", "FORTYPCD", "SPCD"]
+
+    def test_duplicate_within_grp_by_dedups(self):
+        est = LiveTreeEstimator(
+            MockDB(), {"pool": "ag", "grp_by": ["OWNGRPCD", "OWNGRPCD"]}
+        )
+        assert est._setup_grouping() == ["OWNGRPCD"]
+
+
+class TestTopLevelExports:
+    """Carbon estimators are re-exported from the top-level package (issue #127)."""
+
+    def test_live_tree_and_standing_dead_exported(self):
+        import pyfia
+        from pyfia.carbon.standing_dead import standing_dead as _standing_dead
+
+        assert pyfia.live_tree is live_tree
+        assert pyfia.standing_dead is _standing_dead
+        assert "live_tree" in pyfia.__all__
+        assert "standing_dead" in pyfia.__all__
+
+
+class _FakeBackend:
+    def __init__(self, exists: bool):
+        self._exists = exists
+
+    def table_exists(self, table_name: str) -> bool:
+        return self._exists
+
+
+class _FakeReader:
+    def __init__(self, backend, read_error=None, frame=None):
+        self._backend = backend
+        self._read_error = read_error
+        self._frame = frame
+
+    def read_table(self, table_name, columns=None):
+        if self._read_error is not None:
+            raise self._read_error
+        return self._frame
+
+
+class _MockDBWithReader(MockDB):
+    def __init__(self, reader):
+        super().__init__()
+        self._reader = reader
+
+
+class TestLoadPlotgeomErrorHandling:
+    """``_load_plotgeom`` gates on table existence, not a broad except (issue #126)."""
+
+    def test_missing_table_returns_none(self):
+        reader = _FakeReader(_FakeBackend(exists=False))
+        est = LiveTreeEstimator(_MockDBWithReader(reader), {"pool": "ag"})
+        assert est._load_plotgeom() is None
+
+    def test_read_error_on_existing_table_propagates(self):
+        # Table exists, but the read fails: the error must NOT be swallowed into
+        # the silent DIVISION-disabled fallback (that hides a ~3% biomass bias).
+        reader = _FakeReader(
+            _FakeBackend(exists=True), read_error=RuntimeError("backend boom")
+        )
+        est = LiveTreeEstimator(_MockDBWithReader(reader), {"pool": "ag"})
+        with pytest.raises(RuntimeError, match="backend boom"):
+            est._load_plotgeom()
+
+    def test_present_table_loads(self):
+        frame = pl.DataFrame({"CN": ["p1", "p2"], "ECOSUBCD": ["M261A ", "222J "]})
+        reader = _FakeReader(_FakeBackend(exists=True), frame=frame)
+        est = LiveTreeEstimator(_MockDBWithReader(reader), {"pool": "ag"})
+        result = est._load_plotgeom()
+        assert result is not None
+        assert set(result.columns) == {"PLT_CN", "ECOSUBCD"}
+        assert result.height == 2
+
+
+class TestCleanupRegressionEndToEnd:
+    """End-to-end regressions for #125 / #127 on the Georgia test database.
+
+    Skipped automatically when no database is available (``georgia_db``
+    fixture calls ``pytest.skip``).
+    """
+
+    def test_by_size_class_returns_size_class_column(self, georgia_db):
+        """``by_size_class=True`` yields a SIZE_CLASS column with multiple
+        standard FIA diameter classes, and the per-class totals sum to the
+        ungrouped total (issue #125)."""
+        result = live_tree(georgia_db, pool="ag", by_size_class=True, most_recent=True)
+        assert "SIZE_CLASS" in result.columns
+        classes = set(result["SIZE_CLASS"].to_list())
+        assert len(classes) > 1
+        assert classes <= {"1.0-4.9", "5.0-9.9", "10.0-19.9", "20.0-29.9", "30.0+"}
+        # Partition check: size-class totals sum to the ungrouped total.
+        grouped_total = result["CARBON_TOTAL"].sum()
+        ungrouped = live_tree(georgia_db, pool="ag", most_recent=True)["CARBON_TOTAL"][
+            0
+        ]
+        assert abs(grouped_total - ungrouped) / ungrouped < 1e-6
+
+    def test_grp_by_spcd_with_by_species_does_not_raise(self, georgia_db):
+        """``grp_by='SPCD'`` + ``by_species=True`` no longer raises a
+        DuplicateError and yields a single SPCD grouping column (issue #125)."""
+        result = live_tree(
+            georgia_db,
+            pool="ag",
+            grp_by="SPCD",
+            by_species=True,
+            most_recent=True,
+        )
+        assert result.columns.count("SPCD") == 1
+        # Equivalent to by_species alone after dedup.
+        by_species = live_tree(georgia_db, pool="ag", by_species=True, most_recent=True)
+        assert result.height == by_species.height
+
+    def test_totals_false_variance_true_no_orphan_total_se(self, georgia_db):
+        """``totals=False`` must not emit a CARBON_TOTAL_SE with no
+        CARBON_TOTAL (issue #127)."""
+        result = live_tree(
+            georgia_db, pool="ag", totals=False, variance=True, most_recent=True
+        )
+        assert "CARBON_TOTAL" not in result.columns
+        assert "CARBON_TOTAL_SE" not in result.columns
+        # The per-acre SE is still present.
+        assert "CARBON_ACRE_SE" in result.columns

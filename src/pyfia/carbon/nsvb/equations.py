@@ -979,10 +979,12 @@ def compute_nsvb_dead_biomass(
       of the intact crown remaining below the break, computed from the
       mean intact crown ratio in ``REF_TREE_STND_DEAD_CR_PROP`` (Table S11)
       keyed on Bailey ecoregion province × hardwood/softwood.
-    - *Wood and bark* are reduced by ``ACTUALHT / HT``, a linear
-      approximation of the stem volume ratio below the break. This
-      replaces the Model 6 (Schumacher-Hall) volume-ratio computation
-      that FIADB uses for sub-stem partitioning, which is not implemented.
+    - *Wood and bark* are reduced by ``(ACTUALHT / HT) ** (2/3)``, a
+      paraboloid taper approximation of the stem volume ratio below the
+      break (a stem tapers, so volume falls faster than height near the tip
+      but slower than a cone). This replaces the Model 6 (Schumacher-Hall)
+      volume-ratio computation that FIADB uses for sub-stem partitioning,
+      which is not implemented.
 
     Parameters
     ----------
@@ -1100,8 +1102,8 @@ def compute_nsvb_dead_biomass(
 
     # ----- Broken-top corrections (Phase 2.5) -----
     # For trees with ACTUALHT < HT, reduce branch biomass by the crown
-    # proportion remaining below the break, and reduce wood/bark by a
-    # linear volume ratio ACTUALHT/HT.  Corrections applied BEFORE the
+    # proportion remaining below the break, and reduce wood/bark by the
+    # paraboloid volume ratio (ACTUALHT/HT)^(2/3).  Corrections applied BEFORE the
     # decay reductions so both adjustments compound.  The intact gross sum
     # is saved BEFORE the correction so AGBReduce = broken_decayed / intact
     # captures both the broken-top and decay reductions against the intact

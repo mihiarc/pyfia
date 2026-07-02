@@ -21,6 +21,7 @@ __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
 # Estimation functions - High-level API
+from pyfia.carbon import live_tree, standing_dead
 from pyfia.core.data_reader import FIADataReader
 from pyfia.core.exceptions import (
     ConfigurationError,
@@ -123,6 +124,8 @@ __all__ = [
     "removals",
     "site_index",
     "tree_metrics",
+    "live_tree",
+    "standing_dead",
     # Reference table utilities
     "join_forest_type_names",
     "join_species_names",

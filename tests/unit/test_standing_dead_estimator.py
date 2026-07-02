@@ -10,6 +10,8 @@ unconditionally against a MockDB.
 
 from __future__ import annotations
 
+import polars as pl
+
 from pyfia.carbon.standing_dead import StandingDeadEstimator
 
 
@@ -43,3 +45,42 @@ class TestGetTreeColumns:
         estimator = StandingDeadEstimator(MockDB(), {"pool": "ag"})
         assert hasattr(estimator, "_guard_nsvb_coverage")
         assert hasattr(estimator, "_substitute_woodland_carbon_ag")
+
+
+class TestStandingDeadCdNumericMatch:
+    """``STANDING_DEAD_CD`` is matched numerically, not as a string (issue #126).
+
+    The previous ``cast(Utf8) == "1"`` compared against the literal ``"1"``,
+    so a backend that loads the column as Float64 (``1.0`` -> ``"1.0"``) would
+    silently drop *every* standing-dead tree and return ~0 carbon. The fix
+    (``cast(Int64) == 1``) matches across VARCHAR / BIGINT / Float64 backends.
+    ``apply_filters`` is column-conditional, so a minimal synthetic frame drives
+    exactly the standing-dead filters.
+    """
+
+    def _apply(self, standing_dead_cd_values):
+        estimator = StandingDeadEstimator(MockDB(), {"pool": "ag", "tree_type": "dead"})
+        n = len(standing_dead_cd_values)
+        frame = pl.LazyFrame(
+            {
+                "STATUSCD": [2] * n,
+                "STANDING_DEAD_CD": standing_dead_cd_values,
+                "DECAYCD": [3] * n,
+                "DIA": [10.0] * n,
+            }
+        )
+        return estimator.apply_filters(frame).collect()
+
+    def test_float_backend_retains_standing_dead(self):
+        # Float64 backend: values arrive as 1.0 / 0.0 / 2.0 / null.
+        result = self._apply([1.0, 0.0, 2.0, None])
+        assert result.height == 1
+        assert result["STANDING_DEAD_CD"].to_list() == [1.0]
+
+    def test_int_backend_retains_standing_dead(self):
+        result = self._apply([1, 0, 2])
+        assert result.height == 1
+
+    def test_string_backend_retains_standing_dead(self):
+        result = self._apply(["1", "0", "2"])
+        assert result.height == 1

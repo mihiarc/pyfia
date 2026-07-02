@@ -17,24 +17,16 @@ examples, and the pool semantics.
 
 from __future__ import annotations
 
-import logging
-
 import polars as pl
 
 from ..core import FIA
 from ..estimation.columns import get_tree_columns as _get_tree_columns
-from ..estimation.utils import (
-    ensure_evalid_set,
-    ensure_fia_instance,
-)
-from ._estimator_base import CarbonEstimatorBase
+from ._estimator_base import CarbonEstimatorBase, run_carbon_estimator
 from .nsvb.carbon_fractions import (
     _compute_default_live_carbon_fraction,
     load_carbon_fractions_live_df,
 )
 from .nsvb.equations import compute_nsvb_biomass
-
-logger = logging.getLogger(__name__)
 
 
 class LiveTreeEstimator(CarbonEstimatorBase):
@@ -58,33 +50,49 @@ class LiveTreeEstimator(CarbonEstimatorBase):
             grp_by=self.config.get("grp_by"),
         )
 
+    def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
+        """Apply standard live-tree filters plus the NSVB sub-inch floor.
+
+        NSVB is not parameterized below 1.0" DBH, so trees with ``DIA < 1.0``
+        are dropped here — at the same ``apply_filters`` lifecycle stage where
+        ``standing_dead`` applies the same floor, rather than inline in
+        ``calculate_values`` (issue #127).
+        """
+        data = super().apply_filters(data)
+        if "DIA" in data.collect_schema().names():
+            data = data.filter(pl.col("DIA") >= 1.0)
+        return data
+
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Run the NSVB pipeline and produce per-acre carbon columns.
 
-        Steps: join REF_SPECIES → join PLOTGEOM/DIVISION → filter sub-inch
-        trees → NSVB biomass → S10a carbon fractions → BG bridge →
-        CARBON_ACRE.
+        Steps: join REF_SPECIES → coverage guard → join PLOTGEOM/DIVISION →
+        NSVB biomass → S10a carbon fractions → BG bridge → CARBON_ACRE. The
+        sub-inch (``DIA < 1.0``) filter is applied earlier, in apply_filters.
         """
         pool = self.config.get("pool", "ag").lower()
 
-        # Join REF_SPECIES and PLOTGEOM/DIVISION; normalize stand origin
+        # Join REF_SPECIES (WDSG, JENKINS_SPGRPCD, WOODLAND)
         data = self._join_ref_species(data)
-        data = self._join_plotgeom_division(data)
-        data = self._prepare_stdorgcd(data)
 
-        # Filter sub-inch trees (NSVB not parameterized below 1.0")
-        data = data.filter(pl.col("DIA") >= 1.0)
-
-        # NSVB biomass + S10a carbon conversion
         if pool in ("ag", "total"):
             from .nsvb.coefficients import get_vectorized_lookup_tables
 
             lookup = get_vectorized_lookup_tables()
 
             # Fail loud on species NSVB cannot compute; route woodland species
-            # to FIADB-stored CARBON_AG (issue #6).
+            # to FIADB-stored CARBON_AG (issue #6). Run on the REF_SPECIES-joined
+            # frame *before* the PLOTGEOM/DIVISION join so the guard's coverage
+            # scan does not drag that join into its collect (issue #127); the
+            # guard needs only SPCD / JENKINS_SPGRPCD / WOODLAND.
             self._guard_nsvb_coverage(data, lookup)
 
+        # PLOTGEOM/DIVISION + stand origin drive the coefficient lookup.
+        data = self._join_plotgeom_division(data)
+        data = self._prepare_stdorgcd(data)
+
+        # NSVB biomass + S10a carbon conversion
+        if pool in ("ag", "total"):
             data = compute_nsvb_biomass(data, lookup)
             default_frac = _compute_default_live_carbon_fraction()
             cf_df = load_carbon_fractions_live_df()
@@ -321,81 +329,21 @@ def live_tree(
     ...     totals=True,
     ... )
     """
-    from ..validation import (
-        validate_boolean,
-        validate_domain_expression,
-        validate_grp_by,
-        validate_land_type,
+    return run_carbon_estimator(
+        LiveTreeEstimator,
+        estimator_name="live_tree",
+        tree_type="live",
+        legacy_allometry="legacy Jenkins-based",
+        db=db,
+        pool=pool,
+        grp_by=grp_by,
+        by_species=by_species,
+        by_size_class=by_size_class,
+        land_type=land_type,
+        tree_domain=tree_domain,
+        area_domain=area_domain,
+        plot_domain=plot_domain,
+        totals=totals,
+        variance=variance,
+        most_recent=most_recent,
     )
-
-    # ----- Validate pool -----
-    pool = pool.lower()
-    valid_pools = {"ag", "bg", "total"}
-    if pool not in valid_pools:
-        raise ValueError(
-            f"Invalid pool '{pool}'. Must be one of: {sorted(valid_pools)}"
-        )
-
-    # ----- Validate standard estimator inputs -----
-    land_type = validate_land_type(land_type)
-    grp_by = validate_grp_by(grp_by)
-    tree_domain = validate_domain_expression(tree_domain, "tree_domain")
-    area_domain = validate_domain_expression(area_domain, "area_domain")
-    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
-    by_species = validate_boolean(by_species, "by_species")
-    by_size_class = validate_boolean(by_size_class, "by_size_class")
-    totals = validate_boolean(totals, "totals")
-    variance = validate_boolean(variance, "variance")
-    most_recent = validate_boolean(most_recent, "most_recent")
-
-    # ----- Resolve db + EVALID -----
-    db, owns_db = ensure_fia_instance(db)
-    # Live tree carbon uses EXPVOL evaluations (same as biomass).
-    if most_recent and db.evalid is None:
-        db.clip_most_recent(eval_type="VOL")
-    else:
-        ensure_evalid_set(db, eval_type="VOL", estimator_name="live_tree")
-
-    # ----- Build config and run estimator -----
-    config = {
-        "pool": pool,
-        "grp_by": grp_by,
-        "by_species": by_species,
-        "by_size_class": by_size_class,
-        "land_type": land_type,
-        "tree_type": "live",
-        "tree_domain": tree_domain,
-        "area_domain": area_domain,
-        "plot_domain": plot_domain,
-        "totals": totals,
-        "variance": variance,
-        "most_recent": most_recent,
-    }
-
-    try:
-        estimator = LiveTreeEstimator(db, config)
-        if pool == "total":
-            # The cross-era warning is best-effort: if we can't determine
-            # the inventory year (EVALID parse failures, missing POP_EVAL,
-            # type coercion problems), skip the warning rather than fail
-            # the whole estimation.
-            try:
-                year = estimator._extract_evaluation_year()
-                if int(year) < 2024:
-                    logger.warning(
-                        "live_tree(pool='total'): selected EVALID year (%d) "
-                        "pre-dates the NSVB framework transition "
-                        "(September 2023). The BG bridge reads FIADB "
-                        "TREE.CARBON_BG directly, which for pre-NSVB "
-                        "inventories was computed via legacy Jenkins-based "
-                        "allometry — combining it with NSVB-recomputed AG "
-                        "may produce cross-era inconsistencies. Use "
-                        "pool='ag' if you need NSVB-only consistency.",
-                        int(year),
-                    )
-            except (ValueError, TypeError, AttributeError, IndexError, KeyError) as exc:
-                logger.debug("Skipping live_tree year warning: %s", exc)
-        return estimator.estimate()
-    finally:
-        if owns_db and hasattr(db, "close"):
-            db.close()

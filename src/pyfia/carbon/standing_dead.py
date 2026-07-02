@@ -24,17 +24,11 @@ examples, and the pool semantics.
 
 from __future__ import annotations
 
-import logging
-
 import polars as pl
 
 from ..core import FIA
 from ..estimation.columns import get_tree_columns as _get_tree_columns
-from ..estimation.utils import (
-    ensure_evalid_set,
-    ensure_fia_instance,
-)
-from ._estimator_base import CarbonEstimatorBase
+from ._estimator_base import CarbonEstimatorBase, run_carbon_estimator
 from .nsvb.carbon_fractions import (
     _compute_default_dead_carbon_fraction,
     load_carbon_fractions_dead_df,
@@ -42,8 +36,6 @@ from .nsvb.carbon_fractions import (
     load_dead_decay_proportions_df,
 )
 from .nsvb.equations import compute_nsvb_dead_biomass
-
-logger = logging.getLogger(__name__)
 
 
 class StandingDeadEstimator(CarbonEstimatorBase):
@@ -87,8 +79,12 @@ class StandingDeadEstimator(CarbonEstimatorBase):
 
         columns = data.collect_schema().names()
         if "STANDING_DEAD_CD" in columns:
+            # Compare numerically, not as a string. A string cast breaks on a
+            # backend that loads the column as Float64 ("1.0" != "1"), silently
+            # filtering out every standing-dead tree (issue #126). Int64 cast
+            # matches the adjacent DECAYCD guard and the codebase's STATUSCD==2.
             data = data.filter(
-                pl.col("STANDING_DEAD_CD").cast(pl.Utf8, strict=False) == "1"
+                pl.col("STANDING_DEAD_CD").cast(pl.Int64, strict=False) == 1
             )
         if "DECAYCD" in columns:
             data = data.filter(
@@ -101,14 +97,31 @@ class StandingDeadEstimator(CarbonEstimatorBase):
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Run the NSVB dead pipeline with broken-top corrections.
 
-        Steps: join REF_SPECIES → join PLOTGEOM/DIVISION → cast DECAYCD →
-        NSVB dead biomass (with broken-top corrections) → S10b carbon
-        fractions → BG bridge → CARBON_ACRE.
+        Steps: join REF_SPECIES → coverage guard → join PLOTGEOM/DIVISION →
+        cast DECAYCD → NSVB dead biomass (with broken-top corrections) →
+        S10b carbon fractions → BG bridge → CARBON_ACRE.
         """
         pool = self.config.get("pool", "ag").lower()
 
-        # Join REF_SPECIES and PLOTGEOM/DIVISION; normalize stand origin
+        # Join REF_SPECIES (WDSG, JENKINS_SPGRPCD, WOODLAND)
         data = self._join_ref_species(data)
+
+        if pool in ("ag", "total"):
+            from .nsvb.coefficients import get_vectorized_lookup_tables
+
+            lookup = get_vectorized_lookup_tables()
+
+            # Fail loud on species NSVB cannot compute; route woodland species
+            # to FIADB-stored CARBON_AG (issue #6). Run on the REF_SPECIES-joined
+            # frame *before* the PLOTGEOM/DIVISION join so the guard's coverage
+            # scan does not drag that join into its collect (issue #127). The
+            # dead pipeline predicts AGB via the same total_agb_* tables, so
+            # woodland species (Jenkins group 10) would otherwise recompute to 0
+            # here too. CARBON_AG is populated for STANDING_DEAD_CD=1, which
+            # apply_filters scopes to.
+            self._guard_nsvb_coverage(data, lookup)
+
+        # PLOTGEOM/DIVISION + stand origin drive the coefficient lookup.
         data = self._join_plotgeom_division(data)
         data = self._prepare_stdorgcd(data)
 
@@ -118,17 +131,6 @@ class StandingDeadEstimator(CarbonEstimatorBase):
         # NSVB dead biomass pipeline (with broken-top corrections when
         # ACTUALHT is available and the CR prop table loads)
         if pool in ("ag", "total"):
-            from .nsvb.coefficients import get_vectorized_lookup_tables
-
-            lookup = get_vectorized_lookup_tables()
-
-            # Fail loud on species NSVB cannot compute; route woodland species
-            # to FIADB-stored CARBON_AG (issue #6). The dead pipeline predicts
-            # AGB via the same total_agb_* tables, so woodland species (Jenkins
-            # group 10) would otherwise recompute to 0 here too. CARBON_AG is
-            # populated for STANDING_DEAD_CD=1, which apply_filters scopes to.
-            self._guard_nsvb_coverage(data, lookup)
-
             decay_props = load_dead_decay_proportions_df()
             cr_prop_table = load_dead_cr_prop_df()
             data = compute_nsvb_dead_biomass(
@@ -291,73 +293,21 @@ def standing_dead(
     ...     land_type="timber",
     ... )
     """
-    from ..validation import (
-        validate_boolean,
-        validate_domain_expression,
-        validate_grp_by,
-        validate_land_type,
+    return run_carbon_estimator(
+        StandingDeadEstimator,
+        estimator_name="standing_dead",
+        tree_type="dead",
+        legacy_allometry="legacy CRM-based",
+        db=db,
+        pool=pool,
+        grp_by=grp_by,
+        by_species=by_species,
+        by_size_class=by_size_class,
+        land_type=land_type,
+        tree_domain=tree_domain,
+        area_domain=area_domain,
+        plot_domain=plot_domain,
+        totals=totals,
+        variance=variance,
+        most_recent=most_recent,
     )
-
-    pool = pool.lower()
-    valid_pools = {"ag", "bg", "total"}
-    if pool not in valid_pools:
-        raise ValueError(
-            f"Invalid pool '{pool}'. Must be one of: {sorted(valid_pools)}"
-        )
-
-    land_type = validate_land_type(land_type)
-    grp_by = validate_grp_by(grp_by)
-    tree_domain = validate_domain_expression(tree_domain, "tree_domain")
-    area_domain = validate_domain_expression(area_domain, "area_domain")
-    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
-    by_species = validate_boolean(by_species, "by_species")
-    by_size_class = validate_boolean(by_size_class, "by_size_class")
-    totals = validate_boolean(totals, "totals")
-    variance = validate_boolean(variance, "variance")
-    most_recent = validate_boolean(most_recent, "most_recent")
-
-    db, owns_db = ensure_fia_instance(db)
-    if most_recent and db.evalid is None:
-        db.clip_most_recent(eval_type="VOL")
-    else:
-        ensure_evalid_set(db, eval_type="VOL", estimator_name="standing_dead")
-
-    config = {
-        "pool": pool,
-        "grp_by": grp_by,
-        "by_species": by_species,
-        "by_size_class": by_size_class,
-        "land_type": land_type,
-        "tree_type": "dead",
-        "tree_domain": tree_domain,
-        "area_domain": area_domain,
-        "plot_domain": plot_domain,
-        "totals": totals,
-        "variance": variance,
-        "most_recent": most_recent,
-    }
-
-    try:
-        estimator = StandingDeadEstimator(db, config)
-        if pool == "total":
-            # Best-effort cross-era warning; see live_tree.py for rationale.
-            try:
-                year = estimator._extract_evaluation_year()
-                if int(year) < 2024:
-                    logger.warning(
-                        "standing_dead(pool='total'): selected EVALID year "
-                        "(%d) pre-dates the NSVB framework transition "
-                        "(September 2023). The BG bridge reads FIADB "
-                        "TREE.CARBON_BG directly, which for pre-NSVB "
-                        "inventories was computed via legacy CRM-based "
-                        "allometry — combining it with NSVB-recomputed AG "
-                        "may produce cross-era inconsistencies. Use "
-                        "pool='ag' if you need NSVB-only consistency.",
-                        int(year),
-                    )
-            except (ValueError, TypeError, AttributeError, IndexError, KeyError) as exc:
-                logger.debug("Skipping standing_dead year warning: %s", exc)
-        return estimator.estimate()
-    finally:
-        if owns_db and hasattr(db, "close"):
-            db.close()

@@ -22,9 +22,12 @@ from ..estimation.columns import get_cond_columns as _get_cond_columns
 from ..estimation.constants import LBS_TO_SHORT_TONS
 from ..estimation.tree_expansion import apply_tree_adjustment_factors
 from ..estimation.utils import (
+    ensure_evalid_set,
+    ensure_fia_instance,
     validate_aggregation_result,
     validate_required_columns,
 )
+from ..filtering.utils import create_size_class_expr
 from .nsvb.coefficients import ecosubcd_to_division_expr
 
 if TYPE_CHECKING:
@@ -208,21 +211,24 @@ class CarbonEstimatorBase(BaseEstimator):
         if self._plotgeom_cache is not None:
             return self._plotgeom_cache if self._plotgeom_cache.height > 0 else None
 
-        try:
-            df = self.db._reader.read_table(
-                "PLOTGEOM",
-                columns=["CN", "ECOSUBCD"],
-            )
-        except Exception as exc:  # noqa: BLE001
+        # Gate on table existence rather than catching a broad Exception around
+        # the read (issue #126). A missing PLOTGEOM is an expected, benign
+        # fallback; but a query/backend/dtype error while reading a table that
+        # *does* exist is a real fault that must not be silently swallowed into
+        # the ~3% high-biomass bias the warning below documents.
+        if not self.db._reader._backend.table_exists("PLOTGEOM"):
             logger.warning(
-                "PLOTGEOM not available (%s) — DIVISION lookup disabled, "
-                "falling back to species-level + Jenkins coefficient "
-                "precedence (~3%% high biomass bias on growing-stock trees).",
-                exc,
+                "PLOTGEOM not available — DIVISION lookup disabled, falling "
+                "back to species-level + Jenkins coefficient precedence "
+                "(~3% high biomass bias on growing-stock trees).",
             )
             self._plotgeom_cache = pl.DataFrame()
             return None
 
+        df = self.db._reader.read_table(
+            "PLOTGEOM",
+            columns=["CN", "ECOSUBCD"],
+        )
         if hasattr(df, "collect"):
             df = df.collect()
         df = df.select(
@@ -441,6 +447,16 @@ class CarbonEstimatorBase(BaseEstimator):
 
         group_cols = self._setup_grouping()
 
+        # Diameter size-class grouping (issue #125). Built here rather than in
+        # _setup_grouping because it needs the tree-level DIA column. Uses the
+        # shared "standard" FIA size classes (1.0-4.9", 5.0-9.9", 10.0-19.9",
+        # 20.0-29.9", 30.0+"), matching biomass() and the documented output.
+        if self.config.get("by_size_class") and "SIZE_CLASS" not in group_cols:
+            data_with_strat = data_with_strat.with_columns(
+                create_size_class_expr("DIA", size_class_type="standard")
+            )
+            group_cols.append("SIZE_CLASS")
+
         plot_tree_data, data_with_strat = self._preserve_plot_tree_data(
             data_with_strat,
             metric_cols=["CARBON_ADJ"],
@@ -473,7 +489,12 @@ class CarbonEstimatorBase(BaseEstimator):
                 "total_se_col": "CARBON_TOTAL_SE",
             },
         ]
-        return self._calculate_variance_for_metrics(agg_result, metric_configs)
+        results = self._calculate_variance_for_metrics(agg_result, metric_configs)
+        # Don't emit an orphaned CARBON_TOTAL_SE when the total column itself was
+        # dropped for totals=False (issue #127); the SE has nothing to annotate.
+        if not self.config.get("totals", True) and "CARBON_TOTAL_SE" in results.columns:
+            results = results.drop("CARBON_TOTAL_SE")
+        return results
 
     def format_output(self, results: pl.DataFrame) -> pl.DataFrame:
         year = self._extract_evaluation_year()
@@ -499,3 +520,127 @@ class CarbonEstimatorBase(BaseEstimator):
 
         final_cols = [col for col in col_order if col in results.columns]
         return results.select(final_cols)
+
+
+# ----------------------------------------------------------------------
+# Shared public-function scaffolding (issue #127)
+# ----------------------------------------------------------------------
+# The two public entry points (live_tree, standing_dead) share identical
+# pool/input validation, EVALID resolution, config assembly, and the
+# pool='total' cross-era warning. They differ only by estimator class,
+# tree_type, the estimator name in messages, and one phrase in the warning.
+# Hoisted here so the two cannot drift.
+
+
+def _warn_cross_era_bg_bridge(
+    estimator: CarbonEstimatorBase,
+    estimator_name: str,
+    legacy_allometry: str,
+) -> None:
+    """Warn when a pre-NSVB EVALID is combined with the FIADB BG bridge.
+
+    Best-effort: if the inventory year can't be determined (EVALID parse
+    failures, missing POP_EVAL, type coercion), skip the warning rather than
+    fail the whole estimation.
+    """
+    try:
+        year = estimator._extract_evaluation_year()
+        if int(year) < 2024:
+            logger.warning(
+                "%s(pool='total'): selected EVALID year (%d) pre-dates the "
+                "NSVB framework transition (September 2023). The BG bridge "
+                "reads FIADB TREE.CARBON_BG directly, which for pre-NSVB "
+                "inventories was computed via %s allometry — combining it with "
+                "NSVB-recomputed AG may produce cross-era inconsistencies. Use "
+                "pool='ag' if you need NSVB-only consistency.",
+                estimator_name,
+                int(year),
+                legacy_allometry,
+            )
+    except (ValueError, TypeError, AttributeError, IndexError, KeyError) as exc:
+        logger.debug("Skipping %s year warning: %s", estimator_name, exc)
+
+
+def run_carbon_estimator(
+    estimator_cls: type[CarbonEstimatorBase],
+    *,
+    estimator_name: str,
+    tree_type: str,
+    legacy_allometry: str,
+    db: str | FIA,
+    pool: str,
+    grp_by: str | list[str] | None,
+    by_species: bool,
+    by_size_class: bool,
+    land_type: str,
+    tree_domain: str | None,
+    area_domain: str | None,
+    plot_domain: str | None,
+    totals: bool,
+    variance: bool,
+    most_recent: bool,
+) -> pl.DataFrame:
+    """Validate inputs, resolve EVALID, and run an NSVB carbon estimator.
+
+    Shared body for :func:`pyfia.carbon.live_tree.live_tree` and
+    :func:`pyfia.carbon.standing_dead.standing_dead`; see those functions'
+    docstrings for the user-facing parameter semantics.
+    """
+    from ..validation import (
+        validate_boolean,
+        validate_domain_expression,
+        validate_grp_by,
+        validate_land_type,
+    )
+
+    # ----- Validate pool -----
+    pool = pool.lower()
+    valid_pools = {"ag", "bg", "total"}
+    if pool not in valid_pools:
+        raise ValueError(
+            f"Invalid pool '{pool}'. Must be one of: {sorted(valid_pools)}"
+        )
+
+    # ----- Validate standard estimator inputs -----
+    land_type = validate_land_type(land_type)
+    grp_by = validate_grp_by(grp_by)
+    tree_domain = validate_domain_expression(tree_domain, "tree_domain")
+    area_domain = validate_domain_expression(area_domain, "area_domain")
+    plot_domain = validate_domain_expression(plot_domain, "plot_domain")
+    by_species = validate_boolean(by_species, "by_species")
+    by_size_class = validate_boolean(by_size_class, "by_size_class")
+    totals = validate_boolean(totals, "totals")
+    variance = validate_boolean(variance, "variance")
+    most_recent = validate_boolean(most_recent, "most_recent")
+
+    # ----- Resolve db + EVALID (carbon uses EXPVOL, same as biomass) -----
+    db, owns_db = ensure_fia_instance(db)
+    if most_recent and db.evalid is None:
+        db.clip_most_recent(eval_type="VOL")
+    else:
+        ensure_evalid_set(db, eval_type="VOL", estimator_name=estimator_name)
+
+    # ----- Build config and run estimator -----
+    config = {
+        "pool": pool,
+        "grp_by": grp_by,
+        "by_species": by_species,
+        "by_size_class": by_size_class,
+        "land_type": land_type,
+        "tree_type": tree_type,
+        "tree_domain": tree_domain,
+        "area_domain": area_domain,
+        "plot_domain": plot_domain,
+        "totals": totals,
+        "variance": variance,
+        "most_recent": most_recent,
+    }
+
+    try:
+        estimator = estimator_cls(db, config)
+        if pool == "total":
+            _warn_cross_era_bg_bridge(estimator, estimator_name, legacy_allometry)
+        return estimator.estimate()
+    finally:
+        if owns_db and hasattr(db, "close"):
+            db.close()

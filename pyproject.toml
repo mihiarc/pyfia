@@ -101,6 +101,9 @@ package-dir = {"" = "src"}
 where = ["src"]
 include = ["pyfia*"]
 
+[tool.setuptools.package-data]
+"pyfia.carbon.nsvb.data" = ["*.csv", "*.md"]
+
 [tool.ruff]
 line-length = 88
 target-version = "py311"

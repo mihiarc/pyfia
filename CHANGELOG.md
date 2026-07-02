@@ -7,29 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### NSVB carbon subsystem (targeted for 1.5.0)
+### NSVB-recompute tree carbon (`pyfia.carbon`)
 
-Feature-complete on `main` but **held out of 1.4.0** pending domain verification
-of condition-level pool NULL handling (#90) and resolution of the two
-live-tree-stock implementations (#89).
+Restores the NSVB-recomputation tree-carbon path (#121) — deleted when the
+broader carbon subsystem was deferred — so first-party downstream consumers
+(`forest-carbon`) can resume their NSVB-vs-FIADB reconciliation. Only the two
+tree estimators and their NSVB machinery are restored; the condition-level
+pools remain deferred pending NULL-handling verification (#90).
 
 #### Added
-- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, and carbon fractions (Models 1/2/4/5; S1a–S8b coefficient tables; Bailey DIVISION lookup; S10a/S10b carbon fractions; vendored coefficient CSVs from GTR-WO-104 Supp1).
-- **`live_tree()`** — NSVB live-tree carbon (AG recomputed from biomass; species-specific carbon fractions; Bailey DIVISION → species → Jenkins precedence). Validated vs FIADB `CARBON_AG` on Georgia (130,952 trees): median per-tree error 0.085%.
-- **`standing_dead()`** — NSVB standing-dead carbon with decay-class reductions and broken-top corrections.
-- **Condition-level carbon pools** — `downed_dead()`, `litter()`, `soil_organic()`, `understory()` from FIADB `COND.CARBON_*` densities.
-- **`total_ecosystem()`** — sum of all six IPCC carbon pools.
-- **`stock_change()`** — condition-level carbon stock change between remeasurement periods (per-pool or total), REMPER-annualized.
-- `PLOTGEOM` added to `COMMON_TABLES` (Bailey DIVISION lookup for NSVB).
+- **`pyfia.carbon` subpackage** — NSVB equation library, coefficient loaders, and carbon fractions (Models 1/2/4/5; S1a–S8b coefficient tables; Bailey DIVISION → species-level → Jenkins lookup precedence; S10a/S10b carbon fractions; vendored coefficient CSVs from GTR-WO-104 Supp1).
+- **`live_tree()`** — NSVB live-tree carbon, recomputed tree-by-tree (AG from the NSVB biomass pipeline × species-specific S10a carbon fractions; BG bridged to FIADB `TREE.CARBON_BG`). Returns `CARBON_ACRE`, `CARBON_TOTAL`, `N_PLOTS`, `N_TREES`, and `CARBON_ACRE_SE`/`CARBON_TOTAL_SE`. Validated vs FIADB `CARBON_AG` on Georgia EVALID 132401 (130,806 trees): median per-tree error 0.085%.
+- **`standing_dead()`** — NSVB standing-dead carbon (`STANDING_DEAD_CD=1`) with `REF_TREE_DECAY_PROP` decay reductions, Appendix K broken-top corrections (Table S11 crown ratios), and S10b dead carbon fractions.
+- **Woodland-species coverage** — woodland species (`REF_SPECIES.WOODLAND='Y'`), which NSVB does not model, route to FIADB-stored `CARBON_AG` instead of collapsing to zero; a non-woodland SPCD matching neither an NSVB species-level row nor a Jenkins 1–9 group raises rather than silently zeroing.
 - **NSVB validation gates** — per-tree parity tests against FIADB `CARBON_AG` on real Georgia inventory data.
 
-#### Changed
-- **NGHGI report-reproduction scripts moved to the `pyfcaf` package** (`scripts/nghgi/` removed); pyfcaf consumes pyfia's carbon estimators.
-- **Carbon module docstrings** softened to point at the operational FIADB `CARBON_*` columns.
-
-#### Fixed
-- **Woodland-species biomass collapse** in `live_tree()`; **woodland-species zeroing** in `standing_dead()` (shared guard in the carbon estimator base class).
-- DECAYCD empty-string filter leak in the standing-dead path.
+#### Deferred
+- Condition-level carbon pools (`understory`, `downed_dead`, `litter`, `soil_organic`), `total_ecosystem`, and `stock_change` remain held pending domain verification of their NULL handling (#90) — tracked separately.
+- Native NSVB belowground coarse-root model (currently bridged to FIADB `TREE.CARBON_BG`).
 
 ## [1.4.2] - 2026-06-30
 

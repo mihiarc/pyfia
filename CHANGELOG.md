@@ -26,6 +26,13 @@ pools remain deferred pending NULL-handling verification (#90).
 - Condition-level carbon pools (`understory`, `downed_dead`, `litter`, `soil_organic`), `total_ecosystem`, and `stock_change` remain held pending domain verification of their NULL handling (#90) — tracked separately.
 - Native NSVB belowground coarse-root model (currently bridged to FIADB `TREE.CARBON_BG`).
 
+## [1.4.3] - 2026-07-13
+
+Bug-fix release for `most_recent` evaluation selection (#130).
+
+### Fixed
+- **`clip_by_state(most_recent=True)` / `find_evalid(most_recent=True)` could select an old periodic evaluation instead of the current annual one** (#130) — the most-recent sort ordered by `END_INVYR` descending, but polars' default `nulls_last=False` sorts `NULL` first under `descending=True`. Periodic evaluations (which predate `END_INVYR` and store it as `NULL`) therefore outranked dated annual evaluations. For example, `FIA("CA.duckdb").clip_by_state(6, most_recent=True, eval_type="VOL")` selected the 1994 periodic EVALID `69401` instead of the 2021 annual EVALID `62101`, silently returning 1994-vintage plots. The sort now passes `nulls_last=True` so periodic evaluations sink to the bottom whenever a dated annual evaluation is available, in both the general and Texas East/West branches.
+
 ## [1.4.2] - 2026-06-30
 
 Bug-fix release closing four estimator issues found in the v1.4.1 public-docs

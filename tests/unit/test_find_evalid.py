@@ -158,3 +158,64 @@ class TestTiebreaking:
         result = mock_fia.find_evalid(most_recent=True, eval_type="VOL")
 
         assert result == [132301]
+
+
+class TestNullEndInvyrExclusion:
+    """A periodic eval's NULL END_INVYR must not outrank a dated annual eval.
+
+    Regression test for issue #130: polars' default nulls_last=False sorts
+    NULL first under descending=True, so the periodic eval (no END_INVYR)
+    was winning over the current annual eval.
+    """
+
+    def test_california_skips_null_end_invyr_periodic_eval(self, mock_fia):
+        """CA has a 1994 periodic eval (NULL END_INVYR, EVALID 69401) that
+        must lose to the 2021 annual eval (END_INVYR=2021, EVALID 62101)
+        despite 69401 > 62101 numerically.
+        """
+        _setup_eval_tables(
+            mock_fia,
+            pop_eval_rows={
+                "CN": ["ca_periodic", "ca_annual"],
+                "EVALID": [69401, 62101],
+                "STATECD": [6, 6],
+                "END_INVYR": [None, 2021],
+                "LOCATION_NM": ["California", "California"],
+            },
+            pop_eval_typ_rows={
+                "CN": ["t1", "t2"],
+                "EVAL_CN": ["ca_periodic", "ca_annual"],
+                "EVAL_TYP": ["EXPVOL", "EXPVOL"],
+            },
+        )
+
+        result = mock_fia.find_evalid(most_recent=True, eval_type="VOL")
+
+        assert result == [62101], (
+            f"Expected the 2021 annual EVALID 62101, got {result}. "
+            "NULL END_INVYR periodic eval is winning the sort again."
+        )
+
+    def test_texas_full_state_skips_null_end_invyr_periodic_eval(self, mock_fia):
+        """Texas has its own sort branch (full-state vs East/West); it must
+        get the same NULL-END_INVYR fix as the general branch.
+        """
+        _setup_eval_tables(
+            mock_fia,
+            pop_eval_rows={
+                "CN": ["tx_periodic", "tx_annual"],
+                "EVALID": [489901, 482301],
+                "STATECD": [48, 48],
+                "END_INVYR": [None, 2023],
+                "LOCATION_NM": ["Texas", "Texas"],
+            },
+            pop_eval_typ_rows={
+                "CN": ["t1", "t2"],
+                "EVAL_CN": ["tx_periodic", "tx_annual"],
+                "EVAL_TYP": ["EXPVOL", "EXPVOL"],
+            },
+        )
+
+        result = mock_fia.find_evalid(most_recent=True, eval_type="VOL")
+
+        assert result == [482301]

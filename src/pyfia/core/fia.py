@@ -557,6 +557,11 @@ class FIA:
                         df_texas.sort(
                             ["EVAL_TYP", "IS_FULL_STATE", "END_INVYR", "EVALID"],
                             descending=[False, True, True, True],
+                            # A NULL END_INVYR marks an old periodic eval (no
+                            # 4-digit end year recorded). nulls_last keeps it
+                            # from outranking a real annual eval under
+                            # descending sort; see issue #130.
+                            nulls_last=True,
                         )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
@@ -567,6 +572,7 @@ class FIA:
                         df_texas.sort(
                             ["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"],
                             descending=[False, False, True, True],
+                            nulls_last=True,
                         )
                         .group_by(["STATECD", "EVAL_TYP"])
                         .first()
@@ -577,6 +583,7 @@ class FIA:
                     df_other.sort(
                         ["STATECD", "EVAL_TYP", "END_INVYR", "EVALID"],
                         descending=[False, False, True, True],
+                        nulls_last=True,
                     )
                     .group_by(["STATECD", "EVAL_TYP"])
                     .first()

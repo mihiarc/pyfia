@@ -219,3 +219,67 @@ class TestNullEndInvyrExclusion:
         result = mock_fia.find_evalid(most_recent=True, eval_type="VOL")
 
         assert result == [482301]
+
+
+class TestShortLegacyEvalid:
+    """Sub-5-digit legacy EVALIDs (Alaska 110/111) must not crash or win the sort.
+
+    Regression test for issue #119: the old positional EVALID parser cast the
+    integer EVALID to a string and sliced it into state/year/type fields; a
+    3-digit EVALID like 111 produced an empty ``[4:6]`` slice that raised on the
+    subsequent ``cast(Int32)``, crashing ``area()`` (and any estimator routed
+    through ``clip_most_recent``) on real Alaska databases. find_evalid now sorts
+    on the unambiguous 4-digit END_INVYR and never parses EVALID positionally, so
+    the short 2003 periodic eval both survives and correctly loses to the 2021
+    annual eval. These values mirror Alaska's actual POP_EVAL rows.
+    """
+
+    def test_alaska_short_evalid_does_not_crash_or_win(self, mock_fia):
+        """AK (FIPS=2) has 3-digit 2003 periodic EVALIDs alongside the 2021
+        coastal annual eval (22101). The annual eval must win, and parsing the
+        short EVALID must not raise."""
+        _setup_eval_tables(
+            mock_fia,
+            pop_eval_rows={
+                "CN": ["ak_periodic", "ak_annual"],
+                "EVALID": [111, 22101],
+                "STATECD": [2, 2],
+                "END_INVYR": [2003, 2021],
+                "LOCATION_NM": ["Alaska", "Alaska Coastal"],
+            },
+            pop_eval_typ_rows={
+                "CN": ["t1", "t2"],
+                "EVAL_CN": ["ak_periodic", "ak_annual"],
+                "EVAL_TYP": ["EXPVOL", "EXPVOL"],
+            },
+        )
+
+        result = mock_fia.find_evalid(most_recent=True, eval_type="VOL")
+
+        assert result == [22101], (
+            f"Expected the 2021 annual EVALID 22101, got {result}. "
+            "Short 3-digit EVALID handling (issue #119) may have regressed."
+        )
+
+    def test_alaska_short_evalid_listed_without_error(self, mock_fia):
+        """most_recent=False returns every EVALID, including the short legacy
+        ones, without attempting to positionally parse them into fields."""
+        _setup_eval_tables(
+            mock_fia,
+            pop_eval_rows={
+                "CN": ["ak_periodic", "ak_annual"],
+                "EVALID": [111, 22101],
+                "STATECD": [2, 2],
+                "END_INVYR": [2003, 2021],
+                "LOCATION_NM": ["Alaska", "Alaska Coastal"],
+            },
+            pop_eval_typ_rows={
+                "CN": ["t1", "t2"],
+                "EVAL_CN": ["ak_periodic", "ak_annual"],
+                "EVAL_TYP": ["EXPVOL", "EXPVOL"],
+            },
+        )
+
+        result = mock_fia.find_evalid(most_recent=False, eval_type="VOL")
+
+        assert sorted(result) == [111, 22101]

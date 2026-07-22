@@ -16,6 +16,10 @@ from __future__ import annotations
 
 import polars as pl
 import pytest
+from nsvb_oracle import (
+    ecosubcd_to_division,
+    lookup_coefficients,
+)
 
 from pyfia.carbon.nsvb.coefficients import (
     CoefficientTables,
@@ -23,10 +27,8 @@ from pyfia.carbon.nsvb.coefficients import (
     build_division_lookup,
     build_jenkins_lookup,
     build_species_level_lookup,
-    ecosubcd_to_division,
     get_vectorized_lookup_tables,
     load_nsvb_coefficients,
-    lookup_coefficients,
 )
 
 

@@ -67,9 +67,12 @@ Architectural rules
 1. **Public API is functions, not classes.** ``live_tree(db, ...)``,
    ``standing_dead(db, ...)``. Match the pyfia convention.
 
-2. **Vectorize coefficient lookups via polars joins.** The scalar
-   ``predict_tree_biomass`` is a test oracle only. The production path
-   is ``compute_nsvb_biomass`` / ``compute_nsvb_dead_biomass``.
+2. **Vectorize coefficient lookups via polars joins.** The production path
+   is ``compute_nsvb_biomass`` / ``compute_nsvb_dead_biomass``. An
+   independent scalar reimplementation (``predict_tree_biomass`` and the
+   dict/`lookup_coefficients` reference loaders) is kept only as a test
+   oracle and lives in ``tests/nsvb_oracle.py``, not in the shipped
+   library (issue #127).
 
 3. **Inherit from ``CarbonEstimatorBase``** (which itself inherits the
    pyfia ``BaseEstimator`` template method: ``load_data → apply_filters →

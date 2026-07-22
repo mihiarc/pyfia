@@ -30,15 +30,11 @@ from __future__ import annotations
 import math
 
 import pytest
-
-from pyfia.carbon.nsvb.coefficients import (
-    load_nsvb_coefficients,
-    lookup_coefficients,
-)
-from pyfia.carbon.nsvb.equations import (
+from nsvb_oracle import (
     Coefficients,
     _model_k,
     harmonize_components,
+    lookup_coefficients,
     model_1,
     model_2,
     model_3,
@@ -46,6 +42,8 @@ from pyfia.carbon.nsvb.equations import (
     model_5_jenkins,
     predict_tree_biomass,
 )
+
+from pyfia.carbon.nsvb.coefficients import load_nsvb_coefficients
 
 # ---------------------------------------------------------------------------
 # Hand-coded high-precision coefficients from the WO-104 worked examples

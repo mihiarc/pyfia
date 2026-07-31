@@ -81,6 +81,13 @@
               "api/pyfia-evalidator-client",
               "api/pyfia-evalidator-validation"
             ]
+          },
+          {
+            "group": "Constants",
+            "pages": [
+              "api/pyfia-constants-species_extra",
+              "api/pyfia-constants-species_macros"
+            ]
           }
         ]
       },

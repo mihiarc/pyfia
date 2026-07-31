@@ -1,0 +1,91 @@
+---
+title: NZ Species Macron Aliases
+sidebarTitle: NZ Species Macron Aliases
+---
+
+# `pyfia.constants.species_macros`
+
+
+A supplementary module that bridges te reo Māori macron spellings
+into the canonical [`species_extra`](./pyfia-constants-species_extra)
+table.
+
+``species_extra`` uses Latin / English canonical names (e.g.,
+``"rimu"``) for cross-border compatibility. ``species_macros``
+adds the te reo Māori macroned spellings (e.g., ``"rīmū"``) so
+domain input from NZ foresters or iwi data is searchable.
+
+
+## Functions
+
+### `macron_to_canonical` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_macros.py#L80" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+```python
+macron_to_canonical(macroned: str) -> tuple[str, str] | None
+```
+
+
+Look up a macrons-only spelling in `MACRON_ALIASES`.
+
+**Returns:**
+- A `(canonical_name, note)` tuple, or `None` if not in the
+  aliases table. The note is preserved for downstream display.
+
+
+## Constants
+
+### `MACRON_ALIASES` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_macros.py#L58" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+A dict mapping macron spellings → `(canonical_name, note)`. The
+table covers the canonical-indigenous species:
+
+| Macron | Canonical | Note |
+|---|---|---|
+| rīmū | rimu | — |
+| kaurī | kauri | — |
+| tōtara | totara | — |
+| matāī | matai | — |
+| mīro | miro | — |
+| tāwa | tawa | — |
+| mangeāo | mangeao | — |
+| kahikātea | kahikatea | — |
+| tawhairauriki | beech-red | compound (tawhai + rauriki) |
+| tawhairaunui | beech-hard | compound (tawhai + raunui) |
+| rātā | radiata-pine | Māori loanword |
+
+ASCII forms (e.g., ``rimu``) are also listed as aliases for callers
+that bypass the macron lookup.
+
+
+## Usage pattern
+
+```python
+from pyfia.constants.species_macros import macron_to_canonical
+from pyfia.constants.species_extra import lookup
+
+# Te reo-Māori macrons input → canonical ASCII → species_extra entry.
+result = macron_to_canonical("rīmū")  # → ("rimu", "")
+canonical, _ = result
+entry = lookup(canonical)  # → SpeciesExtra(...spcd=None, wdsg=0.46)
+```
+
+
+## Maintenance contract
+
+Adding a new macron alias:
+
+1. Strip macrons in your head, then check the stripped form is in
+   ``NZ_SPECIES_EXTRAS.common_names`` or ``NZ_SPECIES_EXTRAS.name``.
+2. Add the macrons form to ``MACRON_ALIASES`` with a note about
+   which species it maps to.
+3. Macrons are ā ē ī ō ū. ASCII forms are unchanged.
+
+
+## About the contributor
+
+Like ``species_extra``, this module was contributed by
+**Anamata Kāhui Limited**, a Māori-owned multi-vertical platform
+that vendors parts of pyFIA for its kaitiaki-carbon tool
+(`github.com/LaFinnix/kaitiaki-carbon`).

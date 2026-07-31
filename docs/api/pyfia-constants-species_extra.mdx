@@ -1,0 +1,146 @@
+---
+title: Aotearoa NZ Species Table
+sidebarTitle: Aotearoa NZ Species Table
+---
+
+# `pyfia.constants.species_extra`
+
+
+> **Status: Optional / additive.** This module extends pyFIA's standard
+> coefficient tables for users in Aotearoa New Zealand. It is not
+> required for US Forest Inventory uses of pyFIA.
+
+Optional species tables for non-FIA biogeographies.
+
+PyFIA's NSVB coefficient CSVs (``pyfia.carbon.nsvb.data.*``) are grounded
+in the US Forest Service FIA species codes (SPCD). PyFIA users in
+non-US contexts (notably Aotearoa New Zealand) frequently need a way
+to map local species to the closest FIA SPCD for the NSVB lookup, and
+a species-specific wood density (WDSG) when the Jenkins Model 5
+fallback dispatches.
+
+This module is **additive only**. It does not alter pyFIA's existing
+API or coefficient tables.
+
+
+## Functions
+
+### `by_name` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_extra.py#L234" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+```python
+by_name(name: str) -> SpeciesExtra | None
+```
+
+
+Find a species entry by canonical name (e.g., ``"radiata-pine"``).
+
+**Returns:**
+- The matching `SpeciesExtra`, or `None` if the name is not in the table.
+
+
+### `by_alias` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_extra.py#L239" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+```python
+by_alias(name: str) -> SpeciesExtra | None
+```
+
+
+Find a species entry by an alias (e.g., ``"pine"``).
+
+Hyphens and underscores are both accepted as word separators.
+
+
+### `lookup` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_extra.py#L247" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+```python
+lookup(name_or_alias: str) -> SpeciesExtra | None
+```
+
+
+Find a species by canonical name or any of its aliases.
+
+Convenience wrapper — tries `by_name` first, then `by_alias`.
+
+
+## Classes
+
+### `SpeciesExtra` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_extra.py#L51" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+One row of an Aotearoa species table.
+
+**Attributes:**
+- `name`: canonical lowercase name (e.g., ``"radiata-pine"``).
+- `spcd`: closest FIA SPCD, or None if NZ-only.
+- `wdsg`: wood density in g/cm³ (green-volume dry weight).
+- `family`: botanical family (Latin).
+- `common_names`: alias set (lowercase, hyphenated or single-word).
+- `citation`: where the WDSG came from.
+
+
+## Constants
+
+### `NZ_SPECIES_EXTRAS` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/constants/species_extra.py#L78" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+
+A 16-entry table covering the bulk of NZ plantation forestry area
+(radiata pine, douglas-fir, cypress macrocarpa, eucalyptus, larch) and
+the most-common indigenous timber species (kauri, rimu, totara,
+matai, miro, three beeches, tawa, mangeao, kahikatea).
+
+WDSG values sourced from:
+- Forest Research (NZ) Indigenous Timber Volumes
+- IAWA Wood Density Database
+- NSVB S5a Jenkins group tables for the planted exotics
+
+Per-row citations are inline in the source.
+
+## Maintenance contract
+
+Adding a species to this table:
+
+1. Pick an FIA SPCD if the species exists in FIA, else `None`.
+2. Pick a WDSG value (g/cm³ green-volume dry weight) from Forest Research / NZ literature.
+3. Add to `NZ_SPECIES_EXTRAS` with a citation comment.
+
+Adds are best-effort. PRs welcome.
+
+## Usage pattern
+
+```python
+from pyfia.constants.species_extra import lookup
+
+# Common-name to FIA-ready (spcd, wdsg)
+entry = lookup("radiata-pine")  # → SPCD=131 (loblolly/longleaf proxy), WDSG=0.41
+# ... pass entry.spcd + entry.wdsg to the NSVB pipeline as usual
+```
+
+For unknown NZ species:
+
+```python
+entry = lookup("mānuka")  # → None (not yet in the table)
+fallback_spcd = None   # Jenkins Model 5 will dispatch
+fallback_wdsg = 0.65  # mid-range hardwood default
+```
+
+
+
+
+
+
+## See also
+
+- [`pyfia.constants.species_macros`](/api/pyfia-constants-species_macros)
+  — te reo Māori macron spellings that bridge into `species_extra`.
+
+## Coverage of NZ species
+
+## About the contributor
+
+This table was contributed by **Anamata Kāhui Limited**, a Māori-
+owned multi-vertical platform that vendors parts of pyFIA for its
+`kaitiaki-carbon` tool (`github.com/LaFinnix/kaitiaki-carbon`).
+The contribution is offered under the MIT licence (matching pyFIA).

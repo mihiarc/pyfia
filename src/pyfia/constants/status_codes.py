@@ -7,29 +7,6 @@ codes used in FIA data.
 
 from __future__ import annotations
 
-import warnings
-from typing import Any
-
-
-class _DeprecatedCode:
-    """Class attribute that warns on access; removed in the next minor release."""
-
-    def __init__(self, value: Any, message: str):
-        self.value = value
-        self.message = message
-
-    def __set_name__(self, owner: type, name: str) -> None:
-        self.qualname = f"{owner.__name__}.{name}"
-
-    def __get__(self, obj: object, owner: type | None = None) -> Any:
-        warnings.warn(
-            f"{self.qualname} is deprecated and will be removed in pyFIA 1.5.0: "
-            f"{self.message}",
-            DeprecationWarning,
-            stacklevel=2,
-        )
-        return self.value
-
 
 class TreeStatus:
     """Tree status codes (STATUSCD)."""
@@ -59,21 +36,6 @@ class LandStatus:
     WATER = 3  # Noncensus water
     CENSUS_WATER = 4
     NONSAMPLED = 5  # Nonsampled, possibility of forest land
-    DENIED_ACCESS = _DeprecatedCode(
-        5,
-        "COND_STATUS_CD 5 is 'Nonsampled, possibility of forest land' for any "
-        "reason; use LandStatus.NONSAMPLED and COND_NONSAMPLE_REASN_CD.",
-    )
-    HAZARDOUS = _DeprecatedCode(
-        6,
-        "COND_STATUS_CD 6 is not an FIADB code; hazardous conditions are "
-        "LandStatus.NONSAMPLED with a COND_NONSAMPLE_REASN_CD.",
-    )
-    INACCESSIBLE = _DeprecatedCode(
-        7,
-        "COND_STATUS_CD 7 is not an FIADB code; inaccessible conditions are "
-        "LandStatus.NONSAMPLED with a COND_NONSAMPLE_REASN_CD.",
-    )
 
 
 class SiteClass:
@@ -133,12 +95,6 @@ class TreeComponent:
     MORTALITY = "MORTALITY"
     DIVERSION = "DIVERSION"
     REVERSION = "REVERSION"
-
-    HARVEST = _DeprecatedCode(
-        "CUT",
-        "no GRM component is named HARVEST; harvest removals are CUT1 and CUT2, "
-        "matched by the TreeComponent.CUT prefix.",
-    )
 
 
 class EvaluationType:

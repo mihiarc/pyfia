@@ -7,7 +7,6 @@ from the committed Alabama fixture.
 """
 
 import re
-import warnings
 from pathlib import Path
 
 import duckdb
@@ -41,18 +40,8 @@ def user_guide_codes(section_file: str, column: str) -> dict[str, str]:
 
 
 def public_members(cls: type) -> dict[str, object]:
-    """Class attributes that aren't private or deprecated."""
-    with warnings.catch_warnings():
-        warnings.simplefilter("error", DeprecationWarning)
-        members = {}
-        for name in dir(cls):
-            if name.startswith("_"):
-                continue
-            try:
-                members[name] = getattr(cls, name)
-            except DeprecationWarning:
-                continue
-    return members
+    """Class attributes that aren't private."""
+    return {name: getattr(cls, name) for name in dir(cls) if not name.startswith("_")}
 
 
 class TestLandStatus:
@@ -82,13 +71,10 @@ class TestLandStatus:
     def test_member_meaning(self, codes, member, meaning):
         assert codes[str(getattr(LandStatus, member))].startswith(meaning)
 
-    @pytest.mark.parametrize(
-        "member, value",
-        [("DENIED_ACCESS", 5), ("HAZARDOUS", 6), ("INACCESSIBLE", 7)],
-    )
-    def test_undefined_members_are_deprecated(self, member, value):
-        with pytest.warns(DeprecationWarning, match=f"LandStatus.{member}"):
-            assert getattr(LandStatus, member) == value
+    @pytest.mark.parametrize("member", ["DENIED_ACCESS", "HAZARDOUS", "INACCESSIBLE"])
+    def test_removed_members(self, member):
+        """Removed in 1.5.0: FIADB has no such codes (deprecated in 1.4.4)."""
+        assert not hasattr(LandStatus, member)
 
 
 class TestTreeComponent:
@@ -119,9 +105,9 @@ class TestTreeComponent:
         value = getattr(TreeComponent, prefix)
         assert {f"{value}1", f"{value}2"} <= codes
 
-    def test_harvest_is_deprecated(self):
-        with pytest.warns(DeprecationWarning, match="TreeComponent.HARVEST"):
-            assert TreeComponent.HARVEST == TreeComponent.CUT
+    def test_harvest_removed(self):
+        """Removed in 1.5.0: no GRM component is named HARVEST."""
+        assert not hasattr(TreeComponent, "HARVEST")
 
 
 class TestSpeciesGroupsAgainstRef:

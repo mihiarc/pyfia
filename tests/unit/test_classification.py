@@ -11,7 +11,6 @@ import pytest
 
 from pyfia.constants.plot_design import PlotBasis
 from pyfia.filtering.utils import (
-    assign_forest_type_group,
     assign_size_class,
     assign_species_group,
     assign_tree_basis,
@@ -250,58 +249,6 @@ class TestAssignSizeClass:
         assert classes[4] == "Medium"
         # 20.0 >= 20.0 → Large
         assert classes[5] == "Large"
-
-
-class TestAssignForestTypeGroup:
-    """Tests for assign_forest_type_group function.
-
-    Note: This function is deprecated and delegates to add_forest_type_group.
-    """
-
-    def test_deprecation_warning(self):
-        """Test that deprecation warning is raised."""
-        import warnings
-
-        cond_df = pl.DataFrame({"FORTYPCD": [100]})
-
-        with warnings.catch_warnings(record=True) as w:
-            warnings.simplefilter("always")
-            assign_forest_type_group(cond_df)
-
-            assert len(w) == 1
-            assert issubclass(w[0].category, DeprecationWarning)
-            assert "deprecated" in str(w[0].message).lower()
-
-    def test_delegates_to_add_forest_type_group(self):
-        """Labels are the REF forest type group names."""
-        import warnings
-
-        cond_df = pl.DataFrame({"FORTYPCD": [161, 141, 503]})
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = assign_forest_type_group(cond_df)
-
-        assert result["FOREST_TYPE_GROUP"].to_list() == [
-            "Loblolly / shortleaf pine group",
-            "Longleaf / slash pine group",
-            "Oak / hickory group",
-        ]
-
-    def test_custom_column_names(self):
-        """Test custom input and output column names."""
-        import warnings
-
-        cond_df = pl.DataFrame({"MY_FORTYP": [500]})
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", DeprecationWarning)
-            result = assign_forest_type_group(
-                cond_df,
-                fortypcd_column="MY_FORTYP",
-                output_column="MY_GROUP",
-            )
-
-        assert "MY_GROUP" in result.columns
-        assert result["MY_GROUP"][0] == "Oak / hickory group"
 
 
 class TestAssignSpeciesGroup:

@@ -25,6 +25,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Natural Language :: English",
     "Environment :: Console",
     "Framework :: Pydantic :: 2",
@@ -60,7 +61,6 @@ requires-python = ">=3.11"
 dependencies = [
     "polars>=1.0.0",
     "numpy>=1.26.0",
-    "connectorx>=0.3.1",
     "duckdb>=0.9.0",
     "pyarrow>=14.0.0",
     "pydantic>=2.0.0",

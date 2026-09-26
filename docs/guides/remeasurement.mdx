@@ -1,0 +1,93 @@
+---
+title: Remeasurement data
+description: "Unit-level stand attributes, condition pairs and tree fates across two measurements, for modelling change on FIA plots."
+---
+
+The estimators return population totals. For modelling (what drives a condition to be harvested, how stands grow, which trees die), you need the plot-level records themselves, paired across measurements. pyFIA builds three such tables. They return rows and columns only: nothing is expanded and no modelling choice is made for you.
+
+| Function | One row per | Oracle it reproduces |
+|----------|-------------|----------------------|
+| `condition_stand_metrics()` | forest condition | `COND.BALIVE` |
+| `condition_intervals()` | (time-1 condition, time-2 condition) pair | `area_change()` |
+| `tree_intervals()` | tree with a GRM record | `removals()`, `mortality()` |
+
+## Stand attributes per acre of condition
+
+```python
+from pyfia import FIA, condition_stand_metrics
+
+with FIA("AL.duckdb") as db:
+    db.clip_most_recent(eval_type="VOL")
+    stands = condition_stand_metrics(db, metrics=("ba", "tpa", "qmd", "volcfnet"))
+```
+
+Each tree's `TPA_UNADJ` is divided by the share of its plot footprint (microplot, subplot or macroplot) that lies in its condition, so values are per acre of *condition*. Basal area reproduces FIADB's `COND.BALIVE`. Pass `min_dia=5` for merchantable-size attributes, or `plot_cns=` to compute any set of plots, including earlier measurements.
+
+## Condition pairs
+
+```python
+from pyfia import condition_intervals
+
+with FIA("AL.duckdb") as db:
+    db.clip_most_recent(eval_type="CHNG")
+    pairs = condition_intervals(db, at_risk_land="forest")
+
+pairs.group_by("t2_OUTCOME").len()
+```
+
+The at-risk set is defined at time 1: every time-1 condition in `at_risk_land` gets a row for each time-2 condition its land became, from `SUBP_COND_CHNG_MTRX`. `CHNG_AREA_SHARE` is the pair's share of the plot area, and `t2_OUTCOME` says what the land became (`forest`, `nonforest`, `water`, `nonsampled`, `no_t2_condition`). Condition attributes come at both times with `t1_` and `t2_` prefixes; add more with `columns=`.
+
+Expanded by the plot's EXPNS and adjustment factor, `CHNG_AREA_SHARE` reproduces `area_change()`, so unit-level models and published change estimates share one definition of the land.
+
+## Tree fates
+
+```python
+from pyfia import tree_intervals
+
+with FIA("AL.duckdb") as db:
+    db.clip_most_recent(eval_type="GRM")
+    trees = tree_intervals(db, tree_basis="gs", land_basis="timber")
+
+trees.group_by("FATE").len()
+```
+
+Each row is a tree with its GRM `COMPONENT` and `FATE` (`survivor`, `ingrowth`, `cut`, `mortality`, `diversion`, `reversion`), its interval weight `TPAGROW_UNADJ` and the annual rates `TPAREMV_UNADJ` and `TPAMORT_UNADJ`, its diameters over the interval, and its TREE attributes at both times. Weighted by the plot's EXPNS and the adjustment factor for `SUBPTYP_GRM`, the CUT and DIVERSION rows reproduce `removals()` and the MORTALITY rows `mortality()`.
+
+## Putting them together
+
+The tables share keys, so time-1 stand attributes join onto condition pairs by the time-1 plot and condition:
+
+```python
+t1_stands = stands.rename(
+    {"PLT_CN": "PREV_PLT_CN", "CONDID": "t1_CONDID", "BAA": "t1_BAA", "QMD": "t1_QMD"}
+).select("PREV_PLT_CN", "t1_CONDID", "t1_BAA", "t1_QMD")
+
+pairs = pairs.join(t1_stands, on=["PREV_PLT_CN", "t1_CONDID"], how="left")
+```
+
+Compute `stands` on the time-1 plots (`plot_cns=pairs["PREV_PLT_CN"].unique()`) when the pairs come from a different evaluation.
+
+Label codes with the reference lookups, prefixing time-1 and time-2 labels:
+
+```python
+from pyfia import join_reference, label_codes
+
+pairs = join_reference(pairs, db, "owner_group", on="t1_OWNGRPCD", prefix="t1_")
+pairs = label_codes(pairs, ["t2_DSTRBCD1", "t2_TRTCD1"])
+```
+
+`join_reference` raises on a code the reference table doesn't define, so a stale lookup can't pass unnoticed.
+
+## Record where results came from
+
+```python
+stamp = db.provenance()
+# {'pyfia_version': '1.5.0', 'fiadb_version': 'FIADB_1.9.4.00', 'evalids': [12403], ...}
+```
+
+Save the stamp with anything derived from the database. `provenance(checksum=True)` adds the file's SHA-256. The builders also carry an `EVALID` column when the database is clipped to one evaluation.
+
+## See also
+
+- [Area change](/api/pyfia-estimation-estimators-area_change) — the population estimate `condition_intervals` reproduces
+- [Remeasurement panels](/api/pyfia-estimation-estimators-panel) — `panel()`, with expansion options

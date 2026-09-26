@@ -1,0 +1,318 @@
+---
+title: Reference Tables
+sidebarTitle: Reference Tables
+---
+
+# `pyfia.reference`
+
+
+
+FIADB reference-table lookups.
+
+Each lookup returns one row per code, with meanings taken verbatim from the
+database's REF tables (or the COUNTY and SURVEY tables), so labels match the
+FIADB release the database holds. ``join_reference`` attaches a lookup to a
+frame of codes and raises :class:`~pyfia.core.exceptions.UnknownCodeError` when
+the frame holds a code the reference table doesn't define, instead of silently
+leaving a null label.
+
+Codes that no REF table defines (COND_STATUS_CD, TRTCD1, DSTRBCD1, STATUSCD,
+AGENTCD, GRM components, ...) are labeled by ``label_codes`` from the User
+Guide tables in :mod:`pyfia.constants.codes`, with the same strictness.
+
+Lookups read the whole reference table and ignore any EVALID the database is
+clipped to.
+
+References
+----------
+USDA Forest Service. *The Forest Inventory and Analysis Database: Database
+Description and User Guide* (chapters 1-3, revision 12.2024), sections on
+SURVEY, COUNTY, REF_FOREST_TYPE, REF_FOREST_TYPE_GROUP, REF_SPECIES,
+REF_SPECIES_GROUP, REF_OWNGRPCD and REF_UNIT.
+
+
+## Functions
+
+### `forest_type_groups` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L74" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+forest_type_groups(db: str | FIA) -> pl.DataFrame
+```
+
+
+Forest type groups from REF_FOREST_TYPE_GROUP.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per group, sorted by code:
+
+- TYPGRPCD: Forest type group code
+- TYPGRPCD_NAME: Group name, verbatim from ``MEANING``
+
+
+
+### `forest_types` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L106" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+forest_types(db: str | FIA) -> pl.DataFrame
+```
+
+
+Forest types and their groups from REF_FOREST_TYPE.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per forest type, sorted by code:
+
+- FORTYPCD: Forest type code (``COND.FORTYPCD``)
+- FORTYPCD_NAME: Forest type name, verbatim from ``MEANING``
+- TYPGRPCD: Forest type group code
+- TYPGRPCD_NAME: Group name from REF_FOREST_TYPE_GROUP
+- ALLOWED_IN_FIELD: "Y" if field crews may record the type; group
+  codes (100, 120, ...) are "N"
+
+
+**Examples:**
+
+>>> ft = forest_types(db)
+>>> ft.filter(pl.col("TYPGRPCD") == 160)  # loblolly / shortleaf pine group
+
+
+### `species_groups` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L160" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+species_groups(db: str | FIA) -> pl.DataFrame
+```
+
+
+Species groups from REF_SPECIES_GROUP.
+
+Group codes are unique across regions, so this one lookup labels
+``TREE.SPGRPCD`` in eastern and western states alike.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per group, sorted by code:
+
+- SPGRPCD: Species group code
+- SPGRPCD_NAME: Group name, verbatim from ``NAME``
+
+
+
+### `species` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L194" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+species(db: str | FIA, columns: Sequence[str] | None = None) -> pl.DataFrame
+```
+
+
+Species attributes from REF_SPECIES.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+- `columns`: Columns to return besides SPCD, which always comes first. Any
+REF_SPECIES column may be named, as well as ``E_SPGRPCD_NAME`` and
+``W_SPGRPCD_NAME``. Defaults to \:data\:`SPECIES_COLUMNS`.
+
+**Returns:**
+- One row per species, sorted by SPCD. The default columns are:
+
+- SPCD, COMMON_NAME, SCIENTIFIC_NAME, GENUS, SPECIES
+- SFTWD_HRDWD: "S" softwood or "H" hardwood
+- WOODLAND: "Y" for woodland species (diameter at root collar)
+- MAJOR_SPGRPCD: 1 pine, 2 other softwood, 3 soft hardwood,
+  4 hard hardwood
+- E_SPGRPCD, E_SPGRPCD_NAME: Species group used in eastern states
+- W_SPGRPCD, W_SPGRPCD_NAME: Species group used in western states
+- WOOD_SPGR_GREENVOL_DRYWT, MC_PCT_GREEN_WOOD,
+  BARK_SPGR_GREENVOL_DRYWT, MC_PCT_GREEN_BARK, BARK_VOL_PCT,
+  DRYWT_TO_GREENWT_CONVERSION: Wood and bark specific gravity,
+  moisture content and bark volume, for weight conversions
+
+
+**Examples:**
+
+>>> species(db, columns=["COMMON_NAME", "WOOD_SPGR_GREENVOL_DRYWT"])
+
+
+### `owner_groups` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L281" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+owner_groups(db: str | FIA) -> pl.DataFrame
+```
+
+
+Ownership groups from REF_OWNGRPCD.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per group, sorted by code:
+
+- OWNGRPCD: Owner group code (``COND.OWNGRPCD``)
+- OWNGRPCD_NAME: Group name, verbatim from ``MEANING``
+
+
+
+### `survey_units` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L312" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+survey_units(db: str | FIA) -> pl.DataFrame
+```
+
+
+FIA survey units from REF_UNIT.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per (state, unit), sorted:
+
+- STATECD: State FIPS code
+- UNITCD: Survey unit code, unique within a state
+- UNIT_NAME: Unit name, verbatim from ``MEANING``
+
+
+
+### `counties` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L346" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+counties(db: str | FIA) -> pl.DataFrame
+```
+
+
+Counties from the COUNTY table.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per (state, county), sorted:
+
+- STATECD: State FIPS code
+- COUNTYCD: County FIPS code, unique within a state
+- COUNTYNM: County name
+- UNITCD: The survey unit the county belongs to
+
+
+
+### `states` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L382" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+states(db: str | FIA) -> pl.DataFrame
+```
+
+
+States and territories in the database, from the SURVEY table.
+
+FIADB distributions don't all include REF_STATE, but every one has
+SURVEY, which names the states (and territories such as Puerto Rico and
+Guam) whose inventories the database holds.
+
+**Args:**
+- `db`: Database connection or path to FIA database.
+
+**Returns:**
+- One row per state in the database, sorted by code:
+
+- STATECD: State FIPS code
+- STATE_NAME: Name, from ``SURVEY.STATENM``
+- STATE_ABBR: Postal abbreviation, from ``SURVEY.STATEAB``
+
+
+
+### `join_reference` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L444" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+join_reference(df: pl.DataFrame, db: str | FIA, kind: str, on: str | Sequence[str] | None = None, columns: Sequence[str] | None = None, prefix: str = '') -> pl.DataFrame
+```
+
+
+Attach reference-table labels to a frame of FIA codes.
+
+Left-joins a lookup onto ``df`` by its code column(s), keeping every row
+of ``df`` in order. A null code gets null labels; a non-null code the
+reference table doesn't define raises, so a stale or mismatched lookup
+can't pass unnoticed.
+
+**Args:**
+- `df`: Data holding the codes, such as estimator output grouped by
+``FORTYPCD``.
+- `db`: Database connection or path to FIA database.
+- `kind`: Which lookup to join\:
+
+- 'forest_type'\: \:func\:`forest_types` on FORTYPCD
+- 'forest_type_group'\: \:func\:`forest_type_groups` on TYPGRPCD
+- 'species'\: \:func\:`species` on SPCD
+- 'species_group'\: \:func\:`species_groups` on SPGRPCD
+- 'owner_group'\: \:func\:`owner_groups` on OWNGRPCD
+- 'survey_unit'\: \:func\:`survey_units` on (STATECD, UNITCD)
+- 'county'\: \:func\:`counties` on (STATECD, COUNTYCD)
+- 'state'\: \:func\:`states` on STATECD
+- `on`: Column(s) of ``df`` that hold the codes, in the order of the lookup's
+key columns. Defaults to the key names, e.g. ``"FORTYPCD"``. Use it for
+prefixed columns such as ``"t1_FORTYPCD"``.
+- `columns`: Lookup columns to add. Defaults to all of the lookup's non-key
+columns.
+- `prefix`: Prefix for the added columns, e.g. ``"t1_"`` to label time-1 codes
+next to time-2 ones.
+
+**Returns:**
+- ``df`` with the requested lookup columns added, rows in their
+original order. The code columns keep their original dtype.
+
+
+**Examples:**
+
+Label a forest-type grouping:
+>>> result = area(db, grp_by="FORTYPCD")
+>>> result = join_reference(result, db, "forest_type")
+Label time-1 and time-2 owner groups side by side:
+>>> df = join_reference(df, db, "owner_group", on="t1_OWNGRPCD", prefix="t1_")
+>>> df = join_reference(df, db, "owner_group", on="t2_OWNGRPCD", prefix="t2_")
+Counties need the state too:
+>>> join_reference(result, db, "county")  # joins on STATECD and COUNTYCD
+
+
+### `label_codes` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/reference.py#L596" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+label_codes(df: pl.DataFrame, columns: str | Sequence[str] | None = None, suffix: str = '_NAME') -> pl.DataFrame
+```
+
+
+Add FIADB User Guide meanings for coded columns.
+
+For each coded column, adds ``<column><suffix>`` holding the meaning from
+:data:`pyfia.constants.codes.CODE_TABLES`, e.g. ``TRTCD1_NAME`` = "Cutting"
+for ``TRTCD1`` = 10. Needs no database: these codes are defined by the
+User Guide, not by REF tables (use :func:`join_reference` for forest
+types, species, owner groups and geography).
+
+**Args:**
+- `df`: Data holding FIADB codes.
+- `columns`: Columns to label. Names may carry a ``t1_`` or ``t2_`` prefix (as in
+remeasurement data), which is looked through. Defaults to every
+column of ``df`` that has a code table.
+- `suffix`: Suffix for the added columns.
+
+**Returns:**
+- ``df`` with one String column added per labeled column. Null codes get
+null meanings.
+
+
+**Examples:**
+
+>>> df = pl.DataFrame({"TRTCD1": [10, 0], "STATUSCD": [2, 1]})
+>>> label_codes(df).select("TRTCD1_NAME", "STATUSCD_NAME").rows()
+[('Cutting', 'Dead tree'), ('No observable treatment', 'Live tree')]
+Label time-1 and time-2 treatments:
+>>> label_codes(intervals, ["t1_TRTCD1", "t2_TRTCD1"])

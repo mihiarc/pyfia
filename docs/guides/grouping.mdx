@@ -24,7 +24,7 @@ For common grouping codes, pyFIA adds a human-readable companion column automati
 
 | Grouping column | Auto-added column | Example values |
 |-----------------|-------------------|----------------|
-| `FORTYPCD` | `FOREST_TYPE_GROUP` | "Loblolly/Shortleaf Pine", "Oak/Hickory" |
+| `FORTYPCD` | `FOREST_TYPE_GROUP` | "Loblolly / shortleaf pine group", "Oak / hickory group" |
 | `OWNGRPCD` | `OWNERSHIP_GROUP` | "Private", "Forest Service", "State and Local Government" |
 
 ```python
@@ -34,19 +34,19 @@ result = volume(db, grp_by="FORTYPCD", totals=True)
 
 | FORTYPCD | FOREST_TYPE_GROUP | VOLCFNET_TOTAL |
 |----------|-------------------|----------------|
-| 161 | Loblolly/Shortleaf Pine | 15,913,000,000 |
-| 503 | Oak/Hickory | 8,592,600,000 |
-| 701 | Oak/Gum/Cypress | 2,145,000,000 |
+| 161 | Loblolly / shortleaf pine group | 15,913,000,000 |
+| 503 | Oak / hickory group | 8,592,600,000 |
+| 608 | Oak / gum / cypress group | 2,145,000,000 |
 
 ## Species and other names
 
-Species names require a database lookup and are **not** auto-enhanced. Add them after estimation with `join_species_names()`:
+Species names require a database lookup and are **not** auto-enhanced. Add them after estimation with `join_reference()`:
 
 ```python
-from pyfia import volume, join_species_names
+from pyfia import volume, join_reference
 
 result = volume(db, by_species=True)
-result = join_species_names(result, db)
+result = join_reference(result, db, "species", columns=["COMMON_NAME"])
 ```
 
 | SPCD | COMMON_NAME | VOLCFNET_TOTAL |
@@ -55,20 +55,17 @@ result = join_species_names(result, db)
 | 316 | Red maple | 1,456,000,000 |
 | 802 | White oak | 987,000,000 |
 
-The full set of reference-table helpers:
+`join_reference()` reads the database's own REF tables. Its `kind` is one of `"forest_type"`, `"forest_type_group"`, `"species"`, `"species_group"`, `"owner_group"`, `"survey_unit"`, `"county"` and `"state"`. It raises `UnknownCodeError` on a code the table doesn't define, so a stale lookup can't pass unnoticed. Use `on=` and `prefix=` for prefixed columns such as `t1_FORTYPCD`:
 
 ```python
-from pyfia import (
-    join_species_names,
-    join_forest_type_names,
-    join_state_names,
-    join_multiple_references,
-)
+from pyfia import join_reference, label_codes
 
-result = join_multiple_references(
-    result, db, species=True, forest_type=True, state=True
-)
+result = join_reference(result, db, "forest_type")   # FORTYPCD_NAME, TYPGRPCD, TYPGRPCD_NAME
+result = join_reference(result, db, "state")         # STATE_NAME, STATE_ABBR
+result = label_codes(result, ["DSTRBCD1"])           # DSTRBCD1_NAME, from the FIADB User Guide
 ```
+
+The lookups themselves (`pyfia.reference.forest_types(db)`, `species(db)`, `owner_groups(db)`, …) return the REF tables as frames.
 
 ## Convenience flags
 
@@ -146,10 +143,10 @@ This supports timber casualty-loss analysis, where losses must be classified by 
 
 | Column | Auto-enhanced? | Manual helper |
 |--------|----------------|---------------|
-| `FORTYPCD` | Yes | `join_forest_type_names()` |
+| `FORTYPCD` | Yes | `join_reference(..., "forest_type")` |
 | `OWNGRPCD` | Yes | — |
-| `SPCD` | No | `join_species_names()` |
-| `STATECD` | No | `join_state_names()` |
+| `SPCD` | No | `join_reference(..., "species")` |
+| `STATECD` | No | `join_reference(..., "state")` |
 | `COUNTYCD`, `UNITCD`, `INVYR` | No | — |
 | `AGENTCD`, `DSTRBCD1` | No | — (mortality only) |
 

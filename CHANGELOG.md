@@ -7,6 +7,37 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.5.0] - 2026-09-26
+
+Unit-level building blocks for modelling change on FIA plots: stand
+attributes per acre of condition, condition pairs and tree fates across two
+measurements, reference and code lookups, and provenance. Each builder is
+tested against an oracle that runs in CI. This release also fixes all-live
+GRM estimates (#167) and `growth()` domains (#171), and removes the APIs
+deprecated in 1.4.4.
+
+### Added
+- **`condition_stand_metrics()`** (#165): basal area, trees, QMD, aboveground biomass, net cubic and sawlog volume, and softwood basal-area share per acre of *condition*, one row per forest condition. Each tree's `TPA_UNADJ` is divided by its footprint's share of the condition (microplot, subplot or macroplot); basal area reproduces `COND.BALIVE` for every forest condition measured since 2015 in Alabama and Oregon. No EVALID needed; `plot_cns=` computes any set of plots.
+- **`condition_intervals()`** (#164): one row per (time-1 condition, time-2 condition) pair on remeasured plots, for every time-1 condition in the at-risk land class, paired through `SUBP_COND_CHNG_MTRX` with a same-CONDID fallback (`LINK_METHOD`). Carries `CHNG_AREA_SHARE`, `t2_OUTCOME` and condition attributes at both times. Expanded, it reproduces `area_change()`.
+- **`tree_intervals()`** (#170): one row per tree with a GRM record, with its component and `FATE`, `TPAGROW_UNADJ`, `TPAREMV_UNADJ`, `TPAMORT_UNADJ`, `SUBPTYP_GRM`, diameters and growth over the interval, midpoint volumes and biomass, and TREE attributes at both times. Expanded, it reproduces `removals()` and `mortality()`.
+- **`pyfia.reference`** (#166): `forest_types()`, `forest_type_groups()`, `species()`, `species_groups()`, `owner_groups()`, `survey_units()`, `counties()` and `states()` read the database's REF tables, and **`join_reference()`** attaches their labels to any frame, raising `UnknownCodeError` on a code the table doesn't define.
+- **`pyfia.constants.codes`** and **`label_codes()`** (#168): FIADB User Guide code tables (COND_STATUS_CD, RESERVCD, OWNCD, SITECLCD, STDORGCD, DSTRBCD, TRTCD, HARVEST_TYPE_SRS, STATUSCD, TREECLCD, AGENTCD, GRM components), each tested against the vendored guide.
+- **`FIA.provenance()`** (#174): pyFIA version, the database's FIADB release, the clipped EVALIDs and states, and the database's path, size and modification time, with its SHA-256 on request. The three builders carry an `EVALID` column when the database is clipped to one evaluation.
+- A **Remeasurement data** guide in the docs.
+
+### Fixed
+- **All-live GRM estimates left out microplot saplings** (#167). `growth()`, `mortality()`, `removals()` and `panel(level="tree")` with `tree_type="al"` (or `"live"`) read the `SUBP_*_AL` columns of `TREE_GRM_COMPONENT`, which cover trees at least 5 inches. EVALIDator's all-live estimates (trees at least 1 inch) use the `MICR_*_AL` columns, which pyFIA now uses. On Georgia EVALID 132303, all-live growth of aboveground biomass is 51,062,479.6 dry tons/yr (was 48,663,206.6), equal to EVALIDator snum 311 with its SE; all-live removals are 385.2 million trees/yr (was 129.6 million). **All-live GRM totals increase**; growing-stock and sawtimber totals are unchanged. Selecting EVALIDator's all-live trees at least 5 inches is tracked in #173.
+- **`growth()` ignored `tree_domain`** (#171) unless the expression contained the literal text `DIA_MIDPT >= 5.0`. It now applies any expression as `removals()` and `mortality()` do: `DIA`, `SPCD` and `STATUSCD` are the GRM midpoint values, other TREE columns come from the tree's time-2 record, and an unknown column raises `InvalidDomainError`. On Georgia EVALID 132303, growing-stock growth with `tree_domain="SPCD == 131"` is 1,060,265,693.5 cu ft/yr, equal to EVALIDator's loblolly pine row (snum 202) with its SE. Undomained growth is unchanged.
+
+### Removed
+- `LandStatus.DENIED_ACCESS`, `LandStatus.HAZARDOUS`, `LandStatus.INACCESSIBLE` and `TreeComponent.HARVEST`, deprecated in 1.4.4 (#163). Use `LandStatus.NONSAMPLED` with `COND_NONSAMPLE_REASN_CD`, and the `TreeComponent.CUT` prefix.
+- `pyfia.filtering.assign_forest_type_group`; use `add_forest_type_group` (#163).
+- `pyfia.utils.reference_tables` and `join_forest_type_names()`, `join_species_names()`, `join_state_names()` and `join_multiple_references()` (#166). Use `join_reference(df, db, "forest_type" | "species" | "state" | ...)`.
+
+### Tests
+- Fixture tests that run in CI pin each builder to its oracle: `COND.BALIVE` for stand metrics, `area_change()` for condition pairs, `removals()`/`mortality()` plus tree accounting and annualisation for tree fates, and the REF tables and User Guide code tables for the lookups.
+- EVALIDator validation tests cover all-live growth, mortality and removals, and growth by species.
+
 ## [1.4.5] - 2026-09-26
 
 Correctness fixes for `area_change()` (#147, #148, #151, #157) and for
@@ -310,7 +341,8 @@ versions predate git tagging, so per-patch attribution is approximate.)
 - FIA database abstraction layer
 - Basic data reading capabilities
 
-[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.4.5...HEAD
+[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/mihiarc/pyfia/compare/v1.4.5...v1.5.0
 [1.4.5]: https://github.com/mihiarc/pyfia/compare/v1.4.4...v1.4.5
 [1.4.4]: https://github.com/mihiarc/pyfia/compare/v1.4.3...v1.4.4
 [1.4.3]: https://github.com/mihiarc/pyfia/compare/v1.4.2...v1.4.3

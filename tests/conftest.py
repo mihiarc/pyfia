@@ -18,9 +18,12 @@ Run specific categories:
 import os
 from pathlib import Path
 
+import duckdb
 import pytest
 
 from pyfia import FIA
+
+FIADB_FIXTURE_DIR = Path(__file__).parent / "fixtures" / "fiadb_al"
 
 # Register fixtures from modular fixture files
 pytest_plugins = [
@@ -33,6 +36,30 @@ pytest_plugins = [
 # =============================================================================
 # Database Fixtures
 # =============================================================================
+
+
+@pytest.fixture(scope="session")
+def fiadb_fixture_path(tmp_path_factory) -> Path:
+    """DuckDB built from the committed three-county Alabama FIADB subset.
+
+    See ``tests/fixtures/fiadb_al/README.md``. The parquet files load into a
+    temporary DuckDB once per session (about a second).
+    """
+    path = tmp_path_factory.mktemp("fiadb") / "fiadb_al.duckdb"
+    with duckdb.connect(str(path)) as con:
+        for parquet in sorted(FIADB_FIXTURE_DIR.glob("*.parquet")):
+            con.execute(
+                f'CREATE TABLE "{parquet.stem}" AS '
+                f"SELECT * FROM read_parquet('{parquet.as_posix()}')"
+            )
+    return path
+
+
+@pytest.fixture
+def fiadb_fixture(fiadb_fixture_path):
+    """Function-scoped FIA instance on the committed Alabama subset."""
+    with FIA(str(fiadb_fixture_path)) as db:
+        yield db
 
 
 @pytest.fixture(scope="session")

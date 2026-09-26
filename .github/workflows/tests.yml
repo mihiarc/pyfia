@@ -4,9 +4,8 @@ on:
   push:
     branches:
       - main
+  # Every pull request, so stacked PRs (based on another PR's branch) get CI
   pull_request:
-    branches:
-      - main
 
 jobs:
   test:

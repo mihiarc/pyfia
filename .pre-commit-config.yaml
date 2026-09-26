@@ -1,9 +1,6 @@
 # Pre-commit hooks for pyFIA - simplified configuration
 # See https://pre-commit.com for more information
 
-default_language_version:
-  python: python3.11
-
 repos:
   # Standard hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
@@ -33,16 +30,13 @@ repos:
         types_or: [python, pyi]
         args: [--fix, --exit-non-zero-on-fix]
 
-  # Type checking with mypy
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.16.1
+  # Type checking with the project's own mypy and locked dependencies, as CI runs it
+  - repo: local
     hooks:
       - id: mypy
-        additional_dependencies:
-          - polars>=1.31.0
-          - numpy>=2.3.0
-          - pydantic>=2.0.0
-        args: [--config-file=pyproject.toml]
+        name: mypy
+        entry: uv run mypy src/pyfia/
+        language: system
         files: ^src/pyfia/
         pass_filenames: false
 

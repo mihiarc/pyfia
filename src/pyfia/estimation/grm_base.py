@@ -100,7 +100,7 @@ class GRMBaseEstimator(BaseEstimator):
         """Condition columns for GRM estimation.
 
         Loads the base condition set plus the GRM helper columns used by
-        aggregate_cond_to_plot() and land-basis filtering, then adds any
+        attach_tree_conditions() and land-basis filtering, then adds any
         grp_by / area_domain / tree_domain column that actually lives in the
         COND table. Resolving against the real COND schema (rather than a fixed
         allowlist) lets grouping and domain filtering use the same set of
@@ -153,10 +153,10 @@ class GRMBaseEstimator(BaseEstimator):
         1. Loads GRM component table
         2. Joins with GRM midpt table
         3. Applies EVALID filtering
-        4. Joins with aggregated COND data
+        4. Attaches each tree's own condition (TREE.CONDID) from COND
         """
         from .grm import (
-            aggregate_cond_to_plot,
+            attach_tree_conditions,
             filter_by_evalid,
             load_grm_component,
             load_grm_midpt,
@@ -180,71 +180,44 @@ class GRMBaseEstimator(BaseEstimator):
         # Join component with midpt
         data = grm_component.join(grm_midpt, on="TRE_CN", how="inner")
 
-        # Check if AGENTCD is requested for grouping - need to join with TREE table
-        grp_by = self.config.get("grp_by")
-        if grp_by:
-            if isinstance(grp_by, str):
-                grp_by = [grp_by]
-            if "AGENTCD" in grp_by:
-                # Load TREE table with AGENTCD
-                if "TREE" not in self.db.tables:
-                    self.db.load_table("TREE", columns=["CN", "AGENTCD"])
-                else:
-                    # Check if AGENTCD is in the cached TREE table
-                    tree = self.db.tables["TREE"]
-                    tree_cols = (
-                        tree.collect_schema().names()
-                        if isinstance(tree, pl.LazyFrame)
-                        else tree.columns
-                    )
-                    if "AGENTCD" not in tree_cols:
-                        # Reload with AGENTCD
-                        del self.db.tables["TREE"]
-                        self.db.load_table("TREE", columns=["CN", "AGENTCD"])
-
-                tree = self.db.tables["TREE"]
-                if not isinstance(tree, pl.LazyFrame):
-                    tree = tree.lazy()
-
-                # Join on TRE_CN = CN to get AGENTCD
-                data = data.join(
-                    tree.select(["CN", "AGENTCD"]),
-                    left_on="TRE_CN",
-                    right_on="CN",
-                    how="left",
-                )
+        # Each GRM tree's condition comes from its TREE record (TREE.CONDID);
+        # AGENTCD is a tree attribute some groupings use.
+        grp_by = self.config.get("grp_by") or []
+        if isinstance(grp_by, str):
+            grp_by = [grp_by]
+        tree_cols = ["CN", "CONDID"] + (["AGENTCD"] if "AGENTCD" in grp_by else [])
+        tree = self._load_table_columns("TREE", tree_cols)
+        if "AGENTCD" in tree_cols:
+            data = data.join(
+                tree.select(["CN", "AGENTCD"]),
+                left_on="TRE_CN",
+                right_on="CN",
+                how="left",
+            )
 
         # Apply EVALID filtering
         data = filter_by_evalid(data, self.db)
 
-        # Load and aggregate COND to plot level
-        # Required columns for aggregate_cond_to_plot()
-        cond_cols = self.get_cond_columns()
+        cond = self._load_table_columns("COND", self.get_cond_columns())
+        return attach_tree_conditions(data, tree, cond)
 
-        # Check if cached COND has all required columns
-        if "COND" in self.db.tables:
-            cached = self.db.tables["COND"]
+    def _load_table_columns(self, table: str, columns: list[str]) -> pl.LazyFrame:
+        """Return a cached table, reloading it if it lacks any of ``columns``."""
+        if table in self.db.tables:
+            cached = self.db.tables[table]
             cached_cols = set(
                 cached.collect_schema().names()
                 if isinstance(cached, pl.LazyFrame)
                 else cached.columns
             )
-            required_cols = set(cond_cols)
-            if not required_cols.issubset(cached_cols):
-                # Reload with all required columns
-                del self.db.tables["COND"]
+            if not set(columns).issubset(cached_cols):
+                del self.db.tables[table]
 
-        if "COND" not in self.db.tables:
-            self.db.load_table("COND", columns=cond_cols)
+        if table not in self.db.tables:
+            self.db.load_table(table, columns=columns)
 
-        cond = self.db.tables["COND"]
-        if not isinstance(cond, pl.LazyFrame):
-            cond = cond.lazy()
-
-        cond_agg = aggregate_cond_to_plot(cond)
-        data = data.join(cond_agg, on="PLT_CN", how="left")
-
-        return data
+        frame = self.db.tables[table]
+        return frame if isinstance(frame, pl.LazyFrame) else frame.lazy()
 
     def _apply_grm_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -542,14 +515,14 @@ class GRMBaseEstimator(BaseEstimator):
                     )
 
             if variance_results:
-                from .variance import align_join_key_dtypes
-
-                var_df = pl.DataFrame(variance_results)
-                # Align all-null group keys so a Null-typed key (e.g. a
-                # disturbance code null across every group) does not break the
-                # join against the typed results key (#105).
-                var_df = align_join_key_dtypes(results, var_df, group_cols)
-                results = results.join(var_df, on=group_cols, how="left")
+                # One entry per results row, in row order. Attach positionally:
+                # a join on the group keys would drop the SE of a null group,
+                # such as diverted trees whose nonforest condition has no
+                # disturbance or treatment code.
+                results = results.with_columns(
+                    pl.Series(col, [v[col] for v in variance_results], dtype=pl.Float64)
+                    for col in (acre_se_col, total_se_col)
+                )
         else:
             # No grouping, calculate overall variance with ALL plots
             all_plots_with_values = all_plots.join(

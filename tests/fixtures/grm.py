@@ -179,43 +179,6 @@ def tree_data_with_agentcd():
 
 
 @pytest.fixture
-def condition_data_with_dstrbcd():
-    """Create condition data with DSTRBCD (disturbance codes) for grouping tests.
-
-    DSTRBCD codes (primary):
-    - 0: No disturbance
-    - 10: Insect damage
-    - 20: Disease damage
-    - 30: Fire damage
-    - 40: Animal damage
-    - 50: Weather damage (includes 52=hurricane/wind)
-    - 54: Drought
-    - 60: Vegetation (competition)
-    - 70: Unknown
-    - 80: Human (includes harvest, clearing)
-    """
-    return pl.DataFrame(
-        {
-            "CN": ["C1", "C2", "C3", "C4", "C5"],
-            "PLT_CN": ["P1", "P2", "P3", "P4", "P5"],
-            "CONDID": [1, 1, 1, 1, 1],
-            "COND_STATUS_CD": [1, 1, 1, 1, 1],
-            "CONDPROP_UNADJ": [1.0, 1.0, 1.0, 1.0, 1.0],
-            "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "MACR", "SUBP"],
-            "SITECLCD": [3, 2, 1, 3, 2],
-            "RESERVCD": [0, 0, 0, 0, 1],
-            "OWNGRPCD": [40, 40, 10, 20, 30],
-            "FORTYPCD": [161, 406, 703, 161, 621],
-            "STDSZCD": [1, 2, 3, 1, 2],
-            "ALSTKCD": [1, 2, 3, 4, 5],
-            "DSTRBCD1": [30, 10, 52, 0, 54],  # Fire, Insect, Hurricane, None, Drought
-            "DSTRBCD2": [0, 0, 0, 0, 0],
-            "DSTRBCD3": [0, 0, 0, 0, 0],
-        }
-    )
-
-
-@pytest.fixture
 def grm_removal_component_data():
     """Create GRM component data specifically for removal testing."""
     return pl.DataFrame(

@@ -151,6 +151,8 @@ def condition_intervals(
         - **PLT_CN**, **PREV_PLT_CN** : time-2 and time-1 plot CNs
         - **t1_CONDID**, **t2_CONDID** : condition numbers at each time
           (``t2_CONDID`` is null when ``t2_OUTCOME`` is 'no_t2_condition')
+        - **EVALID** : int - the evaluation when the FIA instance is clipped
+          to exactly one, else null; see ``FIA.provenance()``
         - **STATECD**, **UNITCD**, **COUNTYCD**, **REMPER**, **INTENSITY**,
           **KINDCD**, **DESIGNCD**, **QA_STATUS** : time-2 plot attributes
         - **t1_INVYR**, **t2_INVYR**, **t1_MEASYEAR**, **t2_MEASYEAR**,
@@ -410,12 +412,16 @@ def _condition_intervals(
         .alias("t2_OUTCOME")
     )
 
+    result = result.with_columns(
+        pl.lit(fia._single_evalid(), dtype=pl.Int64).alias("EVALID")
+    )
     key_cols = ["PLT_CN", "PREV_PLT_CN", "t1_CONDID", "t2_CONDID"]
     plot_out = [c for c in PLOT_COLUMNS if c in result.columns]
     time_out = [f"t{t}_{c}" for c in time_cols for t in (1, 2)]
     cond_out = [f"t{t}_{c}" for c in attr_cols for t in (1, 2)]
     ordered = [
         *key_cols,
+        "EVALID",
         *plot_out,
         *time_out,
         *cond_out,
@@ -539,6 +545,8 @@ def tree_intervals(
         - **t1_CONDID**, **t2_CONDID** : the tree's condition at each time
           (time 1 from its previous TREE record, falling back to
           TREE.PREVCOND)
+        - **EVALID** : int - the evaluation when the FIA instance is clipped
+          to exactly one, else null; see ``FIA.provenance()``
         - **STATECD**, **REMPER**, **t1_INVYR**, **t2_INVYR**,
           **t1_MEASYEAR**, **t2_MEASYEAR** : plot and timing
         - **COMPONENT** : str - GRM component on the basis, as FIADB spells it
@@ -773,8 +781,12 @@ def _tree_intervals(
         "t1_CONDID",
         "t2_CONDID",
     ]
+    result = result.with_columns(
+        pl.lit(fia._single_evalid(), dtype=pl.Int64).alias("EVALID")
+    )
     ordered = [
         *key_cols,
+        "EVALID",
         "STATECD",
         "REMPER",
         *[f"t{t}_{c}" for c in time_cols for t in (1, 2)],

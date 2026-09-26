@@ -132,6 +132,9 @@ def condition_stand_metrics(
         columns:
 
         - **PLT_CN**, **CONDID** : str, int - Condition key
+        - **EVALID** : int - the evaluation when ``db`` is clipped to exactly
+          one and no ``plot_cns`` are given, else null; see
+          ``FIA.provenance()``
         - **STATECD**, **INVYR** : int - State and inventory year
         - **CONDPROP_UNADJ** : float - Unadjusted proportion of the plot in
           the condition
@@ -190,6 +193,7 @@ def condition_stand_metrics(
     fia, owns_db = ensure_fia_instance(db)
     try:
         plots = _plot_restriction(fia, plot_cns)
+        evalid = fia._single_evalid() if plot_cns is None else None
         conditions = _read_conditions(fia, plots)
         trees = _read_trees(fia, plots, requested, tree_type, threshold)
         breakpoints = _read_breakpoints(fia, plots)
@@ -204,6 +208,7 @@ def condition_stand_metrics(
     how: Literal["left", "inner"] = "left" if zero_fill else "inner"
     result = conditions.select(
         *_KEYS,
+        pl.lit(evalid, dtype=pl.Int64).alias("EVALID"),
         CondColumns.STATECD,
         CondColumns.INVYR,
         CondColumns.CONDPROP_UNADJ,

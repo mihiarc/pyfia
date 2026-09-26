@@ -309,6 +309,7 @@ class TestValidation:
         assert stands.columns == [
             "PLT_CN",
             "CONDID",
+            "EVALID",
             "STATECD",
             "INVYR",
             "CONDPROP_UNADJ",

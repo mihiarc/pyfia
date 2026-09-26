@@ -19,6 +19,7 @@ from ..constants.plot_design import (
     DiameterBreakpoints,
     PlotBasis,
 )
+from ..constants.species import SOUTHERN_PINE_SPCD
 from ..constants.status_codes import (
     LandStatus,
     ReserveStatus,
@@ -652,7 +653,9 @@ def assign_species_group(
         Column containing species codes
     grouping_system : str, default "major_species"
         Grouping system to use:
-        - "major_species": Major commercial species groups
+        - "major_species": Major commercial species groups. "Southern Pines"
+          is shortleaf, slash, longleaf and loblolly pine (REF_SPECIES
+          E_SPGRPCD 1 and 2); other Pinus species are "Pines".
         - "genus": Group by genus
         - "family": Group by family
     output_column : str, default "SPECIES_GROUP"
@@ -666,7 +669,7 @@ def assign_species_group(
     if grouping_system == "major_species":
         # Create major species groups based on common FIA groupings
         species_groups = species_df.with_columns(
-            pl.when(pl.col("SPCD").is_in([131, 132, 133]))  # Pines
+            pl.when(pl.col("SPCD").is_in(SOUTHERN_PINE_SPCD))
             .then(pl.lit("Southern Pines"))
             .when(pl.col("SPCD").is_in([316, 318, 319]))  # Maples
             .then(pl.lit("Maples"))

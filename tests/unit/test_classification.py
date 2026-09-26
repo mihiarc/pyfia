@@ -439,20 +439,20 @@ class TestAssignSpeciesGroup:
     """Tests for assign_species_group function."""
 
     def test_major_species_southern_pines(self):
-        """Test major species grouping for southern pines."""
-        tree_df = pl.DataFrame({"SPCD": [131, 132, 133]})
-        species_df = pl.DataFrame(
-            {
-                "SPCD": [131, 132, 133],
-                "GENUS": ["Pinus", "Pinus", "Pinus"],
-            }
-        )
+        """Southern Pines are REF_SPECIES E_SPGRPCD 1 and 2; other pines aren't."""
+        spcd = [110, 111, 121, 131, 132, 133]
+        tree_df = pl.DataFrame({"SPCD": spcd})
+        species_df = pl.DataFrame({"SPCD": spcd, "GENUS": ["Pinus"] * len(spcd)})
         result = assign_species_group(
             tree_df, species_df, grouping_system="major_species"
         )
 
-        assert "SPECIES_GROUP" in result.columns
-        assert all(g == "Southern Pines" for g in result["SPECIES_GROUP"].to_list())
+        groups = dict(zip(result["SPCD"], result["SPECIES_GROUP"]))
+        # Shortleaf, slash, longleaf, loblolly
+        assert all(groups[c] == "Southern Pines" for c in (110, 111, 121, 131))
+        # Virginia pine (E_SPGRPCD 3) and singleleaf pinyon (western)
+        assert groups[132] == "Pines"
+        assert groups[133] == "Pines"
 
     def test_major_species_maples(self):
         """Test major species grouping for maples."""
@@ -501,10 +501,10 @@ class TestAssignSpeciesGroup:
 
     def test_major_species_pines_by_genus(self):
         """Test major species grouping for pines by genus."""
-        tree_df = pl.DataFrame({"SPCD": [110]})  # Not in 131-133 range
+        tree_df = pl.DataFrame({"SPCD": [129]})  # Eastern white pine
         species_df = pl.DataFrame(
             {
-                "SPCD": [110],
+                "SPCD": [129],
                 "GENUS": ["Pinus"],
             }
         )

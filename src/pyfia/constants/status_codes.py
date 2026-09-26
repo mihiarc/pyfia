@@ -7,6 +7,29 @@ codes used in FIA data.
 
 from __future__ import annotations
 
+import warnings
+from typing import Any
+
+
+class _DeprecatedCode:
+    """Class attribute that warns on access; removed in the next minor release."""
+
+    def __init__(self, value: Any, message: str):
+        self.value = value
+        self.message = message
+
+    def __set_name__(self, owner: type, name: str) -> None:
+        self.qualname = f"{owner.__name__}.{name}"
+
+    def __get__(self, obj: object, owner: type | None = None) -> Any:
+        warnings.warn(
+            f"{self.qualname} is deprecated and will be removed in pyFIA 1.5.0: "
+            f"{self.message}",
+            DeprecationWarning,
+            stacklevel=2,
+        )
+        return self.value
+
 
 class TreeStatus:
     """Tree status codes (STATUSCD)."""
@@ -25,15 +48,32 @@ class TreeClass:
 
 
 class LandStatus:
-    """Condition status codes (COND_STATUS_CD)."""
+    """Condition status codes (COND_STATUS_CD), FIADB User Guide section 2.5.9.
+
+    Code 5 covers every nonsampled condition; the reason (denied access,
+    hazardous, and so on) is in ``COND.COND_NONSAMPLE_REASN_CD``.
+    """
 
     FOREST = 1
     NONFOREST = 2
-    WATER = 3
+    WATER = 3  # Noncensus water
     CENSUS_WATER = 4
-    DENIED_ACCESS = 5
-    HAZARDOUS = 6
-    INACCESSIBLE = 7
+    NONSAMPLED = 5  # Nonsampled, possibility of forest land
+    DENIED_ACCESS = _DeprecatedCode(
+        5,
+        "COND_STATUS_CD 5 is 'Nonsampled, possibility of forest land' for any "
+        "reason; use LandStatus.NONSAMPLED and COND_NONSAMPLE_REASN_CD.",
+    )
+    HAZARDOUS = _DeprecatedCode(
+        6,
+        "COND_STATUS_CD 6 is not an FIADB code; hazardous conditions are "
+        "LandStatus.NONSAMPLED with a COND_NONSAMPLE_REASN_CD.",
+    )
+    INACCESSIBLE = _DeprecatedCode(
+        7,
+        "COND_STATUS_CD 7 is not an FIADB code; inaccessible conditions are "
+        "LandStatus.NONSAMPLED with a COND_NONSAMPLE_REASN_CD.",
+    )
 
 
 class SiteClass:
@@ -69,12 +109,36 @@ class DamageAgent:
 
 
 class TreeComponent:
-    """Tree component identifiers for GRM tables."""
+    """GRM component values in ``TREE_GRM_COMPONENT`` (User Guide section 3.3).
+
+    Exact values match a component column with ``==``. The numbered
+    components share a prefix (``CUT``, ``MORTALITY``, ``DIVERSION``,
+    ``REVERSION``) for matching with ``str.starts_with``.
+    """
 
     SURVIVOR = "SURVIVOR"
-    MORTALITY = "MORTALITY"
-    HARVEST = "HARVEST"
     INGROWTH = "INGROWTH"
+    CUT1 = "CUT1"
+    CUT2 = "CUT2"
+    MORTALITY1 = "MORTALITY1"
+    MORTALITY2 = "MORTALITY2"
+    DIVERSION1 = "DIVERSION1"
+    DIVERSION2 = "DIVERSION2"
+    REVERSION1 = "REVERSION1"
+    REVERSION2 = "REVERSION2"
+    NOT_USED = "NOT USED"
+
+    # Prefixes
+    CUT = "CUT"
+    MORTALITY = "MORTALITY"
+    DIVERSION = "DIVERSION"
+    REVERSION = "REVERSION"
+
+    HARVEST = _DeprecatedCode(
+        "CUT",
+        "no GRM component is named HARVEST; harvest removals are CUT1 and CUT2, "
+        "matched by the TreeComponent.CUT prefix.",
+    )
 
 
 class EvaluationType:

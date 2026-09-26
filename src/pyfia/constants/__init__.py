@@ -5,6 +5,7 @@ This package provides FIA-specific constants organized by domain:
 
 - plot_design: Plot design parameters, diameter breakpoints, size classes
 - status_codes: Tree/land status codes, ownership, evaluation types
+- species: Species groupings taken from REF_SPECIES
 - states: State FIPS code mappings
 - tables: FIA database table names
 - columns: FIA column name constants

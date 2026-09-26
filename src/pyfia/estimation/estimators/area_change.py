@@ -17,6 +17,7 @@ from typing import Literal
 
 import polars as pl
 
+from ...constants.status_codes import LandStatus, ReserveStatus, SiteClass
 from ...core import FIA
 from ..base import AggregationResult, BaseEstimator
 from ..columns import collect_referenced_columns, columns_in_table
@@ -67,9 +68,10 @@ class AreaChangeEstimator(BaseEstimator):
         4 = Census water
         5 = Nonsampled, possibility of forest land
 
-    Forest transitions:
-        - Gain: Previous COND_STATUS_CD != 1, Current COND_STATUS_CD == 1
-        - Loss: Previous COND_STATUS_CD == 1, Current COND_STATUS_CD != 1
+    Transitions, with timberland = forest land with SITECLCD 1-6 and
+    RESERVCD 0, evaluated on each measurement's own condition:
+        - Gain: the previous condition isn't in land_type, the current one is
+        - Loss: the previous condition is in land_type, the current one isn't
 
     Conditions nonsampled at either measurement are excluded.
     """
@@ -182,20 +184,18 @@ class AreaChangeEstimator(BaseEstimator):
         # Join previous condition to get previous status
         # IMPORTANT: Load the FULL COND table (without EVALID filter) because
         # PREV_PLT_CN references plots from previous inventory cycles
+        prev_cols = ["COND_STATUS_CD", "COND_NONSAMPLE_REASN_CD"]
+        if self.config.get("land_type", "forest") == "timber":
+            prev_cols += ["SITECLCD", "RESERVCD"]
         cond_prev = self.db._reader.read_table(
-            "COND",
-            columns=["PLT_CN", "CONDID", "COND_STATUS_CD", "COND_NONSAMPLE_REASN_CD"],
-            lazy=True,
+            "COND", columns=["PLT_CN", "CONDID", *prev_cols], lazy=True
         )
 
-        # Alias the previous condition's columns
+        # Prefix the previous condition's columns
         cond_prev = cond_prev.select(
-            [
-                pl.col("PLT_CN"),
-                pl.col("CONDID"),
-                pl.col("COND_STATUS_CD").alias("PREV_COND_STATUS_CD"),
-                pl.col("COND_NONSAMPLE_REASN_CD").alias("PREV_COND_NONSAMPLE_REASN_CD"),
-            ]
+            pl.col("PLT_CN"),
+            pl.col("CONDID"),
+            *[pl.col(col).alias(f"PREV_{col}") for col in prev_cols],
         )
 
         data = data.join(
@@ -234,17 +234,24 @@ class AreaChangeEstimator(BaseEstimator):
 
         return data
 
-    def _is_forest_condition(self, status_col: str) -> pl.Expr:
-        """Create expression to check if condition is forest land."""
-        land_type = self.config.get("land_type", "forest")
+    def _in_land_type(self, when: Literal["current", "previous"]) -> pl.Expr:
+        """Whether the current or previous condition is in ``land_type``.
 
-        if land_type == "forest":
-            # Forest land: COND_STATUS_CD == 1
-            return pl.col(status_col) == 1
-        else:
-            # Timberland: more complex criteria would need additional columns
-            # For now, use same forest definition
-            return pl.col(status_col) == 1
+        Forest land is COND_STATUS_CD 1. Timberland is forest land that is
+        productive (SITECLCD 1-6) and unreserved (RESERVCD 0), as in
+        EVALIDator. A null attribute means not in the land type.
+        """
+        prefix = "" if when == "current" else "PREV_"
+        status = "CURR_COND_STATUS_CD" if when == "current" else "PREV_COND_STATUS_CD"
+
+        in_land_type = pl.col(status) == LandStatus.FOREST
+        if self.config.get("land_type", "forest") == "timber":
+            in_land_type = (
+                in_land_type
+                & pl.col(f"{prefix}SITECLCD").is_in(SiteClass.PRODUCTIVE_CLASSES)
+                & (pl.col(f"{prefix}RESERVCD") == ReserveStatus.NOT_RESERVED)
+            )
+        return in_land_type.fill_null(False)
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -261,15 +268,12 @@ class AreaChangeEstimator(BaseEstimator):
         """
         change_type = self.config.get("change_type", "net")
 
-        # Create forest indicator expressions
-        curr_is_forest = self._is_forest_condition("CURR_COND_STATUS_CD")
-        prev_is_forest = self._is_forest_condition("PREV_COND_STATUS_CD")
+        curr_in = self._in_land_type("current")
+        prev_in = self._in_land_type("previous")
 
-        # Calculate change indicators
-        # Gain: was not forest, now is forest
-        gain_expr = (~prev_is_forest & curr_is_forest).cast(pl.Float64)
-        # Loss: was forest, now is not forest
-        loss_expr = (prev_is_forest & ~curr_is_forest).cast(pl.Float64)
+        # Gain: entered the land type; loss: left it
+        gain_expr = (~prev_in & curr_in).cast(pl.Float64)
+        loss_expr = (prev_in & ~curr_in).cast(pl.Float64)
 
         # Weight by the adjusted subplot proportion; a null proportion
         # contributes nothing
@@ -582,12 +586,14 @@ def area_change(
     land_type : {'forest', 'timber'}, default 'forest'
         Land classification to track changes for:
         - 'forest': All forest land (COND_STATUS_CD = 1)
-        - 'timber': Timberland only (productive, unreserved forest)
+        - 'timber': Timberland: forest land that is productive (SITECLCD
+          1-6) and unreserved (RESERVCD = 0), judged on each measurement's
+          own condition
     change_type : {'net', 'gross_gain', 'gross_loss'}, default 'net'
         Type of change to calculate:
         - 'net': Net change (gains minus losses)
-        - 'gross_gain': Only area gained (non-forest to forest)
-        - 'gross_loss': Only area lost (forest to non-forest)
+        - 'gross_gain': Only area that entered ``land_type``
+        - 'gross_loss': Only area that left ``land_type``
     annual : bool, default True
         If True, return annualized rate in acres/year
         If False, return total change over remeasurement period
@@ -650,8 +656,9 @@ def area_change(
     is 'SUBP', the macroplot row when it is 'MACR', with the matching
     adjustment factor. Conditions nonsampled at either measurement are left
     out. These are EVALIDator's rules, so ``gross_gain + gross_loss`` equals
-    EVALIDator's forest area where either measurement is forest land minus
-    the area where both are (snum 128 minus 127, or 137 minus 136 per year).
+    EVALIDator's area where either measurement is in the land type minus the
+    area where both are: snum 128 minus 127 for forest land and 130 minus 129
+    for timberland (137 minus 136 and 139 minus 138 per year).
     With ``annual=False``, plots without a remeasurement period still count.
 
     ``AREA_CHANGE_SE`` is the exact Bechtold & Patterson post-stratified

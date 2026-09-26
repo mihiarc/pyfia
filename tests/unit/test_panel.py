@@ -5,6 +5,7 @@ Tests creation of t1/t2 remeasurement panels at both condition
 and tree levels for harvest analysis and change detection.
 """
 
+import duckdb
 import polars as pl
 import pytest
 
@@ -12,9 +13,9 @@ from pyfia import FIA, panel
 
 
 @pytest.fixture
-def db_path(georgia_db_path):
-    """Get database path for tests."""
-    return str(georgia_db_path)
+def db_path(fiadb_fixture_path):
+    """Path to the committed Alabama FIADB fixture."""
+    return str(fiadb_fixture_path)
 
 
 class TestPanelConditionLevel:
@@ -137,6 +138,91 @@ class TestPanelTreeLevel:
             if len(all_result) > 0:
                 # live should be subset or equal
                 assert len(live_result) <= len(all_result)
+
+
+class TestPanelDomainsAndWeights:
+    """Domains filter rows, and tree rows carry GRM weights (#136)."""
+
+    def test_area_domain_filters_t2_conditions(self, db_path):
+        with FIA(db_path) as db:
+            everything = panel(db, level="condition")
+        with FIA(db_path) as db:
+            private = panel(db, level="condition", area_domain="OWNGRPCD == 40")
+
+        expected = everything.filter(pl.col("t2_OWNGRPCD") == 40)
+        assert 0 < private.height < everything.height
+        assert sorted(private["PLT_CN"] + "_" + private["CONDID"].cast(str)) == sorted(
+            expected["PLT_CN"] + "_" + expected["CONDID"].cast(str)
+        )
+
+    def test_area_domain_loads_referenced_columns(self, db_path):
+        """A domain on a column outside the defaults still filters."""
+        with FIA(db_path) as db:
+            with_col = panel(db, level="condition", columns=["STDORGCD"])
+        with FIA(db_path) as db:
+            planted = panel(db, level="condition", area_domain="STDORGCD == 1")
+
+        assert planted.height == with_col.filter(pl.col("STDORGCD") == 1).height > 0
+
+    def test_tree_domain_filters_rows(self, db_path):
+        with FIA(db_path) as db:
+            everything = panel(db, level="tree")
+        with FIA(db_path) as db:
+            loblolly = panel(db, level="tree", tree_domain="SPCD == 131")
+
+        assert loblolly["SPCD"].unique().to_list() == [131]
+        assert loblolly.height == everything.filter(pl.col("SPCD") == 131).height
+        assert "survivor" in loblolly["TREE_FATE"].to_list()
+
+    def test_tree_domain_on_tree_table_column(self, db_path):
+        """Columns only in TREE (TREECLCD) are joined for filtering, then dropped."""
+        with FIA(db_path) as db:
+            everything = panel(db, level="tree", tree_type="live")
+        with FIA(db_path) as db:
+            gs = panel(db, level="tree", tree_type="live", tree_domain="TREECLCD == 2")
+
+        assert 0 < gs.height < everything.height
+        assert "TREECLCD" not in gs.columns
+
+    def test_grm_weights(self, db_path):
+        with FIA(db_path) as db:
+            trees = panel(db, level="tree")
+
+        for fate in ("survivor", "mortality", "ingrowth", "cut", "diversion"):
+            rows = trees.filter(pl.col("TREE_FATE") == fate)
+            assert rows.height > 0
+            assert rows["TPAGROW_UNADJ"].null_count() == 0, fate
+
+        # Annual rates are TPAGROW / REMPER on their own rows
+        for fate, col in (("cut", "TPAREMV_UNADJ"), ("mortality", "TPAMORT_UNADJ")):
+            rows = trees.filter(pl.col("TREE_FATE") == fate)
+            gap = (rows[col] * rows["REMPER"] - rows["TPAGROW_UNADJ"]).abs().max()
+            assert gap < 1e-4, fate
+
+        # TPA_UNADJ stays the removals rate
+        assert trees["TPA_UNADJ"].equals(trees["TPAREMV_UNADJ"], check_names=False)
+
+    def test_columns_carried_at_both_times(self, db_path):
+        with FIA(db_path) as db:
+            result = panel(db, level="condition", columns=["STDORGCD"])
+
+        assert {"STDORGCD", "t1_STDORGCD", "t1_CONDPROP_UNADJ"} <= set(result.columns)
+
+        with duckdb.connect(db_path, read_only=True) as con:
+            t1 = con.execute(
+                "SELECT CAST(PLT_CN AS VARCHAR) AS PLT_CN, CONDID, "
+                "STDORGCD AS t1_STDORGCD_REF FROM COND"
+            ).pl()
+        checked = result.join(
+            t1,
+            left_on=["PREV_PLT_CN", "CONDID"],
+            right_on=["PLT_CN", "CONDID"],
+            how="inner",
+        )
+        assert checked.height > 0
+        assert checked["t1_STDORGCD"].equals(
+            checked["t1_STDORGCD_REF"], check_names=False
+        )
 
 
 class TestPanelValidation:

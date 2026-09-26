@@ -23,6 +23,7 @@ from typing import Literal
 import polars as pl
 
 from ...core import FIA
+from ...filtering.parser import DomainExpressionParser
 from ...validation import (
     validate_boolean,
     validate_domain_expression,
@@ -267,6 +268,10 @@ class PanelBuilder:
         # Rename CN to PLT_CN for clarity
         data = data.rename({"CN": "PLT_CN"})
 
+        # The area domain refers to unprefixed COND/PLOT names and is evaluated
+        # on the current (t2) condition, like the land type filter.
+        data = self._apply_area_domain_filter(data)
+
         # Rename t2 columns with prefix
         t2_rename = {}
         for col in self.DEFAULT_COND_COLUMNS:
@@ -277,10 +282,12 @@ class PanelBuilder:
         # Load previous conditions (t1) - need full table without EVALID filter
         cond_prev = self.db._reader.read_table("COND", columns=cond_cols, lazy=True)
 
-        # Rename t1 columns with prefix
+        # Rename t1 columns with prefix. Every loaded condition column gets a
+        # t1_ copy, including CONDPROP_UNADJ and user-requested columns, which
+        # keep their unprefixed names for the t2 value.
         t1_rename = {"PLT_CN": "t1_PLT_CN", "CN": "t1_COND_CN", "CONDID": "t1_CONDID"}
-        for col in self.DEFAULT_COND_COLUMNS:
-            if col in cond_prev.collect_schema().names():
+        for col in cond_prev.collect_schema().names():
+            if col not in t1_rename:
                 t1_rename[col] = f"t1_{col}"
         cond_prev = cond_prev.rename(t1_rename)
 
@@ -313,9 +320,6 @@ class PanelBuilder:
 
         # Apply land type filter
         data = self._apply_land_type_filter(data)
-
-        # Apply area domain filter
-        data = self._apply_area_domain_filter(data)
 
         # Detect harvest
         data = self._detect_harvest(data)
@@ -369,6 +373,14 @@ class PanelBuilder:
             tree_type = "al"  # All live = AL in GRM terminology
 
         grm_cols = resolve_grm_columns("removals", tree_type, land_type)
+        # Per-tree weights on the same basis. TPAGROW is the interval weight
+        # for every component; TPAREMV and TPAMORT are TPAGROW / REMPER on
+        # removal and mortality rows.
+        weight_cols = {
+            resolve_grm_columns("growth", tree_type, land_type).tpa: "TPAGROW_UNADJ",
+            grm_cols.tpa: "TPAREMV_UNADJ",
+            resolve_grm_columns("mortality", tree_type, land_type).tpa: "TPAMORT_UNADJ",
+        }
 
         # Load TREE_GRM_COMPONENT
         grm_component = self.db.tables["TREE_GRM_COMPONENT"]
@@ -395,7 +407,14 @@ class PanelBuilder:
 
         # Filter to valid columns
         component_cols = [c for c in component_cols if c in grm_schema]
-        grm_data = grm_component.select(component_cols)
+        grm_data = grm_component.select(
+            *component_cols,
+            *[
+                pl.col(src).alias(alias)
+                for src, alias in weight_cols.items()
+                if src in grm_schema
+            ],
+        )
 
         # Rename component column to standard COMPONENT
         if grm_cols.component in grm_data.collect_schema().names():
@@ -478,6 +497,10 @@ class PanelBuilder:
         # Calculate tree fate from GRM component
         data = self._calculate_tree_fate(data)
 
+        # The tree domain refers to unprefixed names (DIA is the GRM midpoint
+        # diameter, as in removals() and mortality()).
+        data = self._apply_tree_domain_filter(data)
+
         # Rename columns with t2_ prefix for consistency
         # (GRM MIDPT values are midpoint estimates between t1 and t2)
         data = data.rename(
@@ -504,9 +527,6 @@ class PanelBuilder:
                     pl.col("DIA_BEGIN").alias("t1_DIA"),
                 ]
             )
-
-        # Apply tree domain filter
-        data = self._apply_tree_domain_filter(data)
 
         # Filter to harvest only if requested
         # Include both cut AND diversion for comprehensive removal analysis
@@ -699,26 +719,19 @@ class PanelBuilder:
         cols = ["CN", "PLT_CN", "CONDID", "CONDPROP_UNADJ"]
         cols.extend(self.DEFAULT_COND_COLUMNS)
 
-        # Add user-specified columns
-        extra_cols = self.config.get("columns", [])
-        if extra_cols:
-            for col in extra_cols:
-                if col not in cols:
-                    cols.append(col)
-
-        return cols
-
-    def _get_tree_columns(self) -> list[str]:
-        """Get columns to include for tree panel."""
-        cols = ["CN", "PLT_CN", "CONDID", "TREE", "SUBP"]
-        cols.extend(self.DEFAULT_TREE_COLUMNS)
-
-        # Add user-specified columns
-        extra_cols = self.config.get("columns", [])
-        if extra_cols:
-            for col in extra_cols:
-                if col not in cols:
-                    cols.append(col)
+        # Add user-specified columns, and COND columns the area domain uses
+        extra_cols = list(self.config.get("columns", []))
+        area_domain = self.config.get("area_domain")
+        if area_domain:
+            cond_schema = self.db._reader.get_table_schema("COND")
+            extra_cols += [
+                c
+                for c in DomainExpressionParser.extract_columns(area_domain)
+                if c in cond_schema
+            ]
+        for col in extra_cols:
+            if col not in cols:
+                cols.append(col)
 
         return cols
 
@@ -755,53 +768,38 @@ class PanelBuilder:
 
         return data
 
-    def _apply_tree_type_filter(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """Apply tree type filter to tree data."""
-        tree_type = self.config.get("tree_type", "all")
-
-        if tree_type == "all":
-            return data
-
-        schema = data.collect_schema().names()
-
-        if tree_type == "live":
-            if "t2_STATUSCD" in schema:
-                data = data.filter(pl.col("t2_STATUSCD") == 1)
-        elif tree_type == "gs":
-            # Growing stock: live trees with merchantable volume
-            filters = []
-            if "t2_STATUSCD" in schema:
-                filters.append(pl.col("t2_STATUSCD") == 1)
-            if "t2_TREECLCD" in schema:
-                filters.append(pl.col("t2_TREECLCD") == 2)
-
-            if filters:
-                combined = filters[0]
-                for f in filters[1:]:
-                    combined = combined & f
-                data = data.filter(combined)
-
-        return data
-
     def _apply_area_domain_filter(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """Apply area domain filter."""
+        """Apply the area domain to unprefixed t2 condition and plot columns."""
         area_domain = self.config.get("area_domain")
         if not area_domain:
             return data
-
-        from ...filtering import apply_area_filters
-
-        return apply_area_filters(data, area_domain)
+        return DomainExpressionParser.apply_to_dataframe(data, area_domain, "area")
 
     def _apply_tree_domain_filter(self, data: pl.LazyFrame) -> pl.LazyFrame:
-        """Apply tree domain filter."""
+        """Apply the tree domain to unprefixed GRM tree columns.
+
+        Columns the domain references that the GRM tables lack but TREE has
+        (e.g. TREECLCD) are joined from the tree's TREE record for filtering.
+        """
         tree_domain = self.config.get("tree_domain")
         if not tree_domain:
             return data
 
-        from ...filtering import apply_tree_filters
+        schema = data.collect_schema().names()
+        tree_schema = self.db._reader.get_table_schema("TREE")
+        from_tree = [
+            c
+            for c in DomainExpressionParser.extract_columns(tree_domain)
+            if c not in schema and c in tree_schema
+        ]
+        if from_tree:
+            tree = self.db._reader.read_table(
+                "TREE", columns=["CN", *from_tree], lazy=True
+            )
+            data = data.join(tree, left_on="TRE_CN", right_on="CN", how="left")
 
-        return apply_tree_filters(data, tree_domain)
+        data = DomainExpressionParser.apply_to_dataframe(data, tree_domain, "tree")
+        return data.drop(from_tree) if from_tree else data
 
     def _detect_harvest(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -1062,8 +1060,9 @@ def panel(
         - 'tree': Tree-level panel for individual tree tracking.
           Each row is a tree with GRM component classification.
     columns : list of str, optional
-        Additional columns to include beyond defaults. Useful for adding
-        specific attributes needed for analysis.
+        Additional COND columns for condition-level panels. Each appears
+        unprefixed with its time-2 value and as ``t1_<column>`` with its
+        time-1 value. Not used for tree-level panels.
     land_type : {'forest', 'timber', 'all'}, default 'forest'
         Land classification filter:
         - 'forest': All forest land (COND_STATUS_CD = 1)
@@ -1075,10 +1074,16 @@ def panel(
         - 'all': All trees - uses GS columns (default GRM behavior)
         - 'live': All live trees - uses AL columns
     tree_domain : str, optional
-        SQL-like filter expression for tree-level filtering.
+        SQL-like filter expression for tree-level filtering, using unprefixed
+        column names. It is evaluated on each GRM tree record: ``DIA`` is the
+        GRM midpoint diameter, as in `removals` and `mortality`, and columns
+        found only in TREE (e.g. ``TREECLCD``) come from the tree's current
+        TREE record.
         Example: "SPCD == 131" (loblolly pine only)
     area_domain : str, optional
-        SQL-like filter expression for condition-level filtering.
+        SQL-like filter expression for condition-level filtering, using
+        unprefixed COND and PLOT column names. It is evaluated on the time-2
+        condition, like ``land_type``.
         Example: "OWNGRPCD == 40" (private land only)
     expand_chains : bool, default True
         If True and multiple remeasurements exist (t1->t2->t3),
@@ -1133,6 +1138,8 @@ def panel(
         - REMPER: Remeasurement period (years)
         - HARVEST: Harvest indicator (1=harvest detected, 0=no harvest)
         - t1_*/t2_*: Attributes at time 1 and time 2
+        - CONDPROP_UNADJ and any ``columns``: time-2 values, with the time-1
+          values in ``t1_CONDPROP_UNADJ`` and ``t1_<column>``
 
         For tree-level:
         - PLT_CN: Plot control number
@@ -1145,8 +1152,20 @@ def panel(
           - 'ingrowth': New tree crossing size threshold
         - COMPONENT: Raw GRM component (SURVIVOR, CUT1, etc.)
         - DIA_BEGIN, DIA_MIDPT, DIA_END: Diameter measurements
-        - TPA_UNADJ: Trees per acre expansion factor
+        - TPAGROW_UNADJ: Trees per acre the tree represents over the
+          remeasurement interval, for every GRM component. Summing it over
+          SURVIVOR, CUT1, MORTALITY1 and DIVERSION1 rows gives the trees at
+          risk at time 1.
+        - TPAREMV_UNADJ: Annual removals rate, TPAGROW_UNADJ / REMPER on cut
+          and diversion rows; null otherwise.
+        - TPAMORT_UNADJ: Annual mortality rate, TPAGROW_UNADJ / REMPER on
+          mortality rows; null otherwise.
+        - TPA_UNADJ: Same as TPAREMV_UNADJ (the weight ``expand=True`` uses).
         - t1_*/t2_*: Tree attributes at time 1 and time 2
+
+        The TPA columns are on the basis ``tree_type`` and ``land_type``
+        select (the ``SUBP_*_UNADJ_{GS,AL}_{FOREST,TIMBER}`` columns of
+        TREE_GRM_COMPONENT).
 
     See Also
     --------

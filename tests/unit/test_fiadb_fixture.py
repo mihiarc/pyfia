@@ -8,8 +8,7 @@ from pyfia import area, mortality
 def test_fixture_is_consistent(fiadb_fixture_path):
     with duckdb.connect(str(fiadb_fixture_path), read_only=True) as con:
         (version,) = con.execute(
-            "SELECT VERSION FROM REF_FIADB_VERSION "
-            "ORDER BY CREATED_DATE DESC LIMIT 1"
+            "SELECT VERSION FROM REF_FIADB_VERSION ORDER BY CREATED_DATE DESC LIMIT 1"
         ).fetchone()
         (dangling,) = con.execute(
             "SELECT count(*) FROM PLOT p LEFT JOIN PLOT q ON q.CN = p.PREV_PLT_CN "

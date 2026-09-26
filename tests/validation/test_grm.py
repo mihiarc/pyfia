@@ -263,6 +263,48 @@ class TestGRMGroupedByCondition:
             )
 
 
+class TestGrowthTreeDomain:
+    """A species tree_domain gives EVALIDator's growth for that species (#171).
+
+    EVALIDator has no tree filter, but it groups net growth (snum 202) by
+    species; a species domain must reproduce that species' row, SE included.
+    """
+
+    @pytest.mark.parametrize("spcd", [131, 611], ids=["loblolly", "sweetgum"])
+    def test_species_domain(self, fia_db, evalidator_client, spcd):
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = growth(
+                db,
+                land_type="forest",
+                tree_type="gs",
+                measure="volume",
+                tree_domain=f"SPCD == {spcd}",
+            )
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=202,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="cu ft/year",
+            estimate_type="growth by species",
+            rselected="Species",
+            cselected="None",
+        )
+        (row,) = [
+            r for r in ev.raw_response["estimates"] if f"SPCD {spcd:04d} " in r["GRP1"]
+        ]
+
+        print(
+            f"\nSPCD {spcd}: pyFIA {result['GROWTH_TOTAL'][0]:,.0f}"
+            f" vs EVALIDator {row['ESTIMATE']:,.0f}"
+        )
+        assert values_match(result["GROWTH_TOTAL"][0], float(row["ESTIMATE"]))
+        assert se_values_match(
+            result["GROWTH_TOTAL_SE"][0], float(row["SE"]), rel_tol=SE_TOLERANCE_GRM
+        )
+
+
 class TestGRMAllLive:
     """All-live GRM estimates (trees at least 1 inch) match EVALIDator (#167).
 

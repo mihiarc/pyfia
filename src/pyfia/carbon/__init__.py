@@ -10,9 +10,8 @@ species-specific carbon fractions from Tables S10a/S10b.
 It is the NSVB-native counterpart to the FIADB-stored tree-carbon path
 exposed by :func:`pyfia.estimation.estimators.carbon_pools.carbon_pool`
 (which reads the pre-computed ``CARBON_AG`` / ``CARBON_BG`` columns
-directly). The two should agree at the tree level for NSVB-era inventories;
-the downstream ``forest-carbon`` package uses both for its NSVB-vs-FIADB
-reconciliation.
+directly). The two should agree at the tree level for NSVB-era inventories,
+which makes them a pair for NSVB-vs-FIADB reconciliation.
 
 Pools implemented
 =================

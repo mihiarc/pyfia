@@ -26,7 +26,7 @@ FIA GRM methodology documentation
 
 ## Functions
 
-### `panel` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L1019" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `panel` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L1017" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 panel(db: str | FIA, level: Literal['condition', 'tree'] = 'condition', columns: list[str] | None = None, land_type: str = 'forest', tree_type: str = 'gs', tree_domain: str | None = None, area_domain: str | None = None, expand_chains: bool = True, min_remper: float = 0, max_remper: float | None = None, min_invyr: int = 2000, harvest_only: bool = False, expand: bool = False, measure: Literal['tpa', 'volume'] = 'tpa', grp_by: list[str] | None = None, by_fate: bool = False) -> pl.DataFrame
@@ -56,8 +56,9 @@ definitions aligned with FIA's official estimation methodology.
   Each row is a condition measured at two time points.
 - 'tree'\: Tree-level panel for individual tree tracking.
   Each row is a tree with GRM component classification.
-- `columns`: Additional columns to include beyond defaults. Useful for adding
-specific attributes needed for analysis.
+- `columns`: Additional COND columns for condition-level panels. Each appears
+unprefixed with its time-2 value and as ``t1_<column>`` with its
+time-1 value. Not used for tree-level panels.
 - `land_type`: Land classification filter\:
 - 'forest'\: All forest land (COND_STATUS_CD = 1)
 - 'timber'\: Timberland (productive, unreserved forest)
@@ -66,9 +67,15 @@ specific attributes needed for analysis.
 - 'gs'\: Growing stock (merchantable trees) - uses GS columns
 - 'all'\: All trees - uses GS columns (default GRM behavior)
 - 'live'\: All live trees - uses AL columns
-- `tree_domain`: SQL-like filter expression for tree-level filtering.
+- `tree_domain`: SQL-like filter expression for tree-level filtering, using unprefixed
+column names. It is evaluated on each GRM tree record\: ``DIA`` is the
+GRM midpoint diameter, as in `removals` and `mortality`, and columns
+found only in TREE (e.g. ``TREECLCD``) come from the tree's current
+TREE record.
 Example\: "SPCD == 131" (loblolly pine only)
-- `area_domain`: SQL-like filter expression for condition-level filtering.
+- `area_domain`: SQL-like filter expression for condition-level filtering, using
+unprefixed COND and PLOT column names. It is evaluated on the time-2
+condition, like ``land_type``.
 Example\: "OWNGRPCD == 40" (private land only)
 - `expand_chains`: If True and multiple remeasurements exist (t1->t2->t3),
 creates pairs (t1,t2) and (t2,t3). If False, only returns
@@ -112,6 +119,8 @@ For condition-level:
 - REMPER: Remeasurement period (years)
 - HARVEST: Harvest indicator (1=harvest detected, 0=no harvest)
 - t1_*/t2_*: Attributes at time 1 and time 2
+- CONDPROP_UNADJ and any ``columns``: time-2 values, with the time-1
+  values in ``t1_CONDPROP_UNADJ`` and ``t1_<column>``
 
 For tree-level:
 - PLT_CN: Plot control number
@@ -124,8 +133,20 @@ For tree-level:
   - 'ingrowth': New tree crossing size threshold
 - COMPONENT: Raw GRM component (SURVIVOR, CUT1, etc.)
 - DIA_BEGIN, DIA_MIDPT, DIA_END: Diameter measurements
-- TPA_UNADJ: Trees per acre expansion factor
+- TPAGROW_UNADJ: Trees per acre the tree represents over the
+  remeasurement interval, for every GRM component. Summing it over
+  SURVIVOR, CUT1, MORTALITY1 and DIVERSION1 rows gives the trees at
+  risk at time 1.
+- TPAREMV_UNADJ: Annual removals rate, TPAGROW_UNADJ / REMPER on cut
+  and diversion rows; null otherwise.
+- TPAMORT_UNADJ: Annual mortality rate, TPAGROW_UNADJ / REMPER on
+  mortality rows; null otherwise.
+- TPA_UNADJ: Same as TPAREMV_UNADJ (the weight ``expand=True`` uses).
 - t1_*/t2_*: Tree attributes at time 1 and time 2
+
+The TPA columns are on the basis ``tree_type`` and ``land_type``
+select (the ``SUBP_*_UNADJ_{GS,AL}_{FOREST,TIMBER}`` columns of
+TREE_GRM_COMPONENT).
 
 
 **Examples:**
@@ -160,7 +181,7 @@ Filter remeasurement period to 4-8 years:
 
 ## Classes
 
-### `PanelBuilder` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L38" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `PanelBuilder` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L39" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 
 Builder for creating t1/t2 remeasurement panels from FIA data.
@@ -175,7 +196,7 @@ panels for individual tree tracking.
 
 **Methods:**
 
-#### `build` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L154" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `build` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/panel.py#L155" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 build(self) -> pl.DataFrame
@@ -185,4 +206,3 @@ Build the remeasurement panel.
 
 **Returns:**
 - Panel dataset with t1/t2 measurement pairs
-

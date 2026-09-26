@@ -7,11 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### NSVB-recompute tree carbon (`pyfia.carbon`)
+## [1.4.4] - 2026-09-26
+
+Correctness fixes for GRM grouping, `panel()`, forest type groups and three
+code constants (#135–#138). Totals from the EVALIDator-validated estimators
+are unchanged; grouped GRM results and some labels change, as described below.
+
+### Fixed
+- **`mortality()` and `removals()` grouped or filtered trees by another condition's attributes** (#138). Condition data was collapsed to one row per plot with `first()` and joined to trees on `PLT_CN`, so `grp_by` or `area_domain` on any COND column (`DSTRBCD1–3`, `TRTCD1–3`, `OWNGRPCD`, `FORTYPCD`, `SITECLCD`, …) gave trees on multi-condition plots whichever condition came first. Each tree now gets the condition of its time-2 TREE record, which is how EVALIDator groups GRM estimates. On Georgia EVALID 132403, grouped totals by disturbance (mortality) and by treatment (removals) now match EVALIDator exactly, where they were off by 57.6M and 195.0M cu ft in total. Ungrouped totals, per-acre values and SEs are unchanged. `growth()` already used each tree's condition.
+- **Grouped GRM standard errors were null for a null group** (#138). A null group is legitimate after the fix above: for example, trees diverted to a nonforest condition have no treatment or disturbance code. Its SE now matches EVALIDator's "Not available" group.
+- **`panel()` ignored `area_domain` and `tree_domain`** (#136). Both were passed into the wrong parameter. `area_domain` now filters on the time-2 condition, like `land_type`; `tree_domain` filters on the GRM tree record, with `DIA` as the midpoint diameter, as in `removals()`. Columns a domain references are loaded if needed, including TREE-only columns such as `TREECLCD`.
+- **`get_forest_type_group()` and related functions disagreed with FIADB for 102 of 207 forest types** (#135). Groups came from hardcoded code ranges; every code from 100 to 199 was "White/Red/Jack Pine", including loblolly/shortleaf and longleaf/slash pine. Groups now come from `REF_FOREST_TYPE.TYPGRPCD` via the generated `pyfia.constants.forest_types`. Estimator outputs with `FORTYPCD` pick up the corrected `FOREST_TYPE_GROUP` automatically.
+- **`LandStatus`, `TreeComponent` and "Southern Pines" didn't match FIADB** (#137). `COND_STATUS_CD` 5 is "Nonsampled, possibility of forest land" and 6–7 don't exist. No GRM component is named `HARVEST`. "Southern Pines" included singleleaf pinyon (133) and left out shortleaf, slash and longleaf pine.
+
+### Changed
+- **Forest type group names are FIADB's, verbatim** (#135): for example "Loblolly / shortleaf pine group" instead of "White/Red/Jack Pine", and "Oak / hickory group" instead of "Oak/Hickory". A code missing from `REF_FOREST_TYPE` gets "Unknown" (or a null group code) with a warning listing the codes; no current state FIADB has such a code.
+- **`assign_species_group(grouping_system="major_species")`**: "Southern Pines" is `REF_SPECIES.E_SPGRPCD` 1 and 2 (shortleaf, slash, longleaf, loblolly). Virginia pine (132) and singleleaf pinyon (133) are now "Pines" (#137).
+- **`connectorx` is no longer a dependency.** No module used it, and it has no Python 3.14 wheels.
+
+### Added
+- **`panel(level="tree")` weights** (#136): `TPAGROW_UNADJ` (the interval weight for every GRM component, so survivor, mortality and ingrowth rows now carry one), `TPAREMV_UNADJ` and `TPAMORT_UNADJ` (annual rates, equal to `TPAGROW_UNADJ / REMPER` on their own rows). `TPA_UNADJ` keeps its meaning, the removals rate.
+- **`panel(level="condition")` time-1 columns** (#136): `t1_CONDPROP_UNADJ` and a `t1_` copy of every `columns=` entry. The unprefixed names keep the time-2 values.
+- `LandStatus.NONSAMPLED`; the exact `TreeComponent` values (`CUT1`, `MORTALITY2`, `NOT_USED`, …) plus `CUT`/`DIVERSION`/`REVERSION` prefixes; `pyfia.constants.species` (#137).
+- Python 3.14 support, tested in CI.
+
+### Deprecated
+- `LandStatus.DENIED_ACCESS`, `LandStatus.HAZARDOUS`, `LandStatus.INACCESSIBLE` and `TreeComponent.HARVEST` warn on access and will be removed in 1.5.0 (#137).
+
+### Tests
+- A three-county Alabama FIADB subset is committed under `tests/fixtures/fiadb_al/` (CC BY 4.0, FIADB 1.9.4.00), so tests that need real FIA rows run in CI. The regression tests for #135–#138 and the existing `panel()` tests use it.
+- New EVALIDator validation tests compare GRM totals and SEs grouped by a condition attribute.
+
+## [1.4.3] - 2026-07-13
+
+Bug-fix release for `most_recent` evaluation selection (#130). The release
+also shipped the `pyfia.carbon` tree estimators merged after 1.4.2 (#122).
+
+### Fixed
+- **`clip_by_state(most_recent=True)` / `find_evalid(most_recent=True)` could select an old periodic evaluation instead of the current annual one** (#130) — the most-recent sort ordered by `END_INVYR` descending, but polars' default `nulls_last=False` sorts `NULL` first under `descending=True`. Periodic evaluations (which predate `END_INVYR` and store it as `NULL`) therefore outranked dated annual evaluations. For example, `FIA("CA.duckdb").clip_by_state(6, most_recent=True, eval_type="VOL")` selected the 1994 periodic EVALID `69401` instead of the 2021 annual EVALID `62101`, silently returning 1994-vintage plots. The sort now passes `nulls_last=True` so periodic evaluations sink to the bottom whenever a dated annual evaluation is available, in both the general and Texas East/West branches.
+
+### NSVB-recompute tree carbon (`pyfia.carbon`, #122)
 
 Restores the NSVB-recomputation tree-carbon path (#121) — deleted when the
-broader carbon subsystem was deferred — so first-party downstream consumers
-(`forest-carbon`) can resume their NSVB-vs-FIADB reconciliation. Only the two
+broader carbon subsystem was deferred — so downstream NSVB-vs-FIADB
+reconciliation work can resume. Only the two
 tree estimators and their NSVB machinery are restored; the condition-level
 pools remain deferred pending NULL-handling verification (#90).
 
@@ -25,13 +64,6 @@ pools remain deferred pending NULL-handling verification (#90).
 #### Deferred
 - Condition-level carbon pools (`understory`, `downed_dead`, `litter`, `soil_organic`), `total_ecosystem`, and `stock_change` remain held pending domain verification of their NULL handling (#90) — tracked separately.
 - Native NSVB belowground coarse-root model (currently bridged to FIADB `TREE.CARBON_BG`).
-
-## [1.4.3] - 2026-07-13
-
-Bug-fix release for `most_recent` evaluation selection (#130).
-
-### Fixed
-- **`clip_by_state(most_recent=True)` / `find_evalid(most_recent=True)` could select an old periodic evaluation instead of the current annual one** (#130) — the most-recent sort ordered by `END_INVYR` descending, but polars' default `nulls_last=False` sorts `NULL` first under `descending=True`. Periodic evaluations (which predate `END_INVYR` and store it as `NULL`) therefore outranked dated annual evaluations. For example, `FIA("CA.duckdb").clip_by_state(6, most_recent=True, eval_type="VOL")` selected the 1994 periodic EVALID `69401` instead of the 2021 annual EVALID `62101`, silently returning 1994-vintage plots. The sort now passes `nulls_last=True` so periodic evaluations sink to the bottom whenever a dated annual evaluation is available, in both the general and Texas East/West branches.
 
 ## [1.4.2] - 2026-06-30
 

@@ -76,6 +76,7 @@ from pyfia.evalidator.validation import (
     validate_pyfia_estimate,
 )
 from pyfia.intervals import condition_intervals
+from pyfia.stand_metrics import condition_stand_metrics
 
 # Reference table utilities - Useful for adding descriptive names to results
 from pyfia.utils.reference_tables import (
@@ -116,6 +117,7 @@ __all__ = [
     # Estimation functions
     "area",
     "area_change",
+    "condition_stand_metrics",
     "biomass",
     "volume",
     "tpa",

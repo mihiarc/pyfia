@@ -52,6 +52,12 @@ class CondColumns:
     STDAGE = "STDAGE"
     STDORGCD = "STDORGCD"
     PROP_BASIS = "PROP_BASIS"
+    STATECD = "STATECD"
+    INVYR = "INVYR"
+    MICRPROP_UNADJ = "MICRPROP_UNADJ"
+    SUBPPROP_UNADJ = "SUBPPROP_UNADJ"
+    MACRPROP_UNADJ = "MACRPROP_UNADJ"
+    BALIVE = "BALIVE"
 
 
 class PlotColumns:
@@ -64,6 +70,13 @@ class PlotColumns:
     LAT = "LAT"
     LON = "LON"
     MACRO_BREAKPOINT_DIA = "MACRO_BREAKPOINT_DIA"
+
+
+class RefSpeciesColumns:
+    """REF_SPECIES table column names."""
+
+    SPCD = "SPCD"
+    SFTWD_HRDWD = "SFTWD_HRDWD"
 
 
 class StratColumns:

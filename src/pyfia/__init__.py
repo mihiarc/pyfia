@@ -75,6 +75,7 @@ from pyfia.evalidator.validation import (
     compare_estimates,
     validate_pyfia_estimate,
 )
+from pyfia.intervals import condition_intervals
 
 # Reference table utilities - Useful for adding descriptive names to results
 from pyfia.utils.reference_tables import (
@@ -126,6 +127,8 @@ __all__ = [
     "tree_metrics",
     "live_tree",
     "standing_dead",
+    # Remeasurement builders
+    "condition_intervals",
     # Reference table utilities
     "join_forest_type_names",
     "join_species_names",

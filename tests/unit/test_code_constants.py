@@ -12,17 +12,24 @@ from pathlib import Path
 import duckdb
 import pytest
 
+from pyfia.constants import codes
 from pyfia.constants.species import SOUTHERN_PINE_E_SPGRPCD, SOUTHERN_PINE_SPCD
 from pyfia.constants.status_codes import LandStatus, TreeComponent
+from pyfia.reference import label_codes
 
 HANDBOOK = Path(__file__).parents[2] / "reference" / "fia_handbook"
+
+# PDF page headers that the extraction turned into headings, such as
+# "## Condition Table" in the middle of the DSTRBCD1 codes.
+PAGE_HEADER = re.compile(r"^## [A-Z][A-Za-z ,]* Table$")
 
 
 def user_guide_codes(section_file: str, column: str) -> dict[str, str]:
     """Parse the ``## Codes: <column>`` table(s) of a User Guide section.
 
     Returns code -> description. A codes table can be split across several
-    markdown tables; parsing stops at the next ``## `` heading.
+    markdown tables and page headers; parsing stops at the next other ``## ``
+    heading.
     """
     lines = (HANDBOOK / section_file).read_text().splitlines()
     escaped = column.replace("_", r"\_")
@@ -31,6 +38,8 @@ def user_guide_codes(section_file: str, column: str) -> dict[str, str]:
     codes: dict[str, str] = {}
     for line in lines[start:]:
         if line.startswith("## "):
+            if PAGE_HEADER.match(line):
+                continue
             break
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 2 or cells[0] in ("Code", "") or set(cells[0]) <= {"-"}:
@@ -108,6 +117,120 @@ class TestTreeComponent:
     def test_harvest_removed(self):
         """Removed in 1.5.0: no GRM component is named HARVEST."""
         assert not hasattr(TreeComponent, "HARVEST")
+
+
+COND = "fia_section_2_5_cond.md"
+TREE = "fia_section_3_1_tree.md"
+GRM = "fia_section_3_3_tree_grm_component.md"
+
+
+def meaning(description: str) -> str:
+    """The rule pyfia.constants.codes documents: the leading term of the
+    description (before " - "), without "(core optional)" or a final period."""
+    description = re.sub(r"\s*\(\s*core optional\s*\)", "", description)
+    term = description.split(" - ", 1)[0]
+    return re.sub(r"\s+", " ", term).strip().rstrip(".")
+
+
+class TestCodeTables:
+    """pyfia.constants.codes equals the vendored User Guide "Codes" tables."""
+
+    @pytest.mark.parametrize(
+        "name, section, column",
+        [
+            ("COND_STATUS_CD", COND, "COND_STATUS_CD"),
+            ("RESERVCD", COND, "RESERVCD"),
+            ("OWNCD", COND, "OWNCD"),
+            ("SITECLCD", COND, "SITECLCD"),
+            ("STDORGCD", COND, "STDORGCD"),
+            ("DSTRBCD", COND, "DSTRBCD1"),
+            ("TRTCD", COND, "TRTCD1"),
+            ("HARVEST_TYPE_SRS", COND, "HARVEST_TYPE1_SRS"),
+            ("STATUSCD", TREE, "STATUSCD"),
+            ("TREECLCD", TREE, "TREECLCD"),
+            ("AGENTCD", TREE, "AGENTCD"),
+        ],
+    )
+    def test_table_equals_user_guide(self, name, section, column):
+        guide = user_guide_codes(section, column)
+        expected = {int(code): meaning(desc) for code, desc in guide.items()}
+        if name == "STATUSCD":
+            # Code 3's description opens "Retired code - ... Removed - Cut and
+            # removed ..."; its meaning is the second term.
+            assert "Removed - " in guide["3"]
+            expected[3] = "Removed"
+        assert getattr(codes, name) == expected
+
+    def test_dstrbcd_spans_the_page_break(self):
+        # The table continues after a "## Condition Table" page header.
+        assert codes.DSTRBCD[54] == "Drought"
+        assert codes.DSTRBCD[95] == "Earth movement / avalanches"
+
+    def test_grm_components_equal_user_guide(self):
+        guide = user_guide_codes(GRM, "MICR_COMPONENT_AL_FOREST")
+        expected = {}
+        for code, desc in guide.items():
+            # PDF artifacts: "CUT 1" for CUT1 and "TREE. STATUSCD" for TREE.STATUSCD
+            spaced = code.startswith("N/A") or code == "NOT USED"
+            key = code if spaced else re.sub(r"\s+", "", code)
+            text = re.sub(r"TREE\. (?=[A-Z])", "TREE.", re.sub(r"\s+", " ", desc))
+            expected[key] = text.strip().rstrip(".")
+        assert codes.GRM_COMPONENT == expected
+        assert "CUT1" in codes.GRM_COMPONENT
+
+    def test_grm_components_cover_tree_component(self):
+        prefixes = {"CUT", "MORTALITY", "DIVERSION", "REVERSION"}
+        for name, value in public_members(TreeComponent).items():
+            if name not in prefixes:
+                assert value in codes.GRM_COMPONENT, f"TreeComponent.{name}"
+
+    def test_user_guide_revision(self):
+        # Chapter 2 (COND) and chapter 3 (TREE, GRM) page footers carry it.
+        stamps = {
+            match
+            for path in HANDBOOK.glob("fia_section_[23]_*.md")
+            for match in re.findall(
+                r"Chapter [23] \(revision: ([\d.]+)\)", path.read_text()
+            )
+        }
+        assert stamps == {codes.USER_GUIDE_REVISION}
+
+    def test_code_tables_columns(self):
+        assert codes.CODE_TABLES["TRTCD3"] is codes.TRTCD
+        assert codes.CODE_TABLES["DSTRBCD2"] is codes.DSTRBCD
+        assert codes.CODE_TABLES["HARVEST_TYPE2_SRS"] is codes.HARVEST_TYPE_SRS
+        assert codes.CODE_TABLES["SUBP_COMPONENT_GS_TIMBER"] is codes.GRM_COMPONENT
+
+    @pytest.mark.parametrize(
+        "table, column",
+        [
+            ("COND", "COND_STATUS_CD"),
+            ("COND", "RESERVCD"),
+            ("COND", "OWNCD"),
+            ("COND", "SITECLCD"),
+            ("COND", "STDORGCD"),
+            ("COND", "DSTRBCD1"),
+            ("COND", "DSTRBCD2"),
+            ("COND", "DSTRBCD3"),
+            ("COND", "TRTCD1"),
+            ("COND", "TRTCD2"),
+            ("COND", "TRTCD3"),
+            ("COND", "HARVEST_TYPE1_SRS"),
+            ("COND", "HARVEST_TYPE2_SRS"),
+            ("COND", "HARVEST_TYPE3_SRS"),
+            ("TREE", "STATUSCD"),
+            ("TREE", "TREECLCD"),
+            ("TREE", "AGENTCD"),
+            ("TREE_GRM_COMPONENT", "SUBP_COMPONENT_AL_FOREST"),
+            ("TREE_GRM_COMPONENT", "MICR_COMPONENT_AL_TIMBER"),
+        ],
+    )
+    def test_every_fixture_code_is_labeled(self, fiadb_fixture_path, table, column):
+        with duckdb.connect(str(fiadb_fixture_path), read_only=True) as con:
+            values = con.sql(f"SELECT DISTINCT {column} FROM {table}").pl()
+        labeled = label_codes(values, column).drop_nulls(column)
+        assert labeled.height > 0
+        assert labeled[f"{column}_NAME"].null_count() == 0
 
 
 class TestSpeciesGroupsAgainstRef:

@@ -79,7 +79,7 @@ from pyfia.evalidator.validation import (
     validate_pyfia_estimate,
 )
 from pyfia.intervals import condition_intervals
-from pyfia.reference import join_reference
+from pyfia.reference import join_reference, label_codes
 from pyfia.stand_metrics import condition_stand_metrics
 
 # Note: Statistical utility functions (merge_estimation_data, calculate_stratum_estimates, etc.)
@@ -131,6 +131,7 @@ __all__ = [
     # Reference tables
     "reference",
     "join_reference",
+    "label_codes",
     # EVALIDator validation
     "EVALIDatorClient",
     "EVALIDatorEstimate",

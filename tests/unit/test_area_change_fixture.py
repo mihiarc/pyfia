@@ -24,8 +24,13 @@ STATUS = {
 }
 
 
-def evalidator_change_total(db_path, status: str, annual: bool) -> float:
-    """Expanded area change total, as EVALIDator's SQL computes it."""
+def evalidator_change_total(
+    db_path, status: str, annual: bool, domain: str = "TRUE"
+) -> float:
+    """Expanded area change total, as EVALIDator's SQL computes it.
+
+    ``domain`` is extra SQL on the current condition (``cond``).
+    """
     per_year = "/ plot.REMPER" if annual else ""
     sql = f"""
         SELECT SUM(v * EXPNS) FROM (
@@ -47,6 +52,7 @@ def evalidator_change_total(db_path, status: str, annual: bool) -> float:
             AND COALESCE(cond.COND_NONSAMPLE_REASN_CD, 0) = 0
             AND COALESCE(pcond.COND_NONSAMPLE_REASN_CD, 0) = 0
             AND ({STATUS[status]})
+            AND ({domain})
             AND ps.EVALID = {EVALID_CHNG}
           GROUP BY ps.EXPNS, plot.CN)
     """
@@ -54,10 +60,14 @@ def evalidator_change_total(db_path, status: str, annual: bool) -> float:
         return con.sql(sql).fetchone()[0]
 
 
-def pyfia_change_total(db_path, change_type: str, annual: bool) -> float:
+def pyfia_change_total(
+    db_path, change_type: str, annual: bool, area_domain: str | None = None
+) -> float:
     with FIA(str(db_path)) as db:
         db.clip_by_evalid(EVALID_CHNG)
-        result = area_change(db, change_type=change_type, annual=annual)
+        result = area_change(
+            db, change_type=change_type, annual=annual, area_domain=area_domain
+        )
     return result["AREA_CHANGE_TOTAL"][0]
 
 
@@ -95,3 +105,62 @@ class TestAreaChangeMatchesEvalidatorSQL:
         gain = pyfia_change_total(fiadb_fixture_path, "gross_gain", annual)
         loss = pyfia_change_total(fiadb_fixture_path, "gross_loss", annual)
         assert gain + loss == pytest.approx(transition_area, rel=1e-9)
+
+
+class TestAreaDomain:
+    """area_domain filters the current (time-2) condition (#148)."""
+
+    @pytest.mark.parametrize("change_type", ["gross_gain", "gross_loss"])
+    def test_counties_partition_the_change(self, fiadb_fixture_path, change_type):
+        status = "gain" if change_type == "gross_gain" else "loss"
+        by_county = []
+        for countycd in (25, 125, 129):
+            expected = evalidator_change_total(
+                fiadb_fixture_path, status, True, domain=f"cond.COUNTYCD = {countycd}"
+            )
+            got = pyfia_change_total(
+                fiadb_fixture_path,
+                change_type,
+                True,
+                area_domain=f"COUNTYCD == {countycd}",
+            )
+            assert got == pytest.approx(expected or 0.0, rel=1e-9, abs=1e-9)
+            by_county.append(got)
+        overall = pyfia_change_total(fiadb_fixture_path, change_type, True)
+        assert max(by_county) < overall
+        assert sum(by_county) == pytest.approx(overall, rel=1e-9)
+
+    def test_forest_only_attribute_drops_losses(self, fiadb_fixture_path):
+        """OWNGRPCD is null on the fixture's nonforest conditions (documented)."""
+        assert pyfia_change_total(fiadb_fixture_path, "gross_loss", True) > 0
+        assert (
+            pyfia_change_total(
+                fiadb_fixture_path, "gross_loss", True, area_domain="OWNGRPCD == 40"
+            )
+            == 0
+        )
+
+    def test_domain_on_a_column_not_otherwise_loaded(self, fiadb_fixture_path):
+        expected = evalidator_change_total(
+            fiadb_fixture_path, "gain", False, domain="cond.STDORGCD = 1"
+        )
+        assert expected > 0
+        assert pyfia_change_total(
+            fiadb_fixture_path, "gross_gain", False, area_domain="STDORGCD == 1"
+        ) == pytest.approx(expected, rel=1e-9)
+
+    def test_status_domain_is_the_current_status(self, fiadb_fixture_path):
+        """Losses end on nonforest land, so a current-forest domain has none."""
+        assert pyfia_change_total(fiadb_fixture_path, "gross_loss", True) > 0
+        assert (
+            pyfia_change_total(
+                fiadb_fixture_path,
+                "gross_loss",
+                True,
+                area_domain="COND_STATUS_CD == 1",
+            )
+            == 0
+        )
+        assert pyfia_change_total(
+            fiadb_fixture_path, "gross_gain", True, area_domain="COND_STATUS_CD == 1"
+        ) == pytest.approx(pyfia_change_total(fiadb_fixture_path, "gross_gain", True))

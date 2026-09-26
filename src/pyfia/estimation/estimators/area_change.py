@@ -386,29 +386,19 @@ class AreaChangeEstimator(BaseEstimator):
         """
         Apply expansion factors to convert to acres.
 
-        For area change, we multiply the adjusted plot value by EXPNS.
-        If annual=True (default), we also divide by REMPER.
+        The plot's adjusted change, divided by REMPER when annual=True
+        (default), is kept as ``y_i`` for the variance; ``AREA_CHANGE`` is
+        ``y_i`` times EXPNS.
         """
         annual = self.config.get("annual", True)
 
-        # Apply expansion factor
-        data = data.with_columns(
-            [(pl.col("PLOT_CHANGE_NORM") * pl.col("EXPNS")).alias("CHANGE_EXPANDED")]
-        )
-
-        # Annualize if requested
+        y = pl.col("PLOT_CHANGE_NORM")
         if annual:
-            data = data.with_columns(
-                [(pl.col("CHANGE_EXPANDED") / pl.col("REMPER")).alias("CHANGE_ANNUAL")]
-            )
-            value_col = "CHANGE_ANNUAL"
-        else:
-            value_col = "CHANGE_EXPANDED"
+            y = y / pl.col("REMPER")
 
-        # Rename to standard column
-        data = data.with_columns([pl.col(value_col).alias("AREA_CHANGE")])
-
-        return data
+        return data.with_columns(y.alias("y_i")).with_columns(
+            (pl.col("y_i") * pl.col("EXPNS")).alias("AREA_CHANGE")
+        )
 
     def calculate_totals(self, data: pl.LazyFrame) -> pl.DataFrame:
         """
@@ -454,9 +444,11 @@ class AreaChangeEstimator(BaseEstimator):
         self, result: AggregationResult | pl.DataFrame
     ) -> pl.DataFrame:
         """
-        Calculate variance for area change estimates.
+        Calculate the standard error of each area change total.
 
-        Uses stratified variance estimation following Bechtold & Patterson.
+        Uses the exact Bechtold & Patterson post-stratified variance of a
+        domain total on unexpanded plot values (``y_i``). Every plot in the
+        evaluation enters, with zero change where it has none in the group.
         """
         # Handle AggregationResult from base class signature
         if isinstance(result, AggregationResult):
@@ -477,25 +469,47 @@ class AreaChangeEstimator(BaseEstimator):
         if "STATECD" not in group_cols:
             group_cols.insert(0, "STATECD")
 
-        # Calculate stratified variance
-        from ..variance import calculate_grouped_domain_total_variance
+        from ..variance import calculate_domain_total_variance
 
-        var_result = calculate_grouped_domain_total_variance(
-            plot_data=self.plot_change_data,
-            y_col="AREA_CHANGE",
-            group_cols=group_cols,
+        all_plots = (
+            self._get_stratification_data()
+            .select(
+                [
+                    "PLT_CN",
+                    "STRATUM_CN",
+                    "EXPNS",
+                    "ESTN_UNIT_CN",
+                    "STRATUM_WGT",
+                    "AREA_USED",
+                    "P2POINTCNT",
+                ]
+            )
+            .collect()
         )
 
-        # Expose the standard error of the reported total as AREA_CHANGE_SE
-        # (group_cols always includes STATECD, so var_result joins cleanly). The
+        se_values = []
+        for row in result.iter_rows(named=True):
+            in_group = pl.all_horizontal(
+                pl.col(col).is_null() if row[col] is None else pl.col(col) == row[col]
+                for col in group_cols
+            )
+            group_y = (
+                self.plot_change_data.filter(in_group)
+                .group_by("PLT_CN")
+                .agg(pl.col("y_i").sum())
+            )
+            plots = all_plots.join(group_y, on="PLT_CN", how="left").with_columns(
+                pl.col("y_i").fill_null(0.0)
+            )
+            se_values.append(calculate_domain_total_variance(plots, "y_i")["se_total"])
+
+        # One SE per result row, in row order. Attached positionally because a
+        # join on the group keys would drop the SE of a null group. The
         # matching AREA_CHANGE_VARIANCE column (when variance=True) is added
-        # uniformly by apply_variance_columns at the end of estimate().
-        var_result = var_result.select(
-            [*group_cols, pl.col("se_total").alias("AREA_CHANGE_SE")]
+        # by apply_variance_columns at the end of estimate().
+        return result.with_columns(
+            pl.Series("AREA_CHANGE_SE", se_values, dtype=pl.Float64)
         )
-        result = result.join(var_result, on=group_cols, how="left")
-
-        return result
 
     def estimate(self) -> pl.DataFrame:
         """
@@ -639,6 +653,11 @@ def area_change(
     EVALIDator's forest area where either measurement is forest land minus
     the area where both are (snum 128 minus 127, or 137 minus 136 per year).
     With ``annual=False``, plots without a remeasurement period still count.
+
+    ``AREA_CHANGE_SE`` is the exact Bechtold & Patterson post-stratified
+    standard error of a domain total, computed over every plot in the
+    evaluation (zero change where a plot has none). On the same plot values
+    it reproduces EVALIDator's sampling errors for its area change estimates.
 
     The REMPER (remeasurement period) varies by plot but averages approximately
     5-7 years in most states.

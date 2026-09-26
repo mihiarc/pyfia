@@ -19,7 +19,7 @@ from ..utils import (
     ensure_fia_instance,
     validate_estimator_inputs,
 )
-from ..variance import join_on_group_keys
+from ..variance import calculate_ratio_of_means_variance
 
 
 class SiteIndexEstimator(BaseEstimator):
@@ -325,98 +325,17 @@ class SiteIndexEstimator(BaseEstimator):
             ]
         )
 
-    def _calculate_ratio_variance(
-        self,
-        plot_data: pl.DataFrame,
-        ratio: float | None,
-        total_x: float | None,
-    ) -> dict[str, float | None]:
-        """Calculate variance for ratio estimator.
-
-        Uses the standard FIA ratio variance formula:
-        V(R) = (1/X^2) * [V(Y) - 2R*Cov(Y,X) + R^2*V(X)]
-
-        Where R = Y/X is the ratio (mean site index),
-        Y = sum(SI * area), X = sum(area)
-        """
-        # Determine stratification column
-        if "STRATUM_CN" in plot_data.columns:
-            strat_col = "STRATUM_CN"
-        elif "STRATUM" in plot_data.columns:
-            strat_col = "STRATUM"
-        else:
-            # No stratification, treat as single stratum
-            plot_data = plot_data.with_columns(pl.lit(1).alias("_STRATUM"))
-            strat_col = "_STRATUM"
-
-        # Calculate stratum-level statistics
-        strata_stats = plot_data.group_by(strat_col).agg(
-            [
-                pl.count("PLT_CN").alias("n_h"),
-                pl.mean("y_i").alias("ybar_h"),
-                pl.mean("x_i").alias("xbar_h"),
-                pl.var("y_i", ddof=1).alias("s2_y"),
-                pl.var("x_i", ddof=1).alias("s2_x"),
-                pl.cov("y_i", "x_i", ddof=1).alias("cov_yx"),
-                pl.first("EXPNS").cast(pl.Float64).alias("w_h"),
-            ]
-        )
-
-        # Handle null variances (single observation in stratum)
-        strata_stats = strata_stats.with_columns(
-            [
-                pl.col("s2_y").fill_null(0.0),
-                pl.col("s2_x").fill_null(0.0),
-                pl.col("cov_yx").fill_null(0.0),
-            ]
-        )
-
-        # Calculate variance components
-        # V(R) = (1/X^2) * sum_h [w_h^2 * n_h * (s2_y - 2R*cov_yx + R^2*s2_x)]
-        r = ratio if ratio is not None else 0.0
-
-        variance_components = strata_stats.with_columns(
-            [
-                pl.when(pl.col("n_h") > 1)
-                .then(
-                    pl.col("w_h") ** 2
-                    * pl.col("n_h")
-                    * (
-                        pl.col("s2_y")
-                        - 2 * r * pl.col("cov_yx")
-                        + r**2 * pl.col("s2_x")
-                    )
-                )
-                .otherwise(0.0)
-                .alias("v_h")
-            ]
-        )
-
-        total_variance = variance_components["v_h"].sum()
-        if total_variance is None or total_variance < 0:
-            total_variance = 0.0
-
-        # Ratio variance: V(R) = V(total) / X^2
-        if total_x is not None and total_x > 0:
-            ratio_variance = total_variance / (total_x**2)
-        else:
-            ratio_variance = 0.0
-
-        se = ratio_variance**0.5
-
-        return {
-            "variance": ratio_variance,
-            "se": se,
-        }
-
     def calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame:
-        """Calculate variance using ratio-of-means formula.
+        """Calculate variance using the ratio-of-means formula.
 
-        For site index (ratio estimator), variance is:
+        For site index (a ratio estimator), variance is:
         V(R) = (1/X^2) * [V(Y) - 2R*Cov(Y,X) + R^2*V(X)]
 
         Where R = Y/X is the ratio (mean site index),
-        Y = sum(SI * area), X = sum(area)
+        Y = sum(SI * area), X = sum(area). V and Cov are Bechtold &
+        Patterson's post-stratified estimates over every plot in the
+        evaluation, with zeros for plots that have no site index area in the
+        group, as domain estimation requires.
         """
         results = agg_result.results
         plot_cond_data = agg_result.plot_tree_data
@@ -425,66 +344,65 @@ class SiteIndexEstimator(BaseEstimator):
         # Aggregate to plot level
         plot_data = self._aggregate_to_plot_level(plot_cond_data, group_cols)
 
-        if group_cols:
-            variance_results = []
-            for row in results.iter_rows(named=True):
-                # Build filter for this group
-                group_filter = pl.lit(True)
-                group_dict = {}
-
-                for col in group_cols:
-                    if col in plot_data.columns:
-                        val = row.get(col)
-                        group_dict[col] = val
-                        if val is None:
-                            group_filter = group_filter & pl.col(col).is_null()
-                        else:
-                            group_filter = group_filter & (pl.col(col) == val)
-
-                group_plot_data = plot_data.filter(group_filter)
-
-                if len(group_plot_data) > 0:
-                    var_stats = self._calculate_ratio_variance(
-                        group_plot_data, row.get("SI_MEAN"), row.get("SI_DENOM")
-                    )
-                    variance_results.append(
-                        {
-                            **group_dict,
-                            "SI_SE": var_stats["se"],
-                            "SI_VARIANCE": var_stats["variance"],
-                        }
-                    )
-
-            if variance_results:
-                var_df = pl.DataFrame(variance_results)
-                results = join_on_group_keys(results, var_df, group_cols)
-            else:
-                # No variance results, add null columns
-                results = results.with_columns(
-                    [
-                        pl.lit(None).cast(pl.Float64).alias("SI_SE"),
-                        pl.lit(None).cast(pl.Float64).alias("SI_VARIANCE"),
-                    ]
-                )
+        if results.is_empty() or plot_data.is_empty():
+            results = results.with_columns(
+                [
+                    pl.lit(None).cast(pl.Float64).alias("SI_SE"),
+                    pl.lit(None).cast(pl.Float64).alias("SI_VARIANCE"),
+                ]
+            )
         else:
-            # No grouping, calculate overall variance
-            if len(plot_data) > 0:
-                var_stats = self._calculate_ratio_variance(
-                    plot_data, results["SI_MEAN"][0], results["SI_DENOM"][0]
-                )
-                results = results.with_columns(
+            all_plots = (
+                self._get_stratification_data()
+                .select(
                     [
-                        pl.lit(var_stats["se"]).alias("SI_SE"),
-                        pl.lit(var_stats["variance"]).alias("SI_VARIANCE"),
+                        "PLT_CN",
+                        "STRATUM_CN",
+                        "EXPNS",
+                        "ESTN_UNIT_CN",
+                        "STRATUM_WGT",
+                        "AREA_USED",
+                        "P2POINTCNT",
                     ]
                 )
-            else:
-                results = results.with_columns(
-                    [
-                        pl.lit(None).cast(pl.Float64).alias("SI_SE"),
-                        pl.lit(None).cast(pl.Float64).alias("SI_VARIANCE"),
+                .collect()
+            )
+
+            se_values = []
+            variance_values = []
+            for row in results.iter_rows(named=True):
+                in_group = pl.all_horizontal(
+                    [pl.lit(True)]
+                    + [
+                        pl.col(col).is_null()
+                        if row[col] is None
+                        else pl.col(col) == row[col]
+                        for col in group_cols
+                        if col in plot_data.columns
                     ]
                 )
+                group_values = (
+                    plot_data.filter(in_group)
+                    .group_by("PLT_CN")
+                    .agg(pl.col("y_i").sum(), pl.col("x_i").sum())
+                )
+                plots = all_plots.join(
+                    group_values, on="PLT_CN", how="left"
+                ).with_columns(
+                    pl.col("y_i").fill_null(0.0), pl.col("x_i").fill_null(0.0)
+                )
+                stats = calculate_ratio_of_means_variance(plots, "y_i", "x_i")
+                se_values.append(stats["se_ratio"])
+                variance_values.append(stats["variance_ratio"])
+
+            # One entry per result row, in row order. Attached positionally
+            # because a join on the group keys would drop a null group's SE.
+            results = results.with_columns(
+                [
+                    pl.Series("SI_SE", se_values, dtype=pl.Float64),
+                    pl.Series("SI_VARIANCE", variance_values, dtype=pl.Float64),
+                ]
+            )
 
         # Drop intermediate columns
         cols_to_drop = ["SI_NUM", "SI_DENOM"]

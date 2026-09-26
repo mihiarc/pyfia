@@ -275,142 +275,30 @@ class TestValidateGroupingColumns:
 
 
 class TestGetForestTypeGroup:
-    """Tests for get_forest_type_group function."""
+    """Tests for get_forest_type_group (REF equality is in test_forest_type_groups)."""
 
     def test_none_returns_unknown(self):
-        """Test that None returns 'Unknown'."""
         assert get_forest_type_group(None) == "Unknown"
 
-    def test_white_red_jack_pine(self):
-        """Test 100-199 range returns White/Red/Jack Pine."""
-        assert get_forest_type_group(100) == "White/Red/Jack Pine"
-        assert get_forest_type_group(150) == "White/Red/Jack Pine"
-        assert get_forest_type_group(199) == "White/Red/Jack Pine"
+    @pytest.mark.parametrize(
+        "fortypcd, name",
+        [
+            (161, "Loblolly / shortleaf pine group"),
+            (162, "Loblolly / shortleaf pine group"),
+            (141, "Longleaf / slash pine group"),
+            (142, "Longleaf / slash pine group"),
+            (103, "White / red / jack pine group"),
+            (201, "Douglas-fir group"),
+            (503, "Oak / hickory group"),
+            (999, "Nonstocked"),
+        ],
+    )
+    def test_ref_names(self, fortypcd, name):
+        assert get_forest_type_group(fortypcd) == name
 
-    def test_douglas_fir(self):
-        """Test Douglas-fir specific code."""
-        assert get_forest_type_group(200) == "Douglas-fir"
-
-    def test_ponderosa_pine(self):
-        """Test Ponderosa Pine codes."""
-        assert get_forest_type_group(220) == "Ponderosa Pine"
-        assert get_forest_type_group(221) == "Ponderosa Pine"
-        assert get_forest_type_group(222) == "Ponderosa Pine"
-
-    def test_western_white_pine(self):
-        """Test Western White Pine code."""
-        assert get_forest_type_group(240) == "Western White Pine"
-
-    def test_fir_spruce_mountain_hemlock(self):
-        """Test Fir/Spruce/Mountain Hemlock codes."""
-        for code in [260, 261, 262, 263, 264, 265]:
-            assert get_forest_type_group(code) == "Fir/Spruce/Mountain Hemlock"
-
-    def test_lodgepole_pine(self):
-        """Test Lodgepole Pine code."""
-        assert get_forest_type_group(280) == "Lodgepole Pine"
-
-    def test_spruce_fir_default(self):
-        """Test default Spruce/Fir for 200-299 not otherwise matched."""
-        assert get_forest_type_group(250) == "Spruce/Fir"
-        assert get_forest_type_group(290) == "Spruce/Fir"
-
-    def test_hemlock_sitka_spruce(self):
-        """Test Hemlock/Sitka Spruce codes."""
-        for code in [300, 301, 302, 303, 304, 305]:
-            assert get_forest_type_group(code) == "Hemlock/Sitka Spruce"
-
-    def test_california_mixed_conifer(self):
-        """Test California Mixed Conifer code."""
-        assert get_forest_type_group(370) == "California Mixed Conifer"
-
-    def test_longleaf_slash_pine_default(self):
-        """Test default Longleaf/Slash Pine for 300-399."""
-        assert get_forest_type_group(350) == "Longleaf/Slash Pine"
-
-    def test_oak_pine(self):
-        """Test 400-499 range returns Oak/Pine."""
-        assert get_forest_type_group(400) == "Oak/Pine"
-        assert get_forest_type_group(450) == "Oak/Pine"
-
-    def test_oak_hickory(self):
-        """Test 500-599 range returns Oak/Hickory."""
-        assert get_forest_type_group(500) == "Oak/Hickory"
-        assert get_forest_type_group(550) == "Oak/Hickory"
-
-    def test_oak_gum_cypress(self):
-        """Test 600-699 range returns Oak/Gum/Cypress."""
-        assert get_forest_type_group(600) == "Oak/Gum/Cypress"
-        assert get_forest_type_group(650) == "Oak/Gum/Cypress"
-
-    def test_elm_ash_cottonwood(self):
-        """Test 700-799 range returns Elm/Ash/Cottonwood."""
-        assert get_forest_type_group(700) == "Elm/Ash/Cottonwood"
-        assert get_forest_type_group(750) == "Elm/Ash/Cottonwood"
-
-    def test_maple_beech_birch(self):
-        """Test 800-899 range returns Maple/Beech/Birch."""
-        assert get_forest_type_group(800) == "Maple/Beech/Birch"
-        assert get_forest_type_group(850) == "Maple/Beech/Birch"
-
-    def test_aspen_birch(self):
-        """Test 900-909 range returns Aspen/Birch."""
-        assert get_forest_type_group(900) == "Aspen/Birch"
-        assert get_forest_type_group(905) == "Aspen/Birch"
-
-    def test_alder_maple(self):
-        """Test 910-919 range returns Alder/Maple."""
-        assert get_forest_type_group(910) == "Alder/Maple"
-        assert get_forest_type_group(915) == "Alder/Maple"
-
-    def test_western_oak(self):
-        """Test 920-929 range returns Western Oak."""
-        assert get_forest_type_group(920) == "Western Oak"
-        assert get_forest_type_group(925) == "Western Oak"
-
-    def test_tanoak_laurel(self):
-        """Test 940-949 range returns Tanoak/Laurel."""
-        assert get_forest_type_group(940) == "Tanoak/Laurel"
-        assert get_forest_type_group(945) == "Tanoak/Laurel"
-
-    def test_other_western_hardwoods(self):
-        """Test 950-959 range returns Other Western Hardwoods."""
-        assert get_forest_type_group(950) == "Other Western Hardwoods"
-        assert get_forest_type_group(955) == "Other Western Hardwoods"
-
-    def test_tropical_hardwoods(self):
-        """Test 960-969 range returns Tropical Hardwoods."""
-        assert get_forest_type_group(960) == "Tropical Hardwoods"
-        assert get_forest_type_group(965) == "Tropical Hardwoods"
-
-    def test_exotic_hardwoods(self):
-        """Test 970-979 range returns Exotic Hardwoods."""
-        assert get_forest_type_group(970) == "Exotic Hardwoods"
-        assert get_forest_type_group(975) == "Exotic Hardwoods"
-
-    def test_woodland_hardwoods(self):
-        """Test 980-989 range returns Woodland Hardwoods."""
-        assert get_forest_type_group(980) == "Woodland Hardwoods"
-        assert get_forest_type_group(985) == "Woodland Hardwoods"
-
-    def test_exotic_softwoods(self):
-        """Test 990-998 range returns Exotic Softwoods."""
-        assert get_forest_type_group(990) == "Exotic Softwoods"
-        assert get_forest_type_group(995) == "Exotic Softwoods"
-
-    def test_nonstocked(self):
-        """Test 999 returns Nonstocked."""
-        assert get_forest_type_group(999) == "Nonstocked"
-
-    def test_other_hardwoods_930s(self):
-        """Test 930-939 range returns Other Hardwoods."""
-        assert get_forest_type_group(930) == "Other Hardwoods"
-        assert get_forest_type_group(935) == "Other Hardwoods"
-
-    def test_out_of_range(self):
-        """Test codes outside known ranges return 'Other'."""
-        assert get_forest_type_group(50) == "Other"
-        assert get_forest_type_group(1000) == "Other"
+    def test_unknown_code_warns(self):
+        with pytest.warns(UserWarning, match=r"FORTYPCD \[12345\]"):
+            assert get_forest_type_group(12345) == "Unknown"
 
 
 class TestAddForestTypeGroup:
@@ -420,7 +308,11 @@ class TestAddForestTypeGroup:
         """Test that function adds FOREST_TYPE_GROUP column."""
         df = pl.DataFrame({"FORTYPCD": [161, 503, 700]})
         result = add_forest_type_group(df)
-        assert "FOREST_TYPE_GROUP" in result.columns
+        assert result["FOREST_TYPE_GROUP"].to_list() == [
+            "Loblolly / shortleaf pine group",
+            "Oak / hickory group",
+            "Elm / ash / cottonwood group",
+        ]
 
     def test_custom_column_names(self):
         """Test custom input and output column names."""
@@ -428,8 +320,15 @@ class TestAddForestTypeGroup:
         result = add_forest_type_group(
             df, fortypcd_col="MY_FORTYP", output_col="FORTYP_NAME"
         )
-        assert "FORTYP_NAME" in result.columns
-        assert result["FORTYP_NAME"][0] == "Oak/Hickory"
+        assert result["FORTYP_NAME"][0] == "Oak / hickory group"
+
+    def test_null_and_unknown_codes(self):
+        """Nulls and unmatched codes get "Unknown"; one warning lists the codes."""
+        df = pl.DataFrame({"FORTYPCD": [161, None, 12345, 12345, 998]})
+        with pytest.warns(UserWarning, match=r"\[998, 12345\]") as record:
+            result = add_forest_type_group(df)
+        assert len(record) == 1
+        assert result["FOREST_TYPE_GROUP"].to_list()[1:] == ["Unknown"] * 4
 
 
 class TestGetOwnershipGroupName:
@@ -489,83 +388,21 @@ class TestAddOwnershipGroupName:
 
 
 class TestGetForestTypeGroupCode:
-    """Tests for get_forest_type_group_code function."""
+    """Tests for get_forest_type_group_code (REF equality is in test_forest_type_groups)."""
 
     def test_none_returns_none(self):
-        """Test that None returns None."""
         assert get_forest_type_group_code(None) is None
 
-    def test_douglas_fir_group(self):
-        """Test Douglas-fir group codes."""
-        assert get_forest_type_group_code(200) == 200
-        assert get_forest_type_group_code(201) == 200
-        assert get_forest_type_group_code(202) == 200
-        assert get_forest_type_group_code(203) == 200
+    @pytest.mark.parametrize(
+        "fortypcd, group",
+        [(161, 160), (162, 160), (141, 140), (142, 140), (221, 220), (503, 500)],
+    )
+    def test_ref_group_codes(self, fortypcd, group):
+        assert get_forest_type_group_code(fortypcd) == group
 
-    def test_ponderosa_pine_group(self):
-        """Test Ponderosa Pine group codes."""
-        assert get_forest_type_group_code(220) == 220
-        assert get_forest_type_group_code(221) == 220
-        assert get_forest_type_group_code(222) == 220
-
-    def test_western_white_pine_group(self):
-        """Test Western White Pine group codes."""
-        assert get_forest_type_group_code(240) == 240
-        assert get_forest_type_group_code(241) == 240
-
-    def test_fir_spruce_group(self):
-        """Test Fir/Spruce/Mountain Hemlock group codes."""
-        for code in [260, 261, 262, 263, 264, 265]:
-            assert get_forest_type_group_code(code) == 260
-
-    def test_lodgepole_pine_group(self):
-        """Test Lodgepole Pine group codes."""
-        assert get_forest_type_group_code(280) == 280
-        assert get_forest_type_group_code(281) == 280
-
-    def test_hemlock_sitka_spruce_group(self):
-        """Test Hemlock/Sitka Spruce group codes."""
-        for code in [300, 301, 302, 303, 304, 305]:
-            assert get_forest_type_group_code(code) == 300
-
-    def test_california_mixed_conifer_group(self):
-        """Test California Mixed Conifer group codes."""
-        assert get_forest_type_group_code(370) == 370
-        assert get_forest_type_group_code(371) == 370
-
-    def test_alder_maple_group(self):
-        """Test Alder/Maple group codes."""
-        for code in [910, 911, 912, 913, 914, 915]:
-            assert get_forest_type_group_code(code) == 910
-
-    def test_western_oak_group(self):
-        """Test Western Oak group codes."""
-        for code in [920, 921, 922, 923, 924]:
-            assert get_forest_type_group_code(code) == 920
-
-    def test_tanoak_laurel_group(self):
-        """Test Tanoak/Laurel group codes."""
-        for code in [940, 941, 942]:
-            assert get_forest_type_group_code(code) == 940
-
-    def test_other_western_hardwoods_group(self):
-        """Test Other Western Hardwoods group codes."""
-        for code in [950, 951, 952]:
-            assert get_forest_type_group_code(code) == 950
-
-    def test_nonstocked(self):
-        """Test Nonstocked code."""
-        assert get_forest_type_group_code(999) == 999
-
-    def test_eastern_types_use_hundreds(self):
-        """Test eastern forest types use hundred's place grouping."""
-        # Oak/Hickory types should map to 500
-        assert get_forest_type_group_code(500) == 500
-        assert get_forest_type_group_code(503) == 500
-        assert get_forest_type_group_code(520) == 500
-
-        # Loblolly types should map to 100 or 160 depending on implementation
-        assert get_forest_type_group_code(161) == 100
+    def test_unknown_code_warns(self):
+        with pytest.warns(UserWarning, match="REF_FOREST_TYPE"):
+            assert get_forest_type_group_code(12345) is None
 
 
 class TestAddForestTypeGroupCode:
@@ -573,9 +410,9 @@ class TestAddForestTypeGroupCode:
 
     def test_adds_column(self):
         """Test that function adds FORTYPGRP column."""
-        df = pl.DataFrame({"FORTYPCD": [200, 221, 503]})
+        df = pl.DataFrame({"FORTYPCD": [200, 221, 161, None]})
         result = add_forest_type_group_code(df)
-        assert "FORTYPGRP" in result.columns
+        assert result["FORTYPGRP"].to_list() == [200, 220, 160, None]
 
     def test_custom_column_names(self):
         """Test custom input and output column names."""

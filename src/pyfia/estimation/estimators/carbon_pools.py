@@ -22,7 +22,7 @@ from ..base import AggregationResult, BaseEstimator
 from ..constants import LBS_TO_SHORT_TONS
 from ..tree_expansion import apply_tree_adjustment_factors
 from ..utils import validate_required_columns
-from ..variance import calculate_ratio_of_means_variance
+from ..variance import calculate_ratio_of_means_variance, join_on_group_keys
 
 
 class CarbonPoolEstimator(BaseEstimator):
@@ -293,12 +293,14 @@ class CarbonPoolEstimator(BaseEstimator):
                 group_filter = pl.lit(True)
                 group_dict = {}
 
-                for i, col in enumerate(group_cols):
+                for col in group_cols:
                     if col in plot_data.columns:
-                        group_dict[col] = group_vals[results.columns.index(col)]
-                        group_filter = group_filter & (
-                            pl.col(col) == group_vals[results.columns.index(col)]
-                        )
+                        val = group_vals[results.columns.index(col)]
+                        group_dict[col] = val
+                        if val is None:
+                            group_filter = group_filter & pl.col(col).is_null()
+                        else:
+                            group_filter = group_filter & (pl.col(col) == val)
 
                 group_plot_data = plot_data.filter(group_filter)
 
@@ -335,7 +337,7 @@ class CarbonPoolEstimator(BaseEstimator):
 
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=group_cols, how="left")
+                results = join_on_group_keys(results, var_df, group_cols)
         else:
             # No grouping, calculate overall variance with ALL plots
             all_plots_with_values = all_plots.join(

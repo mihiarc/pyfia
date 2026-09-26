@@ -22,6 +22,7 @@ from ..utils import (
     validate_aggregation_result,
     validate_estimator_inputs,
 )
+from ..variance import join_on_group_keys
 
 
 class VolumeEstimator(BaseEstimator):
@@ -177,11 +178,9 @@ class VolumeEstimator(BaseEstimator):
             )
 
             # Update results with correct plot count
-            results = (
-                results.drop("N_PLOTS")
-                .join(non_zero_counts, on=group_cols, how="left")
-                .rename({"N_PLOTS_NONZERO": "N_PLOTS"})
-            )
+            results = join_on_group_keys(
+                results.drop("N_PLOTS"), non_zero_counts, group_cols
+            ).rename({"N_PLOTS_NONZERO": "N_PLOTS"})
         else:
             non_zero_count = (
                 plot_volumes.filter(pl.col("PLOT_VOLUME") > 0)

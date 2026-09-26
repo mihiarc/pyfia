@@ -18,6 +18,7 @@ from ..utils import (
     format_output_columns,
     validate_estimator_inputs,
 )
+from ..variance import join_on_group_keys
 
 
 class AreaEstimator(BaseEstimator):
@@ -437,7 +438,7 @@ class AreaEstimator(BaseEstimator):
             # Join variance results back to main results
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=group_cols, how="left")
+                results = join_on_group_keys(results, var_df, group_cols)
         else:
             # No grouping, calculate overall variance
             var_stats = self._calculate_variance_for_group(plot_data, strat_cols)

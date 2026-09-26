@@ -19,6 +19,7 @@ from ..utils import (
     ensure_fia_instance,
     validate_estimator_inputs,
 )
+from ..variance import join_on_group_keys
 
 
 class SiteIndexEstimator(BaseEstimator):
@@ -456,7 +457,7 @@ class SiteIndexEstimator(BaseEstimator):
 
             if variance_results:
                 var_df = pl.DataFrame(variance_results)
-                results = results.join(var_df, on=group_cols, how="left")
+                results = join_on_group_keys(results, var_df, group_cols)
             else:
                 # No variance results, add null columns
                 results = results.with_columns(

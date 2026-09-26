@@ -750,11 +750,13 @@ class BaseEstimator(ABC):
             all_plots_expanded = all_plots.join(unique_groups, how="cross")
 
             # Left join with actual plot data to get values (missing = 0)
+            from .variance import join_on_group_keys
+
             join_cols = ["PLT_CN"] + valid_group_cols
-            all_plots_with_data = all_plots_expanded.join(
+            all_plots_with_data = join_on_group_keys(
+                all_plots_expanded,
                 plot_data.select(join_cols + [y_col_alias, "x_i"]),
-                on=join_cols,
-                how="left",
+                join_cols,
             ).with_columns(
                 [
                     pl.col(y_col_alias).fill_null(0.0),
@@ -841,12 +843,9 @@ class BaseEstimator(ABC):
             Results with variance columns added
         """
         if valid_group_cols:
-            from .variance import align_join_key_dtypes
+            from .variance import join_on_group_keys
 
-            # Align all-null group keys so a Null-typed key cannot break the
-            # join against the typed results key (#105).
-            variance_df = align_join_key_dtypes(results, variance_df, valid_group_cols)
-            return results.join(variance_df, on=valid_group_cols, how="left")
+            return join_on_group_keys(results, variance_df, valid_group_cols)
         else:
             # No grouping - just add the single variance row's columns
             for col in variance_df.columns:
@@ -1175,7 +1174,7 @@ class BaseEstimator(ABC):
 
         # Join variance results back to main results
         if variance_results:
-            from .variance import align_join_key_dtypes
+            from .variance import join_on_group_keys
 
             var_df = pl.DataFrame(variance_results)
             # Use only valid group columns that exist in both dataframes
@@ -1183,11 +1182,7 @@ class BaseEstimator(ABC):
                 c for c in group_cols if c in var_df.columns and c in results.columns
             ]
             if join_cols:
-                # Align all-null group keys so a Null-typed key (e.g. a
-                # disturbance code null across every group) does not break the
-                # join against the typed results key (#105).
-                var_df = align_join_key_dtypes(results, var_df, join_cols)
-                results = results.join(var_df, on=join_cols, how="left")
+                results = join_on_group_keys(results, var_df, join_cols)
 
         return results
 

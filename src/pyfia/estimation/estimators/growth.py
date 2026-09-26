@@ -562,7 +562,8 @@ def growth(
         Tree population to include (GRM tables):
 
         - 'gs': growing stock
-        - 'al' or 'live': all live trees
+        - 'al' or 'live': all live trees at least 1 inch d.b.h., saplings on
+          the microplot included (EVALIDator's "trees at least 1 inch")
         - 'sl' or 'sawtimber': sawtimber-size trees
     measure : {'volume', 'biomass', 'count'}, default 'volume'
         What to measure in the growth estimation.

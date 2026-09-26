@@ -234,7 +234,9 @@ def removals(
         Land type: "forest", "timber", or "all"
     tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
         Tree population to include (GRM tables): 'gs' (growing stock),
-        'al'/'live' (all live), 'sl'/'sawtimber' (sawtimber-size).
+        'al'/'live' (all live trees at least 1 inch d.b.h., saplings on the
+        microplot included, as in EVALIDator's "trees at least 1 inch"),
+        'sl'/'sawtimber' (sawtimber-size).
     measure : str
         What to measure: "volume", "biomass", or "count"
     tree_domain : str | None

@@ -31,11 +31,13 @@ class GRMColumns:
     Attributes
     ----------
     component : str
-        Column name for component type (e.g., SUBP_COMPONENT_GS_FOREST)
+        Column name for component type (e.g., SUBP_COMPONENT_GS_FOREST,
+        MICR_COMPONENT_AL_FOREST)
     tpa : str
         Column name for TPA value (e.g., SUBP_TPAGROW_UNADJ_GS_FOREST)
     subptyp : str
-        Column name for subplot type (e.g., SUBP_SUBPTYP_GRM_GS_FOREST)
+        Column name for subplot type (e.g., SUBP_SUBPTYP_GRM_GS_FOREST),
+        which selects the adjustment factor
     tree_type_code : str
         Normalized tree type code (GS, AL, SL)
     land_type_code : str
@@ -104,6 +106,13 @@ def resolve_grm_columns(
     population and land basis, e.g., SUBP_TPAGROW_UNADJ_GS_FOREST for
     growing stock on all forestland.
 
+    All live trees use the ``MICR_`` columns, which cover every live tree at
+    least 1 inch in diameter, saplings tallied on the microplot included
+    (SUBPTYP_GRM 2). The ``SUBP_`` all-live columns cover trees at least
+    5 inches only. Growing-stock and sawtimber trees use the ``SUBP_``
+    columns. This is how EVALIDator selects them for its estimates of all
+    live trees (at least 1 inch), growing-stock trees and sawtimber trees.
+
     Parameters
     ----------
     component_type : {'growth', 'mortality', 'removals'}
@@ -126,6 +135,8 @@ def resolve_grm_columns(
     'SUBP_COMPONENT_GS_FOREST'
     >>> cols.tpa
     'SUBP_TPAGROW_UNADJ_GS_FOREST'
+    >>> resolve_grm_columns('mortality', tree_type='al').tpa
+    'MICR_TPAMORT_UNADJ_AL_FOREST'
     """
     tree_code = normalize_tree_type(tree_type)
     land_code = normalize_land_type(land_type)
@@ -137,11 +148,12 @@ def resolve_grm_columns(
         "removals": "TPAREMV",
     }
     tpa_prefix = tpa_prefix_map[component_type]
+    design = "MICR" if tree_code == "AL" else "SUBP"
 
     return GRMColumns(
-        component=f"SUBP_COMPONENT_{tree_code}_{land_code}",
-        tpa=f"SUBP_{tpa_prefix}_UNADJ_{tree_code}_{land_code}",
-        subptyp=f"SUBP_SUBPTYP_GRM_{tree_code}_{land_code}",
+        component=f"{design}_COMPONENT_{tree_code}_{land_code}",
+        tpa=f"{design}_{tpa_prefix}_UNADJ_{tree_code}_{land_code}",
+        subptyp=f"{design}_SUBPTYP_GRM_{tree_code}_{land_code}",
         tree_type_code=tree_code,
         land_type_code=land_code,
     )

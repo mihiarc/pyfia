@@ -15,7 +15,7 @@ without unnecessary abstractions.
 
 ## Functions
 
-### `biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L283" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `biomass` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L293" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 biomass(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, land_type: str = 'forest', tree_type: str = 'live', component: str = 'AG', tree_domain: str | None = None, area_domain: str | None = None, plot_domain: str | None = None, totals: bool = True, variance: bool = False, most_recent: bool = False) -> pl.DataFrame
@@ -196,7 +196,7 @@ Standing dead tree biomass:
 
 ## Classes
 
-### `BiomassEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L26" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `BiomassEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L27" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 
 Biomass estimator for FIA data.
@@ -206,7 +206,7 @@ Estimates tree biomass (dry weight in tons) and carbon content.
 
 **Methods:**
 
-#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L38" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_required_tables(self) -> list[str]
@@ -215,7 +215,7 @@ get_required_tables(self) -> list[str]
 Biomass requires tree, condition, and stratification tables.
 
 
-#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L41" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_tree_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L42" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_tree_columns(self) -> list[str]
@@ -228,7 +228,7 @@ Biomass estimation always needs DRYBIO_AG and DRYBIO_BG, plus any
 component-specific columns.
 
 
-#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L64" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L65" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_cond_columns(self) -> list[str]
@@ -241,7 +241,7 @@ Dynamically includes timber land columns when land_type='timber' and
 adds grouping columns as needed.
 
 
-#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L77" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L78" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -253,7 +253,7 @@ Biomass per acre = (DRYBIO * TPA_UNADJ) / 2000
 Carbon = Biomass * 0.47
 
 
-#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L121" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L122" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
@@ -273,7 +273,7 @@ Stage 2: Apply expansion factors and calculate ratio-of-means
 explicit variance calculation.
 
 
-#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L216" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L226" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
@@ -287,11 +287,10 @@ V(Ŷ) = Σ_h w_h² × s²_yh × n_h
 This matches EVALIDator's variance calculation for tree-based estimates.
 
 
-#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L251" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/biomass.py#L261" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 format_output(self, results: pl.DataFrame) -> pl.DataFrame
 ```
 
 Format biomass estimation output.
-

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "pyfia"
-version = "1.4.3"
+version = "1.4.4"
 description = "High-performance Python library for Forest Inventory and Analysis (FIA) data analysis"
 readme = "README.md"
 authors = [

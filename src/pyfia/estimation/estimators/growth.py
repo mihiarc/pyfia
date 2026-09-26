@@ -283,21 +283,44 @@ class GrowthEstimator(GRMBaseEstimator):
             data = data_df.lazy()
 
         if tree_domain:
-            try:
-                if "DIA_MIDPT >= 5.0" in tree_domain:
-                    data = data.filter(pl.col("DIA_MIDPT") >= 5.0)
-            except pl.exceptions.ColumnNotFoundError as e:
-                # DIA_MIDPT column may not exist in some data configurations
-                logger.warning(
-                    "Could not apply tree_domain filter '%s': column not found - %s",
-                    tree_domain,
-                    e,
-                )
+            data = self._apply_tree_domain(data, tree_domain)
 
         # Filter to records with non-null TPA_UNADJ
         data = data.filter(pl.col("TPA_UNADJ").is_not_null())
 
         return data
+
+    def _apply_tree_domain(self, data: pl.LazyFrame, tree_domain: str) -> pl.LazyFrame:
+        """Filter GRM tree rows by ``tree_domain``, as removals and mortality do.
+
+        The domain refers to unprefixed columns of the growth frame: DIA,
+        SPCD and STATUSCD are the TREE_GRM_MIDPT values, DIA_BEGIN,
+        DIA_MIDPT and DIA_END come from TREE_GRM_COMPONENT, and COND
+        columns come from the tree's time-2 condition. Other TREE columns the
+        domain references (e.g. TREECLCD) are joined from the tree's time-2
+        TREE record for filtering.
+        """
+        from ...core.exceptions import InvalidDomainError
+        from ...filtering.parser import DomainExpressionParser
+
+        schema = data.collect_schema().names()
+        tree_schema = self.db._reader.get_table_schema("TREE")
+        referenced = DomainExpressionParser.extract_columns(tree_domain)
+        from_tree = [c for c in referenced if c not in schema and c in tree_schema]
+        unknown = [c for c in referenced if c not in schema and c not in tree_schema]
+        if unknown:
+            raise InvalidDomainError(
+                tree_domain, "tree", f"unknown column(s) {unknown}"
+            )
+
+        if from_tree:
+            tree = self.db._reader.read_table(
+                "TREE", columns=["CN", *from_tree], lazy=True
+            ).with_columns(pl.col("CN").cast(data.collect_schema()["CN"]))
+            data = data.join(tree, on="CN", how="left")
+
+        data = DomainExpressionParser.apply_to_dataframe(data, tree_domain, "tree")
+        return data.drop(from_tree) if from_tree else data
 
     def calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """
@@ -568,7 +591,13 @@ def growth(
     measure : {'volume', 'biomass', 'count'}, default 'volume'
         What to measure in the growth estimation.
     tree_domain : str, optional
-        SQL-like filter expression for tree-level filtering.
+        SQL-like filter expression for tree-level filtering, e.g.
+        ``"SPCD == 131"``. As in ``removals()`` and ``mortality()``, ``DIA``,
+        ``SPCD`` and ``STATUSCD`` are the GRM midpoint values
+        (TREE_GRM_MIDPT), ``DIA_BEGIN``/``DIA_MIDPT``/``DIA_END`` are the GRM
+        diameters, and other TREE columns come from the tree's time-2 record.
+        An expression naming a column that doesn't exist raises
+        ``InvalidDomainError``.
     area_domain : str, optional
         SQL-like filter expression for area/condition-level filtering.
     totals : bool, default True

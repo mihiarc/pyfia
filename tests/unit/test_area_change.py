@@ -9,6 +9,21 @@ from pyfia.estimation.estimators.area_change import (
 )
 
 
+def change_rows(columns: dict) -> pl.LazyFrame:
+    """Change-matrix rows, with subplot-footprint defaults for columns not given."""
+    n = len(next(iter(columns.values())))
+    defaults = {
+        "SUBPTYP": [1] * n,
+        "PROP_BASIS": ["SUBP"] * n,
+        "CONDPROP_UNADJ": [1.0] * n,
+        "COND_NONSAMPLE_REASN_CD": [None] * n,
+        "PREV_COND_NONSAMPLE_REASN_CD": [None] * n,
+        "ADJ_FACTOR_SUBP": [1.0] * n,
+        "ADJ_FACTOR_MACR": [1.0] * n,
+    }
+    return pl.DataFrame({**defaults, **columns}).lazy()
+
+
 class TestGetRequiredTables:
     """Tests for get_required_tables method."""
 
@@ -179,7 +194,7 @@ class TestCalculateValues:
         estimator = AreaChangeEstimator(mock_estimator, config)
 
         # Create test data
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [
                     1,
@@ -195,7 +210,7 @@ class TestCalculateValues:
                 ],  # Previous: non-forest, forest, forest, non-forest
                 "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
             }
-        ).lazy()
+        )
 
         result = estimator.calculate_values(df).collect()
 
@@ -211,13 +226,13 @@ class TestCalculateValues:
         config = {"change_type": "gross_gain", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1, 2, 1, 2],
                 "PREV_COND_STATUS_CD": [2, 1, 1, 2],
                 "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
             }
-        ).lazy()
+        )
 
         result = estimator.calculate_values(df).collect()
 
@@ -230,13 +245,13 @@ class TestCalculateValues:
         config = {"change_type": "gross_loss", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1, 2, 1, 2],
                 "PREV_COND_STATUS_CD": [2, 1, 1, 2],
                 "SUBPTYP_PROP_CHNG": [1.0, 1.0, 1.0, 1.0],
             }
-        ).lazy()
+        )
 
         result = estimator.calculate_values(df).collect()
 
@@ -249,13 +264,13 @@ class TestCalculateValues:
         config = {"change_type": "net", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1, 1],
                 "PREV_COND_STATUS_CD": [2, 2],
                 "SUBPTYP_PROP_CHNG": [0.5, 0.25],
             }
-        ).lazy()
+        )
 
         result = estimator.calculate_values(df).collect()
 
@@ -263,23 +278,42 @@ class TestCalculateValues:
         expected = [0.5, 0.25]
         assert result["CHANGE_VALUE"].to_list() == expected
 
-    def test_null_proportion_defaults_to_one(self, mock_estimator):
-        """Test that null SUBPTYP_PROP_CHNG defaults to 1.0."""
+    def test_null_proportion_contributes_nothing(self, mock_estimator):
+        """A null SUBPTYP_PROP_CHNG counts as zero, as in EVALIDator."""
         config = {"change_type": "net", "land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1],
                 "PREV_COND_STATUS_CD": [2],
                 "SUBPTYP_PROP_CHNG": [None],
             }
-        ).lazy()
+        )
 
         result = estimator.calculate_values(df).collect()
 
-        # Null proportion should be treated as 1.0
-        assert result["CHANGE_VALUE"][0] == 1.0
+        assert result["CHANGE_VALUE"][0] == 0.0
+
+    def test_macroplot_basis_uses_macr_adjustment(self, mock_estimator):
+        """The adjustment factor follows the condition's PROP_BASIS (#151)."""
+        config = {"change_type": "net", "land_type": "forest"}
+        estimator = AreaChangeEstimator(mock_estimator, config)
+
+        df = change_rows(
+            {
+                "CURR_COND_STATUS_CD": [1, 1],
+                "PREV_COND_STATUS_CD": [2, 2],
+                "SUBPTYP_PROP_CHNG": [1.0, 0.5],
+                "PROP_BASIS": ["SUBP", "MACR"],
+                "ADJ_FACTOR_SUBP": [1.2, 1.2],
+                "ADJ_FACTOR_MACR": [3.0, 3.0],
+            }
+        )
+
+        result = estimator.calculate_values(df).collect()
+
+        assert result["CHANGE_VALUE"].to_list() == pytest.approx([1.2, 1.5])
 
 
 class TestApplyFilters:
@@ -300,12 +334,12 @@ class TestApplyFilters:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1, None, 1],
                 "PREV_COND_STATUS_CD": [2, 2, 2],
             }
-        ).lazy()
+        )
 
         result = estimator.apply_filters(df).collect()
         assert len(result) == 2
@@ -315,12 +349,12 @@ class TestApplyFilters:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1, 1, 1],
                 "PREV_COND_STATUS_CD": [2, None, 2],
             }
-        ).lazy()
+        )
 
         result = estimator.apply_filters(df).collect()
         assert len(result) == 2
@@ -330,12 +364,63 @@ class TestApplyFilters:
         config = {"land_type": "forest"}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
-        df = pl.DataFrame(
+        df = change_rows(
             {
                 "CURR_COND_STATUS_CD": [1, None, 1],
                 "PREV_COND_STATUS_CD": [2, None, 2],
             }
-        ).lazy()
+        )
+
+        result = estimator.apply_filters(df).collect()
+        assert len(result) == 2
+
+    def test_keeps_the_condition_footprint_row_only(self, mock_estimator):
+        """One row per subplot: SUBPTYP 1 for SUBP conditions, 3 for MACR (#151)."""
+        estimator = AreaChangeEstimator(mock_estimator, {"land_type": "forest"})
+
+        df = change_rows(
+            {
+                "CURR_COND_STATUS_CD": [1] * 6,
+                "PREV_COND_STATUS_CD": [2] * 6,
+                "SUBPTYP": [1, 2, 3, 1, 3, 1],
+                "PROP_BASIS": ["SUBP", "SUBP", "SUBP", "MACR", "MACR", None],
+            }
+        )
+
+        result = estimator.apply_filters(df).collect()
+        assert result.select("SUBPTYP", "PROP_BASIS").rows() == [
+            (1, "SUBP"),
+            (3, "MACR"),
+        ]
+
+    def test_drops_conditions_nonsampled_at_either_time(self, mock_estimator):
+        """Nonsampled conditions leave the estimate, whichever time they're at."""
+        estimator = AreaChangeEstimator(mock_estimator, {"land_type": "forest"})
+
+        df = change_rows(
+            {
+                "CURR_COND_STATUS_CD": [1, 5, 2, 1],
+                "PREV_COND_STATUS_CD": [2, 1, 5, 1],
+                "COND_NONSAMPLE_REASN_CD": [None, 2, None, 0],
+                "PREV_COND_NONSAMPLE_REASN_CD": [None, None, 3, None],
+            }
+        )
+
+        result = estimator.apply_filters(df).collect()
+        assert result["CURR_COND_STATUS_CD"].to_list() == [1, 1]
+
+    def test_nonsample_reason_stored_as_text(self, mock_estimator):
+        """Some state databases store COND_NONSAMPLE_REASN_CD as text."""
+        estimator = AreaChangeEstimator(mock_estimator, {"land_type": "forest"})
+
+        df = change_rows(
+            {
+                "CURR_COND_STATUS_CD": [1, 5, 1],
+                "PREV_COND_STATUS_CD": [2, 1, 1],
+                "COND_NONSAMPLE_REASN_CD": ["", "02", None],
+                "PREV_COND_NONSAMPLE_REASN_CD": [None, None, "00"],
+            }
+        )
 
         result = estimator.apply_filters(df).collect()
         assert len(result) == 2
@@ -448,7 +533,7 @@ class TestApplyExpansionFactors:
         return MockDB()
 
     def test_applies_expansion_factor(self, mock_estimator):
-        """Test that EXPNS and ADJ_FACTOR_SUBP are applied."""
+        """Test that EXPNS is applied."""
         config = {"annual": False}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
@@ -504,8 +589,8 @@ class TestApplyExpansionFactors:
         # Without annual: not divided by REMPER
         assert result["AREA_CHANGE"][0] == 6000.0
 
-    def test_adj_factor_applied(self, mock_estimator):
-        """Test that ADJ_FACTOR_SUBP is applied correctly."""
+    def test_adj_factor_not_reapplied(self, mock_estimator):
+        """The adjustment factor is applied per row in calculate_values."""
         config = {"annual": False}
         estimator = AreaChangeEstimator(mock_estimator, config)
 
@@ -520,8 +605,7 @@ class TestApplyExpansionFactors:
 
         result = estimator.apply_expansion_factors(df).collect()
 
-        # 1.0 * 6000 * 1.1 = 6600
-        assert abs(result["AREA_CHANGE"][0] - 6600.0) < 0.01
+        assert result["AREA_CHANGE"][0] == 6000.0
 
 
 class TestCalculateTotals:

@@ -1,51 +1,39 @@
 """Area change estimation validation against EVALIDator.
 
-IMPORTANT: EVALIDator Methodology Difference
-============================================
+EVALIDator reports forest area on remeasured conditions where both
+measurements are forest land (snum 127, or 136 per year) and where either
+measurement is forest land (snum 128, or 137 per year). Their difference is the
+area that was forest at exactly one measurement: pyFIA's gross_gain plus
+gross_loss. pyFIA's net change (gain minus loss) has no EVALIDator counterpart.
 
-EVALIDator's area change estimates (snum 136, 137) measure TOTAL AREA meeting
-certain criteria on remeasured plots, NOT the net transition:
-
-- snum 136: Area that was forest at BOTH measurements (stable forest)
-- snum 137: Area that was forest at EITHER measurement (forest at any point)
-
-The DIFFERENCE (snum 137 - snum 136) represents the total transition area
-(land that changed status), which equals gross_gain + gross_loss.
-
-pyFIA's area_change() calculates NET transitions:
-- net = gross_gain - gross_loss
-- gross_gain = non-forest → forest
-- gross_loss = forest → non-forest
-
-These are different metrics! The validation tests compare what CAN be compared:
-1. pyFIA's (gross_gain + gross_loss) vs EVALIDator's (snum137 - snum136)
-2. Internal consistency: net = gross_gain - gross_loss
+The per-period comparison is exact. The annual one divides by PLOT.REMPER,
+which can differ between the FIADB release in a local database and the one
+EVALIDator serves, so it is checked to 2%.
 
 References:
 - Bechtold & Patterson (2005), Chapter 4: Area Change Estimation
 - EVALIDator snum table: https://apps.fs.usda.gov/fiadb-api/fullreport/parameters/snum
 """
 
+import pytest
+
 from pyfia import FIA, area_change
 
 from .conftest import (
-    GEORGIA_EVALID,
+    FLOAT_TOLERANCE,
+    GEORGIA_EVALID_GRM,
     GEORGIA_STATE_CODE,
     GEORGIA_YEAR,
 )
 
 
 class TestAreaChangeValidation:
-    """Validate area_change estimates against EVALIDator.
-
-    Note: EVALIDator measures total area meeting criteria, not net transitions.
-    See module docstring for methodology differences.
-    """
+    """Validate area_change estimates against EVALIDator (see module docstring)."""
 
     def test_internal_consistency(self, fia_db):
         """Verify net = gross_gain - gross_loss (internal pyFIA check)."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
 
             net_result = area_change(db, change_type="net")
             gain_result = area_change(db, change_type="gross_gain")
@@ -73,7 +61,7 @@ class TestAreaChangeValidation:
     def test_gross_gain_non_negative(self, fia_db):
         """Verify gross gain is non-negative."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
             result = area_change(db, change_type="gross_gain")
             gain = result["AREA_CHANGE_TOTAL"][0]
 
@@ -84,7 +72,7 @@ class TestAreaChangeValidation:
     def test_gross_loss_non_negative(self, fia_db):
         """Verify gross loss is non-negative."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
             result = area_change(db, change_type="gross_loss")
             loss = result["AREA_CHANGE_TOTAL"][0]
 
@@ -95,7 +83,7 @@ class TestAreaChangeValidation:
     def test_annual_vs_total_relationship(self, fia_db):
         """Verify annual rate relates to total by REMPER."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
 
             annual_result = area_change(db, annual=True)
             total_result = area_change(db, annual=False)
@@ -117,101 +105,59 @@ class TestAreaChangeValidation:
                     f"Got ratio: {ratio:.1f}"
                 )
 
-    def test_compare_with_evalidator_transition_area(self, fia_db, evalidator_client):
-        """Compare pyFIA gross transitions with EVALIDator transition area.
-
-        EVALIDator's snum 137 (either) minus snum 136 (both) represents the
-        total area that transitioned (changed status). This should equal
-        pyFIA's gross_gain + gross_loss.
-
-        NOTE: This comparison has limitations because EVALIDator values
-        are not strictly net transitions but total area meeting criteria.
-        """
+    def test_transition_area_matches_evalidator(self, fia_db, evalidator_client):
+        """gross_gain + gross_loss over the period equals snum 128 - snum 127 (#151)."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            gain = area_change(db, change_type="gross_gain", annual=False)
+            loss = area_change(db, change_type="gross_loss", annual=False)
+        pyfia_transition = gain["AREA_CHANGE_TOTAL"][0] + loss["AREA_CHANGE_TOTAL"][0]
 
-            gain_result = area_change(db, change_type="gross_gain")
-            loss_result = area_change(db, change_type="gross_loss")
-            net_result = area_change(db, change_type="net")
-
-            pyfia_gain = gain_result["AREA_CHANGE_TOTAL"][0]
-            pyfia_loss = loss_result["AREA_CHANGE_TOTAL"][0]
-            pyfia_net = net_result["AREA_CHANGE_TOTAL"][0]
-            pyfia_total_transitions = pyfia_gain + pyfia_loss
-
-        # Get EVALIDator estimates
         ev_both = evalidator_client.get_area_change(
             state_code=GEORGIA_STATE_CODE,
             year=GEORGIA_YEAR,
-            land_type="forest",
-            annual=True,
-            measurement="both",
+            annual=False,
+            measurement="remeasured",
         )
-
         ev_either = evalidator_client.get_area_change(
             state_code=GEORGIA_STATE_CODE,
             year=GEORGIA_YEAR,
-            land_type="forest",
-            annual=True,
+            annual=False,
             measurement="either",
         )
+        ev_transition = ev_either.estimate - ev_both.estimate
 
-        ev_transition_area = ev_either.estimate - ev_both.estimate
+        print(f"\n  EVALIDator snum 128 - 127: {ev_transition:,.1f} acres")
+        print(f"  pyFIA gain + loss:         {pyfia_transition:,.1f} acres")
 
-        print(f"\n{'=' * 60}")
-        print("Area Change Comparison: pyFIA vs EVALIDator")
-        print(f"{'=' * 60}")
-        print("\nEVALIDator (snum 136, 137):")
-        print(
-            f"  Forest at BOTH measurements (snum 136):   {ev_both.estimate:,.0f} acres/year"
-        )
-        print(
-            f"  Forest at EITHER measurement (snum 137): {ev_either.estimate:,.0f} acres/year"
-        )
-        print(
-            f"  Difference (transition area):            {ev_transition_area:,.0f} acres/year"
-        )
+        assert pyfia_transition == pytest.approx(ev_transition, rel=FLOAT_TOLERANCE)
 
-        print("\npyFIA area_change():")
-        print(
-            f"  Gross Gain (non-forest → forest):        {pyfia_gain:+,.0f} acres/year"
-        )
-        print(
-            f"  Gross Loss (forest → non-forest):        {pyfia_loss:+,.0f} acres/year"
-        )
-        print(
-            f"  Net Change (gain - loss):                {pyfia_net:+,.0f} acres/year"
-        )
-        print(
-            f"  Total Transitions (gain + loss):         {pyfia_total_transitions:,.0f} acres/year"
-        )
+    def test_annual_transition_area_matches_evalidator(self, fia_db, evalidator_client):
+        """Annual gross_gain + gross_loss is close to snum 137 - snum 136."""
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            gain = area_change(db, change_type="gross_gain")
+            loss = area_change(db, change_type="gross_loss")
+        pyfia_transition = gain["AREA_CHANGE_TOTAL"][0] + loss["AREA_CHANGE_TOTAL"][0]
 
-        print("\nMethodology Note:")
-        print("  EVALIDator measures TOTAL AREA meeting criteria on remeasured plots.")
-        print("  pyFIA measures NET TRANSITIONS between forest/non-forest status.")
-        print("  These are fundamentally different metrics.")
+        ev_both = evalidator_client.get_area_change(
+            state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR, measurement="both"
+        )
+        ev_either = evalidator_client.get_area_change(
+            state_code=GEORGIA_STATE_CODE, year=GEORGIA_YEAR, measurement="either"
+        )
+        ev_transition = ev_either.estimate - ev_both.estimate
 
-        # Calculate comparison metrics
-        if ev_transition_area > 0:
-            ratio = pyfia_total_transitions / ev_transition_area
-            pct_diff = (
-                abs(pyfia_total_transitions - ev_transition_area)
-                / ev_transition_area
-                * 100
-            )
+        print(f"\n  EVALIDator snum 137 - 136: {ev_transition:,.1f} acres/year")
+        print(f"  pyFIA gain + loss:         {pyfia_transition:,.1f} acres/year")
 
-            print("\nComparison (pyFIA transitions vs EVALIDator difference):")
-            print(f"  Ratio: {ratio:.2f}")
-            print(f"  Percent difference: {pct_diff:.1f}%")
-
-            # This is informational - we don't assert exact match due to methodology differences
-            # The ratio being ~2x is expected because EVALIDator counts each transition once
-            # while pyFIA counts gain and loss separately
+        # REMPER can differ between FIADB releases; see the module docstring.
+        assert pyfia_transition == pytest.approx(ev_transition, rel=0.02)
 
     def test_area_change_has_plots(self, fia_db):
         """Verify area change estimate includes remeasured plots."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
             result = area_change(db)
 
             n_plots = result["N_PLOTS"][0]
@@ -223,7 +169,7 @@ class TestAreaChangeValidation:
     def test_area_change_by_ownership(self, fia_db):
         """Verify area change can be grouped by ownership."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
             result = area_change(db, grp_by="OWNGRPCD")
 
             print("\nArea change by ownership:")
@@ -236,7 +182,7 @@ class TestAreaChangeValidation:
     def test_area_change_summary(self, fia_db, evalidator_client):
         """Print comprehensive summary of area change estimates."""
         with FIA(fia_db) as db:
-            db.clip_by_evalid(GEORGIA_EVALID)
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
 
             net = area_change(db, change_type="net")
             gain = area_change(db, change_type="gross_gain")
@@ -257,7 +203,7 @@ class TestAreaChangeValidation:
         print(f"\n{'=' * 70}")
         print("GEORGIA FOREST AREA CHANGE SUMMARY")
         print(f"{'=' * 70}")
-        print(f"EVALID: {GEORGIA_EVALID} | Year: {GEORGIA_YEAR}")
+        print(f"EVALID: {GEORGIA_EVALID_GRM} | Year: {GEORGIA_YEAR}")
         print(f"{'=' * 70}")
 
         print("\npyFIA Estimates (using SUBP_COND_CHNG_MTRX table):")
@@ -272,7 +218,7 @@ class TestAreaChangeValidation:
         )
         print(f"  Remeasured plots:     {net['N_PLOTS'][0]:12,}")
 
-        print("\nEVALIDator Estimates (different methodology):")
+        print("\nEVALIDator Estimates:")
         print(f"  Forest at BOTH (snum 136):    {ev_both.estimate:12,.0f} acres/year")
         print(f"  Forest at EITHER (snum 137):  {ev_either.estimate:12,.0f} acres/year")
         print(

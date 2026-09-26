@@ -62,11 +62,13 @@ class AreaChangeEstimator(BaseEstimator):
         2 = Non-forest land
         3 = Non-census water
         4 = Census water
-        5 = Denied access
+        5 = Nonsampled, possibility of forest land
 
     Forest transitions:
         - Gain: Previous COND_STATUS_CD != 1, Current COND_STATUS_CD == 1
         - Loss: Previous COND_STATUS_CD == 1, Current COND_STATUS_CD != 1
+
+    Conditions nonsampled at either measurement are excluded.
     """
 
     def __init__(self, db: str | FIA, config: dict) -> None:
@@ -92,6 +94,8 @@ class AreaChangeEstimator(BaseEstimator):
             "CONDID",
             "COND_STATUS_CD",
             "CONDPROP_UNADJ",
+            "PROP_BASIS",
+            "COND_NONSAMPLE_REASN_CD",
         ]
 
         # Add timberland columns if needed
@@ -177,16 +181,17 @@ class AreaChangeEstimator(BaseEstimator):
         # PREV_PLT_CN references plots from previous inventory cycles
         cond_prev = self.db._reader.read_table(
             "COND",
-            columns=["PLT_CN", "CONDID", "COND_STATUS_CD"],
+            columns=["PLT_CN", "CONDID", "COND_STATUS_CD", "COND_NONSAMPLE_REASN_CD"],
             lazy=True,
         )
 
-        # Alias the status column for previous condition
+        # Alias the previous condition's columns
         cond_prev = cond_prev.select(
             [
                 pl.col("PLT_CN"),
                 pl.col("CONDID"),
                 pl.col("COND_STATUS_CD").alias("PREV_COND_STATUS_CD"),
+                pl.col("COND_NONSAMPLE_REASN_CD").alias("PREV_COND_NONSAMPLE_REASN_CD"),
             ]
         )
 
@@ -215,8 +220,10 @@ class AreaChangeEstimator(BaseEstimator):
             how="inner",
         )
 
-        # Filter to plots with valid REMPER (remeasured plots only)
-        data = data.filter(pl.col("REMPER").is_not_null() & (pl.col("REMPER") > 0))
+        # An annual rate needs a remeasurement period. The change over the
+        # period doesn't, so plots without REMPER still count when annual=False.
+        if self.config.get("annual", True):
+            data = data.filter(pl.col("REMPER").is_not_null() & (pl.col("REMPER") > 0))
 
         # Join stratification data for expansion factors
         strat_data = self._get_stratification_data()
@@ -245,7 +252,9 @@ class AreaChangeEstimator(BaseEstimator):
         - Loss: forest → non-forest
         - No change: same status
 
-        The change value is weighted by SUBPTYP_PROP_CHNG.
+        The change value is weighted by SUBPTYP_PROP_CHNG and by the
+        adjustment factor of the condition's footprint (ADJ_FACTOR_MACR when
+        PROP_BASIS is 'MACR', ADJ_FACTOR_SUBP otherwise), as in EVALIDator.
         """
         change_type = self.config.get("change_type", "net")
 
@@ -259,8 +268,14 @@ class AreaChangeEstimator(BaseEstimator):
         # Loss: was forest, now is not forest
         loss_expr = (prev_is_forest & ~curr_is_forest).cast(pl.Float64)
 
-        # Weight by subplot proportion
-        prop_col = pl.col("SUBPTYP_PROP_CHNG").fill_null(1.0)
+        # Weight by the adjusted subplot proportion; a null proportion
+        # contributes nothing
+        adj_factor = (
+            pl.when(pl.col("PROP_BASIS") == "MACR")
+            .then(pl.col("ADJ_FACTOR_MACR"))
+            .otherwise(pl.col("ADJ_FACTOR_SUBP"))
+        )
+        prop_col = (pl.col("SUBPTYP_PROP_CHNG") * adj_factor).fill_null(0.0)
 
         if change_type == "gross_gain":
             # Only gains (positive values)
@@ -279,13 +294,36 @@ class AreaChangeEstimator(BaseEstimator):
     def apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame:
         """Apply filters to area change data.
 
-        For area change, we keep all remeasured subplot-conditions
-        but the change calculation already handles the forest/non-forest logic.
+        Keeps one change-matrix row per subplot-condition pair: the row for
+        the footprint the condition's area is based on (SUBPTYP 1 when
+        PROP_BASIS is 'SUBP', SUBPTYP 3 when it is 'MACR'). SUBP_COND_CHNG_MTRX
+        repeats each subplot's proportions for the microplot (SUBPTYP 2) and,
+        in macroplot states, the macroplot, so summing every row would count
+        each transition more than once. Conditions nonsampled at either
+        measurement are dropped. These are the row filters EVALIDator applies
+        to its area change estimates.
         """
         # Filter to valid transitions (both statuses must be known)
         data = data.filter(
             pl.col("CURR_COND_STATUS_CD").is_not_null()
             & pl.col("PREV_COND_STATUS_CD").is_not_null()
+        )
+
+        footprint = ((pl.col("SUBPTYP") == 1) & (pl.col("PROP_BASIS") == "SUBP")) | (
+            (pl.col("SUBPTYP") == 3) & (pl.col("PROP_BASIS") == "MACR")
+        )
+        # COND_NONSAMPLE_REASN_CD is stored as text in some state databases
+        sampled_at_both = (
+            pl.col("COND_NONSAMPLE_REASN_CD").cast(pl.Int64, strict=False).fill_null(0)
+            == 0
+        ) & (
+            pl.col("PREV_COND_NONSAMPLE_REASN_CD")
+            .cast(pl.Int64, strict=False)
+            .fill_null(0)
+            == 0
+        )
+        data = data.filter(
+            footprint & sampled_at_both & pl.col("CONDPROP_UNADJ").is_not_null()
         )
 
         # Apply any area domain filter if specified
@@ -308,7 +346,7 @@ class AreaChangeEstimator(BaseEstimator):
         group_cols = ["PLT_CN", "STATECD", "INVYR", "REMPER"]
 
         # Add stratification columns for variance (use columns that exist)
-        strat_cols = ["STRATUM_CN", "EXPNS", "ADJ_FACTOR_SUBP"]
+        strat_cols = ["STRATUM_CN", "EXPNS"]
         for col in strat_cols:
             if col not in group_cols:
                 group_cols.append(col)
@@ -323,9 +361,8 @@ class AreaChangeEstimator(BaseEstimator):
                     group_cols.append(col)
 
         # Aggregate to plot level
-        # Each subplot contributes 1/4 of the plot area (4 subplots per plot)
-        # SUBPTYP 1 = subplot (larger), SUBPTYP 2 = microplot (smaller)
-        # For simplicity, we sum the change values and will apply expansion later
+        # Each subplot contributes 1/4 of the plot area (4 subplots per plot).
+        # CHANGE_VALUE is already adjusted; EXPNS is applied later.
         agg_exprs = [
             pl.col("CHANGE_VALUE").sum().alias("PLOT_CHANGE_VALUE"),
             pl.len().alias("N_SUBPLOTS"),
@@ -345,20 +382,14 @@ class AreaChangeEstimator(BaseEstimator):
         """
         Apply expansion factors to convert to acres.
 
-        For area change, we multiply by EXPNS * ADJ_FACTOR_SUBP.
+        For area change, we multiply the adjusted plot value by EXPNS.
         If annual=True (default), we also divide by REMPER.
         """
         annual = self.config.get("annual", True)
 
         # Apply expansion factor
         data = data.with_columns(
-            [
-                (
-                    pl.col("PLOT_CHANGE_NORM")
-                    * pl.col("EXPNS")
-                    * pl.col("ADJ_FACTOR_SUBP")
-                ).alias("CHANGE_EXPANDED")
-            ]
+            [(pl.col("PLOT_CHANGE_NORM") * pl.col("EXPNS")).alias("CHANGE_EXPANDED")]
         )
 
         # Annualize if requested
@@ -568,7 +599,7 @@ def area_change(
     --------
     >>> from pyfia import FIA, area_change
     >>> with FIA("path/to/db.duckdb") as db:
-    ...     db.clip_most_recent()
+    ...     db.clip_most_recent(eval_type="CHNG")
     ...     # Net annual forest area change
     ...     result = area_change(db, land_type="forest")
     ...     print(f"Annual change: {result['AREA_CHANGE_TOTAL'][0]:+,.0f} acres/year")
@@ -585,7 +616,18 @@ def area_change(
     -----
     Area change estimation requires remeasured plots (plots with both current
     and previous measurements). States with newer FIA programs may have fewer
-    remeasured plots, resulting in higher sampling errors.
+    remeasured plots, resulting in higher sampling errors. Clip the database to
+    a change evaluation (``db.clip_most_recent(eval_type="CHNG")``) so plots
+    are expanded by that evaluation's strata.
+
+    Each subplot's transition counts once, on the footprint the condition's
+    area is based on: the subplot row of SUBP_COND_CHNG_MTRX when PROP_BASIS
+    is 'SUBP', the macroplot row when it is 'MACR', with the matching
+    adjustment factor. Conditions nonsampled at either measurement are left
+    out. These are EVALIDator's rules, so ``gross_gain + gross_loss`` equals
+    EVALIDator's forest area where either measurement is forest land minus
+    the area where both are (snum 128 minus 127, or 137 minus 136 per year).
+    With ``annual=False``, plots without a remeasurement period still count.
 
     The REMPER (remeasurement period) varies by plot but averages approximately
     5-7 years in most states.

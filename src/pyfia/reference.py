@@ -2,11 +2,15 @@
 FIADB reference-table lookups.
 
 Each lookup returns one row per code, with meanings taken verbatim from the
-database's REF tables (or the COUNTY and SURVEY tables), so labels match the FIADB
-release the database holds. ``join_reference`` attaches a lookup to a frame of
-codes and raises :class:`~pyfia.core.exceptions.UnknownCodeError` when the
-frame holds a code the reference table doesn't define, instead of silently
+database's REF tables (or the COUNTY and SURVEY tables), so labels match the
+FIADB release the database holds. ``join_reference`` attaches a lookup to a
+frame of codes and raises :class:`~pyfia.core.exceptions.UnknownCodeError` when
+the frame holds a code the reference table doesn't define, instead of silently
 leaving a null label.
+
+Codes that no REF table defines (COND_STATUS_CD, TRTCD1, DSTRBCD1, STATUSCD,
+AGENTCD, GRM components, ...) are labeled by ``label_codes`` from the User
+Guide tables in :mod:`pyfia.constants.codes`, with the same strictness.
 
 Lookups read the whole reference table and ignore any EVALID the database is
 clipped to.
@@ -25,6 +29,7 @@ from collections.abc import Callable, Sequence
 
 import polars as pl
 
+from .constants import codes
 from .constants.columns import CondColumns, PlotColumns, RefColumns, TreeColumns
 from .constants.tables import TableNames
 from .core.exceptions import MissingColumnError, UnknownCodeError
@@ -574,3 +579,127 @@ def join_reference(
         .sort("__ref_row")
         .drop("__ref_row", *tmp_keys)
     )
+
+
+#: Column prefixes ``label_codes`` looks through, e.g. ``t1_TRTCD1``.
+_TIME_PREFIXES = ("t1_", "t2_")
+
+
+def _code_table(column: str) -> tuple[str, dict | None]:
+    """The FIADB column a (possibly t1_/t2_-prefixed) column holds, and its table."""
+    base = next(
+        (column[len(p) :] for p in _TIME_PREFIXES if column.startswith(p)), column
+    )
+    return base, codes.CODE_TABLES.get(base)
+
+
+def label_codes(
+    df: pl.DataFrame,
+    columns: str | Sequence[str] | None = None,
+    suffix: str = "_NAME",
+) -> pl.DataFrame:
+    """
+    Add FIADB User Guide meanings for coded columns.
+
+    For each coded column, adds ``<column><suffix>`` holding the meaning from
+    :data:`pyfia.constants.codes.CODE_TABLES`, e.g. ``TRTCD1_NAME`` = "Cutting"
+    for ``TRTCD1`` = 10. Needs no database: these codes are defined by the
+    User Guide, not by REF tables (use :func:`join_reference` for forest
+    types, species, owner groups and geography).
+
+    Parameters
+    ----------
+    df : pl.DataFrame
+        Data holding FIADB codes.
+    columns : str or sequence of str, optional
+        Columns to label. Names may carry a ``t1_`` or ``t2_`` prefix (as in
+        remeasurement data), which is looked through. Defaults to every
+        column of ``df`` that has a code table.
+    suffix : str, default "_NAME"
+        Suffix for the added columns.
+
+    Returns
+    -------
+    pl.DataFrame
+        ``df`` with one String column added per labeled column. Null codes get
+        null meanings.
+
+    Raises
+    ------
+    UnknownCodeError
+        If a column holds a non-null code its table doesn't define. The error
+        lists the codes.
+    MissingColumnError
+        If a requested column is not in ``df``.
+    ValueError
+        If a requested column has no code table, or an added column would
+        overwrite one already in ``df``.
+
+    See Also
+    --------
+    join_reference : Labels for codes that REF tables define
+    pyfia.constants.codes : The code tables and how they are derived
+
+    Notes
+    -----
+    Columns covered: COND_STATUS_CD, RESERVCD, OWNCD, SITECLCD, STDORGCD,
+    DSTRBCD1-3, TRTCD1-3, HARVEST_TYPE1-3_SRS, STATUSCD, TREECLCD, AGENTCD,
+    COMPONENT and the TREE_GRM_COMPONENT ``*_COMPONENT_*`` columns.
+
+    AGENTCD's table lists ranges (10 for 10-19, and so on), within which state
+    programs record specific codes; a code takes the meaning of its range.
+
+    Examples
+    --------
+    >>> df = pl.DataFrame({"TRTCD1": [10, 0], "STATUSCD": [2, 1]})
+    >>> label_codes(df).select("TRTCD1_NAME", "STATUSCD_NAME").rows()
+    [('Cutting', 'Dead tree'), ('No observable treatment', 'Live tree')]
+
+    Label time-1 and time-2 treatments:
+
+    >>> label_codes(intervals, ["t1_TRTCD1", "t2_TRTCD1"])
+    """
+    if columns is None:
+        requested = list(df.columns)
+    else:
+        requested = [columns] if isinstance(columns, str) else list(columns)
+        missing = [c for c in requested if c not in df.columns]
+        if missing:
+            raise MissingColumnError(missing)
+    tables = {c: _code_table(c) for c in requested}
+    if columns is None:
+        tables = {c: bt for c, bt in tables.items() if bt[1] is not None}
+    uncoded = [c for c, (_, table) in tables.items() if table is None]
+    if uncoded:
+        raise ValueError(
+            f"No code table for {uncoded}; label_codes covers "
+            f"{sorted(codes.CODE_TABLES)}"
+        )
+
+    added = []
+    for col, (base, table) in tables.items():
+        if table is None:  # unreachable; narrows the type
+            continue
+        name = f"{col}{suffix}"
+        if name in df.columns:
+            raise ValueError(
+                f"label_codes would overwrite existing column {name!r}; "
+                "pass suffix= or drop it first"
+            )
+
+        key = pl.col(col)
+        if isinstance(next(iter(table)), int):
+            key = key.cast(pl.Int64)
+            if base in codes.RANGE_CODED:
+                key = key // 10 * 10
+        values = df.select(pl.col(col), key.alias("__key")).drop_nulls().unique()
+        unknown = values.filter(~pl.col("__key").is_in(list(table)))
+        if unknown.height:
+            raise UnknownCodeError(
+                col, sorted(unknown[col].to_list()), f"the User Guide {base} codes"
+            )
+        added.append(
+            key.replace_strict(table, default=None, return_dtype=pl.String).alias(name)
+        )
+
+    return df.with_columns(added)

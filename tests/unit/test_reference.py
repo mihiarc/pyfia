@@ -12,7 +12,13 @@ import pytest
 from polars.testing import assert_frame_equal
 
 from pyfia import FIA, MissingColumnError, UnknownCodeError, reference
-from pyfia.reference import REFERENCE_KINDS, SPECIES_COLUMNS, join_reference
+from pyfia.constants import codes
+from pyfia.reference import (
+    REFERENCE_KINDS,
+    SPECIES_COLUMNS,
+    join_reference,
+    label_codes,
+)
 
 
 def sql(db_path, query: str) -> pl.DataFrame:
@@ -261,6 +267,87 @@ class TestJoinReference:
         )
         assert "OWNGRPCD_NAME" in result.columns
         assert result.filter(pl.col("OWNGRPCD") == 40)["OWNGRPCD_NAME"][0] == "Private"
+
+
+class TestLabelCodes:
+    def test_labels_every_coded_column_by_default(self):
+        df = pl.DataFrame(
+            {"TRTCD1": [10, 0, None], "STATUSCD": [2, 1, 3], "PLT_CN": [1, 2, 3]}
+        )
+        result = label_codes(df)
+        assert result.columns == [*df.columns, "TRTCD1_NAME", "STATUSCD_NAME"]
+        assert result["TRTCD1_NAME"].to_list() == [
+            "Cutting",
+            "No observable treatment",
+            None,
+        ]
+        assert result["STATUSCD_NAME"].to_list() == [
+            "Dead tree",
+            "Live tree",
+            "Removed",
+        ]
+
+    def test_time_prefixes(self):
+        df = pl.DataFrame({"t1_COND_STATUS_CD": [1], "t2_COND_STATUS_CD": [2]})
+        result = label_codes(df, ["t1_COND_STATUS_CD", "t2_COND_STATUS_CD"])
+        assert result.row(0)[2:] == ("Accessible forest land", "Nonforest land")
+
+    def test_grm_components(self):
+        df = pl.DataFrame({"COMPONENT": ["SURVIVOR", "CUT1", "NOT USED"]})
+        names = label_codes(df)["COMPONENT_NAME"].to_list()
+        assert (
+            names[0] == "Tree has remained live and in the estimate from T1 through T2"
+        )
+        assert names[1].startswith(
+            "Tree was previously in estimate at T1 and was killed"
+        )
+        assert names[2] == "Tree was either live or dead at T1 and has no status at T2"
+
+    def test_agentcd_takes_its_range_meaning(self):
+        df = pl.DataFrame({"AGENTCD": [0, 11, 19, 25, 85]})
+        assert label_codes(df)["AGENTCD_NAME"].to_list() == [
+            "No agent recorded (only allowed on live trees in data prior to 1999)",
+            "Insect",
+            "Insect",
+            "Disease",
+            codes.AGENTCD[80],
+        ]
+
+    def test_text_codes(self):
+        df = pl.DataFrame({"TRTCD1": ["10", "00"]})
+        assert label_codes(df)["TRTCD1_NAME"].to_list() == [
+            "Cutting",
+            "No observable treatment",
+        ]
+
+    def test_unknown_code_raises(self):
+        df = pl.DataFrame({"TRTCD1": [10, 60, 70, 60]})
+        with pytest.raises(UnknownCodeError, match="TRTCD1") as err:
+            label_codes(df)
+        assert err.value.codes == [60, 70]
+
+    def test_unknown_agentcd_range_raises(self):
+        with pytest.raises(UnknownCodeError) as err:
+            label_codes(pl.DataFrame({"AGENTCD": [10, 95]}))
+        assert err.value.codes == [95]
+
+    def test_uncoded_column(self):
+        with pytest.raises(ValueError, match="No code table"):
+            label_codes(pl.DataFrame({"FORTYPCD": [161]}), "FORTYPCD")
+
+    def test_missing_column(self):
+        with pytest.raises(MissingColumnError, match="TRTCD1"):
+            label_codes(pl.DataFrame({"X": [1]}), "TRTCD1")
+
+    def test_refuses_to_overwrite(self):
+        df = pl.DataFrame({"TRTCD1": [10], "TRTCD1_NAME": ["mine"]})
+        with pytest.raises(ValueError, match="overwrite"):
+            label_codes(df, "TRTCD1")
+
+    def test_suffix(self):
+        df = pl.DataFrame({"RESERVCD": [0, 1]})
+        result = label_codes(df, suffix="_LABEL")
+        assert result["RESERVCD_LABEL"].to_list() == ["Not reserved", "Reserved"]
 
 
 def test_fia_db_path_attribute(fiadb_fixture):

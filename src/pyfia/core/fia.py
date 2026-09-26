@@ -259,6 +259,95 @@ class FIA:
             )
         return self._reader._backend.execute_query(sql)
 
+    def provenance(self, checksum: bool = False) -> dict[str, object]:
+        """Describe the software, data and evaluations behind results.
+
+        Stamp this onto anything derived from the database (saved tables,
+        figures, model inputs) so a result can be traced to the pyFIA
+        release, the FIADB release and the evaluations that produced it, and
+        so a later run can check it uses the same database file.
+
+        Parameters
+        ----------
+        checksum : bool, default False
+            If True, also compute the SHA-256 of the database file. This
+            reads the whole file (roughly ten seconds per gigabyte), so it is
+            off by default; the file's size and modification time identify
+            it cheaply.
+
+        Returns
+        -------
+        dict
+            With keys:
+
+            - **pyfia_version** : str - installed pyFIA version
+            - **fiadb_version** : str or None - most recent release in the
+              database's REF_FIADB_VERSION (e.g. 'FIADB_1.9.4.00'), None if
+              the table is missing
+            - **evalids** : list of int or None - evaluations the instance is
+              clipped to, None if unclipped
+            - **state_filter** : list of int or None - states it is clipped to
+            - **database** : str - database path (or MotherDuck name)
+            - **database_bytes** : int or None - file size
+            - **database_modified** : str or None - file modification time,
+              ISO 8601 in UTC
+            - **database_sha256** : str or None - file SHA-256 when
+              ``checksum=True``
+
+        Examples
+        --------
+        >>> with FIA("data/georgia.duckdb") as db:
+        ...     db.clip_most_recent(eval_type="GRM")
+        ...     stamp = db.provenance()
+        >>> stamp["fiadb_version"], stamp["evalids"]
+        ('FIADB_1.9.4.00', [132403])
+        """
+        import hashlib
+        from datetime import datetime, timezone
+
+        from .. import __version__
+
+        try:
+            versions = self._reader.read_table(
+                "REF_FIADB_VERSION", columns=["VERSION", "CREATED_DATE"], lazy=False
+            )
+            fiadb_version = (
+                versions.sort("CREATED_DATE", nulls_last=True)["VERSION"][-1]
+                if versions.height
+                else None
+            )
+        except Exception:  # table missing in this database
+            fiadb_version = None
+
+        database_bytes = database_modified = database_sha256 = None
+        if isinstance(self.db_path, Path):
+            stat = self.db_path.stat()
+            database_bytes = stat.st_size
+            database_modified = datetime.fromtimestamp(
+                stat.st_mtime, tz=timezone.utc
+            ).isoformat()
+            if checksum:
+                digest = hashlib.sha256()
+                with open(self.db_path, "rb") as f:
+                    for block in iter(lambda: f.read(1 << 20), b""):
+                        digest.update(block)
+                database_sha256 = digest.hexdigest()
+
+        return {
+            "pyfia_version": __version__,
+            "fiadb_version": fiadb_version,
+            "evalids": list(self.evalid) if self.evalid else None,
+            "state_filter": list(self.state_filter) if self.state_filter else None,
+            "database": str(self.db_path),
+            "database_bytes": database_bytes,
+            "database_modified": database_modified,
+            "database_sha256": database_sha256,
+        }
+
+    def _single_evalid(self) -> int | None:
+        """The evaluation this instance is clipped to, if exactly one."""
+        return int(self.evalid[0]) if self.evalid and len(self.evalid) == 1 else None
+
     # Connection management moved to FIADataReader with backend support
 
     def _get_valid_plot_cns(self) -> list[str] | None:

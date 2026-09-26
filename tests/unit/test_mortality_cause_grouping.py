@@ -16,7 +16,7 @@ from pyfia.estimation.columns import (
     TREE_GROUPING_COLUMNS,
     get_cond_columns,
 )
-from pyfia.estimation.grm import aggregate_cond_to_plot
+from pyfia.estimation.grm import attach_tree_conditions
 
 
 class TestColumnWhitelist:
@@ -50,38 +50,57 @@ class TestColumnWhitelist:
         assert "DSTRBCD2" in cols
 
 
-class TestConditionAggregation:
-    """Test that DSTRBCD columns are preserved in condition aggregation."""
+class TestTreeConditionAttachment:
+    """Each GRM tree gets its own condition's attributes (#138)."""
 
-    def test_aggregate_cond_preserves_dstrbcd1(self, condition_data_with_dstrbcd):
-        """DSTRBCD1 should be preserved when aggregating COND to plot level."""
-        cond = condition_data_with_dstrbcd.lazy()
-        result = aggregate_cond_to_plot(cond).collect()
+    @pytest.fixture
+    def two_condition_plot(self):
+        """Plot P1 has two conditions with different disturbances; P2 has one."""
+        cond = pl.DataFrame(
+            {
+                "PLT_CN": ["P1", "P1", "P2"],
+                "CONDID": [1, 2, 1],
+                "CONDPROP_UNADJ": [0.6, 0.4, 1.0],
+                "COND_STATUS_CD": [1, 1, 1],
+                "DSTRBCD1": [30, 10, 0],
+                "OWNGRPCD": [40, 10, 40],
+            }
+        ).lazy()
+        tree = pl.DataFrame(
+            {"CN": ["T1", "T2", "T3", "T4"], "CONDID": [1, 2, 2, 1]}
+        ).lazy()
+        grm = pl.DataFrame(
+            {
+                "TRE_CN": ["T1", "T2", "T3", "T4"],
+                "PLT_CN": ["P1", "P1", "P1", "P2"],
+                "TPA_UNADJ": [1.0, 2.0, 3.0, 4.0],
+            }
+        ).lazy()
+        return grm, tree, cond
 
-        assert "DSTRBCD1" in result.columns, (
-            "DSTRBCD1 must be preserved in aggregate_cond_to_plot() "
-            "to enable grouping by disturbance"
-        )
+    def test_trees_get_their_own_condition(self, two_condition_plot):
+        result = attach_tree_conditions(*two_condition_plot).collect().sort("TRE_CN")
+        assert result["DSTRBCD1"].to_list() == [30, 10, 10, 0]
+        assert result["OWNGRPCD"].to_list() == [40, 10, 10, 40]
 
-    def test_aggregate_cond_preserves_all_dstrbcd(self, condition_data_with_dstrbcd):
-        """All DSTRBCD columns should be preserved in aggregation."""
-        cond = condition_data_with_dstrbcd.lazy()
-        result = aggregate_cond_to_plot(cond).collect()
+    def test_area_keys_stay_at_plot_level(self, two_condition_plot):
+        """CONDPROP_UNADJ is the plot's total and CONDID is 1, as the GRM
+        aggregation and variance expect."""
+        result = attach_tree_conditions(*two_condition_plot).collect().sort("TRE_CN")
+        assert result["CONDPROP_UNADJ"].to_list() == [1.0, 1.0, 1.0, 1.0]
+        assert result["CONDID"].to_list() == [1, 1, 1, 1]
 
-        for col in ["DSTRBCD1", "DSTRBCD2", "DSTRBCD3"]:
-            assert col in result.columns, f"{col} must be preserved in aggregation"
+    def test_group_splits_sum_to_plot_total(self, two_condition_plot):
+        result = attach_tree_conditions(*two_condition_plot).collect()
+        p1 = result.filter(pl.col("PLT_CN") == "P1")
+        by_group = p1.group_by("DSTRBCD1").agg(pl.col("TPA_UNADJ").sum())
+        assert dict(by_group.iter_rows()) == {30: 1.0, 10: 5.0}
+        assert by_group["TPA_UNADJ"].sum() == p1["TPA_UNADJ"].sum()
 
-    def test_aggregate_cond_dstrbcd_values_correct(self, condition_data_with_dstrbcd):
-        """DSTRBCD values should be correctly preserved (first value per plot)."""
-        cond = condition_data_with_dstrbcd.lazy()
-        result = aggregate_cond_to_plot(cond).collect()
-
-        # Check that DSTRBCD1 values are preserved correctly
-        p1_row = result.filter(pl.col("PLT_CN") == "P1")
-        assert p1_row["DSTRBCD1"][0] == 30, "P1 should have DSTRBCD1=30 (Fire)"
-
-        p2_row = result.filter(pl.col("PLT_CN") == "P2")
-        assert p2_row["DSTRBCD1"][0] == 10, "P2 should have DSTRBCD1=10 (Insect)"
+    def test_row_count_unchanged(self, two_condition_plot):
+        grm = two_condition_plot[0]
+        result = attach_tree_conditions(*two_condition_plot).collect()
+        assert result.height == grm.collect().height
 
 
 class TestAGENTCDMapping:

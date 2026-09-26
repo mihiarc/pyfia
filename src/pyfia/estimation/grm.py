@@ -366,53 +366,55 @@ def apply_grm_adjustment(data: pl.LazyFrame) -> pl.LazyFrame:
     )
 
 
-def aggregate_cond_to_plot(cond: pl.LazyFrame) -> pl.LazyFrame:
-    """Aggregate COND table to plot level for GRM estimation.
+def attach_tree_conditions(
+    data: pl.LazyFrame, tree: pl.LazyFrame, cond: pl.LazyFrame
+) -> pl.LazyFrame:
+    """Attach each GRM tree's own condition attributes to GRM rows.
 
-    GRM tables don't have CONDID, so we need plot-level condition
-    aggregates for filtering and grouping.
+    GRM tables carry PLT_CN but not CONDID. A tree's condition comes from its
+    time-2 TREE record (``TREE_GRM_COMPONENT.TRE_CN = TREE.CN``, then
+    ``TREE.CONDID``), and its COND attributes join on ``(PLT_CN, CONDID)``.
+    EVALIDator groups GRM estimates by this condition.
+
+    ``CONDPROP_UNADJ`` and ``CONDID`` stay at plot level (the plot's summed
+    condition proportion and a constant 1), because the GRM two-stage
+    aggregation and variance use them as each plot's area and unit keys.
 
     Parameters
     ----------
+    data : pl.LazyFrame
+        GRM rows with TRE_CN and PLT_CN.
+    tree : pl.LazyFrame
+        TREE table with CN and CONDID.
     cond : pl.LazyFrame
-        Condition table data
+        COND table with PLT_CN, CONDID, CONDPROP_UNADJ and any attribute
+        columns needed for grouping or domains.
 
     Returns
     -------
     pl.LazyFrame
-        Plot-level condition aggregates with columns:
-        - PLT_CN
-        - COND_STATUS_CD (from first/dominant condition)
-        - CONDPROP_UNADJ (sum of all condition proportions)
-        - CONDID (dummy value of 1)
-        - every other loaded condition column (from the first condition)
-
-    Notes
-    -----
-    All loaded condition columns other than the explicitly handled keys are
-    carried to plot level via ``first()``. This preserves any grouping or
-    domain column threaded through the COND load (e.g. TRTCD1, DSTRBCD1)
-    instead of dropping anything outside a fixed allowlist, which is what
-    caused mortality()/removals() to lose group columns (#104).
+        ``data`` with every COND attribute of the tree's own condition, plus
+        plot-level CONDPROP_UNADJ and CONDID = 1.
     """
-    # Get available columns
-    available_cols = cond.collect_schema().names()
-
-    # Columns aggregated with bespoke logic; all others are carried via first().
-    handled = {"PLT_CN", "COND_STATUS_CD", "CONDPROP_UNADJ", "CONDID"}
-
-    agg_exprs = [
-        pl.col("COND_STATUS_CD").first().alias("COND_STATUS_CD"),
-        pl.col("CONDPROP_UNADJ").sum().alias("CONDPROP_UNADJ"),
-        pl.lit(1).alias("CONDID"),
-    ]
-
-    # Carry every other loaded condition column to plot level (first condition).
-    for col in available_cols:
-        if col not in handled:
-            agg_exprs.append(pl.col(col).first().alias(col))
-
-    return cond.group_by("PLT_CN").agg(agg_exprs)
+    plot_area = (
+        cond.group_by("PLT_CN")
+        .agg(pl.col("CONDPROP_UNADJ").sum())
+        .with_columns(pl.lit(1).alias("CONDID"))
+    )
+    own_condid = tree.select(
+        pl.col("CN").alias("TRE_CN"), pl.col("CONDID").alias("_TREE_CONDID")
+    )
+    return (
+        data.join(own_condid, on="TRE_CN", how="left")
+        .join(
+            cond.drop("CONDPROP_UNADJ"),
+            left_on=["PLT_CN", "_TREE_CONDID"],
+            right_on=["PLT_CN", "CONDID"],
+            how="left",
+        )
+        .drop("_TREE_CONDID")
+        .join(plot_area, on="PLT_CN", how="left")
+    )
 
 
 def filter_by_evalid(

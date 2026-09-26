@@ -1,5 +1,7 @@
 """Growth, Removals, Mortality (GRM) validation against EVALIDator."""
 
+import pytest
+
 from pyfia import FIA, growth, mortality, removals
 from pyfia.evalidator.validation import compare_estimates
 
@@ -198,4 +200,64 @@ class TestGRMValidation:
             assert plot_counts_match(pyfia_plot_count, ev_result.plot_count), (
                 f"Plot counts should match exactly.\n"
                 f"pyFIA: {pyfia_plot_count} vs EVALIDator: {ev_result.plot_count}"
+            )
+
+
+class TestGRMGroupedByCondition:
+    """Grouping by a condition attribute matches EVALIDator group by group.
+
+    EVALIDator groups GRM estimates by the condition of each tree's time-2
+    record (#138). Its group labels are its own text, so groups are paired by
+    estimate value and then compared on SE.
+    """
+
+    @pytest.mark.parametrize(
+        "estimator, snum, grp_by, rselected",
+        [
+            (mortality, 220, "DSTRBCD1", "Disturbance 1"),
+            (removals, 232, "TRTCD1", "Stand treatment 1"),
+        ],
+        ids=["mortality-DSTRBCD1", "removals-TRTCD1"],
+    )
+    def test_grouped_totals_and_se(
+        self, fia_db, evalidator_client, estimator, snum, grp_by, rselected
+    ):
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = estimator(
+                db,
+                grp_by=[grp_by],
+                land_type="timber",
+                tree_type="gs",
+                measure="volume",
+            )
+        total_col = next(c for c in result.columns if c.endswith("_TOTAL"))
+        pyfia_groups = [
+            (total, se)
+            for total, se in result.select(total_col, f"{total_col}_SE").iter_rows()
+            if total
+        ]
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=snum,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="cu ft/year",
+            estimate_type=f"GRM by {rselected}",
+            rselected=rselected,
+            cselected="None",
+        )
+        ev_groups = [
+            (float(row["ESTIMATE"]), float(row["SE"]))
+            for row in ev.raw_response["estimates"]
+            if float(row["ESTIMATE"])
+        ]
+
+        print(f"\n{estimator.__name__} by {grp_by}: {len(ev_groups)} groups")
+        assert len(pyfia_groups) == len(ev_groups)
+        for ev_total, ev_se in ev_groups:
+            matches = [p for p in pyfia_groups if values_match(p[0], ev_total)]
+            assert len(matches) == 1, f"No pyFIA group matches {ev_total:,.0f}"
+            assert se_values_match(matches[0][1], ev_se, rel_tol=SE_TOLERANCE_GRM), (
+                f"SE {matches[0][1]:,.0f} vs EVALIDator {ev_se:,.0f}"
             )

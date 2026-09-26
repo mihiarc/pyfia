@@ -524,8 +524,8 @@ def site_index(
         - **SIBASE** : int - Base age (always included)
         - **[grouping columns]** : varies - Columns from grp_by
         - **SI_MEAN** : float - Area-weighted mean site index (feet)
-        - **SI_SE** : float - Standard error of mean
-        - **SI_VARIANCE** : float - Variance of estimate
+        - **SI_SE** : float - Standard error of the mean (its square is the
+          variance; ``site_index()`` has no ``variance`` option)
         - **N_PLOTS** : int - Number of plots in estimate
         - **N_CONDITIONS** : int - Number of conditions with site index
 

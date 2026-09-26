@@ -76,6 +76,8 @@ Reference:
 
 from __future__ import annotations
 
+import inspect
+
 import polars as pl
 
 from .constants import Z_SCORE_90, Z_SCORE_95, Z_SCORE_99
@@ -120,6 +122,42 @@ def align_join_key_dtypes(
     if casts:
         right = right.with_columns(casts)
     return right
+
+
+# polars 1.24 renamed join(join_nulls=...) to join(nulls_equal=...).
+_JOIN_HAS_NULLS_EQUAL = "nulls_equal" in inspect.signature(pl.DataFrame.join).parameters
+
+
+def join_on_group_keys(
+    left: pl.DataFrame, right: pl.DataFrame, keys: list[str]
+) -> pl.DataFrame:
+    """Left-join ``right`` onto ``left`` by group keys, matching null keys.
+
+    A null grouping value is a real group. ``OWNGRPCD`` is null on every
+    nonforest condition, for example, so ``area(land_type="all",
+    grp_by="OWNGRPCD")`` has a row for the null owner group. Polars joins don't
+    match null keys by default, which would leave that group's joined values
+    (its SE, its count) null. This join matches them, after aligning Null-typed
+    keys as ``align_join_key_dtypes`` does.
+
+    Parameters
+    ----------
+    left : pl.DataFrame
+        Frame whose rows are kept (usually the results frame).
+    right : pl.DataFrame
+        Frame joined on (usually per-group variance statistics).
+    keys : list[str]
+        Group key column names, present in both frames.
+
+    Returns
+    -------
+    pl.DataFrame
+        ``left`` with ``right``'s other columns attached, null keys included.
+    """
+    right = align_join_key_dtypes(left, right, keys)
+    if _JOIN_HAS_NULLS_EQUAL:
+        return left.join(right, on=keys, how="left", nulls_equal=True)
+    return left.join(right, on=keys, how="left", join_nulls=True)  # type: ignore[call-arg]
 
 
 def calculate_grouped_domain_total_variance(
@@ -320,7 +358,7 @@ def _calculate_grouped_exact_bp_variance(
     eu_totals = strata_stats.group_by(eu_group_cols).agg(
         pl.sum("n_h_actual").alias("n_eu")
     )
-    strata_stats = strata_stats.join(eu_totals, on=eu_group_cols, how="left")
+    strata_stats = join_on_group_keys(strata_stats, eu_totals, eu_group_cols)
 
     # B&P post-stratified variance uses s²_h directly (NOT s²_h/n_h).
     # The formula V(ȳ_ps) = (1/n)Σ W_h s²_h + (1/n²)Σ (1-W_h) s²_h
@@ -436,8 +474,8 @@ def _calculate_grouped_exact_bp_variance(
     variance_by_group = eu_variance.group_by(valid_group_cols).agg(group_agg_exprs)
 
     # Join totals
-    variance_by_group = variance_by_group.join(
-        totals_by_group, on=valid_group_cols, how="left"
+    variance_by_group = join_on_group_keys(
+        variance_by_group, totals_by_group, valid_group_cols
     )
 
     # Clamp variance_total and compute SE
@@ -613,10 +651,10 @@ def _calculate_grouped_simplified_variance(
 
         # Compute ratio variance per stratum: w_h^2 * n_h * (s2_y - 2R*cov + R^2*s2_x)
         # We need the ratio per group joined back to strata_stats
-        strata_with_ratio = strata_stats.join(
+        strata_with_ratio = join_on_group_keys(
+            strata_stats,
             variance_by_group.select(valid_group_cols + ["ratio", "total_x"]),
-            on=valid_group_cols,
-            how="left",
+            valid_group_cols,
         )
 
         strata_with_ratio = strata_with_ratio.with_columns(
@@ -667,10 +705,10 @@ def _calculate_grouped_simplified_variance(
             )
         )
 
-        variance_by_group = variance_by_group.join(
+        variance_by_group = join_on_group_keys(
+            variance_by_group,
             ratio_var_by_group.select(valid_group_cols + ["variance_acre", "se_acre"]),
-            on=valid_group_cols,
-            how="left",
+            valid_group_cols,
         )
     else:
         variance_by_group = variance_by_group.with_columns(

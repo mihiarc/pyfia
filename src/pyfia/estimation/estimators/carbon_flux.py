@@ -18,6 +18,7 @@ import polars as pl
 
 from ...core import FIA
 from ..constants import CARBON_FRACTION
+from ..variance import join_on_group_keys
 from .area import area
 from .growth import growth
 from .mortality import mortality
@@ -359,11 +360,11 @@ def _grouped_flux(
     if join_cols:
         result = growth_df
         if join_cols[0] in area_df.columns:
-            result = result.join(area_df, on=join_cols, how="left")
+            result = join_on_group_keys(result, area_df, join_cols)
         if join_cols[0] in mort_df.columns:
-            result = result.join(mort_df, on=join_cols, how="left")
+            result = join_on_group_keys(result, mort_df, join_cols)
         if join_cols[0] in remv_df.columns:
-            result = result.join(remv_df, on=join_cols, how="left")
+            result = join_on_group_keys(result, remv_df, join_cols)
     else:
         # No common grouping columns, use cross join
         result = growth_df

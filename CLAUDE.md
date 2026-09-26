@@ -39,6 +39,12 @@ The `Makefile` targets:
   - So a dead-tree carbon path that filters only `STATUSCD == 2` doesn't double-count downed wood in current data. Keep the explicit `STANDING_DEAD_CD` filter anyway, as a defense (`src/pyfia/carbon/standing_dead.py`).
 - **EVALIDator groups growth, removals and mortality by the condition of the tree's time-2 record** (`TREE.CONDID`), not by its previous condition. `attach_tree_conditions()` in `src/pyfia/estimation/grm.py` does the same (#138).
 - **EVALIDator's per-acre value is the attribute total divided by the full domain area** (all in-domain conditions, with adjustment factors), not by the area of conditions that hold a qualifying tree. pyFIA's shared two-stage aggregation doesn't do this yet (#146).
+- **EVALIDator returns the SQL behind every estimate**, in `metadata.sql` of the fullreport response. Diff against it before calling a gap a methodology difference.
+  - Per-period estimates reproduce exactly from a local database of the same FIADB release. Annual ones (÷ `REMPER`) can drift about 0.05% when EVALIDator serves a newer release, so validate exactness on the per-period snums.
+- **Area change counts one `SUBP_COND_CHNG_MTRX` row per subplot**: `SUBPTYP` 1 when `COND.PROP_BASIS` is `SUBP`, 3 when it is `MACR`, with the matching adjustment factor, and `COND_NONSAMPLE_REASN_CD` 0 at both times (#151).
+  - FIADB 1.9.4's COND has no `PREVCOND`, so the change matrix is the only reliable time-1 ↔ time-2 condition link. Plots outside it (periodic inventories) fall back to the same CONDID (`condition_intervals`).
+- **All-live GRM estimates (trees at least 1 inch) use the `MICR_*_AL_*` columns** of `TREE_GRM_COMPONENT`, whose `SUBPTYP_GRM` 2 rows are microplot saplings. `SUBP_*_AL_*` is EVALIDator's at-least-5-inch population; growing stock and sawtimber use `SUBP_*` (#167).
+- **A domain's standard error needs every plot in the evaluation**, zero-filled where the plot has nothing in the domain, with the exact Bechtold & Patterson formula (`s²_h`, not `s²_h / n_h`). #147, #149 and #159 each broke this.
 
 ## Regression guardrails
 

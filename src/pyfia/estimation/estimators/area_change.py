@@ -19,6 +19,7 @@ import polars as pl
 
 from ...core import FIA
 from ..base import AggregationResult, BaseEstimator
+from ..columns import collect_referenced_columns, columns_in_table
 from ..utils import apply_variance_columns, format_output_columns
 
 
@@ -49,6 +50,8 @@ class AreaChangeEstimator(BaseEstimator):
         If False, return total change over remeasurement period
     grp_by : str or list of str, optional
         Column(s) to group results by
+    area_domain : str, optional
+        Filter on the current (time-2) condition
     variance : bool, default False
         If True, also return the AREA_CHANGE_VARIANCE column alongside
         AREA_CHANGE_SE (which is always returned). Variance = SE squared.
@@ -103,14 +106,13 @@ class AreaChangeEstimator(BaseEstimator):
         if land_type == "timber":
             core_cols.extend(["SITECLCD", "RESERVCD"])
 
-        # Add grouping columns
-        grp_by = self.config.get("grp_by")
-        if grp_by:
-            if isinstance(grp_by, str):
-                grp_by = [grp_by]
-            for col in grp_by:
-                if col not in core_cols:
-                    core_cols.append(col)
+        # Add the COND columns that grp_by and area_domain reference
+        referenced = collect_referenced_columns(
+            self.config.get("grp_by"), self.config.get("area_domain")
+        )
+        for col in columns_in_table(self.db, "COND", referenced):
+            if col not in core_cols:
+                core_cols.append(col)
 
         return core_cols
 
@@ -173,8 +175,9 @@ class AreaChangeEstimator(BaseEstimator):
             how="inner",
         )
 
-        # Rename current status column
-        data = data.rename({"COND_STATUS_CD": "CURR_COND_STATUS_CD"})
+        # Name the current status explicitly, keeping COND_STATUS_CD for
+        # area_domain expressions, which describe the current condition
+        data = data.with_columns(pl.col("COND_STATUS_CD").alias("CURR_COND_STATUS_CD"))
 
         # Join previous condition to get previous status
         # IMPORTANT: Load the FULL COND table (without EVALID filter) because
@@ -326,12 +329,13 @@ class AreaChangeEstimator(BaseEstimator):
             footprint & sampled_at_both & pl.col("CONDPROP_UNADJ").is_not_null()
         )
 
-        # Apply any area domain filter if specified
+        # area_domain filters the current (time-2) condition, as in panel()
+        # and the GRM estimators
         area_domain = self.config.get("area_domain")
         if area_domain:
             from ...filtering import apply_area_filters
 
-            data = apply_area_filters(data, area_domain)
+            data = apply_area_filters(data, area_domain=area_domain)
 
         return data
 
@@ -576,7 +580,14 @@ def area_change(
     grp_by : str or list of str, optional
         Column(s) to group results by (e.g., 'OWNGRPCD', 'FORTYPCD')
     area_domain : str, optional
-        SQL-like filter expression for conditions
+        SQL-like filter on the current (time-2) condition, e.g.
+        ``"OWNGRPCD == 40"``. A transition counts when its current condition
+        meets the filter, as in ``panel()`` and the GRM estimators. FIADB
+        records some attributes only on forest conditions (FORTYPCD
+        everywhere; OWNGRPCD and RESERVCD in many states), so a domain on one
+        of them leaves out losses to nonforest land, whose current condition
+        has no value. For a filter on the previous condition, or on both, use
+        condition-level remeasurement data.
     variance : bool, default False
         If True, also return the AREA_CHANGE_VARIANCE column alongside
         AREA_CHANGE_SE (which is always returned). Variance = SE squared.

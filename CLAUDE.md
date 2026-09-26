@@ -1,85 +1,56 @@
 # CLAUDE.md
 
-> This file provides guidance to Claude Code when working with this repository.
+**pyFIA** is a high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. This repo is public, and it's published to PyPI.
 
-## Project Overview
+## Statistical rigor
 
-**pyFIA** is a high-performance Python library for analyzing USDA Forest Inventory and Analysis (FIA) data. It provides statistically valid estimation methods following Bechtold & Patterson (2005) methodology.
+- Design-based estimation following **Bechtold & Patterson (2005)**.
+- Results must match **EVALIDator** (the official USFS tool).
+- Always include uncertainty estimates (SE, confidence intervals). Never compromise accuracy for convenience.
 
-## Design Philosophy
+## Shape of the code
 
-### Simplicity First
-- **No over-engineering**: Avoid unnecessary patterns (Strategy, Factory, Builder)
-- **Direct functions**: `volume(db)` not `VolumeEstimatorFactory.create().estimate()`
-- **YAGNI**: Don't build for hypothetical future needs
-- **Flat structure**: Maximum 3 levels of directory nesting
+This library favors direct module-level functions over class hierarchies — `volume(db)`, not a factory. Match that shape, keep the tree shallow, and choose fast implementations over elegant abstractions.
 
-### Statistical Rigor
-- Design-based estimation following Bechtold & Patterson (2005)
-- Results must match EVALIDator (official USFS tool)
-- Always include uncertainty estimates (SE, confidence intervals)
-- Never compromise accuracy for convenience
+## Project policies
 
-### User Trust
-- Show your work: Transparent methodology
-- Validate against official sources
-- Clear error messages when queries can't be answered
-- Honest about limitations
+- **Breaking changes are acceptable, but only in a MINOR or MAJOR release, never a patch.** Don't carry deprecated APIs forward.
+- **FIA table and column definitions are centralized constants** in `src/pyfia/constants/` (`tables.py`, `columns.py`) — reference them rather than hard-coding FIA name strings.
+- **`mortality()` is the documentation gold standard**: match its docstring quality. See `src/pyfia/estimation/estimators/mortality.py`.
+- **This repo is public.** Never name private repositories, clients, or internal datasets in code, docs, commit messages, issues or PR comments. Cite public artifacts (merged PRs, releases) instead. When work happens elsewhere before release, say "2.0 development happens in a private staging repository and publishes here at release".
 
-## Documentation Map
+Tooling:
+- Set up with `uv sync --extra dev`. The test and lint tools live in the `dev` extra, so plain `uv sync` has no pytest. `uv.lock` is committed.
+- Run `uv run pre-commit install` once per clone. The hooks then run ruff-format, ruff `--fix` and mypy (`uv run mypy src/pyfia/`) on every commit.
+- CI (`.github/workflows/tests.yml`) runs `pytest tests/unit`, mypy and `ruff check` on Python 3.11–3.14 for every pull request, including stacked ones. It doesn't check formatting, so the pre-commit hook is the only format gate.
+- DB-backed tests use a committed three-county Alabama FIADB subset (`tests/fixtures/fiadb_al/`, fixtures `fiadb_fixture_path` and `fiadb_fixture` in `tests/conftest.py`), so they run in CI. `tests/validation/` needs full state DBs (`PYFIA_DATABASE_PATH`) and the EVALIDator API.
 
-| Document | Purpose |
-|----------|---------|
-| [README.md](./README.md) | Quick start for users |
-| [docs/DEVELOPMENT.md](./docs/DEVELOPMENT.md) | Technical setup, architecture |
-| [docs/fia_technical_context.md](./docs/fia_technical_context.md) | FIA methodology reference |
-| [~/business/](../business/) | Business strategy and market analysis (outside repo) |
+The `Makefile` targets:
 
-## Development Quick Reference
+- `make test`: the default `-m "not slow and not network"`.
+- `make validate`: the EVALIDator comparisons under `tests/validation/`.
+- `make lint`, `make format`, `make typecheck`.
 
-```bash
-# Setup
-uv venv && source .venv/bin/activate && uv pip install -e .[dev]
+## FIA data facts worth keeping resident
 
-# Test
-uv run pytest
+- **FIADB populates `CARBON_AG`/`CARBON_BG` for dead trees only when `STANDING_DEAD_CD = 1`.**
+  - Dead trees with `STANDING_DEAD_CD = 0` (fallen since the last measurement) carry zero or null tree carbon. So do those with `NULL` (older inventories).
+  - That fallen material is counted in `COND.CARBON_DOWN_DEAD` instead.
+  - So a dead-tree carbon path that filters only `STATUSCD == 2` doesn't double-count downed wood in current data. Keep the explicit `STANDING_DEAD_CD` filter anyway, as a defense (`src/pyfia/carbon/standing_dead.py`).
+- **EVALIDator groups growth, removals and mortality by the condition of the tree's time-2 record** (`TREE.CONDID`), not by its previous condition. `attach_tree_conditions()` in `src/pyfia/estimation/grm.py` does the same (#138).
+- **EVALIDator's per-acre value is the attribute total divided by the full domain area** (all in-domain conditions, with adjustment factors), not by the area of conditions that hold a qualifying tree. pyFIA's shared two-stage aggregation doesn't do this yet (#146).
 
-# Quality
-uv run ruff format && uv run ruff check --fix && uv run mypy src/pyfia/
-```
+## Regression guardrails
 
-## Core Principles for Contributors
+Estimator output isn't byte-stable from run to run.
+- `*_SE` and `*_VARIANCE` columns jitter at the ULP level, because polars sums floats in parallel.
+- Point estimates are stable to 8+ significant figures.
+- So never hash an output frame to prove a refactor is behavior-preserving.
+- Canonicalize both sides first: sort rows by all columns, drop `*_SE`/`*_VARIANCE`, round the remaining floats to 8 significant figures, then diff. Counts (`N_PLOTS`, `N_TREES`) and point estimates should then match exactly.
 
-1. **User value first**: Every feature should reduce friction for end users
-2. **Statistical validity**: Never ship estimates that could mislead
-3. **Simplicity**: When in doubt, choose the simpler approach
-4. **Real data testing**: Always test with actual FIA databases
-5. **Documentation**: If it's not documented, it doesn't exist
+## Docs (Mintlify)
 
-## Important Notes
-
-- **No backward compatibility debt**: Refactor freely, don't maintain old APIs
-- **Performance matters**: Choose fast implementations over elegant abstractions
-- **YAML schemas are source of truth**: FIA table definitions live in YAML
-- **`mortality()` is the documentation gold standard**: Match its docstring quality
-
-## Project Structure
-
-```
-pyfia/
-├── src/pyfia/           # Library source code
-│   ├── core/            # Database, backends, and settings
-│   ├── estimation/      # Statistical estimation
-│   ├── carbon/          # Carbon estimation (all 6 IPCC pools + total_ecosystem)
-│   ├── filtering/       # Domain filtering
-│   ├── downloader/      # FIA data download from DataMart
-│   ├── evalidator/      # EVALIDator API client for validation
-│   ├── validation.py    # Input validation utilities
-│   ├── utils/           # Reference table helpers
-│   └── constants/       # FIA constants and standard values
-├── tests/               # Test suite
-├── docs/                # Technical documentation
-├── ../business/         # Business docs (outside repo)
-├── examples/            # Example scripts
-└── data/                # Test databases
-```
+- The public docs are Mintlify: `docs/docs.json` plus MDX pages under `docs/`. The site is pyfia.mintlify.app, deployed on push by the Mintlify GitHub App.
+- The API reference in `docs/api/*.mdx` is generated from the NumPy docstrings by `./scripts/gen_api_docs.sh` (mdxify). Mintlify serves the committed MDX, so re-run the script and commit the output whenever the public API or its docstrings change.
+- If you add or remove an API page, update the "API Reference" tab in `docs/docs.json`.
+- The NSVB carbon module (`pyfia.carbon`) has shipped in the wheel since 1.4.3, but it stays out of the public docs until 1.5.0, as `scripts/gen_api_docs.sh` states. The script already strips carbon-named sections that leak in through class pages (`FIA.carbon_flux`, `EVALIDatorClient.get_carbon`). Don't hand-add carbon pages.

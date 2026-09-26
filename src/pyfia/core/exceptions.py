@@ -16,7 +16,8 @@ PyFIAError (base)
 ├── FilterError
 │   ├── InvalidDomainError
 │   └── InvalidEVALIDError
-└── ConfigurationError
+├── ConfigurationError
+└── UnknownCodeError (also a ValueError)
 
 Usage Guidelines
 ----------------
@@ -295,6 +296,36 @@ class ConfigurationError(PyFIAError):
         self.parameter = parameter
         if parameter:
             message = f"Invalid configuration for '{parameter}': {message}"
+        super().__init__(message)
+
+
+# === Reference Errors ===
+
+
+class UnknownCodeError(PyFIAError, ValueError):
+    """
+    Raised when data holds codes that a reference table doesn't define.
+
+    Parameters
+    ----------
+    kind : str
+        The reference kind looked up (for example ``"forest_type"``).
+    codes : list
+        The unmatched codes (tuples for composite keys), sorted.
+    table : str
+        The reference table the codes were looked up in.
+    """
+
+    def __init__(self, kind: str, codes: list, table: str):
+        self.kind = kind
+        self.codes = codes
+        self.table = table
+        shown = ", ".join(str(c) for c in codes[:20])
+        more = f" and {len(codes) - 20} more" if len(codes) > 20 else ""
+        message = (
+            f"{len(codes)} {kind} code(s) not in {table}: {shown}{more}. "
+            "Check the data or the database's FIADB version."
+        )
         super().__init__(message)
 
 

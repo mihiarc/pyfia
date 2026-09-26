@@ -100,7 +100,7 @@ Master the main estimation functions for forest inventory analysis.
 - `biomass()` - Aboveground, belowground, and carbon
 - `tpa()` - Trees per acre and basal area
 - Grouping results with `grp_by`
-- Adding reference names with `join_species_names()`
+- Adding reference names with `join_reference()`
 - Enabling variance estimates
 
 ---

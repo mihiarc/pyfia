@@ -434,7 +434,7 @@ def biomass(
     pyfia.constants.TreeStatus : Tree status code definitions
     pyfia.constants.OwnershipGroup : Ownership group code definitions
     pyfia.constants.ForestType : Forest type code definitions
-    pyfia.utils.reference_tables : Functions for adding species/forest type names
+    pyfia.reference.join_reference : Add species or forest type names
 
     Notes
     -----

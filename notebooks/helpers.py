@@ -206,10 +206,10 @@ def plot_by_category(
     Example
     -------
     >>> result = volume(db, by_species=True)
-    >>> result = join_species_names(result, "SPCD")
+    >>> result = join_reference(result, db, "species", columns=["COMMON_NAME"])
     >>> fig = plot_by_category(
     ...     result,
-    ...     category_col="SPCD_NAME",
+    ...     category_col="COMMON_NAME",
     ...     value_col="VOLCFNET_ACRE",
     ...     error_col="VOLCFNET_ACRE_SE",
     ...     title="Volume by Species"

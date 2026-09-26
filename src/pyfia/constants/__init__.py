@@ -18,6 +18,7 @@ from .columns import (
     CondColumns,
     OutputColumns,
     PlotColumns,
+    RefSpeciesColumns,
     StratColumns,
     TreeColumns,
 )
@@ -26,6 +27,7 @@ __all__ = [
     "TreeColumns",
     "CondColumns",
     "PlotColumns",
+    "RefSpeciesColumns",
     "StratColumns",
     "OutputColumns",
 ]

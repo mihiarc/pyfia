@@ -25,6 +25,7 @@ uv run --with mdxify mdxify \
   pyfia.estimation.estimators.tree_metrics \
   pyfia.estimation.estimators.panel \
   pyfia.intervals \
+  pyfia.stand_metrics \
   pyfia.core.fia \
   pyfia.core.settings \
   pyfia.downloader \

@@ -21,6 +21,8 @@ __author__ = "Chris Mihiar"
 
 # Core exports - Main functionality
 # Estimation functions - High-level API
+# Reference tables: pyfia.reference.forest_types(db), ..., join_reference
+from pyfia import reference
 from pyfia.carbon import live_tree, standing_dead
 from pyfia.core.data_reader import FIADataReader
 from pyfia.core.exceptions import (
@@ -36,6 +38,7 @@ from pyfia.core.exceptions import (
     PyFIAError,
     StratificationError,
     TableNotFoundError,
+    UnknownCodeError,
 )
 from pyfia.core.fia import FIA, MotherDuckFIA
 from pyfia.core.settings import (
@@ -76,15 +79,8 @@ from pyfia.evalidator.validation import (
     validate_pyfia_estimate,
 )
 from pyfia.intervals import condition_intervals
+from pyfia.reference import join_reference
 from pyfia.stand_metrics import condition_stand_metrics
-
-# Reference table utilities - Useful for adding descriptive names to results
-from pyfia.utils.reference_tables import (
-    join_forest_type_names,
-    join_multiple_references,
-    join_species_names,
-    join_state_names,
-)
 
 # Note: Statistical utility functions (merge_estimation_data, calculate_stratum_estimates, etc.)
 # are internal to the estimators. Users should use the high-level estimation functions
@@ -114,6 +110,7 @@ __all__ = [
     "InvalidEVALIDError",
     "NoEVALIDError",
     "ConfigurationError",
+    "UnknownCodeError",
     # Estimation functions
     "area",
     "area_change",
@@ -131,11 +128,9 @@ __all__ = [
     "standing_dead",
     # Remeasurement builders
     "condition_intervals",
-    # Reference table utilities
-    "join_forest_type_names",
-    "join_species_names",
-    "join_state_names",
-    "join_multiple_references",
+    # Reference tables
+    "reference",
+    "join_reference",
     # EVALIDator validation
     "EVALIDatorClient",
     "EVALIDatorEstimate",

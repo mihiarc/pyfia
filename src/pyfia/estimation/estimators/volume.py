@@ -471,7 +471,7 @@ def volume(
     pyfia.constants.SpeciesCodes : Species code definitions
     pyfia.constants.ForestTypes : Forest type code definitions
     pyfia.constants.StateCodes : State FIPS code definitions
-    pyfia.utils.reference_tables : Functions for adding species/forest type names
+    pyfia.reference.join_reference : Add species or forest type names
 
     Notes
     -----

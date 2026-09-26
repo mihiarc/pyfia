@@ -225,7 +225,7 @@ class TestEstimatorIntegration:
 
         assert "SPCD" in result.columns
         # SPCD should NOT be auto-enhanced (no COMMON_NAME column)
-        # Users should use join_species_names() for this
+        # Users should use join_reference(df, db, "species") for this
         assert "COMMON_NAME" not in result.columns
 
     def test_no_grp_by_no_enhancement(self, fia_db):

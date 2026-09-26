@@ -29,7 +29,7 @@ uv run --with mdxify mdxify \
   pyfia.core.fia \
   pyfia.core.settings \
   pyfia.downloader \
-  pyfia.utils.reference_tables \
+  pyfia.reference \
   pyfia.evalidator \
   --output-dir docs/api --docstring-style numpy --format mdx --no-update-nav \
   --repo-url https://github.com/mihiarc/pyfia --branch main
@@ -62,7 +62,7 @@ retitle() {  # $1 = page slug (no .mdx), $2 = display title
 }
 retitle pyfia-core-fia           "FIA Database"
 retitle pyfia-core-settings      "Settings"
-retitle pyfia-utils-reference_tables "Reference Tables"
+retitle pyfia-reference         "Reference Tables"
 retitle pyfia-evalidator-client  "EVALIDator Client"
 retitle pyfia-evalidator-validation "Validation"
 

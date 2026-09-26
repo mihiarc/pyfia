@@ -25,7 +25,7 @@ import polars as pl
 from .constants.columns import (
     CondColumns,
     PlotColumns,
-    RefSpeciesColumns,
+    RefColumns,
     TreeColumns,
 )
 from .constants.plot_design import DiameterBreakpoints
@@ -367,12 +367,12 @@ def _read_breakpoints(fia: FIA, plots: pl.DataFrame | None) -> pl.DataFrame:
 def _read_softwood(fia: FIA) -> pl.DataFrame:
     species = fia._reader.read_table(
         TableNames.REF_SPECIES,
-        columns=[RefSpeciesColumns.SPCD, RefSpeciesColumns.SFTWD_HRDWD],
+        columns=[RefColumns.SPCD, RefColumns.SFTWD_HRDWD],
         lazy=False,
     )
     return species.select(
-        pl.col(RefSpeciesColumns.SPCD).cast(pl.Int64).alias(TreeColumns.SPCD),
-        (pl.col(RefSpeciesColumns.SFTWD_HRDWD) == _SOFTWOOD).alias("_SOFTWOOD"),
+        pl.col(RefColumns.SPCD).cast(pl.Int64).alias(TreeColumns.SPCD),
+        (pl.col(RefColumns.SFTWD_HRDWD) == _SOFTWOOD).alias("_SOFTWOOD"),
     )
 
 

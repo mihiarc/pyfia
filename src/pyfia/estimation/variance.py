@@ -14,8 +14,8 @@ For each estimation unit EU:
 
     V_EU = V1 + V2
 
-    V1 = (A²/n) × Σ_h W_h × s²_yh / n_h     (within-stratum term)
-    V2 = (A²/n²) × Σ_h (1 - W_h) × s²_yh / n_h  (post-stratification correction)
+    V1 = (A²/n) × Σ_h W_h × s²_yh           (within-stratum term)
+    V2 = (A²/n²) × Σ_h (1 - W_h) × s²_yh    (post-stratification correction)
 
     V_total = Σ_EU V_EU
 
@@ -24,7 +24,10 @@ Where:
 - n = total number of phase 2 plots in the estimation unit (Σ_h n_h)
 - W_h = STRATUM_WGT = P1POINTCNT / P1PNTCNT_EU (phase 1 stratum weight)
 - s²_yh = sample variance within stratum h (with ddof=1)
-- n_h = P2POINTCNT = number of phase 2 plots in stratum h
+- n_h = number of phase 2 plots in stratum h
+
+The sample size enters through the A²/n and A²/n² factors, so s²_yh is
+not divided by n_h.
 
 The V2 term captures uncertainty from estimating stratum weights from
 the sample. It is zero under proportional allocation (W_h = n_h/n)
@@ -319,10 +322,12 @@ def _calculate_grouped_exact_bp_variance(
     )
     strata_stats = strata_stats.join(eu_totals, on=eu_group_cols, how="left")
 
-    # v_yh, v_xh, c_yxh = s²/n_h for strata with n_h > 1
+    # B&P post-stratified variance uses s²_h directly (NOT s²_h/n_h).
+    # The formula V(ȳ_ps) = (1/n)Σ W_h s²_h + (1/n²)Σ (1-W_h) s²_h
+    # already accounts for sample size through the A²/n and A²/n² terms.
     v_exprs = [
         pl.when(pl.col("n_h_actual") > 1)
-        .then(pl.col("s2_yh") / pl.col("n_h_design"))
+        .then(pl.col("s2_yh"))
         .otherwise(0.0)
         .alias("v_yh"),
     ]
@@ -330,11 +335,11 @@ def _calculate_grouped_exact_bp_variance(
         v_exprs.extend(
             [
                 pl.when(pl.col("n_h_actual") > 1)
-                .then(pl.col("s2_xh") / pl.col("n_h_design"))
+                .then(pl.col("s2_xh"))
                 .otherwise(0.0)
                 .alias("v_xh"),
                 pl.when(pl.col("n_h_actual") > 1)
-                .then(pl.col("cov_yxh") / pl.col("n_h_design"))
+                .then(pl.col("cov_yxh"))
                 .otherwise(0.0)
                 .alias("c_yxh"),
             ]
@@ -705,7 +710,7 @@ def calculate_domain_total_variance(
         A = AREA_USED (total area of the estimation unit)
 
         For each stratum h with n_h > 1:
-            v_h = s²_yh / n_h  (variance of stratum mean)
+            v_h = s²_yh  (sample variance; n enters through A²/n and A²/n²)
 
         V1 = (A²/n) × Σ_h W_h × v_h       (main within-stratum term)
         V2 = (A²/n²) × Σ_h (1 - W_h) × v_h  (post-stratification correction)
@@ -718,7 +723,7 @@ def calculate_domain_total_variance(
     - n = total number of phase 2 plots in the estimation unit
     - W_h = STRATUM_WGT = P1POINTCNT / P1PNTCNT_EU (phase 1 stratum weight)
     - s²_yh = sample variance within stratum h (ddof=1)
-    - n_h = P2POINTCNT = number of phase 2 plots in stratum h
+    - n_h = number of phase 2 plots in stratum h
 
     Parameters
     ----------

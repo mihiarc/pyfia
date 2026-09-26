@@ -9,6 +9,8 @@ gross_gain and gross_loss.
 
 from __future__ import annotations
 
+import shutil
+
 import duckdb
 import polars as pl
 import pytest
@@ -17,15 +19,30 @@ from pyfia import FIA, area_change
 
 EVALID_CHNG = 12403
 
-STATUS = {
-    "both": "cond.COND_STATUS_CD = 1 AND pcond.COND_STATUS_CD = 1",
-    "either": "cond.COND_STATUS_CD = 1 OR pcond.COND_STATUS_CD = 1",
-    "gain": "cond.COND_STATUS_CD = 1 AND pcond.COND_STATUS_CD <> 1",
-    "loss": "cond.COND_STATUS_CD <> 1 AND pcond.COND_STATUS_CD = 1",
+LAND = {
+    "forest": "{t}.COND_STATUS_CD = 1",
+    "timber": (
+        "{t}.COND_STATUS_CD = 1 AND {t}.RESERVCD = 0"
+        " AND {t}.SITECLCD IN (1, 2, 3, 4, 5, 6)"
+    ),
 }
 
 
-def plot_change_sql(status: str, annual: bool, domain: str = "TRUE") -> str:
+def status_sql(status: str, land_type: str) -> str:
+    """Which transitions count, with a null attribute meaning "not in the land type"."""
+    curr = f"COALESCE(({LAND[land_type].format(t='cond')}), FALSE)"
+    prev = f"COALESCE(({LAND[land_type].format(t='pcond')}), FALSE)"
+    return {
+        "both": f"{curr} AND {prev}",
+        "either": f"{curr} OR {prev}",
+        "gain": f"{curr} AND NOT {prev}",
+        "loss": f"NOT {curr} AND {prev}",
+    }[status]
+
+
+def plot_change_sql(
+    status: str, annual: bool, domain: str = "TRUE", land_type: str = "forest"
+) -> str:
     """Adjusted, unexpanded change per plot (PLT_CN, EXPNS, v), as EVALIDator
     computes it. ``domain`` is extra SQL on the current condition (``cond``)."""
     per_year = "/ plot.REMPER" if annual else ""
@@ -47,7 +64,7 @@ def plot_change_sql(status: str, annual: bool, domain: str = "TRUE") -> str:
               OR (sccm.SUBPTYP = 1 AND cond.PROP_BASIS = 'SUBP'))
             AND COALESCE(cond.COND_NONSAMPLE_REASN_CD, 0) = 0
             AND COALESCE(pcond.COND_NONSAMPLE_REASN_CD, 0) = 0
-            AND ({STATUS[status]})
+            AND ({status_sql(status, land_type)})
             AND ({domain})
             AND ps.EVALID = {EVALID_CHNG}
           GROUP BY plot.CN, ps.EXPNS
@@ -55,16 +72,16 @@ def plot_change_sql(status: str, annual: bool, domain: str = "TRUE") -> str:
 
 
 def evalidator_change_total(
-    db_path, status: str, annual: bool, domain: str = "TRUE"
+    db_path, status: str, annual: bool, domain: str = "TRUE", land_type: str = "forest"
 ) -> float:
     """Expanded area change total, as EVALIDator's SQL computes it."""
-    sql = f"SELECT SUM(v * EXPNS) FROM ({plot_change_sql(status, annual, domain)})"
+    sql = f"SELECT SUM(v * EXPNS) FROM ({plot_change_sql(status, annual, domain, land_type)})"
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.sql(sql).fetchone()[0]
 
 
 def bechtold_patterson_se(
-    db_path, status: str, annual: bool, domain: str = "TRUE"
+    db_path, status: str, annual: bool, domain: str = "TRUE", land_type: str = "forest"
 ) -> float:
     """SE of the change total by Bechtold & Patterson's post-stratified domain
     total variance, written out independently of pyFIA:
@@ -74,7 +91,7 @@ def bechtold_patterson_se(
     over every plot in the evaluation, with zero change where a plot has none.
     """
     sql = f"""
-        WITH y AS ({plot_change_sql(status, annual, domain)}),
+        WITH y AS ({plot_change_sql(status, annual, domain, land_type)}),
         plots AS (
           SELECT ps.ESTN_UNIT_CN AS eu, ps.CN AS h, eu.AREA_USED AS A,
                  ps.P1POINTCNT * 1.0 / eu.P1PNTCNT_EU AS W, COALESCE(y.v, 0) AS v
@@ -101,12 +118,20 @@ def bechtold_patterson_se(
 
 
 def pyfia_change_total(
-    db_path, change_type: str, annual: bool, area_domain: str | None = None
+    db_path,
+    change_type: str,
+    annual: bool,
+    area_domain: str | None = None,
+    land_type: str = "forest",
 ) -> float:
     with FIA(str(db_path)) as db:
         db.clip_by_evalid(EVALID_CHNG)
         result = area_change(
-            db, change_type=change_type, annual=annual, area_domain=area_domain
+            db,
+            land_type=land_type,
+            change_type=change_type,
+            annual=annual,
+            area_domain=area_domain,
         )
     return result["AREA_CHANGE_TOTAL"][0]
 
@@ -245,3 +270,82 @@ class TestAreaChangeSE:
             fiadb_fixture_path, "loss", True, domain="cond.OWNGRPCD IS NULL"
         )
         assert null_group["AREA_CHANGE_SE"][0] == pytest.approx(expected, rel=1e-9)
+
+
+@pytest.mark.parametrize("annual", [True, False], ids=["annual", "period"])
+class TestTimberland:
+    """land_type="timber" tracks timberland, not forest land (#157)."""
+
+    @pytest.mark.parametrize(
+        "change_type,status", [("gross_gain", "gain"), ("gross_loss", "loss")]
+    )
+    def test_gross_change(self, fiadb_fixture_path, annual, change_type, status):
+        expected = evalidator_change_total(
+            fiadb_fixture_path, status, annual, land_type="timber"
+        )
+        assert expected > 0
+        assert pyfia_change_total(
+            fiadb_fixture_path, change_type, annual, land_type="timber"
+        ) == pytest.approx(expected, rel=1e-9)
+
+    def test_gain_plus_loss_is_either_minus_both(self, fiadb_fixture_path, annual):
+        transition_area = evalidator_change_total(
+            fiadb_fixture_path, "either", annual, land_type="timber"
+        ) - evalidator_change_total(
+            fiadb_fixture_path, "both", annual, land_type="timber"
+        )
+        gain = pyfia_change_total(
+            fiadb_fixture_path, "gross_gain", annual, land_type="timber"
+        )
+        loss = pyfia_change_total(
+            fiadb_fixture_path, "gross_loss", annual, land_type="timber"
+        )
+        assert gain + loss == pytest.approx(transition_area, rel=1e-9)
+
+    def test_reserved_at_time_1_is_a_timberland_gain(
+        self, fiadb_fixture_path, tmp_path, annual
+    ):
+        """Forest that was reserved at time 1 and isn't now entered timberland.
+
+        No remeasured condition in the fixture changes reserve status, so a
+        copy marks five time-1 forest conditions of forest-to-forest
+        transitions as reserved.
+        """
+        db_path = tmp_path / "reserved.duckdb"
+        shutil.copy(fiadb_fixture_path, db_path)
+        with duckdb.connect(str(db_path)) as con:
+            con.execute(f"""
+                UPDATE COND SET RESERVCD = 1 WHERE CN IN (
+                  SELECT DISTINCT pcond.CN
+                  FROM SUBP_COND_CHNG_MTRX sccm
+                  JOIN COND cond ON cond.PLT_CN = sccm.PLT_CN
+                   AND cond.CONDID = sccm.CONDID
+                  JOIN COND pcond ON pcond.PLT_CN = sccm.PREV_PLT_CN
+                   AND pcond.CONDID = sccm.PREVCOND
+                  JOIN POP_PLOT_STRATUM_ASSGN a ON a.PLT_CN = sccm.PLT_CN
+                  WHERE a.EVALID = {EVALID_CHNG} AND sccm.SUBPTYP = 1
+                    AND cond.COND_STATUS_CD = 1 AND pcond.COND_STATUS_CD = 1
+                    AND cond.RESERVCD = 0 AND cond.SITECLCD <= 6
+                    AND pcond.SITECLCD <= 6
+                  ORDER BY pcond.CN LIMIT 5)
+            """)
+
+        forest_gain = evalidator_change_total(db_path, "gain", annual)
+        timber_gain = evalidator_change_total(
+            db_path, "gain", annual, land_type="timber"
+        )
+        assert timber_gain > forest_gain
+        assert pyfia_change_total(
+            db_path, "gross_gain", annual, land_type="timber"
+        ) == pytest.approx(timber_gain, rel=1e-9)
+
+    def test_se(self, fiadb_fixture_path, annual):
+        expected = bechtold_patterson_se(
+            fiadb_fixture_path, "loss", annual, land_type="timber"
+        )
+        with FIA(str(fiadb_fixture_path)) as db:
+            db.clip_by_evalid(EVALID_CHNG)
+            result = area_change(
+                db, land_type="timber", change_type="gross_loss", annual=annual
+            )
+        assert result["AREA_CHANGE_SE"][0] == pytest.approx(expected, rel=1e-9)

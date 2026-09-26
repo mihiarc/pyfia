@@ -129,50 +129,52 @@ class TestGetCondColumns:
         assert cols.count("CONDID") == 1
 
 
-class TestIsForestCondition:
-    """Tests for _is_forest_condition method."""
+class TestInLandType:
+    """Tests for _in_land_type method."""
+
+    class MockDB:
+        db_path = "/fake/path"
+        tables = {}
 
     def test_forest_land_type(self):
-        """Test forest condition expression for forest land type."""
-
-        class MockDB:
-            db_path = "/fake/path"
-            tables = {}
-
-        config = {"land_type": "forest"}
-        estimator = AreaChangeEstimator(MockDB(), config)
-
-        # Create test data
+        """COND_STATUS_CD 1 is forest land, at either measurement."""
+        estimator = AreaChangeEstimator(self.MockDB(), {"land_type": "forest"})
         df = pl.DataFrame(
             {
-                "STATUS": [1, 2, 3, 4, 5, 1],
+                "CURR_COND_STATUS_CD": [1, 2, 3, 4, 5, 1],
+                "PREV_COND_STATUS_CD": [2, 1, 1, 1, 1, 1],
             }
         )
 
-        # Apply expression
-        expr = estimator._is_forest_condition("STATUS")
-        result = df.select(expr.alias("is_forest"))
+        result = df.select(
+            estimator._in_land_type("current").alias("curr"),
+            estimator._in_land_type("previous").alias("prev"),
+        )
 
-        # COND_STATUS_CD == 1 is forest
-        expected = [True, False, False, False, False, True]
-        assert result["is_forest"].to_list() == expected
+        assert result["curr"].to_list() == [True, False, False, False, False, True]
+        assert result["prev"].to_list() == [False, True, True, True, True, True]
 
     def test_timber_land_type(self):
-        """Test forest condition expression for timber land type."""
+        """Timberland is productive (SITECLCD 1-6), unreserved forest land (#157)."""
+        estimator = AreaChangeEstimator(self.MockDB(), {"land_type": "timber"})
+        df = pl.DataFrame(
+            {
+                "CURR_COND_STATUS_CD": [1, 1, 1, 2, 1],
+                "SITECLCD": [3, 7, 3, None, None],
+                "RESERVCD": [0, 0, 1, None, 0],
+                "PREV_COND_STATUS_CD": [1, 1, 2, 1, 1],
+                "PREV_SITECLCD": [7, 6, None, 1, 2],
+                "PREV_RESERVCD": [0, 0, None, 0, 1],
+            }
+        )
 
-        class MockDB:
-            db_path = "/fake/path"
-            tables = {}
+        result = df.select(
+            estimator._in_land_type("current").alias("curr"),
+            estimator._in_land_type("previous").alias("prev"),
+        )
 
-        config = {"land_type": "timber"}
-        estimator = AreaChangeEstimator(MockDB(), config)
-
-        df = pl.DataFrame({"STATUS": [1, 2]})
-        expr = estimator._is_forest_condition("STATUS")
-        result = df.select(expr.alias("is_forest"))
-
-        # Currently uses same definition as forest
-        assert result["is_forest"].to_list() == [True, False]
+        assert result["curr"].to_list() == [True, False, False, False, False]
+        assert result["prev"].to_list() == [False, True, False, True, False]
 
 
 class TestCalculateValues:

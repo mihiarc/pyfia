@@ -132,6 +132,41 @@ class TestAreaChangeValidation:
 
         assert pyfia_transition == pytest.approx(ev_transition, rel=FLOAT_TOLERANCE)
 
+    def test_timberland_transition_area_matches_evalidator(
+        self, fia_db, evalidator_client
+    ):
+        """Timberland gain + loss over the period equals snum 130 - 129 (#157)."""
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            gain = area_change(
+                db, land_type="timber", change_type="gross_gain", annual=False
+            )
+            loss = area_change(
+                db, land_type="timber", change_type="gross_loss", annual=False
+            )
+        pyfia_transition = gain["AREA_CHANGE_TOTAL"][0] + loss["AREA_CHANGE_TOTAL"][0]
+
+        ev_both = evalidator_client.get_area_change(
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            land_type="timber",
+            annual=False,
+            measurement="remeasured",
+        )
+        ev_either = evalidator_client.get_area_change(
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            land_type="timber",
+            annual=False,
+            measurement="either",
+        )
+        ev_transition = ev_either.estimate - ev_both.estimate
+
+        print(f"\n  EVALIDator snum 130 - 129: {ev_transition:,.1f} acres")
+        print(f"  pyFIA gain + loss:         {pyfia_transition:,.1f} acres")
+
+        assert pyfia_transition == pytest.approx(ev_transition, rel=FLOAT_TOLERANCE)
+
     def test_annual_transition_area_matches_evalidator(self, fia_db, evalidator_client):
         """Annual gross_gain + gross_loss is close to snum 137 - snum 136."""
         with FIA(fia_db) as db:

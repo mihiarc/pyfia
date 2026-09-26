@@ -29,11 +29,6 @@ _DB_TEST_CLASSES = {
     "TestIntersectPolygons",
 }
 
-# Entire test files that require a real database
-_DB_TEST_FILES = {
-    "test_panel.py",
-}
-
 
 def pytest_collection_modifyitems(items):
     """Mark tests in this directory as unit tests.
@@ -48,9 +43,8 @@ def pytest_collection_modifyitems(items):
         item.add_marker(pytest.mark.unit)
 
         # Mark DB-dependent tests so they're skipped by default
-        filename = item.path.name
         class_name = item.cls.__name__ if item.cls else ""
 
-        if filename in _DB_TEST_FILES or class_name in _DB_TEST_CLASSES:
+        if class_name in _DB_TEST_CLASSES:
             item.add_marker(pytest.mark.db)
             item.add_marker(pytest.mark.slow)

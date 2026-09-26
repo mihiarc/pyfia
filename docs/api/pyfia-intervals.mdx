@@ -1,0 +1,194 @@
+---
+title: Remeasurement Intervals
+sidebarTitle: Remeasurement Intervals
+---
+
+# `pyfia.intervals`
+
+
+
+Remeasurement intervals: FIA conditions and trees paired across two
+measurements.
+
+``condition_intervals`` pairs each condition at the earlier measurement
+(time 1) with the conditions it became at the later one (time 2);
+``tree_intervals`` follows each tree through the interval with its GRM
+component. These are unit-level building blocks for analyses of land, stand
+and tree change. They carry
+no expansion factors and make no modelling choices; estimates that need
+expansion come from the estimators (``area_change()`` and friends).
+
+References
+----------
+Burrill, E.A., et al. The Forest Inventory and Analysis Database: Database
+Description and User Guide, version 9.4. Sections 2.4 (PLOT), 2.5 (COND),
+2.9 (SUBP_COND_CHNG_MTRX), 3.1 (TREE), 3.3 (TREE_GRM_COMPONENT) and 3.5
+(TREE_GRM_MIDPT).
+
+
+## Functions
+
+### `condition_intervals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/intervals.py#L96" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+condition_intervals(db: str | FIA) -> pl.DataFrame
+```
+
+
+Pair each condition at time 1 with the conditions it became at time 2.
+
+Returns one row per (time-1 condition, time-2 condition) pair on remeasured
+plots, for every time-1 condition in the at-risk land class. The pairing
+comes from ``SUBP_COND_CHNG_MTRX``, which records, subplot by subplot, how
+the previous measurement's mapped conditions overlap the current ones, so
+a condition that split or changed class appears once per resulting
+condition with its share of the plot area. Plots without change-matrix
+rows (periodic inventories and a few annual plots) fall back to pairing
+conditions with the same CONDID.
+
+**Args:**
+- `db`: Database connection or path to an FIA DuckDB database. If the FIA
+instance is clipped to evaluations (``clip_by_evalid``,
+``clip_most_recent``), only time-2 plots in those evaluations are
+returned; otherwise every remeasured plot is.
+- `at_risk_land`: Land class that defines the at-risk set at time 1\:
+
+- 'forest'\: forest land (COND_STATUS_CD 1)
+- 'timber'\: timberland (forest land with SITECLCD 1-6 and RESERVCD 0)
+- 'all'\: every time-1 condition, whatever its status
+
+Membership is judged on the time-1 condition only; what the land
+became is reported in ``t2_OUTCOME``.
+- `columns`: Extra COND columns to return at both times, prefixed ``t1_`` and
+``t2_``.
+- `min_remper`: Keep plots whose remeasurement period (PLOT.REMPER, years) is within
+these bounds. Plots without REMPER are dropped when either is set.
+- `max_remper`: Keep plots whose remeasurement period (PLOT.REMPER, years) is within
+these bounds. Plots without REMPER are dropped when either is set.
+- `min_invyr`: Keep plots whose time-2 inventory year is at least this.
+- `change_matrix`: Pair conditions through SUBP_COND_CHNG_MTRX where the plot has rows
+in it. If False, every pair uses the same-CONDID fallback.
+
+**Returns:**
+- One row per condition pair, with columns:
+
+- **PLT_CN**, **PREV_PLT_CN** : time-2 and time-1 plot CNs
+- **t1_CONDID**, **t2_CONDID** : condition numbers at each time
+  (``t2_CONDID`` is null when ``t2_OUTCOME`` is 'no_t2_condition')
+- **EVALID** : int - the evaluation when the FIA instance is clipped
+  to exactly one, else null; see ``FIA.provenance()``
+- **STATECD**, **UNITCD**, **COUNTYCD**, **REMPER**, **INTENSITY**,
+  **KINDCD**, **DESIGNCD**, **QA_STATUS** : time-2 plot attributes
+- **t1_INVYR**, **t2_INVYR**, **t1_MEASYEAR**, **t2_MEASYEAR**,
+  **t1_MEASMON**, **t2_MEASMON** : measurement timing
+- **t1_<COND column>**, **t2_<COND column>** : condition attributes at
+  each time: status, nonsample reason, the CONDPROP/SUBPPROP/
+  MICRPROP/MACRPROP proportions, PROP_BASIS, ownership, forest type,
+  stand size, origin and age, site class, reserve status, BALIVE,
+  treatments and disturbances with their years, the SRS harvest
+  types where the database has them, and any ``columns`` requested
+- **CHNG_AREA_SHARE** : float - share of the plot's area that was in
+  the time-1 condition and is in the time-2 condition: the sum of
+  SUBPTYP_PROP_CHNG over the pair's change-matrix rows for the
+  condition's footprint (subplot, or macroplot when PROP_BASIS is
+  'MACR'), divided by 4. Null for same-CONDID pairs.
+- **LINK_METHOD** : str - how the plot's conditions were paired:
+  'change_matrix' or 'same_condid'
+- **t2_OUTCOME** : str - what the time-1 condition's land became:
+  'forest', 'nonforest', 'water', 'nonsampled', or 'no_t2_condition'
+  when the time-1 condition has no time-2 counterpart
+
+
+**Examples:**
+
+Forest conditions in Alabama's most recent change evaluation, and what
+their land became:
+>>> from pyfia import FIA, condition_intervals
+>>> with FIA("alabama.duckdb") as db:
+...     db.clip_most_recent(eval_type="CHNG")
+...     pairs = condition_intervals(db)
+>>> pairs.group_by("t2_OUTCOME").agg(pl.col("CHNG_AREA_SHARE").sum())
+Harvest-relevant attributes at both times:
+>>> pairs = condition_intervals(db, columns=["STDSZCD", "ALSTKCD"])
+
+
+### `tree_intervals` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/intervals.py#L493" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+tree_intervals(db: str | FIA) -> pl.DataFrame
+```
+
+
+Follow each tree through its remeasurement interval.
+
+Returns one row per tree in ``TREE_GRM_COMPONENT`` on the requested tree
+and land basis, with its GRM component (what happened to it), its
+per-acre weights, its diameters over the interval, and its attributes at
+both measurements. Rows carry no expansion factors; weighted by the
+plot's EXPNS and the adjustment factor of ``SUBPTYP_GRM``, they reproduce
+the GRM estimators (``removals()``, ``mortality()``).
+
+**Args:**
+- `db`: Database connection or path to an FIA DuckDB database. If the FIA
+instance is clipped to evaluations (``clip_by_evalid``,
+``clip_most_recent``), only time-2 plots in those evaluations are
+returned; otherwise every tree with a GRM record is.
+- `tree_basis`: Tree population, which selects the GRM columns\:
+
+- 'al'\: all live trees at least 1 inch d.b.h./d.r.c.
+- 'gs'\: growing-stock trees at least 5 inches d.b.h.
+- 'sl'\: sawtimber trees
+- `land_basis`: Land basis of the GRM columns\: forest land or timberland.
+- `components`: Keep only these GRM components, matched by prefix, e.g.
+``["CUT", "DIVERSION"]`` for removals. Default\: all components.
+- `columns`: Extra TREE columns to return at both times, prefixed ``t1_`` and
+``t2_``.
+- `t1_attributes`: If False, skip the time-1 TREE attributes (faster).
+
+**Returns:**
+- One row per tree, with columns:
+
+- **TRE_CN**, **PREV_TRE_CN** : time-2 and time-1 TREE CNs
+  (``PREV_TRE_CN`` is null for trees without a time-1 record, such
+  as ingrowth and reconciled missed trees)
+- **PLT_CN**, **PREV_PLT_CN** : time-2 and time-1 plot CNs
+- **t1_CONDID**, **t2_CONDID** : the tree's condition at each time
+  (time 1 from its previous TREE record, falling back to
+  TREE.PREVCOND)
+- **EVALID** : int - the evaluation when the FIA instance is clipped
+  to exactly one, else null; see ``FIA.provenance()``
+- **STATECD**, **REMPER**, **t1_INVYR**, **t2_INVYR**,
+  **t1_MEASYEAR**, **t2_MEASYEAR** : plot and timing
+- **COMPONENT** : str - GRM component on the basis, as FIADB spells it
+  (SURVIVOR, INGROWTH, CUT1, CUT2, MORTALITY1, MORTALITY2,
+  DIVERSION1, DIVERSION2, REVERSION1, REVERSION2)
+- **FATE** : str - the component without its number: 'survivor',
+  'ingrowth', 'cut', 'mortality', 'diversion' or 'reversion'
+- **TPAGROW_UNADJ** : float - trees per acre the tree represents over
+  the interval, for every component
+- **TPAREMV_UNADJ**, **TPAMORT_UNADJ** : float - annual removals and
+  mortality rates, TPAGROW_UNADJ / REMPER on CUT and DIVERSION rows
+  and on MORTALITY rows respectively, else zero or null
+- **SUBPTYP_GRM** : int - plot footprint whose adjustment factor
+  applies (0 none, 1 subplot, 2 microplot, 3 macroplot)
+- **DIA_BEGIN**, **DIA_MIDPT**, **DIA_END**, **ANN_DIA_GROWTH**,
+  **ANN_HT_GROWTH** : diameters and annual growth over the interval
+- **MIDPT_<column>** : TREE_GRM_MIDPT values at the interval
+  midpoint (VOLCFNET, VOLCSNET, VOLBFNET, DRYBIO_AG, DRYBIO_BOLE,
+  DRYBIO_BRANCH), the values removals and mortality are measured in
+- **t1_<TREE column>**, **t2_<TREE column>** : SPCD, STATUSCD,
+  TREECLCD, TREEGRCD, CULL, DIA, HT, VOLCFNET, VOLCSNET, VOLBFNET,
+  DRYBIO_AG and any ``columns``, from the TREE records at each time
+
+
+**Examples:**
+
+Trees removed from Alabama's timberland in the most recent GRM
+evaluation, with their time-1 species and diameter:
+>>> from pyfia import FIA, tree_intervals
+>>> with FIA("alabama.duckdb") as db:
+...     db.clip_most_recent(eval_type="GRM")
+...     cut = tree_intervals(
+...         db, tree_basis="gs", land_basis="timber", components=["CUT"]
+...     )
+>>> cut.select("t1_SPCD", "t1_DIA", "TPAREMV_UNADJ")

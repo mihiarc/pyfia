@@ -15,7 +15,7 @@ db.clip_most_recent()        # use eval_type="GRM" for growth/mortality/removals
 ## Volume
 
 ```python
-from pyfia import volume, join_species_names
+from pyfia import volume, join_reference
 
 # Total net volume on forest land
 total = volume(db, land_type="forest")
@@ -23,7 +23,7 @@ print(f"Total volume: {total['VOLCFNET_TOTAL'][0]:,.0f} cubic feet")
 
 # By species, with common names
 by_species = volume(db, by_species=True)
-by_species = join_species_names(by_species, db)
+by_species = join_reference(by_species, db, "species", columns=["COMMON_NAME"])
 print(by_species.sort("VOLCFNET_TOTAL", descending=True).head(10))
 ```
 
@@ -106,13 +106,13 @@ result = volume(
 Downloading a list of states merges them into one database, so you can estimate across all of them and group by state:
 
 ```python
-from pyfia import FIA, download, volume, join_state_names
+from pyfia import FIA, download, volume, join_reference
 
 db = FIA(download(["GA", "FL", "SC"]))
 db.clip_most_recent()
 
 by_state = volume(db, grp_by="STATECD")
-print(join_state_names(by_state, db))
+print(join_reference(by_state, db, "state"))
 ```
 
 ## Validate against EVALIDator

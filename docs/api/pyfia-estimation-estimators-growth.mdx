@@ -16,7 +16,7 @@ TREE_GRM_BEGIN tables following EVALIDator approach.
 
 ## Functions
 
-### `growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L522" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `growth` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L545" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 growth(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, size_class_type: str = 'standard', land_type: str = 'forest', tree_type: str = 'gs', measure: str = 'volume', tree_domain: str | None = None, area_domain: str | None = None, totals: bool = True, variance: bool = False, most_recent: bool = False) -> pl.DataFrame
@@ -42,10 +42,17 @@ methodology.
 - `tree_type`: Tree population to include (GRM tables)\:
 
 - 'gs'\: growing stock
-- 'al' or 'live'\: all live trees
+- 'al' or 'live'\: all live trees at least 1 inch d.b.h., saplings on
+  the microplot included (EVALIDator's "trees at least 1 inch")
 - 'sl' or 'sawtimber'\: sawtimber-size trees
 - `measure`: What to measure in the growth estimation.
-- `tree_domain`: SQL-like filter expression for tree-level filtering.
+- `tree_domain`: SQL-like filter expression for tree-level filtering, e.g.
+``"SPCD == 131"``. As in ``removals()`` and ``mortality()``, ``DIA``,
+``SPCD`` and ``STATUSCD`` are the GRM midpoint values
+(TREE_GRM_MIDPT), ``DIA_BEGIN``/``DIA_MIDPT``/``DIA_END`` are the GRM
+diameters, and other TREE columns come from the tree's time-2 record.
+An expression naming a column that doesn't exist raises
+``InvalidDomainError``.
 - `area_domain`: SQL-like filter expression for area/condition-level filtering.
 - `totals`: If True, include population-level total estimates.
 - `variance`: If True, also return variance columns (``*_VARIANCE``) alongside the
@@ -118,7 +125,7 @@ CRITICAL: Include ALL components for BEGINEND cross-join methodology.
 Do NOT filter by COND_STATUS_CD - GRM columns already handle land basis.
 
 
-#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L302" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L325" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -132,7 +139,7 @@ Implements EVALIDator's ONEORTWO logic:
 Sum across ONEORTWO rows gives NET growth = ending - beginning
 
 
-#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L399" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L422" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
@@ -145,7 +152,7 @@ Aggregate growth with two-stage aggregation.
 explicit variance calculation.
 
 
-#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L471" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L494" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
@@ -163,11 +170,10 @@ aggregate_results().
 - Results with variance columns added.
 
 
-#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L513" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/growth.py#L536" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 format_output(self, results: pl.DataFrame) -> pl.DataFrame
 ```
 
 Format growth estimation output.
-

@@ -37,7 +37,8 @@
               "guides/downloading",
               "guides/filtering",
               "guides/grouping",
-              "guides/spatial"
+              "guides/spatial",
+              "guides/remeasurement"
             ]
           },
           {
@@ -70,6 +71,10 @@
             ]
           },
           {
+            "group": "Remeasurement builders",
+            "pages": ["api/pyfia-intervals", "api/pyfia-stand_metrics"]
+          },
+          {
             "group": "Core",
             "pages": ["api/pyfia-core-fia", "api/pyfia-core-settings"]
           },
@@ -77,7 +82,7 @@
             "group": "Data & validation",
             "pages": [
               "api/pyfia-downloader",
-              "api/pyfia-utils-reference_tables",
+              "api/pyfia-reference",
               "api/pyfia-evalidator-client",
               "api/pyfia-evalidator-validation"
             ]

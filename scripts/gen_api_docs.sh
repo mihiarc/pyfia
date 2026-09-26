@@ -7,7 +7,7 @@
 #   ./scripts/gen_api_docs.sh
 #
 # NOTE: the deferred NSVB carbon module (carbon / carbon_flux / carbon_pools)
-# is intentionally NOT generated — it stays out of the public docs until 1.5.0.
+# is intentionally NOT generated — it stays out of the public docs for now.
 # If you add/remove a page here, update the "API Reference" tab in docs/docs.json.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -63,12 +63,14 @@ retitle() {  # $1 = page slug (no .mdx), $2 = display title
 retitle pyfia-core-fia           "FIA Database"
 retitle pyfia-core-settings      "Settings"
 retitle pyfia-reference         "Reference Tables"
+retitle pyfia-intervals         "Remeasurement Intervals"
+retitle pyfia-stand_metrics     "Stand Metrics"
 retitle pyfia-evalidator-client  "EVALIDator Client"
 retitle pyfia-evalidator-validation "Validation"
 
 # Strip any carbon-named method/function sections that leak in via class pages
 # (e.g. FIA.carbon_flux, EVALIDatorClient.get_carbon). The NSVB carbon module is
-# deferred to 1.5.0 and must not appear in the public docs.
+# deferred to a later release and must not appear in the public docs.
 python3 - <<'PY'
 import glob, re
 heading = re.compile(r'^(#{1,6})\s+`([^`]+)`')

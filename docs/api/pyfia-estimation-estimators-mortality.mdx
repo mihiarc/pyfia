@@ -41,7 +41,8 @@ This is the correct FIA statistical methodology for mortality estimation.
 - `tree_type`: Tree population to include (GRM tables)\:
 
 - 'gs'\: growing stock
-- 'al' or 'live'\: all live trees
+- 'al' or 'live'\: all live trees at least 1 inch d.b.h., saplings on
+  the microplot included (EVALIDator's "trees at least 1 inch")
 - 'sl' or 'sawtimber'\: sawtimber-size trees
 - `measure`: What to measure in the mortality estimation.
 - `tree_domain`: SQL-like filter expression for tree-level filtering.
@@ -181,4 +182,3 @@ format_output(self, results: pl.DataFrame) -> pl.DataFrame
 ```
 
 Format mortality estimation output.
-

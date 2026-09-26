@@ -1,0 +1,101 @@
+---
+title: Stand Metrics
+sidebarTitle: Stand Metrics
+---
+
+# `pyfia.stand_metrics`
+
+
+
+Stand attributes per acre of condition, built from tree records.
+
+A tree's ``TPA_UNADJ`` is the number of trees per acre of *plot* it stands for.
+Dividing it by the proportion of the tree's plot footprint (microplot, subplot
+or macroplot) that lies in the tree's condition gives trees per acre of
+*condition*. Summing tree attributes with that weight reproduces FIADB's own
+condition attributes, such as ``COND.BALIVE``.
+
+References
+----------
+FIA Database User Guide, sections 2.4.40 (PLOT.MACRO_BREAKPOINT_DIA),
+2.5.27-2.5.31 (COND.PROP_BASIS, CONDPROP_UNADJ, MICRPROP_UNADJ,
+SUBPPROP_UNADJ, MACRPROP_UNADJ), 2.5.50 (COND.BALIVE) and 3.1.92
+(TREE.TPA_UNADJ).
+
+
+## Functions
+
+### `condition_stand_metrics` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/stand_metrics.py#L72" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+condition_stand_metrics(db: str | FIA) -> pl.DataFrame
+```
+
+
+Compute stand attributes per acre of condition from tree records.
+
+Returns one row per forest condition (``PLT_CN``, ``CONDID``) with basal
+area, trees, quadratic mean diameter, biomass, volume and softwood share
+per acre of that condition. These are unit-level values for the sampled
+conditions, not population estimates: nothing is expanded, and no EVALID
+is needed, so the function works on any set of plots, including earlier
+measurements of remeasured plots.
+
+**Args:**
+- `db`: Database connection or path to FIA database. When no ``plot_cns`` are
+given, a clipped ``FIA`` limits the plots to its evaluation
+(``clip_by_evalid``, ``clip_most_recent``), state and polygon.
+- `metrics`: Metrics to compute, any of\:
+
+- 'ba'\: basal area, ``BAA`` (sq ft per acre)
+- 'tpa'\: trees, ``TPA`` (trees per acre)
+- 'qmd'\: quadratic mean diameter, ``QMD`` (inches)
+- 'drybio_ag'\: aboveground dry biomass, ``DRYBIO_AG_ACRE`` (short
+  tons per acre)
+- 'volcfnet'\: net cubic-foot volume, ``VOLCFNET_ACRE`` (cu ft per acre)
+- 'volcsnet'\: net sawlog cubic-foot volume, ``VOLCSNET_ACRE`` (cu ft
+  per acre)
+- 'softwood_ba_share'\: ``SOFTWOOD_BA_SHARE``, the share of basal area
+  in species with ``REF_SPECIES.SFTWD_HRDWD = 'S'`` (0 to 1)
+- `tree_type`: Trees to include\:
+
+- 'live'\: live trees (``STATUSCD = 1``)
+- 'gs'\: live growing-stock trees (``STATUSCD = 1`` and
+  ``TREECLCD = 2``)
+- `min_dia`: Smallest diameter (d.b.h. or d.r.c., inches) to include. Defaults to
+1.0, the smallest tallied tree, which is the population ``COND.BALIVE``
+describes. ``min_dia=5`` gives merchantable-size attributes, such as
+the QMD of trees 5 inches and larger.
+- `plot_cns`: Plots (``PLOT.CN``) to compute. Overrides any clip on ``db``.
+- `zero_fill`: If True, forest conditions with no qualifying tree are returned with
+zeros for the additive metrics and ``N_TREES = 0``. If False, only
+conditions with at least one qualifying tree are returned.
+
+**Returns:**
+- One row per accessible forest condition (``COND_STATUS_CD = 1``) with
+columns:
+
+- **PLT_CN**, **CONDID** : str, int - Condition key
+- **EVALID** : int - the evaluation when ``db`` is clipped to exactly
+  one and no ``plot_cns`` are given, else null; see
+  ``FIA.provenance()``
+- **STATECD**, **INVYR** : int - State and inventory year
+- **CONDPROP_UNADJ** : float - Unadjusted proportion of the plot in
+  the condition
+- **N_TREES** : int - Qualifying tree records in the condition
+- One column per requested metric, named as listed under ``metrics``
+
+``QMD`` and ``SOFTWOOD_BA_SHARE`` are null for a condition with no
+qualifying tree, where they are undefined.
+
+
+**Examples:**
+
+Stand attributes for every forest condition in an evaluation:
+>>> with FIA("path/to/db.duckdb") as db:
+...     db.clip_most_recent(eval_type="VOL")
+...     stands = condition_stand_metrics(db)
+Merchantable-size basal area and QMD for chosen plots:
+>>> merch = condition_stand_metrics(
+...     db, metrics=("ba", "qmd"), min_dia=5, plot_cns=["1234567890"]
+... )

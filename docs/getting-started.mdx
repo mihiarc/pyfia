@@ -96,14 +96,14 @@ By the end you'll have downloaded FIA data, selected a valid evaluation, estimat
 Add `grp_by` to break an estimate down by any FIA column. pyFIA automatically attaches readable names for common codes like forest type and ownership:
 
 ```python
-from pyfia import volume, join_species_names
+from pyfia import volume, join_reference
 
 # Forest area by ownership
 area(db, land_type="forest", grp_by="OWNGRPCD")
 
 # Volume by species, with common names joined in
 vol = volume(db, by_species=True)
-vol = join_species_names(vol, db)
+vol = join_reference(vol, db, "species", columns=["COMMON_NAME"])
 print(vol.sort("VOLCFNET_TOTAL", descending=True).head(10))
 ```
 

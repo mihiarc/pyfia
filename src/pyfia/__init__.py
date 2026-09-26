@@ -78,7 +78,7 @@ from pyfia.evalidator.validation import (
     compare_estimates,
     validate_pyfia_estimate,
 )
-from pyfia.intervals import condition_intervals
+from pyfia.intervals import condition_intervals, tree_intervals
 from pyfia.reference import join_reference, label_codes
 from pyfia.stand_metrics import condition_stand_metrics
 
@@ -128,6 +128,7 @@ __all__ = [
     "standing_dead",
     # Remeasurement builders
     "condition_intervals",
+    "tree_intervals",
     # Reference tables
     "reference",
     "join_reference",

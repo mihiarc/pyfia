@@ -1,17 +1,21 @@
 """
-Remeasurement intervals: FIA conditions paired across two measurements.
+Remeasurement intervals: FIA conditions and trees paired across two
+measurements.
 
-Each row pairs a condition at the earlier measurement (time 1) with a
-condition at the later one (time 2) on the same plot location. These are
-unit-level building blocks for analyses of land and stand change. They carry
+``condition_intervals`` pairs each condition at the earlier measurement
+(time 1) with the conditions it became at the later one (time 2);
+``tree_intervals`` follows each tree through the interval with its GRM
+component. These are unit-level building blocks for analyses of land, stand
+and tree change. They carry
 no expansion factors and make no modelling choices; estimates that need
 expansion come from the estimators (``area_change()`` and friends).
 
 References
 ----------
 Burrill, E.A., et al. The Forest Inventory and Analysis Database: Database
-Description and User Guide, version 9.4. Sections 2.4 (PLOT), 2.5 (COND) and
-2.9 (SUBP_COND_CHNG_MTRX).
+Description and User Guide, version 9.4. Sections 2.4 (PLOT), 2.5 (COND),
+2.9 (SUBP_COND_CHNG_MTRX), 3.1 (TREE), 3.3 (TREE_GRM_COMPONENT) and 3.5
+(TREE_GRM_MIDPT).
 """
 
 from __future__ import annotations
@@ -20,8 +24,14 @@ from typing import Literal
 
 import polars as pl
 
-from .constants.status_codes import LandStatus, ReserveStatus, SiteClass
+from .constants.status_codes import (
+    LandStatus,
+    ReserveStatus,
+    SiteClass,
+    TreeComponent,
+)
 from .core import FIA
+from .estimation.grm import resolve_grm_columns
 from .estimation.utils import ensure_fia_instance
 
 # Condition attributes returned at both times (when present in the database)
@@ -413,7 +423,7 @@ def _condition_intervals(
         "LINK_METHOD",
         "t2_OUTCOME",
     ]
-    return result.select(ordered).sort(key_cols, nulls_last=True)
+    return _cast_keys(result.select(ordered)).sort(key_cols, nulls_last=True)
 
 
 def _in_land_class(land: str, prefix: str) -> pl.Expr:
@@ -428,3 +438,371 @@ def _in_land_class(land: str, prefix: str) -> pl.Expr:
             & (pl.col(f"{prefix}RESERVCD") == ReserveStatus.NOT_RESERVED)
         )
     return in_class.fill_null(False)
+
+
+# Tree attributes returned at both times (when present in the database)
+TREE_COLUMNS = [
+    "SPCD",
+    "STATUSCD",
+    "TREECLCD",
+    "TREEGRCD",
+    "CULL",
+    "DIA",
+    "HT",
+    "VOLCFNET",
+    "VOLCSNET",
+    "VOLBFNET",
+    "DRYBIO_AG",
+]
+
+# TREE_GRM_MIDPT values the GRM estimators multiply by a tree's weight
+MIDPT_COLUMNS = [
+    "VOLCFNET",
+    "VOLCSNET",
+    "VOLBFNET",
+    "DRYBIO_AG",
+    "DRYBIO_BOLE",
+    "DRYBIO_BRANCH",
+]
+
+# TREE_GRM_COMPONENT columns that don't depend on the tree or land basis
+GRM_COLUMNS = [
+    "DIA_BEGIN",
+    "DIA_MIDPT",
+    "DIA_END",
+    "ANN_DIA_GROWTH",
+    "ANN_HT_GROWTH",
+]
+
+FATES = {
+    TreeComponent.SURVIVOR: "survivor",
+    TreeComponent.INGROWTH: "ingrowth",
+    TreeComponent.CUT: "cut",
+    TreeComponent.MORTALITY: "mortality",
+    TreeComponent.DIVERSION: "diversion",
+    TreeComponent.REVERSION: "reversion",
+}
+
+
+def tree_intervals(
+    db: str | FIA,
+    *,
+    tree_basis: Literal["al", "gs", "sl"] = "al",
+    land_basis: Literal["forest", "timber"] = "forest",
+    components: list[str] | None = None,
+    columns: list[str] | None = None,
+    t1_attributes: bool = True,
+) -> pl.DataFrame:
+    """
+    Follow each tree through its remeasurement interval.
+
+    Returns one row per tree in ``TREE_GRM_COMPONENT`` on the requested tree
+    and land basis, with its GRM component (what happened to it), its
+    per-acre weights, its diameters over the interval, and its attributes at
+    both measurements. Rows carry no expansion factors; weighted by the
+    plot's EXPNS and the adjustment factor of ``SUBPTYP_GRM``, they reproduce
+    the GRM estimators (``removals()``, ``mortality()``).
+
+    Parameters
+    ----------
+    db : str | FIA
+        Database connection or path to an FIA DuckDB database. If the FIA
+        instance is clipped to evaluations (``clip_by_evalid``,
+        ``clip_most_recent``), only time-2 plots in those evaluations are
+        returned; otherwise every tree with a GRM record is.
+    tree_basis : {'al', 'gs', 'sl'}, default 'al'
+        Tree population, which selects the GRM columns:
+
+        - 'al': all live trees at least 1 inch d.b.h./d.r.c.
+        - 'gs': growing-stock trees at least 5 inches d.b.h.
+        - 'sl': sawtimber trees
+    land_basis : {'forest', 'timber'}, default 'forest'
+        Land basis of the GRM columns: forest land or timberland.
+    components : list of str, optional
+        Keep only these GRM components, matched by prefix, e.g.
+        ``["CUT", "DIVERSION"]`` for removals. Default: all components.
+    columns : list of str, optional
+        Extra TREE columns to return at both times, prefixed ``t1_`` and
+        ``t2_``.
+    t1_attributes : bool, default True
+        If False, skip the time-1 TREE attributes (faster).
+
+    Returns
+    -------
+    pl.DataFrame
+        One row per tree, with columns:
+
+        - **TRE_CN**, **PREV_TRE_CN** : time-2 and time-1 TREE CNs
+          (``PREV_TRE_CN`` is null for trees without a time-1 record, such
+          as ingrowth and reconciled missed trees)
+        - **PLT_CN**, **PREV_PLT_CN** : time-2 and time-1 plot CNs
+        - **t1_CONDID**, **t2_CONDID** : the tree's condition at each time
+          (time 1 from its previous TREE record, falling back to
+          TREE.PREVCOND)
+        - **STATECD**, **REMPER**, **t1_INVYR**, **t2_INVYR**,
+          **t1_MEASYEAR**, **t2_MEASYEAR** : plot and timing
+        - **COMPONENT** : str - GRM component on the basis, as FIADB spells it
+          (SURVIVOR, INGROWTH, CUT1, CUT2, MORTALITY1, MORTALITY2,
+          DIVERSION1, DIVERSION2, REVERSION1, REVERSION2)
+        - **FATE** : str - the component without its number: 'survivor',
+          'ingrowth', 'cut', 'mortality', 'diversion' or 'reversion'
+        - **TPAGROW_UNADJ** : float - trees per acre the tree represents over
+          the interval, for every component
+        - **TPAREMV_UNADJ**, **TPAMORT_UNADJ** : float - annual removals and
+          mortality rates, TPAGROW_UNADJ / REMPER on CUT and DIVERSION rows
+          and on MORTALITY rows respectively, else zero or null
+        - **SUBPTYP_GRM** : int - plot footprint whose adjustment factor
+          applies (0 none, 1 subplot, 2 microplot, 3 macroplot)
+        - **DIA_BEGIN**, **DIA_MIDPT**, **DIA_END**, **ANN_DIA_GROWTH**,
+          **ANN_HT_GROWTH** : diameters and annual growth over the interval
+        - **MIDPT_<column>** : TREE_GRM_MIDPT values at the interval
+          midpoint (VOLCFNET, VOLCSNET, VOLBFNET, DRYBIO_AG, DRYBIO_BOLE,
+          DRYBIO_BRANCH), the values removals and mortality are measured in
+        - **t1_<TREE column>**, **t2_<TREE column>** : SPCD, STATUSCD,
+          TREECLCD, TREEGRCD, CULL, DIA, HT, VOLCFNET, VOLCSNET, VOLBFNET,
+          DRYBIO_AG and any ``columns``, from the TREE records at each time
+
+    See Also
+    --------
+    condition_intervals : Condition pairs across two measurements
+    removals : Estimate annual removals
+    mortality : Estimate annual mortality
+    panel : Condition- and tree-level remeasurement panels
+
+    Examples
+    --------
+    Trees removed from Alabama's timberland in the most recent GRM
+    evaluation, with their time-1 species and diameter:
+
+    >>> from pyfia import FIA, tree_intervals
+    >>> with FIA("alabama.duckdb") as db:
+    ...     db.clip_most_recent(eval_type="GRM")
+    ...     cut = tree_intervals(
+    ...         db, tree_basis="gs", land_basis="timber", components=["CUT"]
+    ...     )
+    >>> cut.select("t1_SPCD", "t1_DIA", "TPAREMV_UNADJ")
+
+    Notes
+    -----
+    Removals are the CUT and DIVERSION rows and mortality the MORTALITY
+    rows. Summing ``TPAREMV_UNADJ`` (or ``TPAMORT_UNADJ``) times the
+    adjustment factor for ``SUBPTYP_GRM`` times the plot's EXPNS times a
+    ``MIDPT_`` value, over an evaluation's plots, gives the corresponding
+    ``removals()`` (or ``mortality()``) total, as in EVALIDator.
+
+    Within a GRM evaluation, the time-1 live trees on the land basis and
+    the SURVIVOR, CUT, MORTALITY and DIVERSION rows correspond one to one,
+    except for trees FIA reconciled as missed at time 1 (rows without a
+    ``PREV_TRE_CN``) and a few time-1 trees without a GRM record.
+    """
+    if tree_basis not in ("al", "gs", "sl"):
+        raise ValueError(f"tree_basis must be 'al', 'gs' or 'sl', got {tree_basis!r}")
+    if land_basis not in ("forest", "timber"):
+        raise ValueError(f"land_basis must be 'forest' or 'timber', got {land_basis!r}")
+
+    fia, owns_db = ensure_fia_instance(db)
+    try:
+        return _tree_intervals(
+            fia,
+            tree_basis=tree_basis,
+            land_basis=land_basis,
+            components=components,
+            columns=columns or [],
+            t1_attributes=t1_attributes,
+        )
+    finally:
+        if owns_db and hasattr(fia, "close"):
+            fia.close()
+
+
+def _tree_intervals(
+    fia: FIA,
+    *,
+    tree_basis: str,
+    land_basis: str,
+    components: list[str] | None,
+    columns: list[str],
+    t1_attributes: bool,
+) -> pl.DataFrame:
+    reader = fia._reader
+    grm_schema = set(reader.get_table_schema("TREE_GRM_COMPONENT"))
+    tree_schema = set(reader.get_table_schema("TREE"))
+    midpt_schema = set(reader.get_table_schema("TREE_GRM_MIDPT"))
+    plot_schema = set(reader.get_table_schema("PLOT"))
+
+    missing = [c for c in columns if c not in tree_schema]
+    if missing:
+        raise ValueError(f"TREE has no column(s) {missing}")
+
+    growth = resolve_grm_columns("growth", tree_basis, land_basis)
+    weights = {
+        growth.tpa: "TPAGROW_UNADJ",
+        resolve_grm_columns("removals", tree_basis, land_basis).tpa: "TPAREMV_UNADJ",
+        resolve_grm_columns("mortality", tree_basis, land_basis).tpa: "TPAMORT_UNADJ",
+    }
+    grm_cols = [
+        "TRE_CN",
+        "PLT_CN",
+        growth.component,
+        growth.subptyp,
+        *weights,
+        *[c for c in GRM_COLUMNS if c in grm_schema],
+    ]
+    grm = reader.read_table("TREE_GRM_COMPONENT", columns=grm_cols, lazy=True).rename(
+        {growth.component: "COMPONENT", growth.subptyp: "SUBPTYP_GRM", **weights}
+    )
+    grm = grm.filter(
+        pl.col("COMPONENT").is_not_null()
+        & (pl.col("COMPONENT") != TreeComponent.NOT_USED)
+    )
+    if components:
+        grm = grm.filter(
+            pl.any_horizontal(
+                pl.col("COMPONENT").str.starts_with(c) for c in components
+            )
+        )
+    if fia.evalid:
+        evalids = ", ".join(str(int(e)) for e in fia.evalid)
+        in_eval = reader.read_table(
+            "POP_PLOT_STRATUM_ASSGN",
+            columns=["PLT_CN"],
+            where=f"EVALID IN ({evalids})",
+            lazy=True,
+        ).unique()
+        grm = grm.join(in_eval, on="PLT_CN", how="semi")
+    grm_df = grm.collect()
+
+    fate = pl.lit(None, dtype=pl.Utf8)
+    for prefix, name in reversed(list(FATES.items())):
+        fate = (
+            pl.when(pl.col("COMPONENT").str.starts_with(prefix))
+            .then(pl.lit(name))
+            .otherwise(fate)
+        )
+    grm_df = grm_df.with_columns(fate.alias("FATE"))
+
+    trees = grm_df.lazy().select(pl.col("TRE_CN").alias("CN"))
+
+    # Time-2 tree records
+    t2_attr = [c for c in dict.fromkeys(TREE_COLUMNS + columns) if c in tree_schema]
+    t2_cols = [
+        "CN",
+        "PREV_TRE_CN",
+        "CONDID",
+        *(["PREVCOND"] if "PREVCOND" in tree_schema else []),
+        *t2_attr,
+    ]
+    t2 = (
+        reader.read_table("TREE", columns=t2_cols, lazy=True)
+        .join(trees, on="CN", how="semi")
+        .rename(
+            {"CN": "TRE_CN", "CONDID": "t2_CONDID", **{c: f"t2_{c}" for c in t2_attr}}
+        )
+        .collect()
+    )
+    result = grm_df.join(t2, on="TRE_CN", how="left")
+
+    # Time-1 tree records
+    t1_attr = t2_attr if t1_attributes else []
+    prev = result.lazy().select(pl.col("PREV_TRE_CN").alias("CN")).drop_nulls().unique()
+    t1 = (
+        reader.read_table("TREE", columns=["CN", "CONDID", *t1_attr], lazy=True)
+        .join(prev, on="CN", how="semi")
+        .rename(
+            {
+                "CN": "PREV_TRE_CN",
+                "CONDID": "_t1_CONDID",
+                **{c: f"t1_{c}" for c in t1_attr},
+            }
+        )
+        .collect()
+    )
+    result = result.join(t1, on="PREV_TRE_CN", how="left")
+    t1_condid = pl.col("_t1_CONDID")
+    if "PREVCOND" in result.columns:
+        t1_condid = t1_condid.fill_null(pl.col("PREVCOND"))
+    result = result.with_columns(t1_condid.alias("t1_CONDID"))
+
+    # Midpoint values
+    midpt_attr = [c for c in MIDPT_COLUMNS if c in midpt_schema]
+    midpt = (
+        reader.read_table("TREE_GRM_MIDPT", columns=["TRE_CN", *midpt_attr], lazy=True)
+        .join(trees.rename({"CN": "TRE_CN"}), on="TRE_CN", how="semi")
+        .rename({c: f"MIDPT_{c}" for c in midpt_attr})
+        .collect()
+    )
+    result = result.join(midpt, on="TRE_CN", how="left")
+
+    # Plots at both times
+    time_cols = [c for c in ["INVYR", "MEASYEAR"] if c in plot_schema]
+    plots = reader.read_table(
+        "PLOT",
+        columns=["CN", "PREV_PLT_CN", "STATECD", "REMPER", *time_cols],
+        lazy=True,
+    )
+    plot_t2 = (
+        plots.join(
+            result.lazy().select(pl.col("PLT_CN").alias("CN")).unique(),
+            on="CN",
+            how="semi",
+        )
+        .rename({"CN": "PLT_CN", **{c: f"t2_{c}" for c in time_cols}})
+        .collect()
+    )
+    result = result.join(plot_t2, on="PLT_CN", how="left")
+    plot_t1 = (
+        plots.select(["CN", *time_cols])
+        .join(
+            result.lazy()
+            .select(pl.col("PREV_PLT_CN").alias("CN"))
+            .drop_nulls()
+            .unique(),
+            on="CN",
+            how="semi",
+        )
+        .rename({"CN": "PREV_PLT_CN", **{c: f"t1_{c}" for c in time_cols}})
+        .collect()
+    )
+    result = result.join(plot_t1, on="PREV_PLT_CN", how="left")
+
+    key_cols = [
+        "TRE_CN",
+        "PREV_TRE_CN",
+        "PLT_CN",
+        "PREV_PLT_CN",
+        "t1_CONDID",
+        "t2_CONDID",
+    ]
+    ordered = [
+        *key_cols,
+        "STATECD",
+        "REMPER",
+        *[f"t{t}_{c}" for c in time_cols for t in (1, 2)],
+        "COMPONENT",
+        "FATE",
+        "TPAGROW_UNADJ",
+        "TPAREMV_UNADJ",
+        "TPAMORT_UNADJ",
+        "SUBPTYP_GRM",
+        *[c for c in GRM_COLUMNS if c in result.columns],
+        *[f"MIDPT_{c}" for c in midpt_attr],
+        *[
+            f"t{t}_{c}"
+            for c in t2_attr
+            for t in (1, 2)
+            if f"t{t}_{c}" in result.columns
+        ],
+    ]
+    return _cast_keys(result.select(ordered)).sort(["PLT_CN", "TRE_CN"])
+
+
+def _cast_keys(df: pl.DataFrame) -> pl.DataFrame:
+    """CN keys as strings and CONDIDs as integers, whatever the backend stores."""
+    cn_cols = [
+        c for c in ("TRE_CN", "PREV_TRE_CN", "PLT_CN", "PREV_PLT_CN") if c in df.columns
+    ]
+    condid_cols = [c for c in ("t1_CONDID", "t2_CONDID") if c in df.columns]
+    return df.with_columns(
+        pl.col(cn_cols).cast(pl.Utf8),
+        pl.col(condid_cols).cast(pl.Int64),
+    )

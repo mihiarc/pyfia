@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.4.5] - 2026-09-26
+
+Correctness fixes for `area_change()` (#147, #148, #151, #157) and for
+standard errors (#149, #159, null groups). `area_change()` totals now match
+EVALIDator and are about half their 1.4.4 values; every other estimator's
+totals and point estimates are unchanged.
+
+### Fixed
+- **`area_change()` counted every transition about twice** (#151). `SUBP_COND_CHNG_MTRX` repeats each subplot's proportions for the microplot (and, in macroplot states, the macroplot), and all rows were summed before dividing by 4. Each transition now counts once, on the footprint the condition's area is based on (`SUBPTYP` 1 for `PROP_BASIS` `SUBP`, 3 for `MACR`), with the matching adjustment factor. Conditions nonsampled at either measurement are left out, and with `annual=False` plots without `REMPER` count. These are EVALIDator's rules: on Georgia EVALID 132303, `gross_gain + gross_loss` over the period is 883,670.4 ac, equal to EVALIDator snum 128 − 127 (it was 1,766,173.2). **Every `area_change()` total is about half its 1.4.4 value.**
+- **`area_change()` standard errors were inflated by the plot expansion factor** (#147). The variance now uses unexpanded plot values over every plot in the evaluation with Bechtold & Patterson's exact formula. Alabama EVALID 12403 net change: −17,368.5 ± 8,027.7 ac/yr (was −30,698.8 ± 98,206,025). On the same plot values this path reproduces EVALIDator's sampling errors for snum 127 and 128 exactly.
+- **`area_change()` ignored `area_domain`** (#148). The domain now filters the current (time-2) condition, as in `panel()` and the GRM estimators. FIADB records some attributes only on forest conditions (`FORTYPCD` everywhere; `OWNGRPCD` and `RESERVCD` in many states), so a domain on one of them leaves out losses to nonforest land.
+- **`area_change(land_type="timber")` reported forest land change** (#157). Timberland (forest land with `SITECLCD` 1–6 and `RESERVCD` 0) is now judged at each measurement. Georgia 132303: 895,215.0 ac over the period, equal to EVALIDator snum 130 − 129.
+- **Grouped estimates dropped the SE of a null group** (#155). A null grouping value is a real group (for example, `OWNGRPCD` on nonforest land), but the variance was joined back on group keys, which never match nulls. Affected `area()`, `tpa()`, `volume()`, `biomass()`, `site_index()`, `carbon_pool()` and the grouped-variance helpers; `volume()`'s `N_PLOTS` for a null group was null too. `carbon_flux()` grouped by a column with a null group now includes that group's mortality and removals, which the same join had dropped.
+- **`site_index()` standard errors left out plots without site index in the group** (#159). The grouped and `area_domain` paths used different plot subsets and the simplified formula, so both were too small (by up to 17% for small groups on Alabama EVALID 12401) and disagreed with each other. The SE is now the exact Bechtold & Patterson ratio-of-means variance over every plot in the evaluation. `SI_MEAN`, `N_PLOTS` and `N_CONDITIONS` are unchanged.
+- **The grouped exact Bechtold & Patterson variance divided s²_h by n_h** (#149), making SEs about √n_h too small. No estimator reached this path in 1.4.4.
+- The `site_index()` docstring listed an `SI_VARIANCE` column that it never returns.
+
+### Tests
+- `tests/unit/test_area_change_fixture.py` and `tests/unit/test_site_index_fixture.py` check `area_change()` and `site_index()` on the committed Alabama fixture against EVALIDator's SQL and independent Bechtold & Patterson computations. `tests/unit/test_null_group_se.py` covers null groups in every grouped estimator.
+- The EVALIDator validation tests assert `area_change()` gain + loss against snum 127/128 and 129/130 (they printed the ratio before).
+
 ## [1.4.4] - 2026-09-26
 
 Correctness fixes for GRM grouping, `panel()`, forest type groups and three
@@ -289,7 +310,11 @@ versions predate git tagging, so per-patch attribution is approximate.)
 - FIA database abstraction layer
 - Basic data reading capabilities
 
-[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.4.1...HEAD
+[Unreleased]: https://github.com/mihiarc/pyfia/compare/v1.4.5...HEAD
+[1.4.5]: https://github.com/mihiarc/pyfia/compare/v1.4.4...v1.4.5
+[1.4.4]: https://github.com/mihiarc/pyfia/compare/v1.4.3...v1.4.4
+[1.4.3]: https://github.com/mihiarc/pyfia/compare/v1.4.2...v1.4.3
+[1.4.2]: https://github.com/mihiarc/pyfia/compare/v1.4.1...v1.4.2
 [1.4.1]: https://github.com/mihiarc/pyfia/compare/v1.4.0...v1.4.1
 [1.4.0]: https://github.com/mihiarc/pyfia/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/mihiarc/pyfia/compare/v1.2.3...v1.3.0

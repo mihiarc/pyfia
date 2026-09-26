@@ -16,7 +16,7 @@ at a specified base age, indicating site productivity.
 
 ## Functions
 
-### `site_index` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L539" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `site_index` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L458" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 site_index(db: str | FIA, grp_by: str | list[str] | None = None, land_type: str = 'forest', area_domain: str | None = None, plot_domain: str | None = None, most_recent: bool = False, eval_type: str | None = None) -> pl.DataFrame
@@ -72,8 +72,8 @@ values are not comparable across different base ages.
 - **SIBASE** : int - Base age (always included)
 - **[grouping columns]** : varies - Columns from grp_by
 - **SI_MEAN** : float - Area-weighted mean site index (feet)
-- **SI_SE** : float - Standard error of mean
-- **SI_VARIANCE** : float - Variance of estimate
+- **SI_SE** : float - Standard error of the mean (its square is the
+  variance; ``site_index()`` has no ``variance`` option)
 - **N_PLOTS** : int - Number of plots in estimate
 - **N_CONDITIONS** : int - Number of conditions with site index
 
@@ -101,7 +101,7 @@ County-level site index:
 
 ## Classes
 
-### `SiteIndexEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L24" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `SiteIndexEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L25" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 
 Site index estimator for FIA data.
@@ -113,7 +113,7 @@ tree height at a base age.
 
 **Methods:**
 
-#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_required_tables` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L38" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_required_tables(self) -> list[str]
@@ -122,7 +122,7 @@ get_required_tables(self) -> list[str]
 Site index estimation requires COND, PLOT, and stratification tables.
 
 
-#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L41" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_cond_columns` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L42" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_cond_columns(self) -> list[str]
@@ -131,7 +131,7 @@ get_cond_columns(self) -> list[str]
 Get required condition columns for site index estimation.
 
 
-#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L92" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L93" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -144,7 +144,7 @@ For area-weighted mean, we need:
 - Denominator: CONDPROP_UNADJ (total area with site index)
 
 
-#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L127" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L128" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -157,7 +157,7 @@ but also filters out null SICOND values since they cannot contribute
 to the mean calculation.
 
 
-#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L215" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L216" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
@@ -168,26 +168,28 @@ Aggregate site index with area weighting and stratification.
 Returns area-weighted mean: sum(SICOND * area) / sum(area)
 
 
-#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L411" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L328" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
 ```
 
-Calculate variance using ratio-of-means formula.
+Calculate variance using the ratio-of-means formula.
 
-For site index (ratio estimator), variance is:
+For site index (a ratio estimator), variance is:
 V(R) = (1/X^2) * [V(Y) - 2R*Cov(Y,X) + R^2*V(X)]
 
 Where R = Y/X is the ratio (mean site index),
-Y = sum(SI * area), X = sum(area)
+Y = sum(SI * area), X = sum(area). V and Cov are Bechtold &
+Patterson's post-stratified estimates over every plot in the
+evaluation, with zeros for plots that have no site index area in the
+group, as domain estimation requires.
 
 
-#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L494" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/site_index.py#L413" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 format_output(self, results: pl.DataFrame) -> pl.DataFrame
 ```
 
 Format site index estimation output.
-

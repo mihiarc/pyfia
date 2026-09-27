@@ -1,7 +1,7 @@
 """Reference-table integrity guard for downloaded databases (#86).
 
 A failed reference-table download must not silently produce — and cache — a
-database missing REF_SPECIES / REF_FOREST_TYPE / REF_STATE.
+database missing a reference table that pyFIA reads.
 """
 
 from __future__ import annotations
@@ -39,18 +39,19 @@ class TestMissingReferenceTables:
         assert _missing_reference_tables(db) == []
 
     def test_absent_table_reported(self, tmp_path):
-        db = _make_db(
-            tmp_path / "ga.duckdb",
-            {"REF_SPECIES": 3, "REF_FOREST_TYPE": 3},  # REF_STATE absent
-        )
-        assert _missing_reference_tables(db) == ["REF_STATE"]
+        *present, absent = REQUIRED_REFERENCE_TABLES
+        db = _make_db(tmp_path / "ga.duckdb", {t: 3 for t in present})
+        assert _missing_reference_tables(db) == [absent]
 
     def test_empty_table_reported(self, tmp_path):
-        db = _make_db(
-            tmp_path / "ga.duckdb",
-            {"REF_SPECIES": 3, "REF_FOREST_TYPE": 3, "REF_STATE": 0},
-        )
-        assert _missing_reference_tables(db) == ["REF_STATE"]
+        *present, empty = REQUIRED_REFERENCE_TABLES
+        db = _make_db(tmp_path / "ga.duckdb", {**{t: 3 for t in present}, empty: 0})
+        assert _missing_reference_tables(db) == [empty]
+
+    def test_required_tables_are_ones_datamart_serves(self):
+        # FIADB_REFERENCE.zip has no REF_STATE; requiring it failed every
+        # download.
+        assert "REF_STATE" not in REQUIRED_REFERENCE_TABLES
 
 
 class TestVerifyOrDiscard:
@@ -64,7 +65,7 @@ class TestVerifyOrDiscard:
         with pytest.raises(DownloadError) as exc:
             _verify_reference_tables_or_discard(db, "GA")
         msg = str(exc.value)
-        assert "REF_FOREST_TYPE" in msg and "REF_STATE" in msg
+        assert all(t in msg for t in REQUIRED_REFERENCE_TABLES[1:])
         assert "GA" in msg
         assert "retry" in msg.lower()
         # Partial database is removed so a retry rebuilds cleanly.

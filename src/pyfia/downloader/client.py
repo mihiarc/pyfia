@@ -341,6 +341,85 @@ class DataMartClient:
             logger.info(f"Extracted {table} to {dest_path}")
             return dest_path
 
+    def download_state_archive(
+        self,
+        state: str,
+        dest_dir: Path,
+        show_progress: bool = True,
+    ) -> dict[str, Path]:
+        """
+        Download every table DataMart publishes for a state.
+
+        Fetches the state's archive (``{STATE}_CSV.zip``), which holds one CSV
+        per published state table, so the tables are whatever DataMart
+        currently publishes.
+
+        Parameters
+        ----------
+        state : str
+            State abbreviation (e.g., 'GA').
+        dest_dir : Path
+            Directory to save the extracted CSV files.
+        show_progress : bool, default True
+            Show download progress bar.
+
+        Returns
+        -------
+        dict
+            Mapping of table names to extracted CSV paths.
+
+        Raises
+        ------
+        StateNotFoundError
+            If the state code is invalid.
+        TableNotFoundError
+            If DataMart has no archive for the state.
+        NetworkError
+            If the download fails.
+        DownloadError
+            If the archive holds no CSV files.
+
+        Examples
+        --------
+        >>> client = DataMartClient()
+        >>> paths = client.download_state_archive("RI", Path("./data"))
+        >>> sorted(paths)[:3]
+        ['COND', 'COND_DWM_CALC', 'COUNTY']
+        """
+        state = validate_state_code(state)
+        url = f"{DATAMART_CSV_BASE}{state}_CSV.zip"
+        logger.info(f"Downloading {state} tables from {url}")
+
+        downloaded: dict[str, Path] = {}
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            zip_path = temp_path / f"{state}_CSV.zip"
+            try:
+                self._download_file(
+                    url,
+                    zip_path,
+                    description=f"{state}_CSV",
+                    show_progress=show_progress,
+                )
+            except TableNotFoundError:
+                raise TableNotFoundError("CSV archive", state)
+
+            extracted = self._extract_zip(zip_path, temp_path, show_progress=False)
+            dest_dir.mkdir(parents=True, exist_ok=True)
+            prefix = f"{state}_"
+            for f in extracted:
+                if f.suffix.lower() != ".csv":
+                    continue
+                stem = f.stem.upper()
+                table = stem[len(prefix) :] if stem.startswith(prefix) else stem
+                dest_path = dest_dir / f.name
+                shutil.move(str(f), str(dest_path))
+                downloaded[table] = dest_path
+
+        if not downloaded:
+            raise DownloadError(f"No CSV files in {state}_CSV.zip", url=url)
+        return downloaded
+
     def download_tables(
         self,
         state: str,
@@ -368,7 +447,13 @@ class DataMartClient:
         Returns
         -------
         dict
-            Mapping of table names to downloaded file paths.
+            Mapping of table names to downloaded file paths. Tables DataMart
+            doesn't publish for the state are left out, with a warning.
+
+        Raises
+        ------
+        NetworkError
+            If a table fails to download after the client's retries.
 
         Examples
         --------
@@ -417,7 +502,8 @@ class DataMartClient:
                 downloaded[table] = path
                 if show_progress:
                     console.print("[green]OK[/green]")
-            except (TableNotFoundError, NetworkError) as e:
+            except TableNotFoundError as e:
+                # DataMart doesn't publish every table for every state
                 failed.append((table, str(e)))
                 if show_progress:
                     console.print(f"[red]FAILED[/red] ({e})")
@@ -487,15 +573,16 @@ class DataMartClient:
         Download FIA reference tables from the bundled FIADB_REFERENCE.zip.
 
         Reference tables are state-independent lookup tables (REF_SPECIES,
-        REF_FOREST_TYPE, REF_STATE, etc.) bundled together in a single ZIP.
+        REF_FOREST_TYPE, REF_UNIT, etc.) bundled together in a single ZIP,
+        with the EVALIDator and DataMart inventory tables.
 
         Parameters
         ----------
         dest_dir : Path
             Directory to save the extracted CSV files.
         tables : list of str, optional
-            Specific reference tables to keep. If None, keeps common ones:
-            REF_SPECIES, REF_FOREST_TYPE, REF_STATE.
+            Specific reference tables to keep. If None, keeps every table in
+            the archive.
         show_progress : bool, default True
             Show download progress bar.
 
@@ -510,9 +597,7 @@ class DataMartClient:
         >>> paths = client.download_reference_tables(Path("./data"))
         >>> print(f"Downloaded: {list(paths.keys())}")
         """
-        # Common reference tables to keep by default
-        default_tables = ["REF_SPECIES", "REF_FOREST_TYPE", "REF_STATE"]
-        keep_tables = [t.upper() for t in (tables or default_tables)]
+        keep_tables = None if tables is None else {t.upper() for t in tables}
 
         url = f"{DATAMART_CSV_BASE}FIADB_REFERENCE.zip"
         logger.info(f"Downloading reference tables from {url}")
@@ -542,7 +627,7 @@ class DataMartClient:
             for f in extracted:
                 if f.suffix.lower() == ".csv":
                     table_name = f.stem.upper()
-                    if table_name in keep_tables:
+                    if keep_tables is None or table_name in keep_tables:
                         dest_path = dest_dir / f.name
                         shutil.move(str(f), str(dest_path))
                         downloaded[table_name] = dest_path

@@ -43,7 +43,7 @@ with FIA(db_path) as db:
   </Tab>
 </Tabs>
 
-By default pyFIA downloads the ~20 tables required by the estimation functions (`common=True`). Pass `common=False` to fetch every available table (a much larger download).
+By default pyFIA downloads the ~20 tables required by the estimation functions (`common=True`). Pass `common=False` to fetch every table DataMart publishes for the state, from its single `{STATE}_CSV.zip` archive (a much larger download).
 
 ## Caching
 
@@ -109,6 +109,18 @@ With `common=True` (the default), pyFIA fetches the tables the estimators need, 
 | `POP_EVAL`, `POP_EVAL_GRP`, `POP_EVAL_TYP` | Evaluation definitions |
 | `POP_STRATUM`, `POP_ESTN_UNIT`, `POP_PLOT_STRATUM_ASSGN` | Stratification |
 | `TREE_GRM_COMPONENT`, `TREE_GRM_MIDPT`, `TREE_GRM_BEGIN` | Growth/removal/mortality |
+| `COUNTY` | County names and survey units |
+
+Every download also includes the national reference tables in DataMart's `FIADB_REFERENCE.zip`: the `REF_*` code tables, the EVALIDator tables and `DATAMART_MOST_RECENT_INV`.
+
+## Column types
+
+Each table loads with the column types FIADB declares, taken from DataMart's SQLite export (`pyfia.constants.fiadb_schema`):
+
+- CN columns (`CN`, `PLT_CN`, `PREV_TRE_CN`, ...) are text, as the FIADB User Guide defines them; some CNs have 23 digits.
+- Codes and counts are integers, measurements are floating point, and dates are timestamps.
+
+A value that doesn't fit its column's type fails the download, which leaves no partial database behind. A column or table outside the schema loads as text, with a warning.
 
 <Tip>
   **Download times and disk space** vary by state size:

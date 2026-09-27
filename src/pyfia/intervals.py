@@ -31,6 +31,7 @@ from .constants.status_codes import (
     TreeComponent,
 )
 from .core import FIA
+from .core.fiadb_types import cast_to_fiadb_types
 from .estimation.grm import resolve_grm_columns
 from .estimation.utils import ensure_fia_instance
 
@@ -196,6 +197,10 @@ def condition_intervals(
 
     Notes
     -----
+    Columns taken from FIADB tables have their FIADB types
+    (:data:`pyfia.constants.fiadb_schema.COLUMN_TYPES`) whatever the database
+    stores, so frames from different states' databases concatenate cleanly.
+
     The change matrix links a time-1 condition to a time-2 condition only
     where they overlap on the ground, so ``CHNG_AREA_SHARE`` is the natural
     weight for area. Expanded by the plot's EXPNS and the adjustment factor of
@@ -251,7 +256,7 @@ def _condition_intervals(
         for c in ["CN", "PREV_PLT_CN", *PLOT_COLUMNS, *PLOT_TIME_COLUMNS]
         if c in plot_schema
     ]
-    remeasured = reader.read_table("PLOT", columns=plot_cols, lazy=True).filter(
+    remeasured = _read_typed(reader, "PLOT", columns=plot_cols, lazy=True).filter(
         pl.col("PREV_PLT_CN").is_not_null()
     )
     if min_remper is not None:
@@ -263,7 +268,8 @@ def _condition_intervals(
     if fia.evalid:
         evalids = ", ".join(str(int(e)) for e in fia.evalid)
         in_eval = (
-            reader.read_table(
+            _read_typed(
+                reader,
                 "POP_PLOT_STRATUM_ASSGN",
                 columns=["PLT_CN"],
                 where=f"EVALID IN ({evalids})",
@@ -277,7 +283,7 @@ def _condition_intervals(
 
     time_cols = [c for c in PLOT_TIME_COLUMNS if c in plot_schema]
     plot_t1 = (
-        reader.read_table("PLOT", columns=["CN", *time_cols], lazy=True)
+        _read_typed(reader, "PLOT", columns=["CN", *time_cols], lazy=True)
         .join(
             plot_t2.lazy().select(pl.col("PREV_PLT_CN").alias("CN")).unique(),
             on="CN",
@@ -295,8 +301,8 @@ def _condition_intervals(
     attr_cols = [
         c for c in dict.fromkeys(CONDITION_COLUMNS + columns) if c in cond_schema
     ]
-    cond = reader.read_table(
-        "COND", columns=["PLT_CN", "CONDID", *attr_cols], lazy=True
+    cond = _read_typed(
+        reader, "COND", columns=["PLT_CN", "CONDID", *attr_cols], lazy=True
     )
     cond_t1 = (
         cond.join(
@@ -320,7 +326,8 @@ def _condition_intervals(
     # Pairs from the change matrix, on the footprint of the time-2 condition
     if change_matrix:
         chng = (
-            reader.read_table(
+            _read_typed(
+                reader,
                 "SUBP_COND_CHNG_MTRX",
                 columns=[
                     "PLT_CN",
@@ -592,6 +599,10 @@ def tree_intervals(
 
     Notes
     -----
+    Columns taken from FIADB tables have their FIADB types
+    (:data:`pyfia.constants.fiadb_schema.COLUMN_TYPES`) whatever the database
+    stores, so frames from different states' databases concatenate cleanly.
+
     Removals are the CUT and DIVERSION rows and mortality the MORTALITY
     rows. Summing ``TPAREMV_UNADJ`` (or ``TPAMORT_UNADJ``) times the
     adjustment factor for ``SUBPTYP_GRM`` times the plot's EXPNS times a
@@ -656,7 +667,7 @@ def _tree_intervals(
         *weights,
         *[c for c in GRM_COLUMNS if c in grm_schema],
     ]
-    grm = reader.read_table("TREE_GRM_COMPONENT", columns=grm_cols, lazy=True).rename(
+    grm = _read_typed(reader, "TREE_GRM_COMPONENT", columns=grm_cols, lazy=True).rename(
         {growth.component: "COMPONENT", growth.subptyp: "SUBPTYP_GRM", **weights}
     )
     grm = grm.filter(
@@ -671,7 +682,8 @@ def _tree_intervals(
         )
     if fia.evalid:
         evalids = ", ".join(str(int(e)) for e in fia.evalid)
-        in_eval = reader.read_table(
+        in_eval = _read_typed(
+            reader,
             "POP_PLOT_STRATUM_ASSGN",
             columns=["PLT_CN"],
             where=f"EVALID IN ({evalids})",
@@ -701,7 +713,7 @@ def _tree_intervals(
         *t2_attr,
     ]
     t2 = (
-        reader.read_table("TREE", columns=t2_cols, lazy=True)
+        _read_typed(reader, "TREE", columns=t2_cols, lazy=True)
         .join(trees, on="CN", how="semi")
         .rename(
             {"CN": "TRE_CN", "CONDID": "t2_CONDID", **{c: f"t2_{c}" for c in t2_attr}}
@@ -714,7 +726,7 @@ def _tree_intervals(
     t1_attr = t2_attr if t1_attributes else []
     prev = result.lazy().select(pl.col("PREV_TRE_CN").alias("CN")).drop_nulls().unique()
     t1 = (
-        reader.read_table("TREE", columns=["CN", "CONDID", *t1_attr], lazy=True)
+        _read_typed(reader, "TREE", columns=["CN", "CONDID", *t1_attr], lazy=True)
         .join(prev, on="CN", how="semi")
         .rename(
             {
@@ -734,7 +746,9 @@ def _tree_intervals(
     # Midpoint values
     midpt_attr = [c for c in MIDPT_COLUMNS if c in midpt_schema]
     midpt = (
-        reader.read_table("TREE_GRM_MIDPT", columns=["TRE_CN", *midpt_attr], lazy=True)
+        _read_typed(
+            reader, "TREE_GRM_MIDPT", columns=["TRE_CN", *midpt_attr], lazy=True
+        )
         .join(trees.rename({"CN": "TRE_CN"}), on="TRE_CN", how="semi")
         .rename({c: f"MIDPT_{c}" for c in midpt_attr})
         .collect()
@@ -743,7 +757,8 @@ def _tree_intervals(
 
     # Plots at both times
     time_cols = [c for c in ["INVYR", "MEASYEAR"] if c in plot_schema]
-    plots = reader.read_table(
+    plots = _read_typed(
+        reader,
         "PLOT",
         columns=["CN", "PREV_PLT_CN", "STATECD", "REMPER", *time_cols],
         lazy=True,
@@ -806,6 +821,18 @@ def _tree_intervals(
         ],
     ]
     return _cast_keys(result.select(ordered)).sort(["PLT_CN", "TRE_CN"])
+
+
+def _read_typed(
+    reader,
+    table: str,
+    columns: list[str] | None = None,
+    where: str | None = None,
+    lazy: bool = True,
+) -> pl.LazyFrame:
+    """Read ``columns`` of ``table`` with FIADB's column types."""
+    frame = reader.read_table(table, columns=columns, where=where, lazy=False)
+    return cast_to_fiadb_types(frame, table).lazy()
 
 
 def _cast_keys(df: pl.DataFrame) -> pl.DataFrame:

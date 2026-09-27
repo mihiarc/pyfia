@@ -31,6 +31,7 @@ from .constants.columns import (
 from .constants.plot_design import DiameterBreakpoints
 from .constants.status_codes import LandStatus, TreeClass, TreeStatus
 from .constants.tables import TableNames
+from .core.fiadb_types import cast_to_fiadb_types
 from .estimation.constants import BASAL_AREA_FACTOR, LBS_TO_SHORT_TONS
 from .estimation.utils import ensure_fia_instance
 
@@ -273,7 +274,9 @@ def _read(
         where=" AND ".join(clauses) or None,
         lazy=False,
     )
-    frame = frame.with_columns(pl.col(plot_key).cast(pl.Utf8))
+    frame = cast_to_fiadb_types(frame, table).with_columns(
+        pl.col(plot_key).cast(pl.Utf8)
+    )
     if plots is not None:
         frame = frame.join(
             plots, left_on=plot_key, right_on=TreeColumns.PLT_CN, how="semi"

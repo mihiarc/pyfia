@@ -39,7 +39,7 @@ References
 
 ## Functions
 
-### `download` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L264" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `download` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L415" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 download(states: str | list[str], dir: str | Path | None = None, common: bool = True, tables: list[str] | None = None, force: bool = False, show_progress: bool = True, use_cache: bool = True) -> Path
@@ -87,7 +87,7 @@ If False, download all available tables.
 ...     result = area(db)
 
 
-### `clear_cache` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L672" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `clear_cache` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L757" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 clear_cache(older_than_days: int | None = None, state: str | None = None, delete_files: bool = False) -> int
@@ -105,7 +105,7 @@ Clear the download cache.
 - Number of cache entries cleared.
 
 
-### `cache_info` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L706" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `cache_info` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/downloader/__init__.py#L791" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 cache_info() -> dict
@@ -116,4 +116,3 @@ Get information about the download cache.
 
 **Returns:**
 - Cache statistics including size, file count, etc.
-

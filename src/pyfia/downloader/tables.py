@@ -12,12 +12,15 @@ References
 
 from __future__ import annotations
 
+from pyfia.constants.fiadb_schema import COLUMN_TYPES
+
 # Common tables required for pyFIA estimation functions
 # These match the rFIA "common=TRUE" default tables, plus pyfia-specific
 # additions that the estimators need.
 COMMON_TABLES: list[str] = [
     "COND",  # Condition data
     "COND_DWM_CALC",  # Down woody material calculations
+    "COUNTY",  # County names and survey units (pyfia.reference.counties)
     "INVASIVE_SUBPLOT_SPP",  # Invasive species subplot data
     "PLOT",  # Plot-level data
     "PLOTGEOM",  # Plot geometry & ECOSUBCD (Bailey ecoprovince, used by
@@ -41,85 +44,22 @@ COMMON_TABLES: list[str] = [
     "P2VEG_SUBP_STRUCTURE",  # Phase 2 vegetation structure
 ]
 
-# Reference tables (state-independent)
-REFERENCE_TABLES: list[str] = [
-    "REF_SPECIES",
-    "REF_SPECIES_GROUP",
-    "REF_FOREST_TYPE",
-    "REF_FOREST_TYPE_GROUP",
-    "REF_CITATION",
-    "REF_FIADB_VERSION",
-    "REF_GRM_TYPE",
-    "REF_HABTYP_DESCRIPTION",
-    "REF_HABTYP_PUBLICATION",
-    "REF_INVASIVE_SPECIES",
-    "REF_OWNGRPCD",
-    "REF_POP_ATTRIBUTE",
-    "REF_POP_EVAL_TYP_DESCR",
-    "REF_RESEARCH_STATION",
-    "REF_STATE_ELEV",
-    "REF_UNIT",
-]
+# Reference tables (state-independent) in FIADB's published schema
+REFERENCE_TABLES: list[str] = sorted(t for t in COLUMN_TYPES if t.startswith("REF_"))
 
-# All available FIA tables (comprehensive list)
-ALL_TABLES: list[str] = [
-    "BOUNDARY",
-    "COND",
-    "COND_DWM_CALC",
-    "COUNTY",
-    "DWM_COARSE_WOODY_DEBRIS",
-    "DWM_DUFF_LITTER_FUEL",
-    "DWM_FINE_WOODY_DEBRIS",
-    "DWM_MICROPLOT_FUEL",
-    "DWM_RESIDUAL_PILE",
-    "DWM_TRANSECT_SEGMENT",
-    "DWM_VISIT",
-    "GRND_CVR",
-    "INVASIVE_SUBPLOT_SPP",
-    "LICHEN_LAB",
-    "LICHEN_PLOT_SUMMARY",
-    "LICHEN_VISIT",
-    "OZONE_BIOSITE_SUMMARY",
-    "OZONE_PLOT",
-    "OZONE_PLOT_SUMMARY",
-    "OZONE_SPECIES_SUMMARY",
-    "OZONE_VALIDATION",
-    "OZONE_VISIT",
-    "P2VEG_SUBPLOT_SPP",
-    "P2VEG_SUBP_STRUCTURE",
-    "PLOT",
-    "PLOTGEOM",
-    "PLOTSNAP",
-    "POP_ESTN_UNIT",
-    "POP_EVAL",
-    "POP_EVAL_ATTRIBUTE",
-    "POP_EVAL_GRP",
-    "POP_EVAL_TYP",
-    "POP_PLOT_STRATUM_ASSGN",
-    "POP_STRATUM",
-    "SEEDLING",
-    "SITETREE",
-    "SOILS_EROSION",
-    "SOILS_LAB",
-    "SOILS_SAMPLE_LOC",
-    "SOILS_VISIT",
-    "SUBPLOT",
-    "SUBP_COND",
-    "SUBP_COND_CHNG_MTRX",
-    "SURVEY",
-    "TREE",
-    "TREE_GRM_BEGIN",
-    "TREE_GRM_COMPONENT",
-    "TREE_GRM_ESTN",
-    "TREE_GRM_MIDPT",
-    "TREE_REGIONAL_BIOMASS",
-    "TREE_WOODLAND_STEMS",
-    "VEG_PLOT_SPECIES",
-    "VEG_QUADRAT",
-    "VEG_SUBPLOT",
-    "VEG_SUBPLOT_SPP",
-    "VEG_VISIT",
-]
+# National tables, published in FIADB_REFERENCE.zip rather than per state
+NATIONAL_TABLE_PREFIXES = ("REF_", "EVALIDATOR_")
+NATIONAL_TABLES = ("BEGINEND", "DATAMART_MOST_RECENT_INV")
+
+
+def _is_national(table: str) -> bool:
+    return table.startswith(NATIONAL_TABLE_PREFIXES) or table in NATIONAL_TABLES
+
+
+# Every state table in FIADB's published schema (pyfia.constants.fiadb_schema).
+# download(common=False) fetches each state's DataMart archive, which holds
+# exactly the tables DataMart publishes for that state.
+ALL_TABLES: list[str] = sorted(t for t in COLUMN_TYPES if not _is_national(t))
 
 # Valid US state/territory codes (2-letter abbreviations)
 VALID_STATE_CODES: dict[str, str] = {

@@ -40,10 +40,12 @@ def validate_tree_type(tree_type: str) -> str:
 # GRM estimators (growth / mortality / removals) accept a wider tree-type
 # vocabulary than the area/volume/biomass/tpa estimators: the GRM tables carry
 # growing-stock (GS), all-live (AL), and sawlog/sawtimber (SL) population
-# columns. 'live' is an alias for 'al' and 'sawtimber' for 'sl'. See
-# grm.normalize_tree_type / grm.resolve_grm_columns. Note 'all'/'dead' are NOT
-# valid here — they would silently fall through to growing stock.
-VALID_TREE_TYPES_GRM = {"gs", "al", "sl", "live", "sawtimber"}
+# columns. 'al' reads the all-live microplot columns (trees at least 1 inch),
+# 'al5' the all-live subplot columns (trees at least 5 inches). 'live' is an
+# alias for 'al' and 'sawtimber' for 'sl'. See grm.normalize_tree_type /
+# grm.resolve_grm_columns. Note 'all'/'dead' are NOT valid here — they would
+# silently fall through to growing stock.
+VALID_TREE_TYPES_GRM = {"gs", "al", "al5", "sl", "live", "sawtimber"}
 
 
 def validate_tree_type_grm(tree_type: str) -> str:

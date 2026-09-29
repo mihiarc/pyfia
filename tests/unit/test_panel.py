@@ -139,6 +139,23 @@ class TestPanelTreeLevel:
                 # live should be subset or equal
                 assert len(live_result) <= len(all_result)
 
+    @pytest.mark.parametrize("tree_type,design", [("live", "MICR"), ("al5", "SUBP")])
+    def test_all_live_weights_follow_the_design(self, db_path, tree_type, design):
+        """'live' reads the microplot all-live columns, 'al5' the subplot ones."""
+        with FIA(db_path) as db:
+            trees = panel(db, level="tree", tree_type=tree_type)
+        with duckdb.connect(db_path, read_only=True) as con:
+            grm = pl.from_arrow(
+                con.sql(
+                    "SELECT CAST(TRE_CN AS VARCHAR) AS TRE_CN, "
+                    f"{design}_TPAGROW_UNADJ_AL_FOREST AS expected "
+                    "FROM TREE_GRM_COMPONENT"
+                ).arrow()
+            )
+        joined = trees.join(grm, on="TRE_CN")
+        assert joined.height == trees.height > 0
+        assert joined["TPAGROW_UNADJ"].equals(joined["expected"], check_names=False)
+
 
 class TestPanelDomainsAndWeights:
     """Domains filter rows, and tree rows carry GRM weights (#136)."""

@@ -19,6 +19,49 @@ from .conftest import (
 )
 
 
+def all_live_formula(
+    fia_db, design: str, tpa: str, components: str, value: str
+) -> float:
+    """EVALIDator's all-live GRM formula on forest land, written out in SQL.
+
+    ``design`` picks the all-live columns: 'MICR' for trees at least 1 inch,
+    'SUBP' for trees at least 5 inches. ``value`` is the per-tree amount
+    (``m.`` is TREE_GRM_MIDPT), summed over rows whose component matches one
+    of the ``components`` LIKE patterns.
+    """
+    import duckdb
+
+    component_match = " OR ".join(
+        f"g.COMPONENT LIKE {c.strip()}" for c in components.split(",")
+    )
+    with duckdb.connect(str(fia_db), read_only=True) as con:
+        return con.sql(
+            f"""
+            SELECT SUM(v * EXPNS) FROM (
+              SELECT ps.EXPNS, plot.CN,
+                SUM(g.TPA * CASE WHEN COALESCE(g.SUBPTYP_GRM, 0) = 0 THEN 0
+                                 WHEN g.SUBPTYP_GRM = 1 THEN ps.ADJ_FACTOR_SUBP
+                                 WHEN g.SUBPTYP_GRM = 2 THEN ps.ADJ_FACTOR_MICR
+                                 WHEN g.SUBPTYP_GRM = 3 THEN ps.ADJ_FACTOR_MACR
+                                 ELSE 0 END
+                    * CASE WHEN {component_match} THEN {value} ELSE 0 END) v
+              FROM POP_STRATUM ps
+              JOIN POP_PLOT_STRATUM_ASSGN a ON a.STRATUM_CN = ps.CN
+              JOIN PLOT plot ON plot.CN = a.PLT_CN
+              JOIN COND c ON c.PLT_CN = plot.CN
+              JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
+              LEFT JOIN TREE_GRM_MIDPT m ON m.TRE_CN = t.CN
+              LEFT JOIN (SELECT TRE_CN,
+                           {design}_COMPONENT_AL_FOREST AS COMPONENT,
+                           {design}_SUBPTYP_GRM_AL_FOREST AS SUBPTYP_GRM,
+                           {design}_{tpa}_UNADJ_AL_FOREST AS TPA
+                         FROM TREE_GRM_COMPONENT) g ON g.TRE_CN = t.CN
+              WHERE ps.EVALID = {GEORGIA_EVALID_GRM}
+              GROUP BY ps.EXPNS, plot.CN)
+            """
+        ).fetchone()[0]
+
+
 class TestGRMValidation:
     """Validate Growth, Removals, Mortality estimates against EVALIDator."""
 
@@ -351,39 +394,8 @@ class TestGRMAllLive:
     def test_trees_match_evalidator_rows(
         self, fia_db, evalidator_client, estimator, tpa, components, snum
     ):
-        import duckdb
-
-        component_match = " OR ".join(
-            f"g.COMPONENT LIKE {c.strip()}" for c in components.split(",")
-        )
-
         def formula(value: str) -> float:
-            with duckdb.connect(str(fia_db), read_only=True) as con:
-                return con.sql(
-                    f"""
-                    SELECT SUM(v * EXPNS) FROM (
-                      SELECT ps.EXPNS, plot.CN,
-                        SUM(g.TPA * CASE WHEN COALESCE(g.SUBPTYP_GRM, 0) = 0 THEN 0
-                                         WHEN g.SUBPTYP_GRM = 1 THEN ps.ADJ_FACTOR_SUBP
-                                         WHEN g.SUBPTYP_GRM = 2 THEN ps.ADJ_FACTOR_MICR
-                                         WHEN g.SUBPTYP_GRM = 3 THEN ps.ADJ_FACTOR_MACR
-                                         ELSE 0 END
-                            * CASE WHEN {component_match} THEN {value} ELSE 0 END) v
-                      FROM POP_STRATUM ps
-                      JOIN POP_PLOT_STRATUM_ASSGN a ON a.STRATUM_CN = ps.CN
-                      JOIN PLOT plot ON plot.CN = a.PLT_CN
-                      JOIN COND c ON c.PLT_CN = plot.CN
-                      JOIN TREE t ON t.PLT_CN = c.PLT_CN AND t.CONDID = c.CONDID
-                      LEFT JOIN TREE_GRM_MIDPT m ON m.TRE_CN = t.CN
-                      LEFT JOIN (SELECT TRE_CN,
-                                   MICR_COMPONENT_AL_FOREST AS COMPONENT,
-                                   MICR_SUBPTYP_GRM_AL_FOREST AS SUBPTYP_GRM,
-                                   MICR_{tpa}_UNADJ_AL_FOREST AS TPA
-                                 FROM TREE_GRM_COMPONENT) g ON g.TRE_CN = t.CN
-                      WHERE ps.EVALID = {GEORGIA_EVALID_GRM}
-                      GROUP BY ps.EXPNS, plot.CN)
-                    """
-                ).fetchone()[0]
+            return all_live_formula(fia_db, "MICR", tpa, components, value)
 
         ev = evalidator_client.get_custom_estimate(
             snum=snum,
@@ -403,3 +415,105 @@ class TestGRMAllLive:
         trees = formula("1")
         print(f"\n  pyFIA: {result[total_col][0]:,.1f} trees/yr  formula: {trees:,.1f}")
         assert values_match(result[total_col][0], trees)
+
+
+class TestGRMAllLive5Inches:
+    """All-live GRM estimates for trees at least 5 inches match EVALIDator (#173).
+
+    EVALIDator reads the SUBP_ all-live columns of TREE_GRM_COMPONENT for
+    these, with no diameter filter, and ``tree_type="al5"`` does the same.
+    Growth is compared in aboveground biomass and mortality and removals in
+    trees, which pyFIA computes directly. Aboveground biomass of mortality and
+    removals goes through EVALIDator's formula, as in ``TestGRMAllLive``.
+    """
+
+    @pytest.mark.parametrize(
+        "land_type, snum",
+        [("forest", 2635), ("timber", 2636)],
+        ids=["forest", "timber"],
+    )
+    def test_growth_biomass(self, fia_db, evalidator_client, land_type, snum):
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = growth(db, land_type=land_type, tree_type="al5", measure="biomass")
+            pyfia_growth, pyfia_se, _ = extract_grm_estimate(result, "growth")
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=snum,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="dry short tons/year",
+            estimate_type="all-live (at least 5 inches) growth",
+        )
+        print(f"\n  pyFIA: {pyfia_growth:,.1f}  EVALIDator: {ev.estimate:,.1f}")
+        assert values_match(pyfia_growth, ev.estimate), (
+            f"pyFIA {pyfia_growth} vs EVALIDator {ev.estimate}"
+        )
+        assert se_values_match(pyfia_se, ev.sampling_error, rel_tol=SE_TOLERANCE_GRM)
+
+    @pytest.mark.parametrize(
+        "estimator, land_type, snum",
+        [
+            (mortality, "forest", 901),
+            (mortality, "timber", 904),
+            (removals, "forest", 907),
+            (removals, "timber", 910),
+        ],
+        ids=[
+            "mortality-forest",
+            "mortality-timber",
+            "removals-forest",
+            "removals-timber",
+        ],
+    )
+    def test_trees(self, fia_db, evalidator_client, estimator, land_type, snum):
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = estimator(db, land_type=land_type, tree_type="al5", measure="tpa")
+        total_col = next(c for c in result.columns if c.endswith("_TOTAL"))
+        pyfia_trees = result[total_col][0]
+        pyfia_se = result[f"{total_col}_SE"][0]
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=snum,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="trees/year",
+            estimate_type="all-live (at least 5 inches) trees",
+        )
+        print(f"\n  pyFIA: {pyfia_trees:,.1f}  EVALIDator: {ev.estimate:,.1f}")
+        assert values_match(pyfia_trees, ev.estimate), (
+            f"pyFIA {pyfia_trees} vs EVALIDator {ev.estimate}"
+        )
+        assert se_values_match(pyfia_se, ev.sampling_error, rel_tol=SE_TOLERANCE_GRM)
+
+    @pytest.mark.parametrize(
+        "estimator, tpa, components, snum",
+        [
+            (removals, "TPAREMV", "'CUT%', 'DIVERSION%'", 2674),
+            (mortality, "TPAMORT", "'MORTALITY%'", 2637),
+        ],
+        ids=["removals", "mortality"],
+    )
+    def test_biomass_formula(
+        self, fia_db, evalidator_client, estimator, tpa, components, snum
+    ):
+        def formula(value: str) -> float:
+            return all_live_formula(fia_db, "SUBP", tpa, components, value)
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=snum,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="dry short tons/year",
+            estimate_type="all-live (at least 5 inches) aboveground biomass",
+        )
+        assert values_match(formula("m.DRYBIO_AG / 2000"), ev.estimate), (
+            "The SQL formula no longer reproduces EVALIDator"
+        )
+
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = estimator(db, land_type="forest", tree_type="al5", measure="tpa")
+        total_col = next(c for c in result.columns if c.endswith("_TOTAL"))
+        assert values_match(result[total_col][0], formula("1"))

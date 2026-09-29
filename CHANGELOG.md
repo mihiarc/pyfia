@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **`tree_type="al5"`: all live trees at least 5 inches** (#173) in `growth()`, `mortality()` and `removals()`, `panel(level="tree")` and `tree_intervals(tree_basis="al5")`. It reads the `SUBP_*_AL_*` columns of `TREE_GRM_COMPONENT`, EVALIDator's population for its estimates of trees at least 5 inches d.b.h./d.r.c., with no midpoint-diameter filter, as in EVALIDator's SQL. It is not `tree_type="al"` limited to 5 inches: `"al"` reads the microplot columns (#167), where a tree that grew past 5 inches on the microplot keeps the microplot's expansion. On Georgia EVALID 132303 it matches EVALIDator snums 901 and 904 (mortality in trees), 907 and 910 (removals in trees) and 2635 and 2636 (net growth of aboveground biomass), and reproduces 1.4.x's `tree_type="al"` exactly.
+
+### Fixed
+- The `removals()` docstring listed `measure="count"`, which the validator rejects. It now lists `"volume"`, `"biomass"` and `"tpa"`.
+- The `panel()` docstring said all-live trees use the `SUBP_` columns; `tree_type="live"` has read the `MICR_` columns since 1.5.0 (#167).
+
+### Tests
+- EVALIDator validation tests cover all-live trees at least 5 inches: growth, mortality and removals directly, and the aboveground biomass of mortality and removals (snums 2637 and 2674) through EVALIDator's formula.
+
 ## [1.6.0] - 2026-09-27
 
 Downloads load every table with FIADB's own column types, and the unit-level

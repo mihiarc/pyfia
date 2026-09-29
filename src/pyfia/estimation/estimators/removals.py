@@ -232,13 +232,17 @@ def removals(
         - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : str
         Land type: "forest", "timber", or "all"
-    tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
+    tree_type : {'gs', 'al', 'al5', 'sl', 'live', 'sawtimber'}, default 'gs'
         Tree population to include (GRM tables): 'gs' (growing stock),
         'al'/'live' (all live trees at least 1 inch d.b.h., saplings on the
         microplot included, as in EVALIDator's "trees at least 1 inch"),
+        'al5' (all live trees at least 5 inches d.b.h./d.r.c., from the
+        subplot GRM columns, as in EVALIDator's "trees at least 5 inches";
+        not 'al' limited to 5 inches, see ``mortality()``),
         'sl'/'sawtimber' (sawtimber-size).
-    measure : str
-        What to measure: "volume", "biomass", or "count"
+    measure : {'volume', 'biomass', 'tpa'}
+        What to measure: net cubic-foot volume, bole and branch biomass (dry
+        short tons), or trees removed per year
     tree_domain : str | None
         SQL-like filter for trees
     area_domain : str | None
@@ -268,7 +272,7 @@ def removals(
     >>> results = removals(db, measure="volume")
 
     >>> # Removals by species (tree count)
-    >>> results = removals(db, by_species=True, measure="count")
+    >>> results = removals(db, by_species=True, measure="tpa")
 
     >>> # Biomass removals by forest type
     >>> results = removals(

@@ -581,12 +581,16 @@ def growth(
         - "market": Timber market categories (Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'forest'
         Land type to include in estimation.
-    tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
+    tree_type : {'gs', 'al', 'al5', 'sl', 'live', 'sawtimber'}, default 'gs'
         Tree population to include (GRM tables):
 
         - 'gs': growing stock
         - 'al' or 'live': all live trees at least 1 inch d.b.h., saplings on
           the microplot included (EVALIDator's "trees at least 1 inch")
+        - 'al5': all live trees at least 5 inches d.b.h./d.r.c.
+          (EVALIDator's "trees at least 5 inches"), from the subplot GRM
+          columns. It is not 'al' limited to 5 inches: 'al' expands a tree
+          that grew past 5 inches on the microplot by the microplot's factor.
         - 'sl' or 'sawtimber': sawtimber-size trees
     measure : {'volume', 'biomass', 'count'}, default 'volume'
         What to measure in the growth estimation.

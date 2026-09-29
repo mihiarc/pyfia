@@ -48,16 +48,18 @@ The `Makefile` targets:
   - Per-period estimates reproduce exactly from a local database of the same FIADB release. Annual ones (÷ `REMPER`) can drift about 0.05% when EVALIDator serves a newer release, so validate exactness on the per-period snums.
 - **Area change counts one `SUBP_COND_CHNG_MTRX` row per subplot**: `SUBPTYP` 1 when `COND.PROP_BASIS` is `SUBP`, 3 when it is `MACR`, with the matching adjustment factor, and `COND_NONSAMPLE_REASN_CD` 0 at both times (#151).
   - FIADB's COND has no `PREVCOND` (1.9.4 and 1.9.5), so the change matrix is the only reliable time-1 ↔ time-2 condition link. Plots outside it (periodic inventories) fall back to the same CONDID (`condition_intervals`).
-- **All-live GRM estimates (trees at least 1 inch) use the `MICR_*_AL_*` columns** of `TREE_GRM_COMPONENT`, whose `SUBPTYP_GRM` 2 rows are microplot saplings. `SUBP_*_AL_*` is EVALIDator's at-least-5-inch population; growing stock and sawtimber use `SUBP_*` (#167).
+- **All-live GRM estimates (trees at least 1 inch, `tree_type="al"`) use the `MICR_*_AL_*` columns** of `TREE_GRM_COMPONENT`, whose `SUBPTYP_GRM` 2 rows are microplot saplings (#167). Growing stock and sawtimber use `SUBP_*`.
+  - `SUBP_*_AL_*` is EVALIDator's at-least-5-inch population, `tree_type="al5"` (#173). EVALIDator's SQL for it (snums 901, 907, 2674, 3000) has no DIA or DIA_MIDPT filter, so `"al5"` has none either.
+  - Don't build the at-least-5-inch population by filtering `"al"` to 5 inches. A tree that grew past 5 inches on the microplot keeps the microplot's expansion there, so the population weights are wrong.
 - **A domain's standard error needs every plot in the evaluation**, zero-filled where the plot has nothing in the domain, with the exact Bechtold & Patterson formula (`s²_h`, not `s²_h / n_h`). #147, #149 and #159 each broke this.
 
 ## Regression guardrails
 
 Estimator output isn't byte-stable from run to run.
-- `*_SE` and `*_VARIANCE` columns jitter at the ULP level, because polars sums floats in parallel.
+- `*_SE`, `*_VARIANCE` and `*_CV` columns jitter at the ULP level, because polars sums floats in parallel.
 - Point estimates are stable to 8+ significant figures.
 - So never hash an output frame to prove a refactor is behavior-preserving.
-- Canonicalize both sides first: sort rows by all columns, drop `*_SE`/`*_VARIANCE`, round the remaining floats to 8 significant figures, then diff. Counts (`N_PLOTS`, `N_TREES`) and point estimates should then match exactly.
+- Canonicalize both sides first: sort rows by all columns, drop `*_SE`/`*_VARIANCE`/`*_CV`, round the remaining floats to 8 significant figures, then diff. Counts (`N_PLOTS`, `N_TREES`) and point estimates should then match exactly.
 
 ## Docs (Mintlify)
 

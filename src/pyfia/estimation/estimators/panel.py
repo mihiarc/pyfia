@@ -55,7 +55,7 @@ class PanelBuilder:
         Additional columns to include beyond defaults
     land_type : {'forest', 'timber', 'all'}
         Land classification filter
-    tree_type : {'all', 'live', 'gs'}
+    tree_type : {'all', 'live', 'al5', 'gs'}
         Tree type filter (tree-level only)
     tree_domain : str, optional
         SQL-like filter for trees
@@ -1068,11 +1068,14 @@ def panel(
         - 'forest': All forest land (COND_STATUS_CD = 1)
         - 'timber': Timberland (productive, unreserved forest)
         - 'all': No land type filtering
-    tree_type : {'all', 'live', 'gs'}, default 'gs'
-        Tree type filter (tree-level only). Maps to GRM column suffixes:
+    tree_type : {'all', 'live', 'al5', 'gs'}, default 'gs'
+        Tree type filter (tree-level only). Selects the GRM columns:
         - 'gs': Growing stock (merchantable trees) - uses GS columns
         - 'all': All trees - uses GS columns (default GRM behavior)
-        - 'live': All live trees - uses AL columns
+        - 'live': All live trees at least 1 inch - uses the ``MICR_`` AL
+          columns, saplings on the microplot included
+        - 'al5': All live trees at least 5 inches - uses the ``SUBP_`` AL
+          columns (EVALIDator's "trees at least 5 inches")
     tree_domain : str, optional
         SQL-like filter expression for tree-level filtering, using unprefixed
         column names. It is evaluated on each GRM tree record: ``DIA`` is the
@@ -1164,8 +1167,8 @@ def panel(
         - t1_*/t2_*: Tree attributes at time 1 and time 2
 
         The TPA columns are on the basis ``tree_type`` and ``land_type``
-        select (the ``SUBP_*_UNADJ_{GS,AL}_{FOREST,TIMBER}`` columns of
-        TREE_GRM_COMPONENT).
+        select (the ``*_UNADJ_{GS,AL}_{FOREST,TIMBER}`` columns of
+        TREE_GRM_COMPONENT, ``MICR_`` for 'live' and ``SUBP_`` otherwise).
 
     See Also
     --------
@@ -1247,9 +1250,9 @@ def panel(
 
     land_type = validate_land_type(land_type)
 
-    if tree_type not in ("all", "live", "gs"):
+    if tree_type not in ("all", "live", "al5", "gs"):
         raise ValueError(
-            f"Invalid tree_type '{tree_type}'. Must be 'all', 'live', or 'gs'"
+            f"Invalid tree_type '{tree_type}'. Must be 'all', 'live', 'al5', or 'gs'"
         )
 
     tree_domain = validate_domain_expression(tree_domain, "tree_domain")

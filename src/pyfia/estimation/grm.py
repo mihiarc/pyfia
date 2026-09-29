@@ -17,7 +17,7 @@ import polars as pl
 from .variance import calculate_domain_total_variance  # noqa: F401
 
 # Valid tree types for GRM estimation
-TreeType = Literal["gs", "al", "sl", "live", "sawtimber"]
+TreeType = Literal["gs", "al", "al5", "sl", "live", "sawtimber"]
 # Valid land types for GRM estimation
 LandType = Literal["forest", "timber"]
 # Valid GRM component types
@@ -57,15 +57,16 @@ def normalize_tree_type(tree_type: str) -> str:
     Parameters
     ----------
     tree_type : str
-        Input tree type (gs, al, sl, live, sawtimber)
+        Input tree type (gs, al, al5, sl, live, sawtimber)
 
     Returns
     -------
     str
-        Normalized tree type code (GS, AL, SL)
+        Normalized tree type code (GS, AL, SL), the population code of the
+        GRM column names. 'al' and 'al5' share the code AL.
     """
     tree_type = tree_type.upper()
-    if tree_type in ("LIVE", "AL"):
+    if tree_type in ("LIVE", "AL", "AL5"):
         return "AL"
     elif tree_type == "SAWTIMBER":
         return "SL"
@@ -106,19 +107,20 @@ def resolve_grm_columns(
     population and land basis, e.g., SUBP_TPAGROW_UNADJ_GS_FOREST for
     growing stock on all forestland.
 
-    All live trees use the ``MICR_`` columns, which cover every live tree at
-    least 1 inch in diameter, saplings tallied on the microplot included
-    (SUBPTYP_GRM 2). The ``SUBP_`` all-live columns cover trees at least
-    5 inches only. Growing-stock and sawtimber trees use the ``SUBP_``
-    columns. This is how EVALIDator selects them for its estimates of all
-    live trees (at least 1 inch), growing-stock trees and sawtimber trees.
+    All live trees at least 1 inch ('al') use the ``MICR_`` columns, which
+    include saplings tallied on the microplot (SUBPTYP_GRM 2). All live trees
+    at least 5 inches ('al5'), growing-stock trees and sawtimber trees use the
+    ``SUBP_`` columns. This is how EVALIDator selects them for its estimates
+    of trees at least 1 inch, trees at least 5 inches, growing-stock trees
+    and sawtimber trees.
 
     Parameters
     ----------
     component_type : {'growth', 'mortality', 'removals'}
         Type of GRM component
     tree_type : str, default 'gs'
-        Tree type: 'gs' (growing stock), 'al' (all live), 'sl' (sawtimber),
+        Tree type: 'gs' (growing stock), 'al' (all live trees at least
+        1 inch), 'al5' (all live trees at least 5 inches), 'sl' (sawtimber),
         'live' (alias for 'al'), 'sawtimber' (alias for 'sl')
     land_type : str, default 'forest'
         Land type: 'forest' (all forestland) or 'timber' (timberland only)
@@ -137,6 +139,8 @@ def resolve_grm_columns(
     'SUBP_TPAGROW_UNADJ_GS_FOREST'
     >>> resolve_grm_columns('mortality', tree_type='al').tpa
     'MICR_TPAMORT_UNADJ_AL_FOREST'
+    >>> resolve_grm_columns('mortality', tree_type='al5').tpa
+    'SUBP_TPAMORT_UNADJ_AL_FOREST'
     """
     tree_code = normalize_tree_type(tree_type)
     land_code = normalize_land_type(land_type)
@@ -148,7 +152,9 @@ def resolve_grm_columns(
         "removals": "TPAREMV",
     }
     tpa_prefix = tpa_prefix_map[component_type]
-    design = "MICR" if tree_code == "AL" else "SUBP"
+    # 'al' and 'al5' share the column code AL, so the design (the plot
+    # footprint the columns cover) comes from the tree type itself.
+    design = "MICR" if tree_type.lower() in ("al", "live") else "SUBP"
 
     return GRMColumns(
         component=f"{design}_COMPONENT_{tree_code}_{land_code}",

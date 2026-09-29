@@ -500,7 +500,7 @@ FATES = {
 def tree_intervals(
     db: str | FIA,
     *,
-    tree_basis: Literal["al", "gs", "sl"] = "al",
+    tree_basis: Literal["al", "al5", "gs", "sl"] = "al",
     land_basis: Literal["forest", "timber"] = "forest",
     components: list[str] | None = None,
     columns: list[str] | None = None,
@@ -523,10 +523,12 @@ def tree_intervals(
         instance is clipped to evaluations (``clip_by_evalid``,
         ``clip_most_recent``), only time-2 plots in those evaluations are
         returned; otherwise every tree with a GRM record is.
-    tree_basis : {'al', 'gs', 'sl'}, default 'al'
+    tree_basis : {'al', 'al5', 'gs', 'sl'}, default 'al'
         Tree population, which selects the GRM columns:
 
         - 'al': all live trees at least 1 inch d.b.h./d.r.c.
+        - 'al5': all live trees at least 5 inches d.b.h./d.r.c., from the
+          subplot all-live columns (EVALIDator's "trees at least 5 inches")
         - 'gs': growing-stock trees at least 5 inches d.b.h.
         - 'sl': sawtimber trees
     land_basis : {'forest', 'timber'}, default 'forest'
@@ -614,8 +616,10 @@ def tree_intervals(
     except for trees FIA reconciled as missed at time 1 (rows without a
     ``PREV_TRE_CN``) and a few time-1 trees without a GRM record.
     """
-    if tree_basis not in ("al", "gs", "sl"):
-        raise ValueError(f"tree_basis must be 'al', 'gs' or 'sl', got {tree_basis!r}")
+    if tree_basis not in ("al", "al5", "gs", "sl"):
+        raise ValueError(
+            f"tree_basis must be 'al', 'al5', 'gs' or 'sl', got {tree_basis!r}"
+        )
     if land_basis not in ("forest", "timber"):
         raise ValueError(f"land_basis must be 'forest' or 'timber', got {land_basis!r}")
 

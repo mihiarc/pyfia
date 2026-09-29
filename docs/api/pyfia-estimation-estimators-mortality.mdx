@@ -43,6 +43,9 @@ This is the correct FIA statistical methodology for mortality estimation.
 - 'gs'\: growing stock
 - 'al' or 'live'\: all live trees at least 1 inch d.b.h., saplings on
   the microplot included (EVALIDator's "trees at least 1 inch")
+- 'al5'\: all live trees at least 5 inches d.b.h./d.r.c.
+  (EVALIDator's "trees at least 5 inches"), from the subplot GRM
+  columns; see Notes
 - 'sl' or 'sawtimber'\: sawtimber-size trees
 - `measure`: What to measure in the mortality estimation.
 - `tree_domain`: SQL-like filter expression for tree-level filtering.
@@ -80,6 +83,9 @@ Pre-merchantable tree mortality (trees &lt; 5" DBH):
 ... )
 >>> # Filter to pre-merchantable only:
 >>> premerch = results.filter(pl.col("SIZE_CLASS") == "Pre-merchantable")
+Mortality of all live trees at least 5 inches, in trees per year
+(EVALIDator snum 901):
+>>> results = mortality(db, tree_type="al5", land_type="forest", measure="tpa")
 
 
 ## Classes

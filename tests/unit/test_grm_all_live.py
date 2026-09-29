@@ -1,9 +1,10 @@
-"""All-live GRM estimates use the MICR_ columns of TREE_GRM_COMPONENT (#167).
+"""All-live GRM estimates read the all-live columns of TREE_GRM_COMPONENT.
 
-EVALIDator's estimates for all live trees (at least 1 inch) read the MICR_
-component, SUBPTYP_GRM and TPA columns, which include saplings tallied on the
-microplot (SUBPTYP_GRM 2). The SUBP_ all-live columns cover trees at least 5
-inches only. The oracle is EVALIDator's formula, written out in SQL, on the
+EVALIDator's estimates for all live trees at least 1 inch (``tree_type="al"``,
+#167) read the MICR_ component, SUBPTYP_GRM and TPA columns, which include
+saplings tallied on the microplot (SUBPTYP_GRM 2). Its estimates for all live
+trees at least 5 inches (``tree_type="al5"``, #173) read the SUBP_ all-live
+columns. The oracle is EVALIDator's formula, written out in SQL, on the
 committed Alabama fixture.
 """
 
@@ -61,6 +62,14 @@ def test_all_live_resolves_micr_columns(tree_type):
     assert cols.tpa == "MICR_TPAREMV_UNADJ_AL_TIMBER"
 
 
+def test_all_live_5_inches_resolves_subp_columns():
+    cols = resolve_grm_columns("mortality", tree_type="al5")
+    assert cols.tpa == "SUBP_TPAMORT_UNADJ_AL_FOREST"
+    assert cols.component == "SUBP_COMPONENT_AL_FOREST"
+    assert cols.subptyp == "SUBP_SUBPTYP_GRM_AL_FOREST"
+    assert cols.tree_type_code == "AL"
+
+
 @pytest.mark.parametrize("tree_type", ["gs", "sl", "sawtimber"])
 def test_growing_stock_and_sawtimber_keep_subp_columns(tree_type):
     cols = resolve_grm_columns("mortality", tree_type, "forest")
@@ -87,6 +96,28 @@ def test_all_live_trees_match_evalidator_formula(
         result = fn(db, tree_type="al", land_type=land_type, measure="tpa")
     total = next(c for c in result.columns if c.endswith("_TOTAL"))
     assert result[total][0] == pytest.approx(expected, rel=1e-9)
+
+
+@pytest.mark.parametrize("land_type", ["forest", "timber"])
+@pytest.mark.parametrize(
+    "estimator,fn", [("removals", removals), ("mortality", mortality)]
+)
+def test_all_live_5_inches_trees_match_evalidator_formula(
+    fiadb_fixture_path, estimator, fn, land_type
+):
+    expected = evalidator_trees(
+        fiadb_fixture_path, estimator, "SUBP", land_type.upper()
+    )
+
+    with FIA(str(fiadb_fixture_path)) as db:
+        db.clip_by_evalid(EVALID_GRM)
+        al5 = fn(db, tree_type="al5", land_type=land_type, measure="tpa")
+        al = fn(db, tree_type="al", land_type=land_type, measure="tpa")
+    total = next(c for c in al5.columns if c.endswith("_TOTAL"))
+    assert al5[total][0] == pytest.approx(expected, rel=1e-9)
+    assert al5["TREE_TYPE"][0] == "AL5"
+    # The microplot design ('al') counts saplings that 'al5' leaves out.
+    assert al[total][0] > al5[total][0] > 0
 
 
 def test_saplings_on_the_microplot_are_counted(fiadb_fixture_path):

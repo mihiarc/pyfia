@@ -68,7 +68,7 @@ def gs_size(rows: pl.DataFrame, tree_basis: str) -> pl.DataFrame:
     return rows.filter(pl.col("DIA_MIDPT") >= 5) if tree_basis == "gs" else rows
 
 
-@pytest.mark.parametrize("tree_basis", ["gs", "al"])
+@pytest.mark.parametrize("tree_basis", ["gs", "al", "al5"])
 @pytest.mark.parametrize("land_basis", ["forest", "timber"])
 class TestEstimatorIdentity:
     @pytest.mark.parametrize(

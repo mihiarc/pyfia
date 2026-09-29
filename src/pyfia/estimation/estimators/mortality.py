@@ -292,12 +292,15 @@ def mortality(
         - "market": Timber market categories (Pre-merchantable, Pulpwood, Chip-n-Saw, Sawtimber)
     land_type : {'forest', 'timber'}, default 'timber'
         Land type to include in estimation.
-    tree_type : {'gs', 'al', 'sl', 'live', 'sawtimber'}, default 'gs'
+    tree_type : {'gs', 'al', 'al5', 'sl', 'live', 'sawtimber'}, default 'gs'
         Tree population to include (GRM tables):
 
         - 'gs': growing stock
         - 'al' or 'live': all live trees at least 1 inch d.b.h., saplings on
           the microplot included (EVALIDator's "trees at least 1 inch")
+        - 'al5': all live trees at least 5 inches d.b.h./d.r.c.
+          (EVALIDator's "trees at least 5 inches"), from the subplot GRM
+          columns; see Notes
         - 'sl' or 'sawtimber': sawtimber-size trees
     measure : {'volume', 'sawlog', 'biomass', 'tpa', 'count', 'basal_area'}, default 'volume'
         What to measure in the mortality estimation.
@@ -354,8 +357,23 @@ def mortality(
     >>> # Filter to pre-merchantable only:
     >>> premerch = results.filter(pl.col("SIZE_CLASS") == "Pre-merchantable")
 
+    Mortality of all live trees at least 5 inches, in trees per year
+    (EVALIDator snum 901):
+
+    >>> results = mortality(db, tree_type="al5", land_type="forest", measure="tpa")
+
     Notes
     -----
+    ``tree_type="al5"`` reads the ``SUBP_*_AL_*`` columns of
+    TREE_GRM_COMPONENT, the population EVALIDator uses for all live trees at
+    least 5 inches. It is not ``tree_type="al"`` limited to trees at least
+    5 inches. 'al' reads the ``MICR_*_AL_*`` columns, where a tree that
+    grew past 5 inches during the remeasurement period can keep the
+    microplot's expansion (``SUBPTYP_GRM`` 2). 'al5' expands each tree by
+    its subplot or macroplot. Like EVALIDator, 'al5' applies no midpoint
+    diameter filter, so ``size_class_type="market"`` can place a few of its
+    trees in "Pre-merchantable".
+
     This function uses FIA's GRM tables which contain pre-calculated annual
     mortality values. The TPA_UNADJ fields are already annualized.
 

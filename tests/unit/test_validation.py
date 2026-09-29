@@ -56,7 +56,7 @@ class TestValidators:
 
     def test_validate_tree_type_grm_valid(self):
         """#111: GRM estimators accept the wider tree-type vocabulary."""
-        for value in ("gs", "al", "sl", "live", "sawtimber"):
+        for value in ("gs", "al", "al5", "sl", "live", "sawtimber"):
             assert validate_tree_type_grm(value) == value
 
     def test_validate_tree_type_grm_invalid(self):

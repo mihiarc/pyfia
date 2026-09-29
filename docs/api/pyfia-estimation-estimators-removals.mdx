@@ -40,8 +40,12 @@ growing-stock trees (at least 5 inches d.b.h.) on forest land.
 - `tree_type`: Tree population to include (GRM tables)\: 'gs' (growing stock),
 'al'/'live' (all live trees at least 1 inch d.b.h., saplings on the
 microplot included, as in EVALIDator's "trees at least 1 inch"),
+'al5' (all live trees at least 5 inches d.b.h./d.r.c., from the
+subplot GRM columns, as in EVALIDator's "trees at least 5 inches";
+not 'al' limited to 5 inches, see ``mortality()``),
 'sl'/'sawtimber' (sawtimber-size).
-- `measure`: What to measure\: "volume", "biomass", or "count"
+- `measure`: What to measure\: net cubic-foot volume, bole and branch biomass (dry
+short tons), or trees removed per year
 - `tree_domain`: SQL-like filter for trees
 - `area_domain`: SQL-like filter for area
 - `totals`: Include population totals
@@ -63,7 +67,7 @@ microplot included, as in EVALIDator's "trees at least 1 inch"),
 >>> # Basic volume removals on forestland
 >>> results = removals(db, measure="volume")
 >>> # Removals by species (tree count)
->>> results = removals(db, by_species=True, measure="count")
+>>> results = removals(db, by_species=True, measure="tpa")
 >>> # Biomass removals by forest type
 >>> results = removals(
 ...     db,

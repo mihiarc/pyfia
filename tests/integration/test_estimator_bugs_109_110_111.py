@@ -131,7 +131,10 @@ class TestAreaChangeVarianceContract:
         # SE is always present; estimate unchanged by the flag.
         assert "AREA_CHANGE_SE" in off.columns
         assert "AREA_CHANGE_SE" in on.columns
-        assert off["AREA_CHANGE_TOTAL"][0] == on["AREA_CHANGE_TOTAL"][0]
+        # Polars sums floats in parallel, so compare to 12 significant figures.
+        assert off["AREA_CHANGE_TOTAL"][0] == pytest.approx(
+            on["AREA_CHANGE_TOTAL"][0], rel=1e-12
+        )
 
         # Variance column is opt-in and equals SE squared.
         assert "AREA_CHANGE_VARIANCE" not in off.columns

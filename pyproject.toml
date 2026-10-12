@@ -152,6 +152,9 @@ pretty = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# Put tests/ on sys.path so shared test-only helpers (e.g. nsvb_oracle, the
+# scalar NSVB reference oracle moved out of src per #127) import by bare name.
+pythonpath = ["tests"]
 python_files = ["test_*.py", "*_test.py"]
 python_functions = ["test_*"]
 python_classes = ["Test*"]

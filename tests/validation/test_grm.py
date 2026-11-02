@@ -517,3 +517,89 @@ class TestGRMAllLive5Inches:
             result = estimator(db, land_type="forest", tree_type="al5", measure="tpa")
         total_col = next(c for c in result.columns if c.endswith("_TOTAL"))
         assert values_match(result[total_col][0], formula("1"))
+
+
+def woodland_domain(fia_db) -> str | None:
+    """A tree_domain leaving out woodland species (REF_SPECIES.WOODLAND = 'Y').
+
+    EVALIDator's total-stem mortality attributes for timber species
+    (snums 11159, 11160) join REF_SPECIES and keep WOODLAND = 'N'.
+    """
+    import duckdb
+
+    with duckdb.connect(str(fia_db), read_only=True) as con:
+        spcds = [
+            r[0]
+            for r in con.sql(
+                "SELECT SPCD FROM REF_SPECIES WHERE WOODLAND = 'Y' ORDER BY SPCD"
+            ).fetchall()
+        ]
+    return f"SPCD NOT IN ({', '.join(map(str, spcds))})" if spcds else None
+
+
+class TestMortalityMeasures:
+    """Mortality's sawlog and total-stem measures match EVALIDator.
+
+    Sawlog volume of sawtimber trees reads VOLCSNET with the SUBP_ sawtimber
+    columns (snums 216, 222). Sound total-stem wood volume of timber species
+    at least 1 inch reads VOLTSSND with the MICR_ all-live columns, saplings
+    included (snums 11159, 11160).
+    """
+
+    @pytest.mark.parametrize(
+        "land_type, snum", [("forest", 216), ("timber", 222)], ids=["forest", "timber"]
+    )
+    def test_sawlog(self, fia_db, evalidator_client, land_type, snum):
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = mortality(
+                db, land_type=land_type, tree_type="sl", measure="sawlog"
+            )
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=snum,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="cubic feet/year",
+            estimate_type="sawlog volume of sawtimber mortality",
+        )
+        pyfia_total = result["MORT_TOTAL"][0]
+        print(f"\n  pyFIA: {pyfia_total:,.1f}  EVALIDator: {ev.estimate:,.1f}")
+        assert values_match(pyfia_total, ev.estimate), (
+            f"pyFIA {pyfia_total} vs EVALIDator {ev.estimate}"
+        )
+        assert se_values_match(
+            result["MORT_TOTAL_SE"][0], ev.sampling_error, rel_tol=SE_TOLERANCE_GRM
+        )
+
+    @pytest.mark.parametrize(
+        "land_type, snum",
+        [("forest", 11159), ("timber", 11160)],
+        ids=["forest", "timber"],
+    )
+    def test_total_stem(self, fia_db, evalidator_client, land_type, snum):
+        with FIA(fia_db) as db:
+            db.clip_by_evalid(GEORGIA_EVALID_GRM)
+            result = mortality(
+                db,
+                land_type=land_type,
+                tree_type="al",
+                measure="total_stem",
+                tree_domain=woodland_domain(fia_db),
+            )
+
+        ev = evalidator_client.get_custom_estimate(
+            snum=snum,
+            state_code=GEORGIA_STATE_CODE,
+            year=GEORGIA_YEAR,
+            units="cubic feet/year",
+            estimate_type="sound total-stem wood volume mortality (at least 1 inch)",
+        )
+        pyfia_total = result["MORT_TOTAL"][0]
+        print(f"\n  pyFIA: {pyfia_total:,.1f}  EVALIDator: {ev.estimate:,.1f}")
+        assert values_match(pyfia_total, ev.estimate), (
+            f"pyFIA {pyfia_total} vs EVALIDator {ev.estimate}"
+        )
+        assert se_values_match(
+            result["MORT_TOTAL_SE"][0], ev.sampling_error, rel_tol=SE_TOLERANCE_GRM
+        )

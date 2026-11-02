@@ -13,6 +13,8 @@ Public API Functions:
     carbon_pool(): Estimate carbon pools
     growth(): Estimate tree growth
     mortality(): Estimate tree mortality
+    mortality_trees(): Tree-level frame behind mortality()
+    domain_total(): Totals and SEs of a per-tree value
     removals(): Estimate tree removals
     site_index(): Estimate area-weighted mean site index
     tpa(): Estimate trees per acre and basal area
@@ -41,8 +43,10 @@ from .estimators import (
     carbon,
     carbon_flux,
     carbon_pool,
+    domain_total,
     growth,
     mortality,
+    mortality_trees,
     removals,
     site_index,
     tpa,
@@ -62,6 +66,8 @@ __all__ = [
     "carbon_pool",
     "growth",
     "mortality",
+    "mortality_trees",
+    "domain_total",
     "removals",
     "site_index",
     "tpa",

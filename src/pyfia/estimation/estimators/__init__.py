@@ -13,7 +13,12 @@ from .carbon import carbon
 from .carbon_flux import carbon_flux
 from .carbon_pools import CarbonPoolEstimator, carbon_pool
 from .growth import GrowthEstimator, growth
-from .mortality import MortalityEstimator, mortality
+from .mortality import (
+    MortalityEstimator,
+    domain_total,
+    mortality,
+    mortality_trees,
+)
 from .panel import PanelBuilder, panel
 from .panel_validation import (
     ComparisonResult,
@@ -37,6 +42,8 @@ __all__ = [
     "carbon_pool",
     "growth",
     "mortality",
+    "mortality_trees",
+    "domain_total",
     "panel",
     "removals",
     "site_index",

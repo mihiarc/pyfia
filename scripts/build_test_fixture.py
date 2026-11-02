@@ -85,8 +85,13 @@ _UNUSED_TREE_COLUMNS = (
     "VOLTSSND",
     "VOLTSSND_BARK",
 )
+# Midpoint columns mortality() reads (measure="total_stem", "green_weight")
+# and its tests read through mortality_trees(columns=...).
+_MIDPT_COLUMNS = ("DRYBIO_BOLE_BARK", "VOLTSGRS", "VOLTSSND")
 DROP_COLUMNS = {
-    t: _UNUSED_TREE_COLUMNS for t in ("TREE", "TREE_GRM_BEGIN", "TREE_GRM_MIDPT")
+    "TREE": _UNUSED_TREE_COLUMNS,
+    "TREE_GRM_BEGIN": _UNUSED_TREE_COLUMNS,
+    "TREE_GRM_MIDPT": tuple(c for c in _UNUSED_TREE_COLUMNS if c not in _MIDPT_COLUMNS),
 }
 
 

@@ -95,4 +95,4 @@ These EVALIDator translations group growing-stock mortality (trees ≥5" DBH on 
   </Card>
 </CardGroup>
 
-<Tip>The Python equivalent is [`mortality()`](/api/pyfia-estimation-estimators-mortality) — pass `grp_by="AGENTCD"` or `"DSTRBCD1"`. Standard errors (`MORT_ACRE_SE`, `MORT_TOTAL_SE`) come back automatically; add `variance=True` for the matching variance columns.</Tip>
+<Tip>The Python equivalent is [`mortality()`](/api/pyfia-estimation-estimators-mortality) — pass `grp_by="AGENTCD"` or `"DSTRBCD1"`. Standard errors (`MORT_ACRE_SE`, `MORT_TOTAL_SE`) come back automatically; add `variance=True` for the matching variance columns. For a per-tree value of your own, such as a dollar value, build the tree frame with [`mortality_trees()`](/api/pyfia-estimation-estimators-mortality) and estimate its totals and standard errors with `domain_total()`.</Tip>

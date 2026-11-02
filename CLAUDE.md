@@ -45,12 +45,13 @@ The `Makefile` targets:
 - **EVALIDator groups growth, removals and mortality by the condition of the tree's time-2 record** (`TREE.CONDID`), not by its previous condition. `attach_tree_conditions()` in `src/pyfia/estimation/grm.py` does the same (#138).
 - **EVALIDator's per-acre value is the attribute total divided by the full domain area** (all in-domain conditions, with adjustment factors), not by the area of conditions that hold a qualifying tree. pyFIA's shared two-stage aggregation doesn't do this yet (#146).
 - **EVALIDator returns the SQL behind every estimate**, in `metadata.sql` of the fullreport response. Diff against it before calling a gap a methodology difference.
-  - Per-period estimates reproduce exactly from a local database of the same FIADB release. Annual ones (÷ `REMPER`) can drift about 0.05% when EVALIDator serves a newer release, so validate exactness on the per-period snums.
+  - Per-period estimates reproduce exactly from a local database of the same FIADB release. Annual ones (÷ `REMPER`) can drift when EVALIDator serves a newer release, so validate exactness on the per-period snums. The drift is per state: between FIADB 1.9.4 and 1.9.5, GRM mortality matches exactly in most southern states but runs 0.02–0.08% high in FL, OK and TX (up to 0.14% in SE).
 - **Area change counts one `SUBP_COND_CHNG_MTRX` row per subplot**: `SUBPTYP` 1 when `COND.PROP_BASIS` is `SUBP`, 3 when it is `MACR`, with the matching adjustment factor, and `COND_NONSAMPLE_REASN_CD` 0 at both times (#151).
   - FIADB's COND has no `PREVCOND` (1.9.4 and 1.9.5), so the change matrix is the only reliable time-1 ↔ time-2 condition link. Plots outside it (periodic inventories) fall back to the same CONDID (`condition_intervals`).
 - **All-live GRM estimates (trees at least 1 inch, `tree_type="al"`) use the `MICR_*_AL_*` columns** of `TREE_GRM_COMPONENT`, whose `SUBPTYP_GRM` 2 rows are microplot saplings (#167). Growing stock and sawtimber use `SUBP_*`.
   - `SUBP_*_AL_*` is EVALIDator's at-least-5-inch population, `tree_type="al5"` (#173). EVALIDator's SQL for it (snums 901, 907, 2674, 3000) has no DIA or DIA_MIDPT filter, so `"al5"` has none either.
   - Don't build the at-least-5-inch population by filtering `"al"` to 5 inches. A tree that grew past 5 inches on the microplot keeps the microplot's expansion there, so the population weights are wrong.
+  - EVALIDator's total-stem mortality (snums 11159, 11160) is sound volume, `TREE_GRM_MIDPT.VOLTSSND`, on the `MICR_*_AL_*` columns, and keeps timber species only (`REF_SPECIES.WOODLAND = 'N'`). It has no mortality attribute for gross `VOLTSGRS` or for green weight.
 - **A domain's standard error needs every plot in the evaluation**, zero-filled where the plot has nothing in the domain, with the exact Bechtold & Patterson formula (`s²_h`, not `s²_h / n_h`). #147, #149 and #159 each broke this.
 
 ## Regression guardrails

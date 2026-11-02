@@ -187,6 +187,30 @@ class TestCalculateValues:
         assert result["MORT_VALUE"][0] is None
         assert result["MORT_VALUE"][1] == 2000.0
 
+    def test_total_stem_measure(self, mock_db):
+        """Total-stem mortality = TPA_UNADJ * VOLTSSND; a null adds nothing."""
+        estimator = MortalityEstimator(mock_db, {"measure": "total_stem"})
+        data = pl.DataFrame({"TPA_UNADJ": [6.0, 6.0], "VOLTSSND": [0.5, None]}).lazy()
+        result = estimator.calculate_values(data).collect()
+        assert result["MORT_VALUE"].to_list() == [3.0, 0.0]
+
+    def test_green_weight_measure(self, mock_db):
+        """Green weight raises dry bole wood and bark by their moisture contents."""
+        estimator = MortalityEstimator(mock_db, {"measure": "green_weight"})
+        data = pl.DataFrame(
+            {
+                "TPA_UNADJ": [2.0, 2.0],
+                "DRYBIO_BOLE": [1000.0, None],
+                "DRYBIO_BOLE_BARK": [100.0, None],
+                "MC_PCT_GREEN_WOOD": [100.0, 100.0],
+                "MC_PCT_GREEN_BARK": [50.0, 50.0],
+            }
+        ).lazy()
+        result = estimator.calculate_values(data).collect()
+        expected = 2.0 * (1000.0 * 2.0 + 100.0 * 1.5) * LBS_TO_SHORT_TONS
+        assert result["MORT_VALUE"][0] == pytest.approx(expected)
+        assert result["MORT_VALUE"][1] == 0.0
+
     def test_zero_tpa_gives_zero(self, mock_db):
         config = {"measure": "volume"}
         estimator = MortalityEstimator(mock_db, config)
@@ -267,10 +291,8 @@ class TestMeasureValidation:
     """Tests for measure parameter validation in the public function."""
 
     def test_valid_measures_accepted(self):
-        """All valid measure types should be accepted."""
-        valid_measures = ["volume", "sawlog", "biomass", "tpa", "count", "basal_area"]
-        for measure in valid_measures:
-            config = {"measure": measure}
-            estimator = MortalityEstimator(MockDB(), config)
-            # Should not raise
-            assert estimator.config["measure"] == measure
+        """The public validator accepts every measure calculate_values computes."""
+        from pyfia.validation import MORTALITY_MEASURES, validate_mortality_measure
+
+        for measure in MORTALITY_MEASURES:
+            assert validate_mortality_measure(measure) == measure

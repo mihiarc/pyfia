@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.8.0] - 2026-11-02
+
 Mortality gets FIA's volume for saplings, a green-weight measure, a working
 sawlog measure, and design-based standard errors for any per-tree value the
 caller defines, such as a dollar value.

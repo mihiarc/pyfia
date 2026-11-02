@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+Mortality gets FIA's volume for saplings, a green-weight measure, a working
+sawlog measure, and design-based standard errors for any per-tree value the
+caller defines, such as a dollar value.
+
+### Added
+- **`mortality(measure="total_stem")`: sound total-stem wood volume**, ground to tip (`VOLTSSND`), the volume FIADB computes for trees at least 1 inch, saplings included. With `tree_type="al"` and woodland species left out, it matches EVALIDator snums 11159 (forest land) and 11160 (timberland), totals and standard errors, on Georgia EVALID 132303. EVALIDator has no mortality attribute for gross total-stem volume (`VOLTSGRS`); read it with `mortality_trees(columns="VOLTSGRS")`.
+- **`mortality(measure="green_weight")`: green weight of bole wood and bark**, in green short tons: `DRYBIO_BOLE` and `DRYBIO_BOLE_BARK` raised by the species' `MC_PCT_GREEN_WOOD` and `MC_PCT_GREEN_BARK` from `REF_SPECIES`. EVALIDator has no green-weight attribute, so it is validated against the same formula in SQL. It raises, naming the species, if a tree with dry biomass belongs to a species with no moisture content.
+- **`mortality_trees()` and `domain_total()`: standard errors for a value you define per tree.** `mortality_trees()` returns one row per dying tree with its stratum keys, its adjusted annual mortality per acre (`TPA_ADJ`) and any `columns` you ask for from `TREE_GRM_MIDPT`, `COND`, `PLOT` or `TREE`. Add a per-tree value and grouping columns of your own, and `domain_total()` returns each group's total and Bechtold and Patterson standard error, with every plot in the evaluation in the variance (zero where a plot has no tree in the group). Given one of `mortality()`'s own measures it reproduces `mortality()`'s totals, standard errors and counts.
+
+### Fixed
+- **`mortality(measure="sawlog")` and `measure="count"` raised `Invalid measure`.** The validator didn't list them, though the estimator computes both. Sawlog volume now matches EVALIDator snums 216 and 222 with `tree_type="sl"` on Georgia EVALID 132303.
+- **`mortality(measure="carbon")` returned tree counts.** It passed the validator but had no carbon branch, so it fell through to the tree count. It now raises and points to `measure="biomass"`.
+- The `mortality()` docstring said FIA computes no volume for trees under 5 inches, and that `as_rate=True` returns mortality divided by live trees. `MORT_RATE` is annual mortality per acre, equal to `MORT_ACRE`.
+
+### Tests
+- The Alabama fixture keeps `TREE_GRM_MIDPT`'s `VOLTSSND`, `VOLTSGRS` and `DRYBIO_BOLE_BARK`, and every `mortality()` measure is tested through the public function.
+- EVALIDator validation tests cover mortality's sawlog volume (snums 216 and 222) and sound total-stem volume (snums 11159 and 11160).
+
 ## [1.7.0] - 2026-09-29
 
 A tree type for EVALIDator's all-live trees at least 5 inches in the

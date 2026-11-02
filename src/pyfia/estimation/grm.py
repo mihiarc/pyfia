@@ -13,6 +13,8 @@ from typing import Literal
 
 import polars as pl
 
+from ..constants.columns import TreeColumns
+
 # Re-export shared variance function
 from .variance import calculate_domain_total_variance  # noqa: F401
 
@@ -236,7 +238,8 @@ def load_grm_midpt(
     db : FIA
         Database connection
     measure : str, default 'volume'
-        What to measure: 'volume', 'biomass', 'sawlog', 'count', 'tpa', 'basal_area'
+        What to measure: 'volume', 'sawlog', 'total_stem', 'biomass',
+        'green_weight', 'count', 'tpa', 'basal_area'
     include_additional_cols : list of str, optional
         Additional columns to include from the table
 
@@ -263,8 +266,12 @@ def load_grm_midpt(
         cols.append("VOLCFNET")
     elif measure == "sawlog":
         cols.append("VOLCSNET")
+    elif measure == "total_stem":
+        cols.append(TreeColumns.VOLTSSND)
     elif measure == "biomass":
         cols.extend(["DRYBIO_BOLE", "DRYBIO_BRANCH", "DRYBIO_AG"])
+    elif measure == "green_weight":
+        cols.extend([TreeColumns.DRYBIO_BOLE, TreeColumns.DRYBIO_BOLE_BARK])
     # count, tpa, basal_area don't need additional volume columns
 
     # Add any additional requested columns
@@ -279,7 +286,9 @@ def load_grm_midpt(
         "DIA",
         "VOLCFNET",
         "VOLCSNET",
+        TreeColumns.VOLTSSND,
         "DRYBIO_BOLE",
+        TreeColumns.DRYBIO_BOLE_BARK,
         "DRYBIO_BRANCH",
         "DRYBIO_AG",
     }

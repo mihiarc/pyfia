@@ -205,9 +205,30 @@ def validate_boolean(value: Any, param_name: str) -> bool:
     return value
 
 
+MORTALITY_MEASURES = (
+    "volume",
+    "sawlog",
+    "total_stem",
+    "biomass",
+    "green_weight",
+    "basal_area",
+    "tpa",
+    "count",
+)
+
+
 def validate_mortality_measure(measure: str) -> str:
-    """Validate mortality measure parameter."""
-    valid_measures = {"tpa", "basal_area", "volume", "biomass", "carbon"}
+    """Validate mortality measure parameter.
+
+    Accepts exactly the measures ``mortality()`` computes. ``"carbon"`` is
+    rejected with a pointer to ``"biomass"``: mortality has no carbon branch.
+    """
+    if measure == "carbon":
+        raise ValueError(
+            "measure='carbon' is not available for mortality(). Use "
+            "measure='biomass' for dry short tons."
+        )
+    valid_measures = set(MORTALITY_MEASURES)
     if measure not in valid_measures:
         raise ValueError(
             f"Invalid measure '{measure}'. "

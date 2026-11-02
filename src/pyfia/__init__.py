@@ -62,7 +62,11 @@ from pyfia.estimation.estimators.area import area
 from pyfia.estimation.estimators.area_change import area_change
 from pyfia.estimation.estimators.biomass import biomass
 from pyfia.estimation.estimators.growth import growth
-from pyfia.estimation.estimators.mortality import mortality
+from pyfia.estimation.estimators.mortality import (
+    domain_total,
+    mortality,
+    mortality_trees,
+)
 from pyfia.estimation.estimators.panel import panel
 from pyfia.estimation.estimators.removals import removals
 from pyfia.estimation.estimators.site_index import site_index
@@ -119,6 +123,8 @@ __all__ = [
     "volume",
     "tpa",
     "mortality",
+    "mortality_trees",
+    "domain_total",
     "growth",
     "panel",
     "removals",

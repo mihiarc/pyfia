@@ -15,7 +15,7 @@ annual tree mortality using TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables.
 
 ## Functions
 
-### `mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L255" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `mortality` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L386" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 mortality(db: str | FIA, grp_by: str | list[str] | None = None, by_species: bool = False, by_size_class: bool = False, size_class_type: str = 'standard', land_type: str = 'timber', tree_type: str = 'gs', measure: str = 'volume', tree_domain: str | None = None, area_domain: str | None = None, as_rate: bool = False, totals: bool = True, variance: bool = False, most_recent: bool = False) -> pl.DataFrame
@@ -47,10 +47,29 @@ This is the correct FIA statistical methodology for mortality estimation.
   (EVALIDator's "trees at least 5 inches"), from the subplot GRM
   columns; see Notes
 - 'sl' or 'sawtimber'\: sawtimber-size trees
-- `measure`: What to measure in the mortality estimation.
+- `measure`: What to measure, from each tree's midpoint record (TREE_GRM_MIDPT)\:
+
+- 'volume'\: net merchantable bole wood volume (VOLCFNET), in cubic
+  feet. FIA computes it for trees at least 5 inches.
+- 'sawlog'\: net sawlog wood volume (VOLCSNET), in cubic feet. It is
+  zero below sawtimber size, so merchantable volume above the sawlog
+  is 'volume' minus 'sawlog'. EVALIDator snums 216 (forest land) and
+  222 (timberland) with ``tree_type="sl"``.
+- 'total_stem'\: sound total-stem wood volume, ground to tip
+  (VOLTSSND), in cubic feet. FIA computes it for trees at least
+  1 inch, so it is the volume measure for saplings. EVALIDator snums
+  11159 (forest land) and 11160 (timberland) with ``tree_type="al"``;
+  see Notes.
+- 'biomass'\: dry bole and branch biomass (DRYBIO_BOLE +
+  DRYBIO_BRANCH), in dry short tons.
+- 'green_weight'\: green weight of bole wood and bark, in green short
+  tons; see Notes. EVALIDator has no counterpart.
+- 'basal_area'\: basal area, in square feet.
+- 'tpa' or 'count'\: number of trees.
 - `tree_domain`: SQL-like filter expression for tree-level filtering.
 - `area_domain`: SQL-like filter expression for area/condition-level filtering.
-- `as_rate`: If True, return mortality as a rate (mortality/live).
+- `as_rate`: If True, also return ``MORT_RATE`` and ``MORT_RATE_SE``, equal to
+``MORT_ACRE`` and ``MORT_ACRE_SE`` (annual mortality per acre).
 - `totals`: If True, include population-level total estimates.
 - `variance`: If True, also return variance columns (``*_VARIANCE``) alongside the
 standard errors (``*_SE``, always returned). Variance = SE squared.
@@ -73,24 +92,151 @@ Basic volume mortality on forestland:
 >>> results = mortality(db, measure="volume", land_type="forest")
 Mortality by species (tree count):
 >>> results = mortality(db, by_species=True, measure="tpa")
-Pre-merchantable tree mortality (trees &lt; 5" DBH):
-&gt;>> results = mortality(
+Sapling mortality volume (trees 1.0-4.9 inches), in cubic feet per year:
+>>> results = mortality(
 ...     db,
-...     tree_type="live",  # Include all live trees, not just growing stock
-...     by_size_class=True,
-...     size_class_type="market",  # Returns Pre-merchantable, Pulpwood, etc.
-...     measure="tpa",  # TPA recommended for small trees (no volume calculated)
+...     tree_type="al",  # all live trees at least 1 inch, saplings included
+...     measure="total_stem",
+...     tree_domain="DIA_MIDPT &lt; 5",
 ... )
->>> # Filter to pre-merchantable only:
->>> premerch = results.filter(pl.col("SIZE_CLASS") == "Pre-merchantable")
+Sawlog volume of dying sawtimber trees on timberland (EVALIDator snum 222):
+&gt;>> results = mortality(db, tree_type="sl", measure="sawlog")
 Mortality of all live trees at least 5 inches, in trees per year
 (EVALIDator snum 901):
 >>> results = mortality(db, tree_type="al5", land_type="forest", measure="tpa")
 
 
+### `mortality_trees` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L613" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+mortality_trees(db: str | FIA, land_type: str = 'timber', tree_type: str = 'gs', tree_domain: str | None = None, area_domain: str | None = None, columns: str | list[str] | None = None) -> pl.DataFrame
+```
+
+
+Return the tree-level frame behind ``mortality()``, one row per dying tree.
+
+Each row is a mortality record from TREE_GRM_COMPONENT in the database's
+GRM evaluation, with its plot's stratum keys and its adjusted annual
+mortality per acre (``TPA_ADJ``). Add a per-tree value of your own, such
+as a stumpage value, then pass the frame to :func:`domain_total` for
+design-based totals and standard errors.
+
+**Args:**
+- `db`: Database connection or path to FIA database. It must be clipped to
+a GRM evaluation (``db.clip_by_evalid()`` or
+``db.clip_most_recent(eval_type="GRM")``).
+- `land_type`: Land type to include in estimation.
+- `tree_type`: Tree population to include, as in ``mortality()``\:
+
+- 'gs'\: growing stock
+- 'al' or 'live'\: all live trees at least 1 inch d.b.h., saplings on
+  the microplot included
+- 'al5'\: all live trees at least 5 inches d.b.h./d.r.c., from the
+  subplot GRM columns
+- 'sl' or 'sawtimber'\: sawtimber-size trees
+- `tree_domain`: SQL-like filter expression for tree-level filtering, for example
+``"DIA_MIDPT < 5"``.
+- `area_domain`: SQL-like filter expression for area/condition-level filtering.
+- `columns`: Extra columns to return. Each name is looked up in TREE_GRM_MIDPT
+(the tree at the remeasurement midpoint), then COND (the tree's own
+condition), PLOT, then TREE (the tree's time-2 record). Examples\:
+``"VOLCFNET"``, ``"VOLCSNET"``, ``"VOLTSGRS"``, ``"DRYBIO_BOLE"``,
+``"DSTRBCD1"``, ``"UNITCD"``, ``"AGENTCD"``.
+
+**Returns:**
+- One row per mortality tree, sorted by PLT_CN and TRE_CN, with columns:
+
+- PLT_CN, TRE_CN: plot and tree keys
+- STATECD: state code
+- STRATUM_CN, ESTN_UNIT_CN, EXPNS: the plot's stratum, estimation
+  unit and expansion factor (acres per plot)
+- COMPONENT: GRM component (MORTALITY1, MORTALITY2)
+- SUBPTYP_GRM: plot footprint that expands the tree (1 subplot,
+  2 microplot, 3 macroplot)
+- DIA_BEGIN, DIA_MIDPT: diameter at time 1 and at the midpoint
+- SPCD: species code
+- TPA_UNADJ: annual mortality trees per acre, unadjusted
+- ADJ_FACTOR: the stratum's adjustment factor for SUBPTYP_GRM
+- TPA_ADJ: TPA_UNADJ * ADJ_FACTOR
+- The requested ``columns``
+
+
+**Examples:**
+
+Value dying sawtimber at a sawlog price and a pulpwood price for the
+merchantable volume above the sawlog, by state and disturbance:
+>>> trees = mortality_trees(
+...     db,
+...     tree_type="al5",
+...     columns=["VOLCFNET", "VOLCSNET", "DSTRBCD1", "AGENTCD"],
+... )
+>>> sawlog = pl.col("VOLCSNET").fill_null(0)
+>>> topwood = pl.col("VOLCFNET").fill_null(0) - sawlog
+>>> trees = trees.with_columns(
+...     VALUE=sawlog * 0.90 + topwood * 0.20,  # dollars per cubic foot
+...     LOSS=pl.when(pl.col("DSTRBCD1").is_between(30, 32))
+...     .then(pl.lit("fire"))
+...     .otherwise(pl.lit("other")),
+... )
+>>> by_state = domain_total(db, trees, "VALUE", grp_by=["STATECD", "LOSS"])
+Gross total-stem volume of dying saplings, in cubic feet per year:
+>>> saplings = mortality_trees(
+...     db, tree_type="al", tree_domain="DIA_MIDPT &lt; 5", columns="VOLTSGRS"
+... ).with_columns(pl.col("VOLTSGRS").fill_null(0))
+&gt;>> domain_total(db, saplings, "VOLTSGRS")
+
+
+### `domain_total` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L749" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+domain_total(db: FIA, trees: pl.DataFrame, value: str | None = None, grp_by: str | list[str] | None = None, variance: bool = False) -> pl.DataFrame
+```
+
+
+Estimate totals and standard errors of a per-tree value over a tree frame.
+
+The total of each group is the sum over its trees of
+``TPA_ADJ * value * EXPNS``. Its standard error follows Bechtold and
+Patterson (2005): every plot in the evaluation enters the variance, with
+zero for plots that have no tree in the group, and each estimation unit
+contributes its post-stratified variance.
+
+**Args:**
+- `db`: The database the frame was built from, still clipped to the same
+evaluation. It supplies every plot in the evaluation and its stratum.
+- `trees`: A tree frame from \:func\:`mortality_trees`, with any columns you added.
+It needs ``PLT_CN``, ``TPA_ADJ``, ``value`` and the ``grp_by``
+columns. To leave trees out of an estimate, filter rows or set their
+value to zero; both give the same total and standard error.
+- `value`: Column holding each tree's value per tree, such as cubic feet or
+dollars. It must have no nulls. If None, each tree counts once and
+the total is in trees.
+- `grp_by`: Columns to group by. Null is a group of its own.
+- `variance`: If True, also return ``TOTAL_VARIANCE`` (``TOTAL_SE`` squared).
+
+**Returns:**
+- One row per group present in ``trees``, sorted by the group columns:
+
+- The ``grp_by`` columns
+- TOTAL: estimated total of ``value`` per year
+- TOTAL_SE: standard error of TOTAL
+- TOTAL_VARIANCE: TOTAL_SE squared (if variance=True)
+- N_PLOTS: plots with at least one tree in the group
+- N_TREES: tree records in the group
+
+
+**Examples:**
+
+Merchantable volume of dying trees at least 5 inches, by state. This
+equals ``mortality(db, tree_type="al5", grp_by="STATECD")``:
+>>> trees = mortality_trees(db, tree_type="al5", columns="VOLCFNET")
+>>> trees = trees.with_columns(pl.col("VOLCFNET").fill_null(0))
+>>> domain_total(db, trees, "VOLCFNET", grp_by="STATECD")
+
+
 ## Classes
 
-### `MortalityEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L20" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+### `MortalityEstimator` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L81" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 
 Mortality estimator for FIA data using GRM methodology.
@@ -101,7 +247,7 @@ using the TREE_GRM_COMPONENT and TREE_GRM_MIDPT tables.
 
 **Methods:**
 
-#### `component_type` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L29" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `component_type` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L90" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 component_type(self) -> Literal['growth', 'mortality', 'removals']
@@ -110,7 +256,7 @@ component_type(self) -> Literal['growth', 'mortality', 'removals']
 Return 'mortality' as the GRM component type.
 
 
-#### `get_component_filter` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L33" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `get_component_filter` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L94" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 get_component_filter(self) -> pl.Expr | None
@@ -119,7 +265,7 @@ get_component_filter(self) -> pl.Expr | None
 Filter to mortality components only.
 
 
-#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L37" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `load_data` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L98" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 load_data(self) -> pl.LazyFrame | None
@@ -128,7 +274,7 @@ load_data(self) -> pl.LazyFrame | None
 Load GRM data for mortality estimation.
 
 
-#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L76" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `apply_filters` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L157" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -137,7 +283,7 @@ apply_filters(self, data: pl.LazyFrame) -> pl.LazyFrame
 Apply mortality-specific filters.
 
 
-#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L94" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_values` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L178" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_values(self, data: pl.LazyFrame) -> pl.LazyFrame
@@ -148,7 +294,7 @@ Calculate mortality values per acre.
 TPA_UNADJ is already annualized, so no remeasurement period adjustment needed.
 
 
-#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L151" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `aggregate_results` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L252" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 aggregate_results(self, data: pl.LazyFrame | None) -> AggregationResult
@@ -161,7 +307,7 @@ Aggregate mortality with two-stage aggregation.
 explicit variance calculation.
 
 
-#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L195" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `calculate_variance` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L296" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 calculate_variance(self, agg_result: AggregationResult) -> pl.DataFrame
@@ -181,10 +327,25 @@ aggregate_results().
 - Results with variance columns added.
 
 
-#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L246" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+#### `format_output` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L347" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
 
 ```python
 format_output(self, results: pl.DataFrame) -> pl.DataFrame
 ```
 
 Format mortality estimation output.
+
+
+#### `tree_frame` <sup><a href="https://github.com/mihiarc/pyfia/blob/main/src/pyfia/estimation/estimators/mortality.py#L355" target="_blank"><Icon icon="github" style="width: 14px; height: 14px;" /></a></sup>
+
+```python
+tree_frame(self) -> pl.DataFrame
+```
+
+Return one row per mortality tree with its design keys and weight.
+
+Runs the same loading, population and domain filters as
+``estimate()``, joins each tree's plot to its stratum, and applies the
+GRM adjustment factor for the tree's ``SUBPTYP_GRM``. ``TPA_ADJ`` is
+``TPA_UNADJ * ADJ_FACTOR``: the tree's annual mortality per acre after
+adjustment.

@@ -12,10 +12,34 @@ from typing import Literal
 
 import polars as pl
 
+from ..constants.columns import TreeColumns
+from ..constants.tables import TableNames
 from ..core.exceptions import NoEVALIDError
 from ..filtering.utils import create_size_class_expr
 from .base import AggregationResult, BaseEstimator
 from .columns import collect_referenced_columns, columns_in_table
+
+# Columns every GRM frame carries before any table join: the component and
+# midpoint keys, diameters and the resolved population columns, plus the
+# PLOT columns mortality always joins.
+GRM_FRAME_COLUMNS = frozenset(
+    {
+        "TRE_CN",
+        "PLT_CN",
+        "DIA_BEGIN",
+        "DIA_MIDPT",
+        "DIA_END",
+        "COMPONENT",
+        "TPA_UNADJ",
+        "SUBPTYP_GRM",
+        "DIA",
+        "SPCD",
+        "STATUSCD",
+        "STATECD",
+        "INVYR",
+        "MACRO_BREAKPOINT_DIA",
+    }
+)
 
 logger = logging.getLogger(__name__)
 
@@ -37,6 +61,7 @@ class GRMBaseEstimator(BaseEstimator):
         """Initialize the GRM base estimator."""
         super().__init__(db, config)
         self._grm_columns = None
+        self._extra_routes: dict[str, list[str]] | None = None
         # Ensure EVALID filter is set for GRM estimation
         self._ensure_grm_evalid_filter()
 
@@ -128,8 +153,53 @@ class GRMBaseEstimator(BaseEstimator):
         for col in columns_in_table(self.db, "COND", referenced):
             if col not in base_cols:
                 base_cols.append(col)
+        for col in self._route_extra_columns()[TableNames.COND]:
+            if col not in base_cols:
+                base_cols.append(col)
 
         return base_cols
+
+    def _route_extra_columns(self) -> dict[str, list[str]]:
+        """Route each ``config["columns"]`` name to the table that holds it.
+
+        Tables are searched in order: TREE_GRM_MIDPT (the tree at the
+        remeasurement midpoint), COND (the tree's own condition), PLOT, then
+        TREE (the tree's time-2 record). Columns the GRM frame already carries
+        are skipped.
+
+        Raises
+        ------
+        ValueError
+            If a column is in none of those tables, or is ``CONDID``, which the
+            GRM frame holds at plot level (always 1).
+        """
+        if self._extra_routes is not None:
+            return self._extra_routes
+
+        requested = list(dict.fromkeys(self.config.get("columns") or []))
+        if TreeColumns.CONDID in requested:
+            raise ValueError(
+                "CONDID is not available as a column: the GRM frame keeps "
+                "conditions at plot level. Request the COND attributes you "
+                "need by name instead."
+            )
+        remaining = [c for c in requested if c not in GRM_FRAME_COLUMNS]
+        routes: dict[str, list[str]] = {}
+        for table in (
+            TableNames.TREE_GRM_MIDPT,
+            TableNames.COND,
+            TableNames.PLOT,
+            TableNames.TREE,
+        ):
+            found = columns_in_table(self.db, table, remaining)
+            routes[table] = found
+            remaining = [c for c in remaining if c not in found]
+        if remaining:
+            raise ValueError(
+                f"Columns not found in TREE_GRM_MIDPT, COND, PLOT or TREE: {remaining}"
+            )
+        self._extra_routes = routes
+        return routes
 
     def _resolve_grm_columns(self):
         """Resolve GRM column names based on config."""
@@ -174,24 +244,37 @@ class GRMBaseEstimator(BaseEstimator):
             include_dia_end=(self.component_type != "removals"),
         )
 
+        routes = self._route_extra_columns()
+
         # Load GRM midpt table
-        grm_midpt = load_grm_midpt(self.db, measure=measure)
+        grm_midpt = load_grm_midpt(
+            self.db,
+            measure=measure,
+            include_additional_cols=routes[TableNames.TREE_GRM_MIDPT],
+        )
 
         # Join component with midpt
         data = grm_component.join(grm_midpt, on="TRE_CN", how="inner")
 
-        # Each GRM tree's condition comes from its TREE record (TREE.CONDID);
-        # AGENTCD is a tree attribute some groupings use.
+        # Each GRM tree's condition comes from its TREE record (TREE.CONDID).
+        # AGENTCD is a tree attribute some groupings use; requested columns
+        # found only on TREE join here too.
         grp_by = self.config.get("grp_by") or []
         if isinstance(grp_by, str):
             grp_by = [grp_by]
-        tree_cols = ["CN", "CONDID"] + (["AGENTCD"] if "AGENTCD" in grp_by else [])
-        tree = self._load_table_columns("TREE", tree_cols)
-        if "AGENTCD" in tree_cols:
+        tree_attrs = list(
+            dict.fromkeys(
+                ([TreeColumns.AGENTCD] if TreeColumns.AGENTCD in grp_by else [])
+                + routes[TableNames.TREE]
+            )
+        )
+        tree_cols = [TreeColumns.CN, TreeColumns.CONDID] + tree_attrs
+        tree = self._load_table_columns(TableNames.TREE, tree_cols)
+        if tree_attrs:
             data = data.join(
-                tree.select(["CN", "AGENTCD"]),
+                tree.select([TreeColumns.CN] + tree_attrs),
                 left_on="TRE_CN",
-                right_on="CN",
+                right_on=TreeColumns.CN,
                 how="left",
             )
 

@@ -104,12 +104,20 @@ class TestValidators:
         assert validate_mortality_measure("tpa") == "tpa"
         assert validate_mortality_measure("volume") == "volume"
         assert validate_mortality_measure("biomass") == "biomass"
-        assert validate_mortality_measure("carbon") == "carbon"
+        assert validate_mortality_measure("sawlog") == "sawlog"
+        assert validate_mortality_measure("total_stem") == "total_stem"
+        assert validate_mortality_measure("green_weight") == "green_weight"
+        assert validate_mortality_measure("count") == "count"
 
     def test_validate_mortality_measure_invalid(self):
         """Test invalid mortality measure values."""
         with pytest.raises(ValueError, match="Invalid measure"):
             validate_mortality_measure("invalid")
+
+    def test_validate_mortality_measure_carbon(self):
+        """mortality() has no carbon branch, so carbon is rejected."""
+        with pytest.raises(ValueError, match="measure='biomass'"):
+            validate_mortality_measure("carbon")
 
     def test_validate_domain_expression_valid(self):
         """Test valid domain expressions."""

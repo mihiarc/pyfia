@@ -24,6 +24,7 @@ Tooling:
 - Run `uv run pre-commit install` once per clone. The hooks then run ruff-format, ruff `--fix` and mypy (`uv run mypy src/pyfia/`) on every commit.
 - CI (`.github/workflows/tests.yml`) runs `pytest tests/unit`, mypy and `ruff check` on Python 3.11–3.14 for every pull request, including stacked ones. It doesn't check formatting, so the pre-commit hook is the only format gate.
 - DB-backed tests use a committed three-county Alabama FIADB subset (`tests/fixtures/fiadb_al/`, fixtures `fiadb_fixture_path` and `fiadb_fixture` in `tests/conftest.py`), so they run in CI. `tests/validation/` needs full state DBs (`PYFIA_DATABASE_PATH`) and the EVALIDator API.
+- Right after a PyPI publish, `uv run --with pyfia==X.Y.Z` can report "no version", because uv caches the simple index. Pass `--refresh`, and loop `uv pip compile --no-cache - <<< 'pyfia==X.Y.Z'` until PyPI's CDN catches up.
 
 The `Makefile` targets:
 

@@ -25,17 +25,17 @@ import math
 
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
-
-from pyfia.carbon.nsvb.carbon_fractions import (
-    get_carbon_fraction_live,
-    load_carbon_fractions_live,
-)
-from pyfia.carbon.nsvb.equations import (
+from nsvb_oracle import (
     Coefficients,
     harmonize_components,
     model_1,
     model_4,
     predict_tree_biomass,
+)
+
+from pyfia.carbon.nsvb.carbon_fractions import (
+    get_carbon_fraction_live,
+    load_carbon_fractions_live,
 )
 
 # Reuse the Douglas-fir coefficients from the equations test as a stable

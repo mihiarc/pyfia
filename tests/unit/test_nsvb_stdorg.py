@@ -23,6 +23,11 @@ from types import SimpleNamespace
 
 import polars as pl
 import pytest
+from nsvb_oracle import (
+    Coefficients,
+    lookup_coefficients,
+    predict_tree_biomass,
+)
 
 from pyfia.carbon._estimator_base import (
     _IMPLEMENTED_MODELS,
@@ -35,13 +40,8 @@ from pyfia.carbon.nsvb.coefficients import (
     build_stdorg_lookup,
     get_vectorized_lookup_tables,
     load_nsvb_coefficients,
-    lookup_coefficients,
 )
-from pyfia.carbon.nsvb.equations import (
-    Coefficients,
-    compute_nsvb_biomass,
-    predict_tree_biomass,
-)
+from pyfia.carbon.nsvb.equations import compute_nsvb_biomass
 
 _STDORG_SPECIES = {111, 131}
 

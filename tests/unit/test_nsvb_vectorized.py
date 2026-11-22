@@ -30,16 +30,14 @@ import random
 
 import polars as pl
 import pytest
-
-from pyfia.carbon.nsvb.coefficients import (
-    load_nsvb_coefficients,
-    lookup_coefficients,
-)
-from pyfia.carbon.nsvb.equations import (
+from nsvb_oracle import (
     Coefficients,
-    compute_nsvb_biomass,
+    lookup_coefficients,
     predict_tree_biomass,
 )
+
+from pyfia.carbon.nsvb.coefficients import load_nsvb_coefficients
+from pyfia.carbon.nsvb.equations import compute_nsvb_biomass
 
 # ---------------------------------------------------------------------------
 # Synthetic tree generator
